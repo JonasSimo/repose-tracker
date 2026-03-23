@@ -2557,7 +2557,13 @@ async function loadLoadPlanFromSharePoint() {
         const cell = String(rowVals[col] ?? '').trim();
         const m = cell.match(repPattern);
         if (!m) continue;
-        if (debugMatches.length < 15) debugMatches.push(`row${row+1} col${col+1}: "${cell}" → REP=${m[1]} day=${m[2]} month=${m[3]}`);
+        // Debug: log matches within ±30 days of today, or containing 2613072
+        const _d = parseInt(m[2],10), _mo = parseInt(m[3],10)-1;
+        const _dt = new Date(today.getFullYear(), _mo, _d);
+        const _diff = Math.round((_dt - today) / 86400000);
+        if (Math.abs(_diff) <= 30 || cell.includes('2613072')) {
+          debugMatches.push(`row${row+1} col${col+1}: "${cell}" → day=${m[2]} month=${m[3]} diff=${_diff}d`);
+        }
 
         const repId = `REP ${m[1]}`;
         const day   = parseInt(m[2], 10);
@@ -2589,7 +2595,7 @@ async function loadLoadPlanFromSharePoint() {
     }
 
     console.log('LOAD PLAN DEBUG — dates found:', Object.keys(loadsByDateKey));
-    console.log('LOAD PLAN DEBUG — first 15 matches:', debugMatches);
+    console.log('LOAD PLAN DEBUG — matches near today or REP 2613072:', debugMatches);
 
     // Build day slots: yesterday, today, then next 3 working days (Mon–Fri)
     const fmt = d => d.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
