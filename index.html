@@ -1174,9 +1174,15 @@ const SUB_SHORT = { 'Arms':'A', 'Backs':'B', 'Seats':'S' };
 
 // ── QC Auto-sync configuration ──
 // Replace with the SharePoint sharing link to your QC completion spreadsheet
-// Column A should contain 7-digit REP numbers (digits only, e.g. 2611056)
-const QC_SHEET_SHARING_URL = 'https://reposefurniturelimited.sharepoint.com/:x:/s/ReposeFurniture-Quality/IQBkNajahlhzTZcypUVLsTM7AW-gHMSu-C2cd2MMLj5npe0?e=0GZo6R';
-const QC_SHEET_NAME = 'Data';
+// Load Plan + QC completions — same workbook
+// Column A = QC completed REP numbers (updated every minute)
+// Row 1 = week numbers · Row 6 = delivery dates · Rows 7+ = REP numbers per column
+const OV_LOAD_PLAN_URL   = 'https://reposefurniturelimited.sharepoint.com/:x:/s/ReposeFurniture-PlanningRepose/IQD9dpVpE09LQZxBDPGSZhjTAacK5LMWwZgyKBDfcUOJ2vM?e=8iqRn3';
+const OV_LOAD_PLAN_SHEET = 'Sheet1'; // ← update if your sheet tab has a different name
+
+// QC auto-sync reads column A of the same file
+const QC_SHEET_SHARING_URL = OV_LOAD_PLAN_URL;
+const QC_SHEET_NAME        = OV_LOAD_PLAN_SHEET;
 
 let qcSyncInterval  = null;   // setInterval handle
 let qcLastSyncTime  = null;   // Date of last successful sync
@@ -1644,6 +1650,8 @@ function modalConfirm() {
   recentDone.unshift({ team:activeTeam, sub:sk, wc:activeWC, prep:activePrep, ji, label:job.rep });
   if (recentDone.length > 20) recentDone.pop();
   toast(`${job.rep} · ${initials} · marked complete`, 's');
+  // Save to SharePoint List in background (don't await — keep UI fast)
+  saveCompletionToList(activeTeam, sk, activeWC, activePrep, ji).catch(console.warn);
   renderJobs();
   renderTeamSidebar();
 }
@@ -1669,6 +1677,7 @@ function renderUndo() {
 function undoJob(team, sub, wc, prep, ji) {
   const s = STATE[team][sub][wc][prep][ji];
   s.done = false; s.doneAt = ''; s.initials = ''; s.doneDate = ''; s.autoSync = false;
+  deleteCompletionFromList(team, sub, wc, prep, ji).catch(console.warn);
   const idx = recentDone.findIndex(r=>r.team===team&&r.sub===sub&&r.wc===wc&&r.prep===prep&&r.ji===ji);
   if (idx>=0) recentDone.splice(idx,1);
   renderJobs(); renderTeamSidebar();
@@ -2068,8 +2077,18 @@ function renderOverviewTeam(teamName) {
         teamDone = !!rep.s[map.key];
       }
 
+      let repLabel;
+      if (teamName === 'QC') {
+        repLabel = rep.id;
+      } else {
+        const info = getJobInfoByRep(rep.id);
+        repLabel = info
+          ? `Job ${info.jobNo} · w/c ${info.wc}`
+          : rep.id;
+      }
+
       html += `<div class="rep-row ${teamDone ? 'all-done' : ''}">
-        <span class="rep-num">${rep.id}</span>
+        <span class="rep-num">${repLabel}</span>
         <div class="badge-strip">`;
 
       if (map.hasSubs) {
@@ -2104,6 +2123,152 @@ function renderOverviewTeam(teamName) {
 
   html += '</div>';
   area.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════
+// SHAREPOINT LIST — SHARED COMPLETION STATE
+// ═══════════════════════════════════════════════
+const SP_HOST      = 'reposefurniturelimited.sharepoint.com';
+const SP_SITE_PATH = '/sites/ReposeFurniture-PlanningRepose';
+const SP_LIST_NAME = 'ProductionCompletions';
+
+let _spSiteId = null;
+let _spListId = null;
+
+async function getSpSiteId() {
+  if (_spSiteId) return _spSiteId;
+  const res = await graphGet(`https://graph.microsoft.com/v1.0/sites/${SP_HOST}:${SP_SITE_PATH}`);
+  _spSiteId = res.id;
+  return _spSiteId;
+}
+
+async function getSpListId() {
+  if (_spListId) return _spListId;
+  const siteId = await getSpSiteId();
+  const res = await graphGet(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${SP_LIST_NAME}`);
+  _spListId = res.id;
+  return _spListId;
+}
+
+async function loadCompletionsFromList() {
+  try {
+    const siteId = await getSpSiteId();
+    const listId = await getSpListId();
+
+    // Fetch all completed items (paginate if needed)
+    let url = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999&$filter=fields/IsComplete eq true`;
+    const allItems = [];
+    while (url) {
+      const res = await graphGet(url);
+      (res.value || []).forEach(i => allItems.push(i));
+      url = res['@odata.nextLink'] || null;
+    }
+
+    // Reset all completion state before applying list data
+    TEAMS_CFG.forEach(t => {
+      const keys = t.hasSubs ? SUBS : ['all'];
+      keys.forEach(k => {
+        WEEKS.forEach(wk => {
+          for (let p = 1; p <= 5; p++) {
+            const jobs = PROD[wk]?.[p] || [];
+            if (STATE[t.name]?.[k]?.[wk]?.[p]) {
+              STATE[t.name][k][wk][p] = jobs.map(() => ({ done:false, doneAt:'', initials:'', doneDate:'', listItemId:null }));
+            }
+          }
+        });
+      });
+    });
+
+    // Apply each completion from the list
+    allItems.forEach(item => {
+      const f = item.fields;
+      const team = f.Team;
+      const sub  = f.SubTeam || 'all';
+      const wk   = f.Week;
+      const prep = Number(f.Prep);
+      const rep  = f.REP;
+      if (!team || !wk || !prep || !rep) return;
+      const jobs = PROD[wk]?.[prep] || [];
+      const ji   = jobs.findIndex(j => j.rep === rep);
+      if (ji < 0) return;
+      const s = STATE[team]?.[sub]?.[wk]?.[prep]?.[ji];
+      if (!s) return;
+      s.done        = true;
+      s.initials    = f.Initials    || '';
+      s.doneAt      = f.CompletedTime || '';
+      s.doneDate    = f.CompletedDate || '';
+      s.listItemId  = item.id;
+    });
+
+    renderJobs();
+    renderTeamSidebar();
+    renderPriorityBtn();
+    const t = new Date().toTimeString().slice(0,5);
+    console.log(`Completions loaded from SharePoint at ${t} — ${allItems.length} records`);
+  } catch(e) {
+    console.warn('loadCompletionsFromList failed:', e.message);
+  }
+}
+
+async function saveCompletionToList(team, sub, wk, prep, ji) {
+  try {
+    const siteId = await getSpSiteId();
+    const listId = await getSpListId();
+    const job = PROD[wk][prep][ji];
+    const s   = STATE[team][sub][wk][prep][ji];
+    const token = await getGraphToken();
+    const res = await fetch(
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`,
+      {
+        method: 'POST',
+        headers: { Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
+        body: JSON.stringify({ fields: {
+          Team:          team,
+          SubTeam:       sub === 'all' ? '' : sub,
+          Week:          wk,
+          WCDate:        PROD[wk]?.wc || '',
+          Prep:          prep,
+          JobNo:         job.itemNo,
+          REP:           job.rep,
+          Initials:      s.initials,
+          CompletedTime: s.doneAt,
+          CompletedDate: s.doneDate,
+          IsComplete:    true,
+        }})
+      }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    s.listItemId = data.id;
+  } catch(e) {
+    console.warn('saveCompletionToList failed:', e.message);
+    toast('Warning: completion saved locally but not synced to SharePoint', 'u');
+  }
+}
+
+async function deleteCompletionFromList(team, sub, wk, prep, ji) {
+  const s = STATE[team]?.[sub]?.[wk]?.[prep]?.[ji];
+  if (!s?.listItemId) return;
+  try {
+    const siteId = await getSpSiteId();
+    const listId = await getSpListId();
+    const token  = await getGraphToken();
+    await fetch(
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${s.listItemId}`,
+      { method:'DELETE', headers:{ Authorization:`Bearer ${token}` } }
+    );
+    s.listItemId = null;
+  } catch(e) {
+    console.warn('deleteCompletionFromList failed:', e.message);
+  }
+}
+
+// Full refresh — production data + completions — runs every 2 hours
+async function fullRefresh() {
+  await loadProductionFromSharePoint();
+  await loadCompletionsFromList();
+  const t = new Date().toTimeString().slice(0,5);
+  toast(`Auto-refreshed at ${t}`, 's');
 }
 
 // ═══════════════════════════════════════════════
@@ -2239,6 +2404,126 @@ function stopQCAutoSync() {
 }
 
 // ═══════════════════════════════════════════════
+// LOAD PLAN — LIVE SHAREPOINT SYNC
+// ═══════════════════════════════════════════════
+
+// Look up job number + week info for a REP in the production plan
+function getJobInfoByRep(repId) {
+  const digits = repId.replace(/\D/g, '');
+  for (const wk of WEEKS) {
+    for (let p = 1; p <= 5; p++) {
+      const jobs = PROD[wk]?.[p] || [];
+      for (const job of jobs) {
+        if (job.rep.replace(/\D/g, '') === digits) {
+          return { jobNo: job.itemNo, week: wk, wc: PROD[wk]?.wc || '' };
+        }
+      }
+    }
+  }
+  return null;
+}
+
+// Convert Excel serial date to JS Date
+function excelDateToJS(serial) {
+  return new Date((serial - 25569) * 86400 * 1000);
+}
+
+async function loadLoadPlanFromSharePoint() {
+  if (!graphAccount) return;
+  const pill = document.getElementById('sync-pill');
+  const lbl  = document.getElementById('sync-label');
+  if (pill) { pill.className = 'sync-pill syncing'; lbl.textContent = 'Syncing load plan…'; }
+
+  try {
+    const encoded   = encodeSharingUrl(OV_LOAD_PLAN_URL);
+    const driveItem = await graphGet(`https://graph.microsoft.com/v1.0/shares/${encoded}/driveItem`);
+    const driveId   = driveItem.parentReference.driveId;
+    const itemId    = driveItem.id;
+
+    const range = await graphGet(
+      `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}` +
+      `/workbook/worksheets('${encodeURIComponent(OV_LOAD_PLAN_SHEET)}')/usedRange?$select=values`
+    );
+
+    const values = range.values || [];
+    if (values.length < 7) {
+      console.warn('Load plan sheet has fewer than 7 rows — check sheet name');
+      return;
+    }
+
+    const today = new Date(); today.setHours(0,0,0,0);
+
+    // Parse each column (skip col 0 = column A which is QC completions)
+    const loadsByDateKey = {}; // "YYYY-MM-DD" → { date, diffDays, reps[] }
+    const numCols = Math.max(...values.map(r => r.length));
+
+    for (let col = 1; col < numCols; col++) {
+      const rawDate = values[5]?.[col]; // Row 6 (index 5) = delivery date
+      if (!rawDate) continue;
+
+      let delivDate;
+      if (typeof rawDate === 'number') {
+        delivDate = excelDateToJS(rawDate);
+      } else {
+        delivDate = new Date(rawDate);
+      }
+      if (isNaN(delivDate)) continue;
+      delivDate.setHours(0,0,0,0);
+
+      const diffDays = Math.round((delivDate - today) / 86400000);
+      if (diffDays < -1 || diffDays > 3) continue; // Yesterday to +3 days only
+
+      const key = delivDate.toISOString().slice(0, 10);
+      if (!loadsByDateKey[key]) {
+        loadsByDateKey[key] = { date: delivDate, diffDays, reps: [] };
+      }
+
+      // Rows 7+ (index 6+) contain REP numbers for this column
+      for (let row = 6; row < values.length; row++) {
+        const cell = String(values[row]?.[col] ?? '').trim();
+        const m = cell.match(/\b(\d{7})\b/);
+        if (!m) continue;
+        const repId = `REP ${m[1]}`;
+        if (!loadsByDateKey[key].reps.find(r => r.id === repId)) {
+          loadsByDateKey[key].reps.push({
+            id: repId,
+            s: { wm:[], fm:0, ct:0, sw:0, uh:[], as:0, qc:0 }
+          });
+        }
+      }
+    }
+
+    // Rebuild OV_DAYS
+    const dayDefs = [
+      { diff:-1, label:'Yesterday', cls:'yest'  },
+      { diff: 0, label:'Today',     cls:'today' },
+      { diff: 1, label:'Tomorrow',  cls:''      },
+      { diff: 2, label:'+2 Days',   cls:''      },
+      { diff: 3, label:'+3 Days',   cls:''      },
+    ];
+    const fmt = d => d.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
+
+    OV_DAYS.length = 0;
+    dayDefs.forEach(dd => {
+      const d = new Date(today);
+      d.setDate(today.getDate() + dd.diff);
+      const key   = d.toISOString().slice(0, 10);
+      const entry = loadsByDateKey[key];
+      OV_DAYS.push({ label:dd.label, date:fmt(d), cls:dd.cls, reps: entry ? entry.reps : [] });
+    });
+
+    const syncTime = new Date().toTimeString().slice(0, 5);
+    if (pill) { pill.className = 'sync-pill synced'; lbl.textContent = `Live · synced ${syncTime}`; }
+    if (document.getElementById('view-overview')?.classList.contains('active')) renderOverview();
+    renderPriorityBtn();
+
+  } catch(e) {
+    console.error('loadLoadPlanFromSharePoint failed:', e.message);
+    if (pill) { pill.className = 'sync-pill error'; lbl.textContent = 'Load plan sync failed'; }
+  }
+}
+
+// ═══════════════════════════════════════════════
 // MICROSOFT GRAPH API — LIVE SHAREPOINT SYNC
 // ═══════════════════════════════════════════════
 // ⚠️  SETUP: replace YOUR_CLIENT_ID_HERE with your Azure App Registration
@@ -2251,7 +2536,7 @@ function stopQCAutoSync() {
 //     5. Copy the Application (client) ID below
 const AZURE_CLIENT_ID  = '2f8cdb1e-93da-4815-942b-c7c8d1a29ca5';
 const AZURE_TENANT_ID  = 'reposefurniturelimited.onmicrosoft.com';
-const GRAPH_SCOPES     = ['Files.Read', 'User.Read'];
+const GRAPH_SCOPES     = ['Files.Read', 'User.Read', 'Sites.ReadWrite.All'];
 
 // Live SharePoint link — Production 2026 Dec-Nov.xlsx
 const PROD_SHARING_URL = 'https://reposefurniturelimited.sharepoint.com/:x:/s/ReposeFurniture-PlanningRepose/IQBLf67iYnbQSq2O8UU_zQihARfBedzZcW-CmO0q3v5zC3o?e=nfze02';
@@ -2283,7 +2568,10 @@ async function graphSignIn() {
     graphAccount = res.account;
     updateAuthBadge();
     await loadProductionFromSharePoint();
+    await loadCompletionsFromList();
+    await loadLoadPlanFromSharePoint();
     startQCAutoSync();
+    setInterval(fullRefresh, 2 * 60 * 60 * 1000); // auto-refresh every 2 hours
   } catch(e) {
     console.error('Sign-in failed', e);
     toast('Sign-in failed — check Azure app config', 'u');
@@ -2453,16 +2741,9 @@ async function loadProductionFromSharePoint() {
 }
 
 function simulateSync() {
-  const pill = document.getElementById('sync-pill');
-  const lbl  = document.getElementById('sync-label');
-  pill.className = 'sync-pill syncing';
-  lbl.textContent = 'Syncing with SharePoint…';
-  setTimeout(() => {
-    pill.className = 'sync-pill synced';
-    lbl.textContent = 'Live · synced just now';
-    renderOverview();
+  loadLoadPlanFromSharePoint().then(() => {
     toast('Load plan synced from SharePoint', 's');
-  }, 1800);
+  });
 }
 
 function updateAuthBadge() {
@@ -2494,7 +2775,10 @@ async function initGraph() {
     graphAccount = accounts[0];
     updateAuthBadge();
     await loadProductionFromSharePoint();
+    await loadCompletionsFromList();
+    await loadLoadPlanFromSharePoint();
     startQCAutoSync();
+    setInterval(fullRefresh, 2 * 60 * 60 * 1000); // auto-refresh every 2 hours
   }
 }
 
