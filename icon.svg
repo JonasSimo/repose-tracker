@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="90" fill="#0e023a"/>
+  <rect x="0" y="440" width="512" height="72" rx="0" fill="#14a1e9"/>
+  <rect x="0" y="440" width="512" height="72" rx="90" fill="#14a1e9"/>
+  <text x="256" y="330" font-family="Arial Black, Arial, sans-serif" font-size="300" font-weight="900" text-anchor="middle" fill="#ffffff">R</text>
+  <text x="256" y="480" font-family="Arial, sans-serif" font-size="72" font-weight="700" text-anchor="middle" fill="#ffffff" letter-spacing="8">REPOSE</text>
+</svg>
