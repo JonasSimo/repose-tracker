@@ -2236,8 +2236,8 @@ async function loadCompletionsFromList() {
     const siteId = await getSpSiteId();
     const listId = await getSpListId();
 
-    // Fetch all completed items (paginate if needed)
-    let url = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999&$filter=fields/IsComplete eq true`;
+    // Fetch all items (filter client-side — IsComplete column is not indexed)
+    let url = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999`;
     const allItems = [];
     while (url) {
       const res = await graphGet(url);
@@ -2263,6 +2263,7 @@ async function loadCompletionsFromList() {
     // Apply each completion from the list
     allItems.forEach(item => {
       const f = item.fields;
+      if (!f.IsComplete) return;
       const team = f.Team;
       const sub  = f.SubTeam || 'all';
       const wk   = f.Week;
@@ -2557,7 +2558,7 @@ async function loadLoadPlanFromSharePoint() {
       delivDate.setHours(0,0,0,0);
 
       const diffDays = Math.round((delivDate - today) / 86400000);
-      if (diffDays < -1 || diffDays > 3) continue; // Yesterday to +3 days only
+      if (diffDays < -7 || diffDays > 14) continue; // Up to 2 weeks ahead
 
       const key = delivDate.toISOString().slice(0, 10);
       if (!loadsByDateKey[key]) {
@@ -2586,6 +2587,17 @@ async function loadLoadPlanFromSharePoint() {
       { diff: 1, label:'Tomorrow',  cls:''      },
       { diff: 2, label:'+2 Days',   cls:''      },
       { diff: 3, label:'+3 Days',   cls:''      },
+      { diff: 4, label:'+4 Days',   cls:''      },
+      { diff: 5, label:'+5 Days',   cls:''      },
+      { diff: 6, label:'+6 Days',   cls:''      },
+      { diff: 7, label:'+7 Days',   cls:''      },
+      { diff: 8, label:'+8 Days',   cls:''      },
+      { diff: 9, label:'+9 Days',   cls:''      },
+      { diff:10, label:'+10 Days',  cls:''      },
+      { diff:11, label:'+11 Days',  cls:''      },
+      { diff:12, label:'+12 Days',  cls:''      },
+      { diff:13, label:'+13 Days',  cls:''      },
+      { diff:14, label:'+14 Days',  cls:''      },
     ];
     const fmt = d => d.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
 
