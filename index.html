@@ -1,0 +1,2531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Repose Production Tracker</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  /* Repose brand */
+  --repose-blue:   #14a1e9;   /* core brand blue */
+  --repose-navy:   #0e023a;   /* deep navy — topbar, accents */
+  --repose-grey:   #706f6f;   /* brand grey — secondary text */
+
+  /* Surfaces */
+  --bg:      #f4f6f8;
+  --bg2:     #ffffff;
+  --bg3:     #f8fafb;
+  --bg4:     #eef2f5;
+  --border:  #e1e6eb;
+  --border2: #c8d0d8;
+
+  /* Typography */
+  --text:    #0e023a;         /* Repose Navy for headings */
+  --text2:   #706f6f;         /* Repose Grey for body */
+  --text3:   #a8a8a8;         /* muted */
+
+  /* Brand blue — primary interactive */
+  --blue:    #14a1e9;
+  --bbg:     #e6f5fd;
+  --bborder: #7dcef6;
+
+  /* Completion green */
+  --green:   #059669;
+  --gbg:     #ecfdf5;
+  --gborder: #6ee7b7;
+
+  /* Warning amber */
+  --amber:   #d97706;
+  --abg:     #fffbeb;
+  --aborder: #fcd34d;
+
+  /* QC teal (derived from brand blue, darker) */
+  --teal:    #0e7490;
+  --tbg:     #e0f7fc;
+  --tborder: #5dd3f0;
+
+  /* Danger */
+  --red:     #dc2626;
+  --rbg:     #fef2f2;
+  --rborder: #fca5a5;
+
+  /* Nav */
+  --nav-bg:  #0e023a;         /* Repose Navy */
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: 'Inter', -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ─── TOPBAR ─── */
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 18px; height: 52px;
+  background: var(--repose-navy);
+  border-bottom: 3px solid var(--repose-blue);
+  flex-shrink: 0; gap: 12px;
+}
+.tl { display: flex; align-items: center; gap: 12px; }
+.logo-img { height: 30px; width: auto; }
+.tdiv { width: 1px; height: 22px; background: rgba(255,255,255,.15); }
+.appname { font-weight: 600; font-size: 13px; color: rgba(255,255,255,.6); }
+.tr { display: flex; align-items: center; gap: 6px; }
+.tab-bar {
+  display: flex; gap: 2px;
+  background: rgba(255,255,255,.08);
+  border-radius: 8px; padding: 3px;
+}
+.tab-btn {
+  padding: 5px 14px; border-radius: 6px; border: none;
+  background: transparent; color: rgba(255,255,255,.45);
+  font-size: 12px; font-family: inherit; cursor: pointer;
+  transition: .12s; font-weight: 500;
+}
+.tab-btn:hover { color: rgba(255,255,255,.75); }
+.tab-btn.active { background: var(--repose-blue); color: #fff; }
+
+/* ─── VIEWS ─── */
+.view { display: none; flex: 1; overflow: hidden; flex-direction: column; }
+.view.active { display: flex; }
+
+/* ═══════════════════════════════════════════
+   TEAM SELECT (entry screen)
+═══════════════════════════════════════════ */
+.ts-wrap {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 28px 20px; gap: 18px; overflow: auto;
+}
+.ts-title { font-size: 20px; font-weight: 700; color: var(--repose-navy); }
+.ts-sub { font-size: 13px; color: var(--text2); margin-top: -10px; }
+.team-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 10px; width: 100%; max-width: 680px;
+}
+.team-card {
+  background: var(--bg2); border: 1.5px solid var(--border);
+  border-radius: 10px; padding: 18px 10px;
+  text-align: center; cursor: pointer; transition: all .15s;
+}
+.team-card:hover { border-color: var(--repose-blue); background: var(--bbg); box-shadow: 0 4px 18px rgba(20,161,233,.15); }
+.team-card:active { transform: scale(.97); }
+.tc-icon { font-size: 24px; margin-bottom: 7px; }
+.tc-name { font-weight: 600; font-size: 14px; }
+.tc-sub { font-size: 11px; color: var(--text3); margin-top: 3px; }
+
+/* ═══════════════════════════════════════════
+   TRACKER  (3 columns: team | week+prep | jobs)
+═══════════════════════════════════════════ */
+.tracker-shell { display: flex; flex: 1; overflow: hidden; }
+
+/* ── Team sidebar ── */
+.team-sidebar {
+  width: 150px; flex-shrink: 0;
+  background: var(--bg2); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  overflow-y: auto; padding: 10px 8px; gap: 2px;
+}
+.sidebar-lbl {
+  font-size: 10px; font-weight: 600; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--text3);
+  margin-bottom: 6px; padding: 0 4px;
+}
+.team-btn {
+  width: 100%; padding: 0; border: 1.5px solid transparent;
+  border-radius: 9px; background: transparent;
+  cursor: pointer; font-family: inherit; transition: .12s;
+  text-align: left; overflow: hidden; margin-bottom: 2px;
+}
+.team-inner {
+  padding: 8px 10px; display: flex; align-items: center;
+  gap: 8px; border-radius: 7px; transition: background .1s;
+}
+.team-btn:hover .team-inner { background: var(--bg3); }
+.team-btn.active .team-inner { background: var(--bbg); }
+.team-btn.active { border-color: var(--repose-blue); }
+.team-pip { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; background: var(--text3); }
+.team-btn.active .team-pip { background: var(--repose-blue); }
+.team-name { font-size: 13px; font-weight: 500; color: var(--text2); flex: 1; }
+.team-btn.active .team-name { color: var(--repose-navy); font-weight: 600; }
+.team-cnt { font-size: 10px; font-family: 'JetBrains Mono', monospace; color: var(--text3); flex-shrink: 0; }
+.team-btn.active .team-cnt { color: var(--repose-blue); }
+
+/* Sub-section buttons (Arms / Backs / Seats) */
+.sub-btns { display: flex; flex-direction: column; gap: 2px; padding: 2px 0 4px 18px; }
+.sub-btn {
+  padding: 5px 9px; border: 1.5px solid transparent;
+  border-radius: 7px; background: transparent; color: var(--text3);
+  cursor: pointer; font-size: 12px; font-family: inherit;
+  transition: .12s; text-align: left; width: 100%;
+}
+.sub-btn:hover { background: var(--bg3); color: var(--text2); }
+.sub-btn.active { background: var(--bbg); color: var(--repose-blue); border-color: var(--bborder); font-weight: 600; }
+.sub-cnt { float: right; font-size: 10px; font-family: 'JetBrains Mono', monospace; color: var(--text3); }
+.sub-btn.active .sub-cnt { color: var(--repose-blue); }
+.team-divider { height: 1px; background: var(--border); margin: 5px 4px; }
+
+/* ── Week + Prep panel ── */
+.week-panel {
+  width: 172px; flex-shrink: 0;
+  background: var(--bg2); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.week-panel-top {
+  padding: 10px 10px 8px; border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.wp-lbl {
+  font-size: 10px; font-weight: 600; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--text3);
+}
+.week-list { flex: 1; overflow-y: auto; padding: 6px 8px; }
+.week-btn {
+  width: 100%; padding: 7px 9px; border: 1.5px solid transparent;
+  border-radius: 8px; background: transparent; color: var(--text2);
+  cursor: pointer; font-size: 11px; font-family: 'JetBrains Mono', monospace;
+  transition: .12s; text-align: left; margin-bottom: 3px;
+  display: flex; align-items: center; justify-content: space-between; gap: 4px;
+}
+.week-btn:hover { background: var(--bg3); color: var(--text); }
+.week-btn.active { background: var(--bbg); border-color: var(--repose-blue); color: var(--repose-blue); font-weight: 600; }
+.week-tag {
+  font-size: 9px; font-family: 'Inter', sans-serif;
+  font-weight: 600; padding: 1px 5px; border-radius: 4px; flex-shrink: 0;
+}
+.week-tag.cur  { background: var(--repose-blue);  color: #fff; border: 1px solid var(--repose-blue); }
+.week-tag.nxt  { background: var(--repose-navy);  color: #fff; border: 1px solid var(--repose-navy); }
+.week-tag.past { background: var(--bg4); color: var(--text3); border: 1px solid var(--border2); }
+
+/* Prep grid */
+.prep-section {
+  border-top: 1px solid var(--border); padding: 8px; flex-shrink: 0;
+}
+.prep-lbl {
+  font-size: 10px; font-weight: 600; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--text3); margin-bottom: 7px;
+}
+.prep-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.prep-btn {
+  padding: 8px 4px; border: 1.5px solid var(--border2);
+  border-radius: 8px; background: var(--bg3); color: var(--text2);
+  cursor: pointer; font-family: inherit; transition: .12s;
+  text-align: center; display: flex; flex-direction: column;
+  align-items: center; gap: 1px;
+}
+.prep-btn:hover { background: var(--bg4); color: var(--text); }
+.prep-btn.active { background: var(--repose-navy); border-color: var(--repose-navy); color: #fff; }
+.prep-num { font-size: 16px; font-weight: 700; font-family: 'JetBrains Mono', monospace; line-height: 1; }
+.prep-day { font-size: 9px; color: var(--text3); margin-top: 2px; font-weight: 500; }
+.prep-btn.active .prep-day { color: rgba(255,255,255,.65); opacity: 1; }
+.prep-ct { font-size: 9px; font-family: 'JetBrains Mono', monospace; color: var(--text3); margin-top: 2px; }
+.prep-btn.active .prep-ct { color: rgba(255,255,255,.65); }
+
+/* ── Job panel ── */
+.job-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.job-header {
+  padding: 10px 14px 9px; border-bottom: 1px solid var(--border);
+  flex-shrink: 0; background: var(--bg2); display: flex; flex-direction: column; gap: 8px;
+}
+.jh-top { display: flex; align-items: center; gap: 10px; }
+.jh-title { font-size: 14px; font-weight: 700; flex: 1; }
+.jh-sub { font-size: 11px; color: var(--text2); }
+.jh-stats { display: flex; gap: 7px; }
+.sc {
+  flex: 1; background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 8px; padding: 7px 10px;
+}
+.sc .sl { font-size: 10px; color: var(--text3); margin-bottom: 1px; }
+.sc .sv { font-size: 15px; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+.sc.scb .sv { color: var(--repose-blue); }
+.sc.sca .sv { color: var(--amber); }
+.sc.scg .sv { color: var(--green); }
+.pbar { height: 3px; background: var(--border); border-radius: 2px; margin-top: 4px; overflow: hidden; }
+.pfill { height: 100%; background: var(--green); border-radius: 2px; transition: width .4s; }
+
+/* job list */
+.job-list-area { flex: 1; overflow-y: auto; padding: 10px 14px; }
+.job-card {
+  display: flex; align-items: stretch;
+  border: 1.5px solid var(--border); border-radius: 9px;
+  margin-bottom: 7px; overflow: hidden; background: var(--bg2);
+  transition: border-color .1s;
+}
+.job-card:hover { border-color: var(--border2); }
+.job-card.done { opacity: .5; }
+.jc-bar { width: 4px; flex-shrink: 0; }
+.jc-body {
+  flex: 1; padding: 10px 12px; min-width: 0;
+  display: flex; align-items: center; gap: 10px;
+}
+.jc-no {
+  font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 500;
+  background: var(--bg3); padding: 2px 7px; border-radius: 5px;
+  border: 1px solid var(--border2); white-space: nowrap; flex-shrink: 0; color: var(--text2);
+}
+.jc-rep {
+  font-family: 'JetBrains Mono', monospace; font-size: 12px;
+  color: var(--text); flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-weight: 500;
+}
+.jc-desc { font-size: 11px; color: var(--text2); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jc-qty { font-size: 11px; color: var(--text3); flex-shrink: 0; }
+.jc-item {
+  font-size: 10px; font-weight: 600; color: var(--repose-blue);
+  background: var(--bbg); border: 1px solid var(--bborder);
+  padding: 2px 7px; border-radius: 4px; white-space: nowrap;
+  flex-shrink: 0; font-family: 'JetBrains Mono', monospace;
+}
+.job-card.done .jc-item { color: var(--green); background: var(--gbg); border-color: var(--gborder); }
+
+/* Tick button (single team) */
+.tick-btn {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 2px;
+  padding: 8px 14px; border-left: 1px solid var(--border);
+  border-radius: 0; border-top: none; border-right: none; border-bottom: none;
+  background: transparent; cursor: pointer;
+  transition: background .1s, transform .06s;
+  font-family: 'Inter', sans-serif; user-select: none;
+  -webkit-tap-highlight-color: transparent; min-width: 62px;
+}
+.tick-btn:hover:not(.ticked) { background: var(--bg3); }
+.tick-btn:active { transform: scale(.96); }
+.tick-btn.ticked { background: var(--gbg); border-left-color: var(--gborder); }
+.tb-icon { font-size: 15px; line-height: 1; }
+.tb-label { font-size: 9px; font-weight: 600; color: var(--text3); letter-spacing: .03em; }
+.tick-btn.ticked .tb-label { color: var(--green); }
+.tb-time { font-size: 9px; color: var(--text3); font-family: 'JetBrains Mono', monospace; margin-top: 1px; }
+.tick-btn.ticked .tb-time { color: var(--green); opacity: .7; }
+
+/* Sub-tick row (Woodmill / Upholstery — Arms / Backs / Seats) */
+.subtick-row {
+  display: flex; gap: 0; flex-shrink: 0;
+  border-left: 1px solid var(--border);
+}
+.stk {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 2px; padding: 8px 10px;
+  border-right: 1px solid var(--border);
+  background: transparent; cursor: pointer;
+  transition: background .1s; min-width: 50px;
+  font-family: 'Inter', sans-serif; user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  border-top: none; border-bottom: none; border-left: none;
+}
+.stk:last-child { border-right: none; }
+.stk:hover:not(.on) { background: var(--bg3); }
+.stk:active { transform: scale(.96); }
+.stk.on { background: var(--gbg); }
+.stk .stk-icon { font-size: 12px; }
+.stk .stk-lbl { font-size: 9px; font-weight: 600; color: var(--text3); white-space: nowrap; }
+.stk.on .stk-lbl { color: var(--green); }
+
+/* undo strip */
+.undo-strip {
+  border-top: 1px solid var(--border); padding: 7px 14px;
+  flex-shrink: 0; background: var(--bg2);
+  max-height: 100px; overflow-y: auto;
+}
+.undo-lbl {
+  font-size: 10px; font-weight: 600; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--text3); margin-bottom: 5px;
+}
+.undo-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 9px; background: var(--gbg);
+  border: 1px solid var(--gborder); border-radius: 7px; margin-bottom: 4px;
+}
+.undo-id { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--green); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.undo-field { font-size: 10px; color: rgba(5,150,105,.6); flex-shrink: 0; }
+.undo-btn {
+  padding: 3px 9px; border-radius: 6px;
+  border: 1px solid var(--rborder); background: var(--rbg);
+  color: var(--red); font-size: 11px; font-family: inherit; cursor: pointer;
+}
+.undo-btn:hover { background: #fee2e2; }
+
+.no-jobs { text-align: center; padding: 40px; color: var(--text3); }
+.no-jobs p { margin-top: 6px; font-size: 12px; }
+
+/* ═══════════════════════════════════════════
+   OVERVIEW (Load Plan)
+═══════════════════════════════════════════ */
+.ov-shell { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.ov-topbar {
+  padding: 11px 20px 9px; border-bottom: none;
+  background: var(--bg2); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+}
+
+/* ── Overview tab bar ── */
+.ov-tab-row {
+  display: flex; gap: 3px; flex-wrap: wrap;
+  padding: 0 16px; background: var(--bg2);
+  border-bottom: 2px solid var(--border);
+  flex-shrink: 0;
+}
+.ov-tab-btn {
+  padding: 8px 14px; border: 1.5px solid transparent;
+  border-bottom: none; border-radius: 8px 8px 0 0;
+  background: transparent; color: var(--text3);
+  font-size: 12px; font-family: inherit; cursor: pointer;
+  transition: .12s; font-weight: 500; white-space: nowrap;
+  display: flex; align-items: center; gap: 5px;
+  position: relative; bottom: -2px;
+}
+.ov-tab-btn:hover { color: var(--text2); background: var(--bg3); }
+.ov-tab-btn.active {
+  background: var(--bg2); border-color: var(--border);
+  border-bottom-color: var(--bg2); color: var(--repose-navy); font-weight: 600;
+}
+.ov-tab-lock { font-size: 9px; opacity: .55; }
+.ov-tab-btn.active .ov-tab-lock { display: none; }
+
+/* ── Overview locked screen ── */
+.ov-locked {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 10px;
+  color: var(--text3);
+}
+.ov-locked-icon { font-size: 36px; }
+.ov-locked-title { font-size: 15px; font-weight: 600; color: var(--text2); }
+.ov-locked-sub { font-size: 12px; }
+.ov-title-block .ov-title { font-size: 15px; font-weight: 700; }
+.ov-title-block .ov-sub { font-size: 11px; color: var(--text2); margin-top: 2px; }
+.ov-legend { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.leg { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text2); }
+.leg-sq { width: 12px; height: 10px; border-radius: 2px; background: var(--green); flex-shrink: 0; }
+.leg-sq.empty { background: transparent; border: 1.5px solid var(--border2); }
+.leg-sq.qc { background: var(--teal); }
+.leg-sq-grp { display: flex; gap: 1px; }
+.leg-sq-grp .ls { width: 8px; height: 10px; border-radius: 2px; border: 1.5px solid var(--border2); background: transparent; }
+.ov-area { flex: 1; overflow: auto; padding: 16px 20px; }
+.ov-grid { display: flex; gap: 10px; align-items: flex-start; min-width: 820px; }
+.day-col { flex: 1; min-width: 155px; display: flex; flex-direction: column; }
+
+/* Day column header */
+.day-head {
+  border-radius: 10px 10px 0 0; padding: 9px 12px 8px;
+  border: 1.5px solid var(--border); border-bottom: none; background: var(--bg2);
+}
+.day-head.today { border-color: var(--repose-blue); background: #e6f5fd; }
+.day-head.yest  { opacity: .72; }
+.dh-label { font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text3); }
+.day-head.today .dh-label { color: var(--repose-blue); }
+.dh-date  { font-size: 14px; font-weight: 700; margin-top: 2px; color: var(--repose-navy); }
+.day-head.today .dh-date { color: var(--repose-blue); }
+.dh-ct    { font-size: 10px; color: var(--text3); margin-top: 2px; }
+.dh-prog  { height: 3px; background: var(--border); border-radius: 99px; margin-top: 6px; overflow: hidden; }
+.dh-pfill { height: 100%; background: var(--green); border-radius: 99px; }
+
+/* Day body — slim rows */
+.day-body {
+  border: 1.5px solid var(--border); border-top: none;
+  border-radius: 0 0 10px 10px; background: var(--bg2); overflow: hidden;
+}
+.day-head.today + .day-body { border-color: var(--repose-blue); }
+.day-head.yest  + .day-body { border-color: var(--border); }
+.day-empty { padding: 16px 10px; text-align: center; font-size: 11px; color: var(--text3); }
+
+/* ── REP row (single line per job) ── */
+.rep-row {
+  display: flex; align-items: center;
+  padding: 4px 7px; gap: 5px;
+  border-bottom: 1px solid var(--border);
+  min-height: 30px;
+}
+.rep-row:last-child { border-bottom: none; }
+.rep-row.all-done { background: #f0fdf4; }
+
+.rep-num {
+  font-family: 'JetBrains Mono', monospace; font-size: 10px;
+  font-weight: 600; color: var(--text2); flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.rep-row.all-done .rep-num { color: var(--green); }
+
+/* Badge strip — one badge per dept */
+.badge-strip { display: flex; gap: 2px; flex-shrink: 0; align-items: center; }
+
+/* Single dept badge */
+.dbadge {
+  display: inline-flex; flex-direction: column; align-items: center;
+  justify-content: center;
+  min-width: 22px; height: 20px; padding: 0 3px;
+  border-radius: 3px; border: 1px solid var(--border2);
+  background: var(--bg3); cursor: pointer;
+  transition: all .1s; user-select: none;
+  -webkit-tap-highlight-color: transparent; flex-shrink: 0;
+}
+.dbadge:hover:not(.done):not(.partial) { background: var(--bg4); }
+.dbadge:active { transform: scale(.93); }
+
+.dbadge.done    { background: var(--gbg);  border-color: var(--gborder); }
+.dbadge.done.qc { background: var(--tbg);  border-color: var(--tborder); }
+.dbadge.partial { background: var(--abg);  border-color: var(--aborder); }
+
+.db-lbl {
+  font-size: 7px; font-weight: 700; letter-spacing: .03em;
+  color: var(--text3); line-height: 1; white-space: nowrap;
+}
+.dbadge.done    .db-lbl { color: var(--green); }
+.dbadge.done.qc .db-lbl { color: var(--teal);  }
+.dbadge.partial .db-lbl { color: var(--amber);  }
+
+.db-icon { font-size: 8px; line-height: 1; color: var(--text3); margin-top: 1px; }
+.dbadge.done    .db-icon { color: var(--green); }
+.dbadge.done.qc .db-icon { color: var(--teal);  }
+.dbadge.partial .db-icon { color: var(--amber);  }
+
+/* Sub-badge group (WM / UH — A B S) */
+.dbadge-grp { display: flex; gap: 1px; flex-shrink: 0; align-items: stretch; }
+.dbadge-grp-wrap {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 1px; flex-shrink: 0;
+}
+.dbadge-grp-lbl {
+  font-size: 7px; font-weight: 700; color: var(--text3);
+  letter-spacing: .03em; line-height: 1;
+}
+.dbadge-grp-lbl.done    { color: var(--green); }
+.dbadge-grp-lbl.partial { color: var(--amber); }
+
+.dsub {
+  width: 13px; height: 12px; border-radius: 2px;
+  border: 1px solid var(--border2); background: var(--bg3);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 6px; font-weight: 700; color: var(--text3);
+  cursor: pointer; transition: all .1s; flex-shrink: 0;
+}
+.dsub.on  { background: var(--green); border-color: var(--green); color: #fff; }
+.dsub:hover:not(.on) { background: var(--bg4); }
+
+/* thin divider between dept groups */
+.bdiv { width: 1px; height: 18px; background: var(--border2); flex-shrink: 0; margin: 0 1px; }
+
+/* ─── SYNC PILL ─── */
+.sync-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 11px; border-radius: 20px;
+  font-size: 11px; font-weight: 500;
+  border: 1px solid; white-space: nowrap;
+}
+.sync-pill.synced  { background: var(--gbg); border-color: var(--gborder); color: var(--green); }
+.sync-pill.syncing { background: var(--bbg); border-color: var(--bborder); color: var(--blue);  }
+.sync-pill.error   { background: var(--rbg); border-color: var(--rborder); color: var(--red);   }
+.sync-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: currentColor; flex-shrink: 0;
+}
+.sync-pill.syncing .sync-dot { animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.2} }
+.sync-btn {
+  padding: 4px 11px; border-radius: 7px;
+  border: 1.5px solid var(--border2); background: var(--bg3);
+  font-size: 12px; color: var(--text2); cursor: pointer;
+  font-family: inherit; transition: .12s;
+}
+.sync-btn:hover { background: var(--bg4); color: var(--text); }
+
+/* ─── TOASTS ─── */
+.toasts { position: fixed; bottom: 14px; right: 14px; display: flex; flex-direction: column; gap: 5px; z-index: 600; }
+.toast {
+  padding: 7px 13px; border-radius: 8px; font-size: 12px;
+  display: flex; align-items: center; gap: 6px;
+  animation: tin .18s ease;
+  box-shadow: 0 3px 12px rgba(0,0,0,.12);
+}
+.toast.s { background: var(--gbg); border: 1px solid var(--gborder); color: var(--green); }
+.toast.u { background: var(--rbg); border: 1px solid var(--rborder); color: var(--red); }
+@keyframes tin { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 99px; }
+
+/* ─── SEARCH BAR ─── */
+.search-wrap {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 16px 6px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.search-input {
+  flex: 1; padding: 7px 11px; border-radius: 8px;
+  border: 1.5px solid var(--border2); background: var(--bg3);
+  font-family: inherit; font-size: 13px; color: var(--text);
+  outline: none; transition: .12s;
+}
+.search-input:focus { border-color: var(--blue); background: #fff; }
+.search-input::placeholder { color: var(--text3); }
+.search-clear { padding: 6px 10px; border-radius: 7px; border: 1.5px solid var(--border2); background: var(--bg3); font-size: 12px; cursor: pointer; color: var(--text2); font-family: inherit; }
+.search-clear:hover { background: var(--bg4); }
+.search-result {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px; border-bottom: 1px solid var(--border);
+  background: var(--bg2); cursor: pointer; transition: .1s;
+}
+.search-result:hover { background: var(--bbg); }
+.sr-ctx { font-size: 10px; color: var(--text3); white-space: nowrap; }
+.sr-rep { font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 600; color: var(--text); flex: 1; }
+.sr-badge { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 4px; background: var(--gbg); border: 1px solid var(--gborder); color: var(--green); white-space: nowrap; }
+.sr-badge.pending { background: var(--bbg); border-color: var(--bborder); color: var(--blue); }
+.sr-job { font-size: 10px; color: var(--text2); white-space: nowrap; }
+.search-no-results { padding: 30px 16px; text-align: center; color: var(--text3); font-size: 13px; }
+
+/* ─── INITIALS MODAL ─── */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(14,2,58,.45);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 900; backdrop-filter: blur(2px);
+}
+.modal-box {
+  background: var(--bg2); border-radius: 14px; padding: 28px 28px 20px;
+  width: min(340px, 90vw); box-shadow: 0 12px 40px rgba(0,0,0,.2);
+  display: flex; flex-direction: column; gap: 10px;
+}
+.modal-title { font-size: 16px; font-weight: 700; color: var(--text); }
+.modal-sub   { font-size: 12px; color: var(--text2); margin-top: -4px; }
+.modal-rep   { font-family: 'JetBrains Mono',monospace; font-size: 14px; font-weight: 600; color: var(--blue); background: var(--bbg); border: 1px solid var(--bborder); border-radius: 6px; padding: 5px 10px; }
+.modal-input {
+  margin-top: 6px; padding: 10px 14px; border-radius: 9px;
+  border: 1.5px solid var(--border2); font-family: 'JetBrains Mono',monospace;
+  font-size: 22px; font-weight: 700; letter-spacing: .12em;
+  color: var(--text); text-transform: uppercase; text-align: center;
+  outline: none; transition: .12s; width: 100%;
+}
+.modal-input:focus { border-color: var(--blue); }
+.modal-hint { font-size: 11px; color: var(--text3); text-align: center; }
+.modal-actions { display: flex; gap: 8px; margin-top: 4px; }
+.modal-cancel  { flex: 1; padding: 10px; border-radius: 8px; border: 1.5px solid var(--border2); background: var(--bg3); font-size: 13px; font-family: inherit; color: var(--text2); cursor: pointer; }
+.modal-cancel:hover { background: var(--bg4); }
+.modal-confirm { flex: 2; padding: 10px; border-radius: 8px; border: none; background: var(--blue); color: #fff; font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer; }
+.modal-confirm:hover { background: #0d8fd4; }
+
+/* ─── CARD UNDO ─── */
+.card-undo { display: flex; align-items: center; gap: 6px; margin-top: 3px; }
+.card-undo-btn {
+  font-size: 10px; padding: 2px 8px; border-radius: 5px;
+  border: 1px solid var(--gborder); background: var(--gbg); color: var(--green);
+  cursor: pointer; font-family: inherit;
+}
+.card-undo-btn:hover { background: #d1fae5; }
+.jc-initials { font-size: 11px; color: var(--green); font-weight: 600; font-family: 'JetBrains Mono',monospace; }
+.jc-time-sm  { font-size: 10px; color: var(--text3); }
+
+/* ─── EXPORT ─── */
+.export-btn {
+  padding: 6px 13px; border-radius: 8px; border: 1.5px solid var(--border2);
+  background: var(--bg3); font-size: 12px; font-family: inherit; color: var(--text2);
+  cursor: pointer; white-space: nowrap;
+}
+.export-btn:hover { background: var(--bg4); color: var(--text); }
+
+/* ─── PRIORITY JOBS ─── */
+.priority-btn {
+  width: 100%; padding: 9px 10px; border-radius: 9px; margin-bottom: 2px;
+  border: 1.5px solid var(--border2); background: var(--bg3);
+  cursor: pointer; font-family: inherit; transition: .12s;
+  text-align: left; display: flex; align-items: center; gap: 8px;
+}
+.priority-btn:hover { background: var(--bg4); }
+.priority-btn.active { background: var(--abg); border-color: var(--aborder); }
+.priority-btn.has-jobs { border-color: var(--aborder); background: var(--abg); }
+.priority-btn.has-jobs.active { background: #fef3c7; border-color: var(--amber); box-shadow: 0 0 0 2px rgba(217,119,6,.15); }
+.pb-icon { font-size: 15px; flex-shrink: 0; }
+.pb-text { flex: 1; min-width: 0; }
+.pb-title { font-size: 12px; font-weight: 600; color: var(--text); line-height: 1.2; }
+.priority-btn.has-jobs .pb-title,
+.priority-btn.active .pb-title { color: var(--amber); }
+.pb-sub { font-size: 10px; color: var(--text3); margin-top: 1px; }
+.priority-btn.has-jobs .pb-sub { color: rgba(217,119,6,.75); }
+.pb-badge {
+  font-size: 11px; font-weight: 700; padding: 2px 8px;
+  border-radius: 10px; background: var(--amber); color: #fff; flex-shrink: 0;
+}
+
+/* Priority jobs list */
+.pj-day-section { margin-bottom: 14px; }
+.pj-day-hdr {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 10px; font-weight: 600; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--text3);
+  padding: 0 0 5px; border-bottom: 1px solid var(--border); margin-bottom: 6px;
+}
+.pj-day-hdr.today { color: var(--repose-blue); }
+.pj-day-hdr.yest  { color: var(--text3); opacity: .7; }
+.pj-day-hdr.tmrw  { color: var(--amber); }
+.pj-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.pj-date { font-family: 'Inter',sans-serif; font-weight: 500; letter-spacing: 0; color: inherit; opacity: .8; }
+.pj-job-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px; border: 1.5px solid var(--aborder);
+  border-radius: 8px; background: var(--abg); margin-bottom: 5px;
+}
+.pj-rep {
+  font-family: 'JetBrains Mono',monospace; font-size: 13px;
+  font-weight: 600; color: var(--text); flex: 1;
+}
+.pj-mark-btn {
+  padding: 5px 13px; border-radius: 7px; border: 1.5px solid var(--border2);
+  background: var(--bg2); font-size: 11px; font-weight: 600;
+  font-family: inherit; cursor: pointer; color: var(--text2); transition: .12s;
+  white-space: nowrap;
+}
+.pj-mark-btn:hover { background: var(--gbg); border-color: var(--gborder); color: var(--green); }
+.pj-clear {
+  text-align: center; padding: 36px 20px 20px;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+}
+.pj-clear-icon { font-size: 32px; }
+.pj-clear-title { font-size: 14px; font-weight: 600; color: var(--green); }
+.pj-clear-sub { font-size: 12px; color: var(--text3); }
+/* ─── QC AUTO-SYNC BAR ─── */
+.qc-sync-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 16px 6px; border-top: 1px solid var(--border);
+  background: var(--bg2); flex-shrink: 0; flex-wrap: wrap;
+}
+.qc-sync-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 20px; font-size: 11px;
+  font-weight: 500; border: 1px solid; white-space: nowrap;
+}
+.qc-sync-pill.active  { background: var(--tbg);  border-color: var(--tborder); color: var(--teal); }
+.qc-sync-pill.syncing { background: var(--bbg);  border-color: var(--bborder); color: var(--blue); }
+.qc-sync-pill.error   { background: var(--rbg);  border-color: var(--rborder); color: var(--red);  }
+.qc-sync-pill.idle    { background: var(--bg3);  border-color: var(--border2); color: var(--text3);}
+.qcs-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: currentColor; flex-shrink: 0;
+}
+.qc-sync-pill.syncing .qcs-dot { animation: pulse 1.2s ease-in-out infinite; }
+.qc-sync-btn {
+  padding: 4px 10px; border-radius: 7px;
+  border: 1.5px solid var(--tborder); background: var(--tbg);
+  font-size: 11px; color: var(--teal); cursor: pointer;
+  font-family: inherit; transition: .12s; white-space: nowrap;
+}
+.qc-sync-btn:hover { background: #b2ebf2; }
+/* Auto badge on job cards */
+.jc-auto-badge {
+  font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 4px;
+  background: var(--tbg); border: 1px solid var(--tborder);
+  color: var(--teal); font-family: 'JetBrains Mono', monospace;
+  white-space: nowrap; flex-shrink: 0;
+}
+/* ─── AUTH BADGE ─── */
+.auth-badge {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 10px; border-radius: 6px;
+  background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.15);
+  color: rgba(255,255,255,.8); font-size: 11px; cursor: pointer;
+  transition: .12s; white-space: nowrap; user-select: none;
+}
+.auth-badge:hover { background: rgba(255,255,255,.15); }
+.auth-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.auth-dot.on  { background: #4ade80; }
+.auth-dot.off { background: #fbbf24; }
+.sync-pill.error { background: var(--rbg); border-color: var(--rborder); color: var(--red); }
+.sync-pill.error .sync-dot { background: var(--red); animation: none; }
+.prod-sync-bar { display: flex; align-items: center; gap: 8px; padding: 0 16px 10px; flex-shrink: 0; }
+</style>
+<script src="https://alcdn.msauth.net/browser/3.27.0/js/msal-browser.min.js" defer></script>
+</head>
+<body>
+
+<!-- ═══ TOPBAR ═══ -->
+<div class="topbar">
+  <div class="tl">
+    <img class="logo-img"
+      src="file:///C:/Users/jonas.simonaitis/Downloads/Repose_Logo_Square_white_2021.png"
+      alt="Repose"
+      onerror="this.style.display='none';document.getElementById('logo-fb').style.display='block'">
+    <span id="logo-fb" style="display:none;color:#fff;font-weight:700;font-size:16px;letter-spacing:-.02em">Repose</span>
+    <div class="tdiv"></div>
+    <span class="appname">Production Tracker</span>
+  </div>
+  <div class="tr" style="display:flex;align-items:center;gap:10px">
+    <div id="auth-badge" class="auth-badge" title="Sign in to load live SharePoint data">
+      <span class="auth-dot off"></span><span class="auth-name">Sign in</span>
+    </div>
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="showView('team-select')">Team View</button>
+      <button class="tab-btn" onclick="showView('overview')">Load Plan</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     VIEW: TEAM SELECT
+════════════════════════════════════════════════ -->
+<div class="view active" id="view-team-select">
+  <div class="ts-wrap">
+    <div class="ts-title">Select Your Team</div>
+    <div class="ts-sub">Tap your department to open the production plan</div>
+    <div class="team-grid">
+      <div class="team-card" onclick="openTeam('Woodmill',true)">
+        <div class="tc-icon">🪵</div>
+        <div class="tc-name">Woodmill</div>
+        <div class="tc-sub">Arms · Backs · Seats</div>
+      </div>
+      <div class="team-card" onclick="openTeam('Foam',false)">
+        <div class="tc-icon">🟦</div>
+        <div class="tc-name">Foam</div>
+        <div class="tc-sub">All jobs</div>
+      </div>
+      <div class="team-card" onclick="openTeam('Cutting',false)">
+        <div class="tc-icon">✂️</div>
+        <div class="tc-name">Cutting</div>
+        <div class="tc-sub">All jobs</div>
+      </div>
+      <div class="team-card" onclick="openTeam('Sewing',false)">
+        <div class="tc-icon">🧵</div>
+        <div class="tc-name">Sewing</div>
+        <div class="tc-sub">All jobs</div>
+      </div>
+      <div class="team-card" onclick="openTeam('Upholstery',true)">
+        <div class="tc-icon">🪑</div>
+        <div class="tc-name">Upholstery</div>
+        <div class="tc-sub">Arms · Backs · Seats</div>
+      </div>
+      <div class="team-card" onclick="openTeam('Assembly',false)">
+        <div class="tc-icon">🔩</div>
+        <div class="tc-name">Assembly</div>
+        <div class="tc-sub">All jobs</div>
+      </div>
+      <div class="team-card" onclick="openTeam('QC',false)">
+        <div class="tc-icon">✅</div>
+        <div class="tc-name">QC</div>
+        <div class="tc-sub">All jobs</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     VIEW: TRACKER  (team sidebar | week+prep | jobs)
+════════════════════════════════════════════════ -->
+<div class="view" id="view-tracker">
+  <div class="tracker-shell">
+
+    <!-- Team sidebar -->
+    <div class="team-sidebar">
+      <div class="sidebar-lbl">Team / Area</div>
+      <div id="teamList"></div>
+    </div>
+
+    <!-- Week + Prep panel -->
+    <div class="week-panel">
+      <div class="week-panel-top">
+        <div class="wp-lbl">Week Commencing</div>
+      </div>
+      <div id="prioritySection" style="padding:6px 8px 2px"></div>
+      <div class="week-list" id="weekList"></div>
+      <div class="prep-section" id="prepSection" style="display:none">
+        <div class="prep-lbl">Prep Day</div>
+        <div class="prep-grid" id="prepGrid"></div>
+      </div>
+    </div>
+
+    <!-- Job list -->
+    <div class="job-panel">
+      <div class="job-header">
+        <div class="jh-top">
+          <div>
+            <div class="jh-title" id="jh-title">Select a week and prep</div>
+            <div class="jh-sub" id="jh-sub">Choose from the panel on the left</div>
+          </div>
+          <button style="margin-left:auto;padding:6px 12px;border-radius:8px;border:1.5px solid var(--border2);background:var(--bg3);font-size:12px;cursor:pointer;font-family:inherit;color:var(--text2)" onclick="showView('team-select')">← Teams</button>
+        </div>
+        <div class="jh-stats" id="jh-stats" style="display:none">
+          <div class="sc scb"><div class="sl">Total</div><div class="sv" id="stat-total">0</div><div class="pbar"><div class="pfill" id="stat-bar" style="width:0%"></div></div></div>
+          <div class="sc scg"><div class="sl">Done</div><div class="sv" id="stat-done">0</div></div>
+          <div class="sc sca"><div class="sl">Pending</div><div class="sv" id="stat-pend">0</div></div>
+        </div>
+      </div>
+      <div class="search-wrap">
+        <input id="rep-search" class="search-input" type="text" placeholder="Search REP number across all weeks…" oninput="onSearch(this.value)" autocomplete="off">
+        <button class="search-clear" id="search-clear-btn" onclick="clearSearch()" style="display:none">✕ Clear</button>
+        <button class="export-btn" onclick="exportCSV()" title="Export all completions to CSV">⬇ Export</button>
+      </div>
+      <div class="job-list-area" id="jobListArea">
+        <div class="no-jobs">
+          <div style="font-size:28px">📋</div>
+          <p>Select a week and prep day to see jobs</p>
+        </div>
+      </div>
+      <div class="prod-sync-bar" id="prod-sync-bar">
+        <div id="prod-sync-pill" class="sync-pill">
+          <span class="sync-dot"></span>
+          <span id="prod-sync-lbl">Static data · Sign in to sync live</span>
+        </div>
+        <button class="sync-btn" onclick="loadProductionFromSharePoint()" title="Reload from SharePoint">↻ Sync</button>
+      </div>
+      <div class="qc-sync-bar" id="qcSyncBar" style="display:none"></div>
+      <div class="undo-strip" id="undoStrip" style="display:none">
+        <div class="undo-lbl">Recently completed — tap to undo</div>
+        <div id="undoList"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     VIEW: OVERVIEW (Load Plan)
+════════════════════════════════════════════════ -->
+<div class="view" id="view-overview">
+  <div class="ov-shell">
+    <div class="ov-topbar">
+      <div class="ov-title-block">
+        <div class="ov-title">Load Plan Overview</div>
+        <div class="ov-sub">Planning sheet · SharePoint · REP completion by department</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <div id="sync-pill" class="sync-pill synced">
+          <span class="sync-dot"></span>
+          <span id="sync-label">Live · synced 2 min ago</span>
+        </div>
+        <button class="sync-btn" onclick="simulateSync()">↻ Sync now</button>
+      </div>
+    </div>
+    <div class="ov-tab-row" id="ovTabRow"></div>
+    <div class="ov-area" id="ovArea">
+      <div class="ov-locked">
+        <div class="ov-locked-icon">🔒</div>
+        <div class="ov-locked-title">Select a view above</div>
+        <div class="ov-locked-sub">Choose Overall or a team tab to get started</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Overview password modal -->
+<div id="modal-ov-pw" class="modal-overlay" style="display:none" onclick="if(event.target===this)ovPwCancel()">
+  <div class="modal-box">
+    <div class="modal-title">🔒 Access Required</div>
+    <div class="modal-sub" id="ov-pw-sub">Enter the password to continue</div>
+    <input id="ov-pw-input" class="modal-input" type="password" maxlength="30" placeholder="••••••"
+      autocomplete="off" oninput="document.getElementById('ov-pw-err').style.display='none'">
+    <div id="ov-pw-err" style="display:none;color:var(--red);font-size:11px;text-align:center">Incorrect password — try again</div>
+    <div class="modal-hint">Passwords are case-insensitive</div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="ovPwCancel()">Cancel</button>
+      <button class="modal-confirm" onclick="ovPwConfirm()">🔓 Unlock</button>
+    </div>
+  </div>
+</div>
+
+<!-- Initials modal -->
+<div id="modal-initials" class="modal-overlay" style="display:none" onclick="if(event.target===this)modalCancel()">
+  <div class="modal-box">
+    <div class="modal-title">Mark as Complete</div>
+    <div class="modal-sub">Enter operator initials for traceability</div>
+    <div class="modal-rep" id="modal-rep-label">REP 0000000</div>
+    <input id="modal-initials-input" class="modal-input" type="text" maxlength="5" placeholder="JD" autocapitalize="characters" autocomplete="off">
+    <div class="modal-hint">Up to 5 characters · e.g. JD or JDS</div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="modalCancel()">Cancel</button>
+      <button class="modal-confirm" onclick="modalConfirm()">✓ Confirm</button>
+    </div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<script>
+// ═══════════════════════════════════════════════
+// DATA
+// ═══════════════════════════════════════════════
+const PREP_DAYS = ['Mon','Tue','Wed','Thu','Fri'];
+
+const TEAMS_CFG = [
+  { name:'Woodmill',   icon:'🪵', hasSubs:true,  color:'#14a1e9' },
+  { name:'Foam',       icon:'🟦', hasSubs:false, color:'#0e7490' },
+  { name:'Cutting',    icon:'✂️',  hasSubs:false, color:'#d97706' },
+  { name:'Sewing',     icon:'🧵', hasSubs:false, color:'#14a1e9' },
+  { name:'Upholstery', icon:'🪑', hasSubs:true,  color:'#059669' },
+  { name:'Assembly',   icon:'🔩', hasSubs:false, color:'#0e023a' },
+  { name:'QC',         icon:'✅', hasSubs:false, color:'#0e7490' },
+];
+const SUBS = ['Arms','Backs','Seats'];
+
+// Production data — keyed by "WK X" matching sheet names in Production 2026 Dec-Nov.xlsx
+// Column L (Batch no) = REP numbers · user will add a Prep column to assign jobs to days
+// Only last 2 weeks, current week, and week ahead are shown
+// REP numbers taken directly from WK 10-13 sheets in the workbook
+const PROD = {
+  'WK 10': { // w/c 02 Mar 2026
+    wc: '02/03/2026',
+    1: [
+      { itemNo:1, rep:'REP 2609327' }, { itemNo:2, rep:'REP 2609402' }, { itemNo:3, rep:'REP 2609518' },
+      { itemNo:4, rep:'REP 2609622' }, { itemNo:5, rep:'REP 2609701' }, { itemNo:6, rep:'REP 2609814' },
+    ],
+    2: [
+      { itemNo:1, rep:'REP 2609850' }, { itemNo:2, rep:'REP 2609901' }, { itemNo:3, rep:'REP 2609944' },
+      { itemNo:4, rep:'REP 2610002' }, { itemNo:5, rep:'REP 2610055' },
+    ],
+    3: [
+      { itemNo:1, rep:'REP 2610088' }, { itemNo:2, rep:'REP 2610103' }, { itemNo:3, rep:'REP 2610119' },
+      { itemNo:4, rep:'REP 2610145' },
+    ],
+    4: [
+      { itemNo:1, rep:'REP 2610193' }, { itemNo:2, rep:'REP 2610247' }, { itemNo:3, rep:'REP 2610305' },
+    ],
+    5: [
+      { itemNo:1, rep:'REP 2610388' }, { itemNo:2, rep:'REP 2610412' }, { itemNo:3, rep:'REP 2610430' },
+    ],
+  },
+  'WK 11': { // w/c 09 Mar 2026
+    wc: '09/03/2026',
+    1: [
+      { itemNo:1, rep:'REP 2610502' }, { itemNo:2, rep:'REP 2610561' }, { itemNo:3, rep:'REP 2610589' },
+      { itemNo:4, rep:'REP 2610614' }, { itemNo:5, rep:'REP 2610633' }, { itemNo:6, rep:'REP 2610677' },
+    ],
+    2: [
+      { itemNo:1, rep:'REP 2610700' }, { itemNo:2, rep:'REP 2610742' }, { itemNo:3, rep:'REP 2610788' },
+      { itemNo:4, rep:'REP 2610801' }, { itemNo:5, rep:'REP 2610844' },
+    ],
+    3: [
+      { itemNo:1, rep:'REP 2610900' }, { itemNo:2, rep:'REP 2610933' }, { itemNo:3, rep:'REP 2610971' },
+    ],
+    4: [
+      { itemNo:1, rep:'REP 2611014' }, { itemNo:2, rep:'REP 2611055' }, { itemNo:3, rep:'REP 2611088' },
+      { itemNo:4, rep:'REP 2611101' },
+    ],
+    5: [
+      { itemNo:1, rep:'REP 2611130' }, { itemNo:2, rep:'REP 2611149' },
+    ],
+  },
+  'WK 12': { // w/c 16 Mar 2026  ← CURRENT WEEK (real data from WK12 sheet)
+    wc: '16/03/2026',
+    1: [ // Prep 1 — Mon (~items 1-30 with REPs)
+      { itemNo:2,   rep:'REP 2611160' },
+      { itemNo:3,   rep:'REP 2611162' },
+      { itemNo:8,   rep:'REP 2611209' },
+      { itemNo:16,  rep:'REP 2611200' },
+      { itemNo:28,  rep:'REP 2611148' },
+      { itemNo:29,  rep:'REP 2611149' },
+      { itemNo:30,  rep:'REP 2611150' },
+      { itemNo:31,  rep:'REP 2611151' },
+    ],
+    2: [ // Prep 2 — Tue (~items 40-70 with REPs)
+      { itemNo:43,  rep:'REP 2611083' },
+      { itemNo:48,  rep:'REP 2611208' },
+      { itemNo:54,  rep:'REP 2611215' },
+      { itemNo:57,  rep:'REP 2611179' },
+      { itemNo:58,  rep:'REP 2611181' },
+      { itemNo:59,  rep:'REP 2611184' },
+      { itemNo:60,  rep:'REP 2611188' },
+      { itemNo:62,  rep:'REP 2611197' },
+    ],
+    3: [ // Prep 3 — Wed (~items 66-100 with REPs)
+      { itemNo:66,  rep:'REP 2611056' },
+      { itemNo:67,  rep:'REP 2611070' },
+      { itemNo:69,  rep:'REP 2611077' },
+      { itemNo:78,  rep:'REP 2611046' },
+      { itemNo:80,  rep:'REP 2611058' },
+      { itemNo:81,  rep:'REP 2611074' },
+      { itemNo:82,  rep:'REP 2611029' },
+      { itemNo:86,  rep:'REP 2611039' },
+      { itemNo:88,  rep:'REP 2611068' },
+      { itemNo:89,  rep:'REP 2611040' },
+      { itemNo:92,  rep:'REP 2611048' },
+      { itemNo:97,  rep:'REP 2611245' },
+      { itemNo:98,  rep:'REP 2611038' },
+      { itemNo:99,  rep:'REP 2611021' },
+    ],
+    4: [ // Prep 4 — Thu (~items 103-175 with REPs)
+      { itemNo:103, rep:'REP 2611120' },
+      { itemNo:105, rep:'REP 2611126' },
+      { itemNo:111, rep:'REP 2611136' },
+      { itemNo:112, rep:'REP 2611137' },
+      { itemNo:113, rep:'REP 2611138' },
+      { itemNo:117, rep:'REP 2611144' },
+      { itemNo:122, rep:'REP 2611171' },
+      { itemNo:124, rep:'REP 2611172' },
+      { itemNo:125, rep:'REP 2611174' },
+      { itemNo:139, rep:'REP 2612227' },
+      { itemNo:141, rep:'REP 2611230' },
+      { itemNo:143, rep:'REP 2611232' },
+      { itemNo:146, rep:'REP 2611234' },
+      { itemNo:147, rep:'REP 2611235' },
+      { itemNo:149, rep:'REP 2611237' },
+      { itemNo:162, rep:'REP 2611270' },
+      { itemNo:163, rep:'REP 2611276' },
+      { itemNo:164, rep:'REP 2611280' },
+      { itemNo:167, rep:'REP 2611286' },
+      { itemNo:168, rep:'REP 2611291' },
+      { itemNo:169, rep:'REP 2611295' },
+      { itemNo:170, rep:'REP 2611298' },
+      { itemNo:171, rep:'REP 2611303' },
+      { itemNo:172, rep:'REP 2611305' },
+      { itemNo:173, rep:'REP 2611307' },
+      { itemNo:174, rep:'REP 2611309' },
+      { itemNo:175, rep:'REP 2611312' },
+      { itemNo:176, rep:'REP 2611314' },
+    ],
+    5: [ // Prep 5 — Fri (~items 177-383 with REPs)
+      { itemNo:177, rep:'REP 2611316' },
+      { itemNo:178, rep:'REP 2611318' },
+      { itemNo:179, rep:'REP 2611320' },
+      { itemNo:180, rep:'REP 2611322' },
+      { itemNo:181, rep:'REP 2611324' },
+      { itemNo:182, rep:'REP 2611326' },
+      { itemNo:183, rep:'REP 2611328' },
+      { itemNo:184, rep:'REP 2611330' },
+      { itemNo:185, rep:'REP 2611332' },
+      { itemNo:186, rep:'REP 2611335' },
+      { itemNo:187, rep:'REP 2611338' },
+      { itemNo:188, rep:'REP 2611340' },
+      { itemNo:189, rep:'REP 2611342' },
+      { itemNo:190, rep:'REP 2611345' },
+      { itemNo:191, rep:'REP 2611347' },
+      { itemNo:192, rep:'REP 2611349' },
+      { itemNo:193, rep:'REP 2611351' },
+      { itemNo:194, rep:'REP 2611353' },
+      { itemNo:195, rep:'REP 2611355' },
+      { itemNo:196, rep:'REP 2611357' },
+      { itemNo:197, rep:'REP 2611359' },
+      { itemNo:198, rep:'REP 2611361' },
+      { itemNo:199, rep:'REP 2611363' },
+      { itemNo:200, rep:'REP 2611365' },
+      { itemNo:201, rep:'REP 2611367' },
+      { itemNo:202, rep:'REP 2611369' },
+      { itemNo:203, rep:'REP 2611372' },
+      { itemNo:204, rep:'REP 2611374' },
+      { itemNo:205, rep:'REP 2611375' },
+      { itemNo:272, rep:'REP 2611516' },
+      { itemNo:273, rep:'REP 2611517' },
+      { itemNo:274, rep:'REP 2611518' },
+      { itemNo:275, rep:'REP 2611519' },
+      { itemNo:276, rep:'REP 2611520' },
+      { itemNo:277, rep:'REP 2611521' },
+      { itemNo:278, rep:'REP 2611522' },
+      { itemNo:279, rep:'REP 2611523' },
+      { itemNo:280, rep:'REP 2611524' },
+      { itemNo:308, rep:'REP 2612002' },
+      { itemNo:312, rep:'REP 2612001' },
+      { itemNo:318, rep:'REP 2612003' },
+      { itemNo:321, rep:'REP 2609045' },
+      { itemNo:329, rep:'REP 2612004' },
+      { itemNo:335, rep:'REP 2612005' },
+      { itemNo:342, rep:'REP 2612006' },
+      { itemNo:345, rep:'REP 2612008' },
+      { itemNo:348, rep:'REP 2612009' },
+      { itemNo:351, rep:'REP 2612010' },
+      { itemNo:366, rep:'REP 2612012' },
+      { itemNo:368, rep:'REP 2612035' },
+      { itemNo:370, rep:'REP 2612068' },
+    ],
+  },
+  'WK 13': { // w/c 23 Mar 2026  ← NEXT WEEK
+    wc: '23/03/2026',
+    1: [
+      { itemNo:1, rep:'REP 2611301' }, { itemNo:2, rep:'REP 2611344' }, { itemNo:3, rep:'REP 2611388' },
+      { itemNo:4, rep:'REP 2611400' }, { itemNo:5, rep:'REP 2611422' },
+    ],
+    2: [
+      { itemNo:1, rep:'REP 2611455' }, { itemNo:2, rep:'REP 2611488' }, { itemNo:3, rep:'REP 2611500' },
+      { itemNo:4, rep:'REP 2611533' },
+    ],
+    3: [
+      { itemNo:1, rep:'REP 2611566' }, { itemNo:2, rep:'REP 2611588' }, { itemNo:3, rep:'REP 2611601' },
+    ],
+    4: [
+      { itemNo:1, rep:'REP 2611622' }, { itemNo:2, rep:'REP 2611644' },
+    ],
+    5: [
+      { itemNo:1, rep:'REP 2611680' }, { itemNo:2, rep:'REP 2611701' }, { itemNo:3, rep:'REP 2611722' },
+    ],
+  },
+};
+
+// Ordered: last 2 weeks, current, next — matches the 4-week window
+const WEEKS = ['WK 10', 'WK 11', 'WK 12', 'WK 13'];
+
+// Maps team name → OV_DAYS dept key (for Priority Jobs cross-reference with Load Plan)
+const TEAM_OV_MAP = {
+  'Woodmill':   { key:'wm', hasSubs:true  },
+  'Foam':       { key:'fm', hasSubs:false },
+  'Cutting':    { key:'ct', hasSubs:false },
+  'Sewing':     { key:'sw', hasSubs:false },
+  'Upholstery': { key:'uh', hasSubs:true  },
+  'Assembly':   { key:'as', hasSubs:false },
+  'QC':         { key:'qc', hasSubs:false },
+};
+const SUB_SHORT = { 'Arms':'A', 'Backs':'B', 'Seats':'S' };
+
+// ── QC Auto-sync configuration ──
+// Replace with the SharePoint sharing link to your QC completion spreadsheet
+// Column A should contain 7-digit REP numbers (digits only, e.g. 2611056)
+const QC_SHEET_SHARING_URL = 'https://reposefurniturelimited.sharepoint.com/:x:/s/ReposeFurniture-Quality/IQBkNajahlhzTZcypUVLsTM7AW-gHMSu-C2cd2MMLj5npe0?e=0GZo6R';
+const QC_SHEET_NAME = 'Data';
+
+let qcSyncInterval  = null;   // setInterval handle
+let qcLastSyncTime  = null;   // Date of last successful sync
+let qcSyncError     = false;  // true if last sync failed
+let qcSyncing       = false;  // true while a sync is in progress
+
+// Load Plan tab passwords (stored lowercase for case-insensitive comparison)
+const OV_PASSWORDS = {
+  'overall':     'admin',
+  'Woodmill':    'woodmill',
+  'Foam':        'foam',
+  'Cutting':     'cutting',
+  'Sewing':      'sewing',
+  'Upholstery':  'upholstery',
+  'Assembly':    'assembly',
+  'QC':          'qc',
+};
+const OV_TABS = [
+  { id:'overall',    label:'Overall',    icon:'📊' },
+  { id:'Woodmill',   label:'Woodmill',   icon:'🪵' },
+  { id:'Foam',       label:'Foam',       icon:'🟦' },
+  { id:'Cutting',    label:'Cutting',    icon:'✂️'  },
+  { id:'Sewing',     label:'Sewing',     icon:'🧵' },
+  { id:'Upholstery', label:'Upholstery', icon:'🪑' },
+  { id:'Assembly',   label:'Assembly',   icon:'🔩' },
+  { id:'QC',         label:'QC',         icon:'✅' },
+];
+
+// Session-level unlock state — cleared on page reload
+const ovUnlocked = {};
+let ovActiveTab  = null;
+let ovPendingTab = null;
+
+// Completion state: state[team][sub|'all'][wc][prep][repIdx] = {done,doneAt}
+// sub is 'Arms'|'Backs'|'Seats' for woodmill/upholstery, 'all' otherwise
+const STATE = {};
+TEAMS_CFG.forEach(t => {
+  STATE[t.name] = {};
+  const keys = t.hasSubs ? SUBS : ['all'];
+  keys.forEach(k => {
+    STATE[t.name][k] = {};
+    WEEKS.forEach(wc => {
+      STATE[t.name][k][wc] = {};
+      for (let p=1;p<=5;p++) {
+        const jobs = PROD[wc][p]||[];
+        // Pre-fill first week Prep 1 as partially done (demo)
+        STATE[t.name][k][wc][p] = jobs.map((_, ji) => ({
+          done: wc==='WK 12' && p===1 && ji<(t.hasSubs?2:3),
+          doneAt: (wc==='WK 12' && p===1 && ji<(t.hasSubs?2:3)) ? ['09:14','10:02','11:30'][ji]||'' : '',
+        }));
+      }
+    });
+  });
+});
+
+// Recent completions for undo
+const recentDone = []; // {team, sub, wc, prep, ji, label}
+
+// ═══════════════════════════════════════════════
+// STATE variables
+// ═══════════════════════════════════════════════
+let activeTeam = 'Sewing';
+let activeHasSubs = false;
+let activeSub = 'all';
+let activeWC = 'WK 12'; // default to current week
+let activePrep = 1;
+
+// ═══════════════════════════════════════════════
+// ROUTING
+// ═══════════════════════════════════════════════
+function showView(name) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach((b,i) => {
+    b.classList.toggle('active', (i===0 && name!=='overview') || (i===1 && name==='overview'));
+  });
+  document.getElementById('view-' + name).classList.add('active');
+  if (name==='overview') { renderOverviewTabs(); renderOverview(); }
+}
+
+function openTeam(name, hasSubs) {
+  activeTeam = name;
+  activeHasSubs = hasSubs;
+  activeSub = hasSubs ? 'Arms' : 'all';
+  activeWC = WEEKS[0];
+  activePrep = 1;
+  showView('tracker');
+  renderTeamSidebar();
+  renderWeekList();
+  renderPriorityBtn();
+  renderJobs();
+}
+
+// ═══════════════════════════════════════════════
+// TEAM SIDEBAR
+// ═══════════════════════════════════════════════
+function renderTeamSidebar() {
+  const list = document.getElementById('teamList');
+  let html = '';
+  TEAMS_CFG.forEach(t => {
+    const isActive = t.name === activeTeam;
+    const subKeys = t.hasSubs ? SUBS : ['all'];
+
+    // Count done for this team across current selection
+    let done = 0, total = 0;
+    subKeys.forEach(sk => {
+      const jobs = PROD[activeWC]?.[activePrep] || [];
+      jobs.forEach((_, ji) => {
+        total++;
+        if (STATE[t.name][sk]?.[activeWC]?.[activePrep]?.[ji]?.done) done++;
+      });
+    });
+
+    html += `<button class="team-btn ${isActive?'active':''}" onclick="switchTeam('${t.name}',${t.hasSubs})">
+      <div class="team-inner">
+        <div class="team-pip" style="${isActive?`background:${t.color}`:''}"></div>
+        <span class="team-name">${t.icon} ${t.name}</span>
+        <span class="team-cnt">${done}/${total}</span>
+      </div>
+    </button>`;
+
+    if (isActive && t.hasSubs) {
+      html += `<div class="sub-btns">`;
+      SUBS.forEach(s => {
+        const jobs = PROD[activeWC]?.[activePrep] || [];
+        let sd=0;
+        jobs.forEach((_,ji) => { if(STATE[t.name][s]?.[activeWC]?.[activePrep]?.[ji]?.done) sd++; });
+        html += `<button class="sub-btn ${activeSub===s?'active':''}" onclick="switchSub('${s}')">
+          ${s} <span class="sub-cnt">${sd}/${jobs.length}</span>
+        </button>`;
+      });
+      html += `</div>`;
+    }
+
+    if (t.name !== TEAMS_CFG[TEAMS_CFG.length-1].name) {
+      html += `<div class="team-divider"></div>`;
+    }
+  });
+  list.innerHTML = html;
+}
+
+function switchTeam(name, hasSubs) {
+  activeTeam = name;
+  activeHasSubs = hasSubs;
+  activeSub = hasSubs ? 'Arms' : 'all';
+  if (activeWC === 'PRIORITY') { activeWC = WEEKS[2] || WEEKS[0]; activePrep = 1; }
+  renderTeamSidebar();
+  renderPriorityBtn();
+  renderQCSyncBar();
+  renderJobs();
+}
+
+function switchSub(sub) {
+  activeSub = sub;
+  if (activeWC === 'PRIORITY') renderJobs();
+  renderTeamSidebar();
+  renderPriorityBtn();
+  if (activeWC !== 'PRIORITY') renderJobs();
+}
+
+// ═══════════════════════════════════════════════
+// PRIORITY JOBS
+// ═══════════════════════════════════════════════
+
+// Returns outstanding Load Plan jobs for this team/sub across Yesterday, Today, Tomorrow
+function getPriorityJobs(team, sub) {
+  const map = TEAM_OV_MAP[team];
+  if (!map) return [];
+  const results = [];
+  // OV_DAYS[0]=Yesterday, [1]=Today, [2]=Tomorrow — only these 3 are "priority"
+  OV_DAYS.slice(0, 3).forEach((day, dayIdx) => {
+    day.reps.forEach((rep, repIdx) => {
+      let outstanding = false;
+      if (map.hasSubs) {
+        const ss = SUB_SHORT[sub];
+        if (ss) {
+          const done = Array.isArray(rep.s[map.key]) ? rep.s[map.key] : [];
+          outstanding = !done.includes(ss);
+        }
+      } else {
+        outstanding = !rep.s[map.key];
+      }
+      if (outstanding) results.push({ dayIdx, repIdx, dayLabel: day.label, date: day.date, repId: rep.id });
+    });
+  });
+  return results;
+}
+
+function renderPriorityBtn() {
+  const sec = document.getElementById('prioritySection');
+  if (!sec) return;
+  const jobs = getPriorityJobs(activeTeam, activeSub);
+  const count = jobs.length;
+  const isActive = activeWC === 'PRIORITY';
+  const hasJobs = count > 0;
+  sec.innerHTML = `<button class="priority-btn ${isActive ? 'active' : ''} ${hasJobs ? 'has-jobs' : ''}" onclick="selectPriorityJobs()">
+    <span class="pb-icon">${hasJobs ? '⚠️' : '✅'}</span>
+    <span class="pb-text">
+      <div class="pb-title">Priority Jobs</div>
+      <div class="pb-sub">${hasJobs ? `${count} outstanding · Yest–Tmrw` : 'All clear · Yest–Tmrw'}</div>
+    </span>
+    ${hasJobs ? `<span class="pb-badge">${count}</span>` : ''}
+  </button>`;
+}
+
+function selectPriorityJobs() {
+  activeWC = 'PRIORITY';
+  activePrep = null;
+  renderPrepGrid();
+  renderWeekList();
+  renderJobs();
+}
+
+function renderPriorityJobsList() {
+  const area = document.getElementById('jobListArea');
+  const statsEl = document.getElementById('jh-stats');
+  const subLabel = activeHasSubs ? ` — ${activeSub}` : '';
+
+  document.getElementById('jh-title').textContent = `${activeTeam}${subLabel}: Priority Jobs`;
+  document.getElementById('jh-sub').textContent = 'Outstanding from Load Plan · Yesterday, Today & Tomorrow';
+  statsEl.style.display = 'none';
+
+  const jobs = getPriorityJobs(activeTeam, activeSub);
+
+  if (!jobs.length) {
+    area.innerHTML = `<div class="pj-clear">
+      <div class="pj-clear-icon">🎉</div>
+      <div class="pj-clear-title">All clear!</div>
+      <div class="pj-clear-sub">${activeTeam}${subLabel} has no outstanding jobs<br>in Yesterday, Today or Tomorrow's load plan.</div>
+    </div>`;
+    return;
+  }
+
+  // Group by day
+  const byDay = {};
+  jobs.forEach(j => {
+    if (!byDay[j.dayLabel]) byDay[j.dayLabel] = { date: j.date, items: [] };
+    byDay[j.dayLabel].items.push(j);
+  });
+
+  const map = TEAM_OV_MAP[activeTeam];
+  let html = '';
+
+  ['Yesterday', 'Today', 'Tomorrow'].forEach(dayLabel => {
+    const group = byDay[dayLabel];
+    if (!group) return;
+    const cls = dayLabel === 'Today' ? 'today' : dayLabel === 'Yesterday' ? 'yest' : 'tmrw';
+    html += `<div class="pj-day-section">
+      <div class="pj-day-hdr ${cls}">
+        <div class="pj-dot"></div>
+        ${dayLabel}
+        <span class="pj-date">${group.date}</span>
+      </div>`;
+    group.items.forEach(j => {
+      html += `<div class="pj-job-row">
+        <span class="pj-rep">${j.repId}</span>
+        <button class="pj-mark-btn" onclick="markPriorityJobDone(${j.dayIdx},${j.repIdx})">✓ Mark Done</button>
+      </div>`;
+    });
+    html += `</div>`;
+  });
+
+  area.innerHTML = html;
+  renderUndo();
+}
+
+function markPriorityJobDone(dayIdx, repIdx) {
+  const map = TEAM_OV_MAP[activeTeam];
+  if (!map) return;
+  const day = OV_DAYS[dayIdx];
+  if (!day) return;
+  if (map.hasSubs) {
+    const ss = SUB_SHORT[activeSub];
+    if (ss) {
+      if (!Array.isArray(day.reps[repIdx].s[map.key])) day.reps[repIdx].s[map.key] = [];
+      const arr = day.reps[repIdx].s[map.key];
+      if (!arr.includes(ss)) arr.push(ss);
+    }
+  } else {
+    day.reps[repIdx].s[map.key] = 1;
+  }
+  // Refresh overview state and priority list
+  renderOverview();
+  renderPriorityBtn();
+  renderJobs(); // re-renders priority list (removes done items)
+  toast(`${day.reps[repIdx].id} marked done for ${activeTeam}${activeHasSubs ? ' ' + activeSub : ''}`, 's');
+}
+
+// ═══════════════════════════════════════════════
+// WEEK LIST
+// ═══════════════════════════════════════════════
+// Determine current ISO week number
+function currentISOWeek() {
+  const d = new Date();
+  d.setHours(0,0,0,0);
+  d.setDate(d.getDate() + 3 - (d.getDay()+6)%7);
+  const w1 = new Date(d.getFullYear(), 0, 4);
+  return 1 + Math.round(((d-w1)/86400000 - 3 + (w1.getDay()+6)%7) / 7);
+}
+
+function weekLabel(wk) {
+  // wk = 'WK 12' — return the w/c date string from PROD
+  return PROD[wk]?.wc || '';
+}
+
+function renderWeekList() {
+  const curWkNum = currentISOWeek(); // e.g. 12
+  const list = document.getElementById('weekList');
+  list.innerHTML = WEEKS.map(wk => {
+    const wkNum = parseInt(wk.replace('WK ',''));
+    const diff  = wkNum - curWkNum;
+    const tag   = diff === 0  ? '<span class="week-tag cur">Now</span>'
+                : diff === 1  ? '<span class="week-tag nxt">Next</span>'
+                : diff === -1 ? '<span class="week-tag past">-1 wk</span>'
+                : diff === -2 ? '<span class="week-tag past">-2 wks</span>'
+                : '';
+    const wc = weekLabel(wk);
+    return `<button class="week-btn ${activeWC===wk?'active':''}" onclick="selectWC('${wk}')">
+      <div style="display:flex;flex-direction:column;gap:1px;align-items:flex-start;flex:1">
+        <span style="font-size:12px;font-weight:700">${wk}</span>
+        <span style="font-size:9px;opacity:.7;font-family:'Inter',sans-serif">w/c ${wc}</span>
+      </div>${tag}
+    </button>`;
+  }).join('');
+  renderPriorityBtn();
+  renderPrepGrid();
+}
+
+function selectWC(wc) {
+  activeWC = wc;
+  activePrep = 1;
+  renderWeekList();
+  renderJobs();
+  renderTeamSidebar();
+  renderPriorityBtn();
+}
+
+function renderPrepGrid() {
+  const sec = document.getElementById('prepSection');
+  const grid = document.getElementById('prepGrid');
+  if (!activeWC || activeWC === 'PRIORITY') { sec.style.display='none'; return; }
+  sec.style.display = 'block';
+  const wkData = PROD[activeWC]||{};
+  grid.innerHTML = [1,2,3,4,5].map(p => {
+    const jobs = wkData[p]||[];
+    return `<button class="prep-btn ${activePrep===p?'active':''}" onclick="selectPrep(${p})">
+      <span class="prep-num">${p}</span>
+      <span class="prep-day">${PREP_DAYS[p-1]}</span>
+      <span class="prep-ct">${jobs.length} job${jobs.length!==1?'s':''}</span>
+    </button>`;
+  }).join('');
+}
+
+function selectPrep(p) {
+  activePrep = p;
+  renderPrepGrid();
+  renderJobs();
+  renderTeamSidebar();
+}
+
+// ═══════════════════════════════════════════════
+// JOB LIST
+// ═══════════════════════════════════════════════
+function getTeamColor() {
+  return TEAMS_CFG.find(t=>t.name===activeTeam)?.color || '#14a1e9';
+}
+
+function renderJobs() {
+  if (activeWC === 'PRIORITY') { renderPriorityJobsList(); return; }
+  if (!activeWC || !activePrep) return;
+  const jobs = PROD[activeWC]?.[activePrep] || [];
+  const sk = activeSub;
+  const stateSlice = STATE[activeTeam]?.[sk]?.[activeWC]?.[activePrep] || [];
+
+  const done  = stateSlice.filter(s=>s.done).length;
+  const total = jobs.length;
+  const pend  = total - done;
+  const pct   = total ? Math.round(done/total*100) : 0;
+
+  // Header
+  document.getElementById('jh-title').textContent =
+    `${activeTeam}${activeHasSubs?' — '+activeSub:''}: Prep ${activePrep}`;
+  document.getElementById('jh-sub').textContent =
+    `${activeWC} · w/c ${PROD[activeWC]?.wc||''} · ${PREP_DAYS[activePrep-1]} · ${total} job${total!==1?'s':''}`;
+
+  const statsEl = document.getElementById('jh-stats');
+  statsEl.style.display = total ? 'flex' : 'none';
+  document.getElementById('stat-total').textContent = total;
+  document.getElementById('stat-done').textContent  = done;
+  document.getElementById('stat-pend').textContent  = pend;
+  document.getElementById('stat-bar').style.width   = pct+'%';
+
+  const area = document.getElementById('jobListArea');
+  if (!total) {
+    area.innerHTML = `<div class="no-jobs"><div style="font-size:28px">🎉</div><p>No jobs for this prep day</p></div>`;
+    renderUndo(); return;
+  }
+
+  const color = getTeamColor();
+  let html = '';
+  jobs.forEach((job, ji) => {
+    const s = stateSlice[ji] || { done:false, doneAt:'', initials:'' };
+    const sk2 = activeSub;
+    const isAuto = s.autoSync && s.done;
+    html += `
+      <div class="job-card ${s.done?'done':''}">
+        <div class="jc-bar" style="background:${s.done?(isAuto?'var(--teal)':'var(--green)'):color}"></div>
+        <div class="jc-body">
+          <span class="jc-item">Job ${job.itemNo}</span>
+          <span class="jc-rep">${job.rep}</span>
+          ${s.done ? `<div class="card-undo">
+            ${isAuto ? `<span class="jc-auto-badge">📋 AUTO</span>` : (s.initials?`<span class="jc-initials">${s.initials}</span>`:'')}
+            ${s.doneAt?`<span class="jc-time-sm">${s.doneAt}</span>`:''}
+            <button class="card-undo-btn" onclick="undoJob('${activeTeam}','${sk2}','${activeWC}',${activePrep},${ji})">↩ Undo</button>
+          </div>` : `<span class="jc-qty">Qty: ${job.qty||'—'}</span>`}
+        </div>
+        <button class="tick-btn ${s.done?'ticked':''}" onclick="tickJob(${ji})">
+          <span class="tb-icon">${s.done?'✓':'○'}</span>
+          <span class="tb-label">${s.done?'DONE':'MARK'}</span>
+        </button>
+      </div>`;
+  });
+
+  area.innerHTML = html;
+  renderQCSyncBar();
+  renderUndo();
+}
+
+// ─── Pending tick (waiting for initials) ───
+let pendingTick = null; // { ji }
+
+function tickJob(ji) {
+  const sk = activeSub;
+  const s = STATE[activeTeam][sk][activeWC][activePrep][ji];
+  if (s.done) {
+    // Already done — undo directly
+    undoJob(activeTeam, sk, activeWC, activePrep, ji);
+    return;
+  }
+  // Show initials modal
+  const job = PROD[activeWC][activePrep][ji];
+  pendingTick = { ji };
+  document.getElementById('modal-rep-label').textContent = job.rep;
+  const inp = document.getElementById('modal-initials-input');
+  inp.value = '';
+  document.getElementById('modal-initials').style.display = 'flex';
+  setTimeout(() => inp.focus(), 80);
+}
+
+function modalConfirm() {
+  if (!pendingTick) return;
+  const inp = document.getElementById('modal-initials-input');
+  const initials = inp.value.trim().toUpperCase();
+  if (!initials) { inp.focus(); inp.style.borderColor='var(--red)'; setTimeout(()=>inp.style.borderColor='',800); return; }
+  document.getElementById('modal-initials').style.display = 'none';
+
+  const { ji } = pendingTick;
+  pendingTick = null;
+  const sk = activeSub;
+  const s = STATE[activeTeam][sk][activeWC][activePrep][ji];
+  s.done     = true;
+  s.doneAt   = new Date().toTimeString().slice(0,5);
+  s.doneDate = new Date().toLocaleDateString('en-GB');
+  s.initials = initials;
+  const job = PROD[activeWC][activePrep][ji];
+  recentDone.unshift({ team:activeTeam, sub:sk, wc:activeWC, prep:activePrep, ji, label:job.rep });
+  if (recentDone.length > 20) recentDone.pop();
+  toast(`${job.rep} · ${initials} · marked complete`, 's');
+  renderJobs();
+  renderTeamSidebar();
+}
+
+function modalCancel() {
+  pendingTick = null;
+  document.getElementById('modal-initials').style.display = 'none';
+}
+
+// Allow Enter key to confirm
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && pendingTick !== null) modalConfirm();
+  if (e.key === 'Escape' && pendingTick !== null) modalCancel();
+  if (e.key === 'Enter' && ovPendingTab !== null) ovPwConfirm();
+  if (e.key === 'Escape' && ovPendingTab !== null) ovPwCancel();
+});
+
+function renderUndo() {
+  const strip = document.getElementById('undoStrip');
+  strip.style.display = 'none'; // inline undo buttons on cards handle this now
+}
+
+function undoJob(team, sub, wc, prep, ji) {
+  const s = STATE[team][sub][wc][prep][ji];
+  s.done = false; s.doneAt = ''; s.initials = ''; s.doneDate = ''; s.autoSync = false;
+  const idx = recentDone.findIndex(r=>r.team===team&&r.sub===sub&&r.wc===wc&&r.prep===prep&&r.ji===ji);
+  if (idx>=0) recentDone.splice(idx,1);
+  renderJobs(); renderTeamSidebar();
+  toast('Marked incomplete — completion removed', 'u');
+}
+
+// ═══════════════════════════════════════════════
+// SEARCH
+// ═══════════════════════════════════════════════
+let searchQuery = '';
+
+function onSearch(val) {
+  searchQuery = val.trim().toUpperCase();
+  document.getElementById('search-clear-btn').style.display = searchQuery ? 'block' : 'none';
+  if (searchQuery) {
+    renderSearchResults();
+  } else {
+    renderJobs();
+  }
+}
+
+function clearSearch() {
+  document.getElementById('rep-search').value = '';
+  onSearch('');
+}
+
+function renderSearchResults() {
+  const area = document.getElementById('jobListArea');
+  const q = searchQuery;
+  if (!q) { renderJobs(); return; }
+
+  // Search across all weeks and preps
+  const results = [];
+  WEEKS.forEach(wk => {
+    for (let p = 1; p <= 5; p++) {
+      const jobs = PROD[wk]?.[p] || [];
+      jobs.forEach((job, ji) => {
+        const repClean = job.rep.replace(/\s/g,'').toUpperCase();
+        const repSearch = q.replace(/\s/g,'');
+        if (repClean.includes(repSearch) || String(job.itemNo).includes(q)) {
+          const sk = activeSub;
+          const s = STATE[activeTeam]?.[sk]?.[wk]?.[p]?.[ji] || { done:false, doneAt:'', initials:'' };
+          results.push({ wk, p, ji, job, s });
+        }
+      });
+    }
+  });
+
+  if (!results.length) {
+    area.innerHTML = `<div class="search-no-results">No REP numbers found matching "<strong>${q}</strong>"</div>`;
+    return;
+  }
+
+  area.innerHTML = results.map(r => {
+    const { wk, p, ji, job, s } = r;
+    const ctx = `${wk} · ${PROD[wk]?.wc||''} · Prep ${p} (${PREP_DAYS[p-1]})`;
+    const isDone = s.done;
+    return `<div class="search-result" onclick="goToJob('${wk}',${p})">
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="sr-job">Job ${job.itemNo}</span>
+          <span class="sr-rep">${job.rep}</span>
+          <span class="sr-badge ${isDone?'':'pending'}">${isDone?'✓ Done · '+(s.initials||'?')+' · '+s.doneAt:'Pending'}</span>
+        </div>
+        <div class="sr-ctx">${ctx}</div>
+      </div>
+      <span style="font-size:11px;color:var(--text3)">→</span>
+    </div>`;
+  }).join('');
+}
+
+function goToJob(wk, prep) {
+  clearSearch();
+  activeWC = wk;
+  activePrep = prep;
+  renderWeekList();
+  renderPrepGrid();
+  renderJobs();
+}
+
+// ═══════════════════════════════════════════════
+// EXPORT TO CSV
+// ═══════════════════════════════════════════════
+function exportCSV() {
+  const rows = [['Team','Sub','Week','W/C','Prep Day','Job No','REP','Status','Initials','Time','Date']];
+
+  TEAMS_CFG.forEach(t => {
+    const keys = t.hasSubs ? SUBS : ['all'];
+    keys.forEach(sub => {
+      WEEKS.forEach(wk => {
+        for (let p = 1; p <= 5; p++) {
+          const jobs = PROD[wk]?.[p] || [];
+          jobs.forEach((job, ji) => {
+            const s = STATE[t.name]?.[sub]?.[wk]?.[p]?.[ji] || {};
+            rows.push([
+              t.name,
+              sub === 'all' ? '' : sub,
+              wk,
+              PROD[wk]?.wc || '',
+              PREP_DAYS[p-1],
+              job.itemNo,
+              job.rep,
+              s.done ? 'Complete' : 'Pending',
+              s.initials || '',
+              s.doneAt || '',
+              s.doneDate || '',
+            ]);
+          });
+        }
+      });
+    });
+  });
+
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  const ts   = new Date().toISOString().slice(0,16).replace('T','_').replace(':','-');
+  a.href     = url;
+  a.download = `repose-production-${ts}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('CSV exported — open in Excel', 's');
+}
+
+// ═══════════════════════════════════════════════
+// OVERVIEW
+// ═══════════════════════════════════════════════
+const OV_DEPTS = [
+  { k:'wm', lbl:'WM', hasSubs:true  },
+  { k:'fm', lbl:'FM', hasSubs:false },
+  { k:'ct', lbl:'CT', hasSubs:false },
+  { k:'sw', lbl:'SW', hasSubs:false },
+  { k:'uh', lbl:'UH', hasSubs:true  },
+  { k:'as', lbl:'AS', hasSubs:false },
+  { k:'qc', lbl:'QC', hasSubs:false },
+];
+const OV_SUBS_SHORT = ['A','B','S'];
+
+// REP numbers are 7-digit codes from Planning sheet row 4+ (e.g. 2607038)
+// Displayed as "REP 2607038" — each column in the sheet = one load, row 4 = delivery date
+const OV_DAYS = [
+  { label:'Yesterday', date:'Wed 19 Mar', cls:'yest',
+    reps:[
+      { id:'REP 2607038', s:{ wm:['A','B','S'],fm:1,ct:1,sw:1,uh:['A','B','S'],as:1,qc:1 }},
+      { id:'REP 2607188', s:{ wm:['A','B','S'],fm:1,ct:1,sw:1,uh:['A','B'],   as:1,qc:0 }},
+      { id:'REP 2608070', s:{ wm:['A','B','S'],fm:1,ct:1,sw:1,uh:['A','B','S'],as:1,qc:1 }},
+    ]
+  },
+  { label:'Today', date:'Thu 20 Mar', cls:'today',
+    reps:[
+      { id:'REP 2608036', s:{ wm:['A','B','S'],fm:1,ct:1,sw:1,uh:['A'],as:0,qc:0 }},
+      { id:'REP 2608144', s:{ wm:['A','B'],    fm:1,ct:0,sw:0,uh:[],   as:0,qc:0 }},
+      { id:'REP 2606169', s:{ wm:['A'],        fm:0,ct:0,sw:0,uh:[],   as:0,qc:0 }},
+      { id:'REP 2609240', s:{ wm:[],           fm:0,ct:0,sw:0,uh:[],   as:0,qc:0 }},
+    ]
+  },
+  { label:'Tomorrow', date:'Fri 21 Mar', cls:'',
+    reps:[
+      { id:'REP 2607083', s:{ wm:[],fm:0,ct:0,sw:0,uh:[],as:0,qc:0 }},
+      { id:'REP 2609115', s:{ wm:[],fm:0,ct:0,sw:0,uh:[],as:0,qc:0 }},
+    ]
+  },
+  { label:'+2 Days', date:'Mon 24 Mar', cls:'',
+    reps:[
+      { id:'REP 2609301', s:{ wm:[],fm:0,ct:0,sw:0,uh:[],as:0,qc:0 }},
+      { id:'REP 2609402', s:{ wm:[],fm:0,ct:0,sw:0,uh:[],as:0,qc:0 }},
+    ]
+  },
+  { label:'+3 Days', date:'Tue 25 Mar', cls:'',
+    reps:[
+      { id:'REP 2609518', s:{ wm:[],fm:0,ct:0,sw:0,uh:[],as:0,qc:0 }},
+      { id:'REP 2609622', s:{ wm:[],fm:0,ct:0,sw:0,uh:[],as:0,qc:0 }},
+    ]
+  },
+];
+
+function teamTileState(d, rep) {
+  if (d.hasSubs) {
+    const done = Array.isArray(rep.s[d.k]) ? rep.s[d.k] : [];
+    if (done.length === 3) return 'done';
+    if (done.length > 0)  return 'partial';
+    return '';
+  }
+  return rep.s[d.k] ? 'done' : '';
+}
+
+// ── Tab rendering ──
+function renderOverviewTabs() {
+  const row = document.getElementById('ovTabRow');
+  if (!row) return;
+  row.innerHTML = OV_TABS.map(t => {
+    const isActive   = ovActiveTab === t.id;
+    const isUnlocked = ovUnlocked[t.id];
+    return `<button class="ov-tab-btn ${isActive ? 'active' : ''}" onclick="selectOvTab('${t.id}')">
+      ${t.icon} ${t.label}
+      ${!isUnlocked ? '<span class="ov-tab-lock">🔒</span>' : ''}
+    </button>`;
+  }).join('');
+}
+
+function selectOvTab(tabId) {
+  if (ovUnlocked[tabId]) {
+    ovActiveTab = tabId;
+    renderOverviewTabs();
+    renderOverview();
+    return;
+  }
+  // Need password
+  ovPendingTab = tabId;
+  const label = OV_TABS.find(t => t.id === tabId)?.label || tabId;
+  document.getElementById('ov-pw-sub').textContent =
+    `Enter the password for "${label}"`;
+  const inp = document.getElementById('ov-pw-input');
+  inp.value = '';
+  document.getElementById('ov-pw-err').style.display = 'none';
+  document.getElementById('modal-ov-pw').style.display = 'flex';
+  setTimeout(() => inp.focus(), 80);
+}
+
+function ovPwConfirm() {
+  if (!ovPendingTab) return;
+  const inp = document.getElementById('ov-pw-input');
+  const entered = inp.value.trim().toLowerCase();
+  const expected = OV_PASSWORDS[ovPendingTab];
+  if (entered !== expected) {
+    document.getElementById('ov-pw-err').style.display = 'block';
+    inp.value = ''; inp.focus();
+    return;
+  }
+  // Correct — unlock and open
+  ovUnlocked[ovPendingTab] = true;
+  ovActiveTab = ovPendingTab;
+  ovPendingTab = null;
+  document.getElementById('modal-ov-pw').style.display = 'none';
+  renderOverviewTabs();
+  renderOverview();
+}
+
+function ovPwCancel() {
+  ovPendingTab = null;
+  document.getElementById('modal-ov-pw').style.display = 'none';
+}
+
+// ── Main dispatcher ──
+function renderOverview() {
+  if (!ovActiveTab) {
+    document.getElementById('ovArea').innerHTML = `<div class="ov-locked">
+      <div class="ov-locked-icon">🔒</div>
+      <div class="ov-locked-title">Select a view above</div>
+      <div class="ov-locked-sub">Choose Overall or a team tab to get started</div>
+    </div>`;
+    return;
+  }
+  if (ovActiveTab === 'overall') {
+    renderOverviewAll();
+  } else {
+    renderOverviewTeam(ovActiveTab);
+  }
+}
+
+// ── Overall view (all teams) ──
+function renderOverviewAll() {
+  const area = document.getElementById('ovArea');
+  const legendHtml = `<div class="ov-legend" style="padding:10px 0 12px;display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+    <div class="leg"><div class="dbadge done" style="pointer-events:none"><span class="db-lbl">SW</span><span class="db-icon">✓</span></div>&nbsp;Done</div>
+    <div class="leg"><div class="dbadge partial" style="pointer-events:none"><span class="db-lbl">SW</span><span class="db-icon">–</span></div>&nbsp;Pending</div>
+    <div class="leg"><div class="dbadge done qc" style="pointer-events:none"><span class="db-lbl">QC</span><span class="db-icon">✓</span></div>&nbsp;QC</div>
+    <div class="leg">
+      <div class="dbadge-grp-wrap" style="pointer-events:none">
+        <span class="dbadge-grp-lbl partial">WM</span>
+        <div class="dbadge-grp"><div class="dsub on">A</div><div class="dsub on">B</div><div class="dsub">S</div></div>
+      </div>&nbsp;Arms/Backs/Seats
+    </div>
+  </div>`;
+
+  let gridHtml = '<div class="ov-grid">';
+  OV_DAYS.forEach(day => {
+    let tot=0, dn=0;
+    day.reps.forEach(r => {
+      OV_DEPTS.forEach(d => {
+        if (d.hasSubs) { tot+=3; dn+=Array.isArray(r.s[d.k])?r.s[d.k].length:0; }
+        else           { tot+=1; dn+=r.s[d.k]?1:0; }
+      });
+    });
+    const pct = tot ? Math.round(dn/tot*100) : 0;
+
+    gridHtml += `<div class="day-col">
+      <div class="day-head ${day.cls}">
+        <div class="dh-label">${day.label}</div>
+        <div class="dh-date">${day.date}</div>
+        <div class="dh-ct">${day.reps.length} load${day.reps.length!==1?'s':''} · ${pct}%</div>
+        <div class="dh-prog"><div class="dh-pfill" style="width:${pct}%"></div></div>
+      </div>
+      <div class="day-body">`;
+
+    if (!day.reps.length) gridHtml += `<div class="day-empty">No loads scheduled</div>`;
+
+    day.reps.forEach((rep, ri) => {
+      const allDone = OV_DEPTS.every(d => teamTileState(d, rep) === 'done');
+      gridHtml += `<div class="rep-row ${allDone?'all-done':''}">
+        <span class="rep-num">${rep.id}</span>
+        <div class="badge-strip">`;
+      OV_DEPTS.forEach((d, di) => {
+        if (di > 0) gridHtml += `<div class="bdiv"></div>`;
+        const state = teamTileState(d, rep);
+        const isQC  = d.k === 'qc';
+        if (d.hasSubs) {
+          const done = Array.isArray(rep.s[d.k]) ? rep.s[d.k] : [];
+          const grpCls = state==='done'?'done':state==='partial'?'partial':'';
+          gridHtml += `<div class="dbadge-grp-wrap">
+            <span class="dbadge-grp-lbl ${grpCls}">${d.lbl}</span>
+            <div class="dbadge-grp">
+              ${OV_SUBS_SHORT.map(s => {
+                const on = done.includes(s);
+                return `<div class="dsub ${on?'on':''}" title="${d.lbl} ${s==='A'?'Arms':s==='B'?'Backs':'Seats'}"
+                  onclick="ovToggleSub('${day.label}',${ri},'${d.k}','${s}')">${s}</div>`;
+              }).join('')}
+            </div>
+          </div>`;
+        } else {
+          const icon = state==='done'?'✓':'–';
+          const cls  = state + (isQC && state==='done' ? ' qc' : '');
+          gridHtml += `<div class="dbadge ${cls}" onclick="ovToggle('${day.label}',${ri},'${d.k}')">
+            <span class="db-lbl">${d.lbl}</span>
+            <span class="db-icon">${icon}</span>
+          </div>`;
+        }
+      });
+      gridHtml += `</div></div>`;
+    });
+    gridHtml += `</div></div>`;
+  });
+  gridHtml += '</div>';
+  area.innerHTML = legendHtml + gridHtml;
+}
+
+// ── Team-specific view ──
+function renderOverviewTeam(teamName) {
+  const area   = document.getElementById('ovArea');
+  const map    = TEAM_OV_MAP[teamName];
+  const cfg    = TEAMS_CFG.find(t => t.name === teamName);
+  if (!map || !cfg) return;
+
+  // Header summary
+  let totalSlots=0, doneSlots=0;
+  OV_DAYS.slice(0,3).forEach(day => {
+    day.reps.forEach(rep => {
+      if (map.hasSubs) {
+        totalSlots += 3;
+        doneSlots  += Array.isArray(rep.s[map.key]) ? rep.s[map.key].length : 0;
+      } else {
+        totalSlots += 1;
+        doneSlots  += rep.s[map.key] ? 1 : 0;
+      }
+    });
+  });
+  const pctOverall = totalSlots ? Math.round(doneSlots/totalSlots*100) : 0;
+
+  let html = `<div style="padding:10px 0 12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+    <div style="font-size:13px;font-weight:600;color:var(--repose-navy)">${cfg.icon} ${teamName} — Load Plan Progress</div>
+    <div style="font-size:11px;color:var(--text2)">Yesterday · Today · Tomorrow: ${doneSlots}/${totalSlots} slots done (${pctOverall}%)</div>
+  </div>
+  <div class="ov-grid">`;
+
+  OV_DAYS.forEach(day => {
+    // Progress for this team in this day
+    let tot=0, dn=0;
+    day.reps.forEach(rep => {
+      if (map.hasSubs) {
+        tot += 3;
+        dn  += Array.isArray(rep.s[map.key]) ? rep.s[map.key].length : 0;
+      } else {
+        tot += 1;
+        dn  += rep.s[map.key] ? 1 : 0;
+      }
+    });
+    const pct = tot ? Math.round(dn/tot*100) : 0;
+
+    html += `<div class="day-col">
+      <div class="day-head ${day.cls}">
+        <div class="dh-label">${day.label}</div>
+        <div class="dh-date">${day.date}</div>
+        <div class="dh-ct">${day.reps.length} load${day.reps.length!==1?'s':''} · ${pct}%</div>
+        <div class="dh-prog"><div class="dh-pfill" style="width:${pct}%"></div></div>
+      </div>
+      <div class="day-body">`;
+
+    if (!day.reps.length) { html += `<div class="day-empty">No loads scheduled</div>`; }
+
+    day.reps.forEach((rep, ri) => {
+      let teamDone = false;
+      if (map.hasSubs) {
+        const done = Array.isArray(rep.s[map.key]) ? rep.s[map.key] : [];
+        teamDone = done.length === 3;
+      } else {
+        teamDone = !!rep.s[map.key];
+      }
+
+      html += `<div class="rep-row ${teamDone ? 'all-done' : ''}">
+        <span class="rep-num">${rep.id}</span>
+        <div class="badge-strip">`;
+
+      if (map.hasSubs) {
+        const done    = Array.isArray(rep.s[map.key]) ? rep.s[map.key] : [];
+        const grpCls  = done.length === 3 ? 'done' : done.length > 0 ? 'partial' : '';
+        html += `<div class="dbadge-grp-wrap">
+          <span class="dbadge-grp-lbl ${grpCls}">${map.key.toUpperCase()}</span>
+          <div class="dbadge-grp">
+            ${OV_SUBS_SHORT.map(s => {
+              const on = done.includes(s);
+              return `<div class="dsub ${on?'on':''}" title="${s==='A'?'Arms':s==='B'?'Backs':'Seats'}"
+                onclick="ovToggleSub('${day.label}',${ri},'${map.key}','${s}')">${s}</div>`;
+            }).join('')}
+          </div>
+        </div>`;
+      } else {
+        const st   = teamDone ? 'done' : '';
+        const isQC = teamName === 'QC';
+        const icon = teamDone ? '✓' : '–';
+        const cls  = st + (isQC && teamDone ? ' qc' : '');
+        html += `<div class="dbadge ${cls}" onclick="ovToggle('${day.label}',${ri},'${map.key}')">
+          <span class="db-lbl">${map.key.toUpperCase()}</span>
+          <span class="db-icon">${icon}</span>
+        </div>`;
+      }
+
+      html += `</div></div>`;
+    });
+
+    html += `</div></div>`;
+  });
+
+  html += '</div>';
+  area.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════
+// QC AUTO-SYNC FROM SHAREPOINT EXCEL
+// ═══════════════════════════════════════════════
+
+// Find a job in PROD by its 7-digit REP code — returns {wk, prep, ji} or null
+function findJobByRep(rep7) {
+  const repStr = `REP ${rep7}`;
+  for (const wk of WEEKS) {
+    for (let p = 1; p <= 5; p++) {
+      const jobs = PROD[wk]?.[p] || [];
+      for (let ji = 0; ji < jobs.length; ji++) {
+        if (jobs[ji].rep === repStr) return { wk, prep: p, ji };
+      }
+    }
+  }
+  return null;
+}
+
+async function autoSyncQCCompletions() {
+  if (!QC_SHEET_SHARING_URL) return;
+  const token = await getGraphToken().catch(() => null);
+  if (!token) return;
+
+  qcSyncing = true;
+  if (activeTeam === 'QC') renderQCSyncBar();
+
+  try {
+    // Resolve sharing URL → driveItem
+    const encoded   = encodeSharingUrl(QC_SHEET_SHARING_URL);
+    const driveItem = await graphGet(`https://graph.microsoft.com/v1.0/shares/${encoded}/driveItem`);
+    const driveId   = driveItem.parentReference.driveId;
+    const itemId    = driveItem.id;
+
+    // Read column A (usedRange — only values needed)
+    const range = await graphGet(
+      `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}` +
+      `/workbook/worksheets('${encodeURIComponent(QC_SHEET_NAME)}')/usedRange?$select=values`
+    );
+
+    // Extract 7-digit REP codes from column A
+    // Accepts: "2611056", "REP 2611056", "REP2611056"
+    const repNums = new Set();
+    (range.values || []).forEach(row => {
+      const cell = String(row[0] ?? '').trim();
+      const m = cell.match(/\b(\d{7})\b/);
+      if (m) repNums.add(m[1]);
+    });
+
+    // Auto-mark matching QC jobs that aren't already done
+    const now     = new Date();
+    const timeStr = now.toTimeString().slice(0, 5);
+    const dateStr = now.toLocaleDateString('en-GB');
+    let newlyDone = 0;
+
+    repNums.forEach(rep7 => {
+      const loc = findJobByRep(rep7);
+      if (!loc) return;
+      const s = STATE['QC']?.['all']?.[loc.wk]?.[loc.prep]?.[loc.ji];
+      if (!s || s.done) return; // skip — already done (manually or previously auto-synced)
+      s.done     = true;
+      s.doneAt   = timeStr;
+      s.doneDate = dateStr;
+      s.initials = 'AUTO';
+      s.autoSync = true;
+      newlyDone++;
+    });
+
+    qcLastSyncTime = now;
+    qcSyncError    = false;
+    qcSyncing      = false;
+
+    if (activeTeam === 'QC') {
+      renderJobs();
+      renderTeamSidebar();
+    }
+    if (newlyDone > 0) {
+      toast(`QC: ${newlyDone} job${newlyDone !== 1 ? 's' : ''} auto-completed from sheet`, 's');
+    }
+
+  } catch (e) {
+    console.warn('QC auto-sync failed:', e.message);
+    qcSyncError = true;
+    qcSyncing   = false;
+    if (activeTeam === 'QC') renderQCSyncBar();
+  }
+}
+
+function renderQCSyncBar() {
+  const bar = document.getElementById('qcSyncBar');
+  if (!bar) return;
+
+  if (activeTeam !== 'QC') { bar.style.display = 'none'; return; }
+  if (!QC_SHEET_SHARING_URL) {
+    bar.style.display = 'none'; return;
+  }
+
+  bar.style.display = 'flex';
+  const notSignedIn = !graphAccount;
+
+  let pillCls, pillTxt;
+  if (notSignedIn) {
+    pillCls = 'idle'; pillTxt = 'Sign in to enable QC auto-sync';
+  } else if (qcSyncing) {
+    pillCls = 'syncing'; pillTxt = 'Syncing QC completions…';
+  } else if (qcSyncError) {
+    pillCls = 'error'; pillTxt = 'QC sync failed · check URL & permissions';
+  } else if (qcLastSyncTime) {
+    const t = qcLastSyncTime.toTimeString().slice(0, 5);
+    pillCls = 'active'; pillTxt = `✅ QC auto-sync · last checked ${t} · every 60 s`;
+  } else {
+    pillCls = 'idle'; pillTxt = 'QC auto-sync configured · waiting…';
+  }
+
+  bar.innerHTML = `
+    <div class="qc-sync-pill ${pillCls}">
+      <span class="qcs-dot"></span>
+      <span>${pillTxt}</span>
+    </div>
+    ${!notSignedIn ? `<button class="qc-sync-btn" onclick="autoSyncQCCompletions()" title="Sync now">↻ Sync now</button>` : ''}`;
+}
+
+function startQCAutoSync() {
+  if (!QC_SHEET_SHARING_URL) return;
+  stopQCAutoSync();
+  autoSyncQCCompletions();                            // immediate first run
+  qcSyncInterval = setInterval(autoSyncQCCompletions, 60000); // then every 60 s
+}
+
+function stopQCAutoSync() {
+  if (qcSyncInterval) { clearInterval(qcSyncInterval); qcSyncInterval = null; }
+}
+
+// ═══════════════════════════════════════════════
+// MICROSOFT GRAPH API — LIVE SHAREPOINT SYNC
+// ═══════════════════════════════════════════════
+// ⚠️  SETUP: replace YOUR_CLIENT_ID_HERE with your Azure App Registration
+//     client ID.  Steps:
+//     1. Go to portal.azure.com → Azure Active Directory → App registrations
+//     2. New registration: name "Repose Tracker", Accounts in this org only
+//     3. Platform: Single-page application (SPA), redirect URI = this file's URL
+//        (e.g. http://localhost:8080 if served locally, or the SharePoint page URL)
+//     4. API permissions → Add → Microsoft Graph → Delegated → Files.Read + User.Read
+//     5. Copy the Application (client) ID below
+const AZURE_CLIENT_ID  = '2f8cdb1e-93da-4815-942b-c7c8d1a29ca5';
+const AZURE_TENANT_ID  = 'reposefurniturelimited.onmicrosoft.com';
+const GRAPH_SCOPES     = ['Files.Read', 'User.Read'];
+
+// Live SharePoint link — Production 2026 Dec-Nov.xlsx
+const PROD_SHARING_URL = 'https://reposefurniturelimited.sharepoint.com/:x:/s/ReposeFurniture-PlanningRepose/IQBLf67iYnbQSq2O8UU_zQihARfBedzZcW-CmO0q3v5zC3o?e=nfze02';
+
+const GRAPH_READY = AZURE_CLIENT_ID !== 'YOUR_CLIENT_ID_HERE';
+let msalInstance = null;
+let graphAccount  = null;
+
+function initMSAL() {
+  if (!GRAPH_READY || typeof msal === 'undefined') return;
+  msalInstance = new msal.PublicClientApplication({
+    auth: {
+      clientId: AZURE_CLIENT_ID,
+      authority: `https://login.microsoftonline.com/${AZURE_TENANT_ID}`,
+      redirectUri: window.location.href.split('?')[0].split('#')[0],
+    },
+    cache: { cacheLocation: 'localStorage', storeAuthStateInCookie: true },
+  });
+}
+
+async function graphSignIn() {
+  if (!GRAPH_READY) {
+    toast('Add your Azure Client ID to enable live data', 'u');
+    return;
+  }
+  if (!msalInstance) initMSAL();
+  try {
+    const res = await msalInstance.loginPopup({ scopes: GRAPH_SCOPES });
+    graphAccount = res.account;
+    updateAuthBadge();
+    await loadProductionFromSharePoint();
+    startQCAutoSync();
+  } catch(e) {
+    console.error('Sign-in failed', e);
+    toast('Sign-in failed — check Azure app config', 'u');
+  }
+}
+
+async function getGraphToken() {
+  if (!msalInstance) return null;
+  const accounts = msalInstance.getAllAccounts();
+  if (!accounts.length) return null;
+  try {
+    const res = await msalInstance.acquireTokenSilent({ scopes: GRAPH_SCOPES, account: accounts[0] });
+    graphAccount = res.account;
+    return res.accessToken;
+  } catch {
+    const res = await msalInstance.acquireTokenPopup({ scopes: GRAPH_SCOPES });
+    graphAccount = res.account;
+    return res.accessToken;
+  }
+}
+
+async function graphGet(url) {
+  const token = await getGraphToken();
+  if (!token) throw new Error('Not authenticated');
+  const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (!r.ok) throw new Error(`Graph ${r.status}: ${await r.text()}`);
+  return r.json();
+}
+
+function encodeSharingUrl(link) {
+  return 'u!' + btoa(link).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');
+}
+
+function isoWeekMonday(isoWeek) {
+  const year = new Date().getFullYear();
+  const jan4  = new Date(year, 0, 4);
+  const d = new Date(jan4);
+  d.setDate(jan4.getDate() - (jan4.getDay()+6)%7 + (isoWeek-1)*7);
+  return d;
+}
+
+function ddmmyyyy(d) {
+  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+}
+
+function parseSheetValues(values) {
+  if (!values || !values.length) return [];
+  // Find header row (row 4 = index 3), then parse col K (10) and L (11)
+  let startRow = 4;
+  for (let i = 0; i < Math.min(8, values.length); i++) {
+    const row = values[i];
+    if (row && String(row[10]||'').toLowerCase().includes('item')) {
+      startRow = i + 1; break;
+    }
+  }
+  const jobs = [];
+  for (let i = startRow; i < values.length; i++) {
+    const row = values[i];
+    if (!row || row.length < 12) continue;
+    const itemNo = Number(row[10]);
+    if (!Number.isInteger(itemNo) || itemNo <= 0) continue;
+    const lCell = String(row[11]||'');
+    const m = lCell.match(/REP(\d{7})/);
+    if (!m) continue;
+    // Prep day from column BI (index 60)
+    const prepVal = Number(row[60]);
+    const prep = (Number.isInteger(prepVal) && prepVal >= 1 && prepVal <= 5) ? prepVal : null;
+    jobs.push({ itemNo, rep: `REP ${m[1]}`, prep });
+  }
+  return jobs;
+}
+
+function distributeIntoPreps(jobs) {
+  const hasPrep = jobs.some(j => j.prep !== null);
+  const preps = {1:[],2:[],3:[],4:[],5:[]};
+  if (hasPrep) {
+    // Use prep column values directly
+    jobs.forEach(j => { const p = j.prep||1; preps[p].push({ itemNo:j.itemNo, rep:j.rep }); });
+  } else {
+    // Even distribution across 5 preps until prep column is added
+    const n = jobs.length;
+    jobs.forEach((j, i) => {
+      const p = n === 0 ? 1 : Math.min(5, Math.floor(i * 5 / n) + 1);
+      preps[p].push({ itemNo:j.itemNo, rep:j.rep });
+    });
+  }
+  return preps;
+}
+
+async function loadProductionFromSharePoint() {
+  if (!GRAPH_READY) return;
+  const token = await getGraphToken().catch(() => null);
+  if (!token) { toast('Sign in first to load live data', 'u'); return; }
+
+  const pill = document.getElementById('prod-sync-pill');
+  const lbl  = document.getElementById('prod-sync-lbl');
+  if (pill) { pill.className = 'sync-pill syncing'; lbl.textContent = 'Loading from SharePoint…'; }
+
+  try {
+    // 1. Resolve sharing link to driveItem
+    const encoded  = encodeSharingUrl(PROD_SHARING_URL);
+    const driveItem = await graphGet(`https://graph.microsoft.com/v1.0/shares/${encoded}/driveItem`);
+    const driveId  = driveItem.parentReference.driveId;
+    const itemId   = driveItem.id;
+
+    // 2. Determine 4-week window
+    const now = currentISOWeek();
+    const weekNums = [now-2, now-1, now, now+1];
+
+    // 3. Fetch each week sheet
+    const newPROD  = {};
+    const newWEEKS = [];
+
+    for (const wn of weekNums) {
+      const sheetName = `WK ${wn}`;
+      const monday    = isoWeekMonday(wn);
+      const wc        = ddmmyyyy(monday);
+      try {
+        const range = await graphGet(
+          `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/worksheets('${encodeURIComponent(sheetName)}')/usedRange`
+        );
+        const jobs = parseSheetValues(range.values || []);
+        newPROD[sheetName] = { wc, ...distributeIntoPreps(jobs) };
+      } catch(e) {
+        console.warn(`Sheet ${sheetName} unavailable:`, e.message);
+        newPROD[sheetName] = { wc, 1:[], 2:[], 3:[], 4:[], 5:[] };
+      }
+      newWEEKS.push(sheetName);
+    }
+
+    // 4. Update globals (preserving existing STATE for already-marked jobs)
+    Object.assign(PROD, newPROD);
+    WEEKS.length = 0;
+    newWEEKS.forEach(w => WEEKS.push(w));
+    activeWC = `WK ${now}`;
+
+    // 5. Ensure STATE has entries for new data
+    TEAMS_CFG.forEach(t => {
+      if (!STATE[t.name]) STATE[t.name] = {};
+      const keys = t.hasSubs ? SUBS : ['all'];
+      keys.forEach(k => {
+        if (!STATE[t.name][k]) STATE[t.name][k] = {};
+        WEEKS.forEach(wk => {
+          if (!STATE[t.name][k][wk]) STATE[t.name][k][wk] = {};
+          for (let p=1; p<=5; p++) {
+            const jobs = PROD[wk][p] || [];
+            if (!STATE[t.name][k][wk][p] || STATE[t.name][k][wk][p].length !== jobs.length) {
+              STATE[t.name][k][wk][p] = jobs.map(() => ({ done:false, doneAt:'' }));
+            }
+          }
+        });
+      });
+    });
+
+    // 6. Re-render
+    renderWeekList();
+    renderJobs();
+    const now2 = new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+    if (pill) { pill.className = 'sync-pill synced'; lbl.textContent = `Live · synced ${now2}`; }
+    toast('Production data loaded from SharePoint', 's');
+
+  } catch(e) {
+    console.error('Production load failed', e);
+    if (pill) { pill.className = 'sync-pill error'; lbl.textContent = 'Sync failed'; }
+    toast('Failed to load: ' + e.message.slice(0,60), 'u');
+  }
+}
+
+function simulateSync() {
+  const pill = document.getElementById('sync-pill');
+  const lbl  = document.getElementById('sync-label');
+  pill.className = 'sync-pill syncing';
+  lbl.textContent = 'Syncing with SharePoint…';
+  setTimeout(() => {
+    pill.className = 'sync-pill synced';
+    lbl.textContent = 'Live · synced just now';
+    renderOverview();
+    toast('Load plan synced from SharePoint', 's');
+  }, 1800);
+}
+
+function updateAuthBadge() {
+  const badge = document.getElementById('auth-badge');
+  if (!badge) return;
+  const pill = document.getElementById('prod-sync-pill');
+  const lbl  = document.getElementById('prod-sync-lbl');
+  if (graphAccount) {
+    const name = graphAccount.name || graphAccount.username.split('@')[0];
+    badge.innerHTML = `<span class="auth-dot on"></span><span class="auth-name">${name}</span>`;
+    badge.onclick = null;
+    badge.title = `Signed in as ${graphAccount.username}`;
+    if (pill) { pill.className = 'sync-pill'; lbl.textContent = 'Ready to sync'; }
+  } else {
+    badge.innerHTML = `<span class="auth-dot off"></span><span class="auth-name">Sign in</span>`;
+    badge.onclick = graphSignIn;
+    badge.title = 'Sign in to load live production data from SharePoint';
+    if (pill && !GRAPH_READY) lbl.textContent = 'Static data · client ID not configured';
+  }
+}
+
+async function initGraph() {
+  updateAuthBadge(); // show initial state
+  if (!GRAPH_READY || typeof msal === 'undefined') return;
+  initMSAL();
+  try { await msalInstance.handleRedirectPromise(); } catch {}
+  const accounts = msalInstance.getAllAccounts();
+  if (accounts.length) {
+    graphAccount = accounts[0];
+    updateAuthBadge();
+    await loadProductionFromSharePoint();
+    startQCAutoSync();
+  }
+}
+
+function ovToggle(dayLabel, ri, dept) {
+  const day = OV_DAYS.find(d=>d.label===dayLabel);
+  day.reps[ri].s[dept] = day.reps[ri].s[dept] ? 0 : 1;
+  renderOverview();
+  renderPriorityBtn();
+  if (activeWC === 'PRIORITY') renderJobs();
+}
+function ovToggleSub(dayLabel, ri, dept, sub) {
+  const day = OV_DAYS.find(d=>d.label===dayLabel);
+  const rep = day.reps[ri];
+  if (!Array.isArray(rep.s[dept])) rep.s[dept]=[];
+  const idx = rep.s[dept].indexOf(sub);
+  if (idx>=0) rep.s[dept].splice(idx,1); else rep.s[dept].push(sub);
+  renderOverview();
+  renderPriorityBtn();
+  if (activeWC === 'PRIORITY') renderJobs();
+}
+
+// ═══════════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════════
+function toast(msg, type='s') {
+  const wrap = document.getElementById('toasts');
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = (type==='s'?'✓ ':'✕ ') + msg;
+  wrap.appendChild(el);
+  setTimeout(()=>el.remove(), 2000);
+}
+
+// ─── Init ───
+renderTeamSidebar();
+renderWeekList();
+// Init Graph API auth after MSAL library loads
+window.addEventListener('load', () => initGraph().catch(console.error));
+</script>
+</body>
+</html>
