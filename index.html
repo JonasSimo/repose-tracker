@@ -616,6 +616,19 @@ body {
 .modal-cancel:hover { background: var(--bg4); }
 .modal-confirm { flex: 2; padding: 10px; border-radius: 8px; border: none; background: var(--blue); color: #fff; font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer; }
 .modal-confirm:hover { background: #0d8fd4; }
+.modal-ops { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.modal-op-btn {
+  padding: 11px 16px; border-radius: 9px; border: 1.5px solid var(--border2);
+  background: var(--bg3); font-size: 13px; font-family: inherit;
+  color: var(--text); cursor: pointer; text-align: left;
+  display: flex; align-items: center; gap: 10px; transition: all .12s;
+}
+.modal-op-btn:hover { border-color: var(--blue); background: var(--bbg); }
+.modal-op-initials {
+  font-family: 'JetBrains Mono',monospace; font-weight: 700; font-size: 13px;
+  color: var(--blue); background: var(--bbg); border: 1px solid var(--bborder);
+  border-radius: 5px; padding: 2px 7px; min-width: 32px; text-align: center;
+}
 
 /* ─── CARD UNDO ─── */
 .card-undo { display: flex; align-items: center; gap: 6px; margin-top: 3px; }
@@ -936,13 +949,21 @@ body {
 <div id="modal-initials" class="modal-overlay" style="display:none" onclick="if(event.target===this)modalCancel()">
   <div class="modal-box">
     <div class="modal-title">Mark as Complete</div>
-    <div class="modal-sub">Enter operator initials for traceability</div>
+    <div class="modal-sub" id="modal-sub-label">Enter operator initials for traceability</div>
     <div class="modal-rep" id="modal-rep-label">REP 0000000</div>
-    <input id="modal-initials-input" class="modal-input" type="text" maxlength="5" placeholder="JD" autocapitalize="characters" autocomplete="off">
-    <div class="modal-hint">Up to 5 characters · e.g. JD or JDS</div>
-    <div class="modal-actions">
-      <button class="modal-cancel" onclick="modalCancel()">Cancel</button>
-      <button class="modal-confirm" onclick="modalConfirm()">✓ Confirm</button>
+    <div id="modal-ops-section" style="display:none">
+      <div class="modal-ops" id="modal-ops-list"></div>
+      <div class="modal-actions" style="margin-top:10px">
+        <button class="modal-cancel" onclick="modalCancel()">Cancel</button>
+      </div>
+    </div>
+    <div id="modal-input-section">
+      <input id="modal-initials-input" class="modal-input" type="text" maxlength="5" placeholder="JD" autocapitalize="characters" autocomplete="off">
+      <div class="modal-hint">Up to 5 characters · e.g. JD or JDS</div>
+      <div class="modal-actions">
+        <button class="modal-cancel" onclick="modalCancel()">Cancel</button>
+        <button class="modal-confirm" onclick="modalConfirm()">✓ Confirm</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1159,6 +1180,17 @@ const PROD = {
 
 // Ordered: last 2 weeks, current, next — matches the 4-week window
 const WEEKS = ['WK 10', 'WK 11', 'WK 12', 'WK 13'];
+
+// Preset operators per team — shown as buttons instead of free-text initials input
+const TEAM_OPERATORS = {
+  'Cutting': [
+    { name: 'Craig Horton',   initials: 'CH' },
+    { name: 'Grant Nock',     initials: 'GN' },
+    { name: 'Matthew Turner', initials: 'MT' },
+    { name: 'Thomas Bailey',  initials: 'TB' },
+    { name: 'Mark Wood',      initials: 'MW' },
+  ],
+};
 
 // Maps team name → OV_DAYS dept key (for Priority Jobs cross-reference with Load Plan)
 const TEAM_OV_MAP = {
@@ -1645,10 +1677,39 @@ function tickJob(ji) {
   // All other teams — show initials modal
   pendingTick = { ji };
   document.getElementById('modal-rep-label').textContent = job.rep;
-  const inp = document.getElementById('modal-initials-input');
-  inp.value = '';
+
+  const operators = TEAM_OPERATORS[activeTeam];
+  const opsSection   = document.getElementById('modal-ops-section');
+  const inputSection = document.getElementById('modal-input-section');
+  const subLabel     = document.getElementById('modal-sub-label');
+
+  if (operators) {
+    // Show operator buttons, hide text input
+    subLabel.textContent = 'Select operator';
+    opsSection.style.display   = '';
+    inputSection.style.display = 'none';
+    document.getElementById('modal-ops-list').innerHTML = operators.map(op =>
+      `<button class="modal-op-btn" onclick="modalSelectOperator('${op.initials}')">
+        <span class="modal-op-initials">${op.initials}</span>
+        <span>${op.name}</span>
+      </button>`
+    ).join('');
+  } else {
+    // Show free-text input
+    subLabel.textContent = 'Enter operator initials for traceability';
+    opsSection.style.display   = 'none';
+    inputSection.style.display = '';
+    const inp = document.getElementById('modal-initials-input');
+    inp.value = '';
+    setTimeout(() => inp.focus(), 80);
+  }
+
   document.getElementById('modal-initials').style.display = 'flex';
-  setTimeout(() => inp.focus(), 80);
+}
+
+function modalSelectOperator(initials) {
+  document.getElementById('modal-initials-input').value = initials;
+  modalConfirm();
 }
 
 function modalConfirm() {
