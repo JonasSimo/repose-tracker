@@ -2533,83 +2533,77 @@ async function loadLoadPlanFromSharePoint() {
     );
 
     const values = range.values || [];
-    console.log('ROW2:', JSON.stringify(values[1]?.slice(0,12)));
-    console.log('ROW3:', JSON.stringify(values[2]?.slice(0,12)));
-    console.log('ROW4:', JSON.stringify(values[3]?.slice(0,12)));
-    console.log('ROW5:', JSON.stringify(values[4]?.slice(0,12)));
     if (values.length < 4) {
-      console.warn('Load plan sheet has fewer than 4 rows — check sheet name');
+      console.warn('Load plan: sheet has fewer than 4 rows');
       return;
     }
 
     const today = new Date(); today.setHours(0,0,0,0);
 
-    // Each REP cell contains date inline: "2549053 - 01/12 JOB 32"
-    // Scan every cell, extract REP + delivery date from the pattern
-    const repPattern = /(\d{6,8})\s*-\s*(\d{2})\/(\d{2})/;
-    const loadsByDateKey = {}; // "YYYY-MM-DD" → { date, diffDays, reps[] }
-    for (let row = 0; row < values.length; row++) {
-      const rowVals = values[row] || [];
-      for (let col = 1; col < rowVals.length; col++) {
-        const cell = String(rowVals[col] ?? '').trim();
-        const m = cell.match(repPattern);
+    // Working day helpers
+    function prevWorkday(d) {
+      const r = new Date(d);
+      do { r.setDate(r.getDate() - 1); } while (r.getDay() === 0 || r.getDay() === 6);
+      return r;
+    }
+    function nextWorkday(d) {
+      const r = new Date(d);
+      do { r.setDate(r.getDate() + 1); } while (r.getDay() === 0 || r.getDay() === 6);
+      return r;
+    }
+
+    // Build 5 fixed working-day slots
+    const fmt = d => d.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
+    const wd1 = nextWorkday(today);
+    const wd2 = nextWorkday(wd1);
+    const wd3 = nextWorkday(wd2);
+    const slots = [
+      { date: prevWorkday(today), label: 'Yesterday',   cls: 'yest',  reps: [] },
+      { date: new Date(today),    label: 'Today',       cls: 'today', reps: [] },
+      { date: wd1,                label: 'Tomorrow',    cls: '',      reps: [] },
+      { date: wd2,                label: 'Tomorrow +1', cls: '',      reps: [] },
+      { date: wd3,                label: 'Tomorrow +2', cls: '',      reps: [] },
+    ];
+    slots.forEach(s => s.date.setHours(0,0,0,0));
+
+    // Index slots by date key for fast lookup
+    const slotByKey = {};
+    slots.forEach((s, i) => { slotByKey[s.date.toISOString().slice(0,10)] = i; });
+
+    // Row 3 (index 2) contains Excel serial dates per column
+    // Rows 4+ (index 3+) contain REP numbers (any 7-digit number)
+    const dateRow = values[2] || [];
+    const numCols = Math.max(...values.map(r => r.length));
+
+    for (let col = 1; col < numCols; col++) {
+      const rawDate = dateRow[col];
+      if (!rawDate) continue;
+
+      // Convert Excel serial or string to JS Date
+      let delivDate = typeof rawDate === 'number'
+        ? excelDateToJS(rawDate)
+        : new Date(rawDate);
+      if (!delivDate || isNaN(delivDate)) continue;
+      delivDate.setHours(0,0,0,0);
+
+      const key = delivDate.toISOString().slice(0,10);
+      const slotIdx = slotByKey[key];
+      if (slotIdx === undefined) continue;
+
+      // Scan rows 4+ for 7-digit REP numbers in this column
+      for (let row = 3; row < values.length; row++) {
+        const cell = String(values[row]?.[col] ?? '').trim();
+        const m = cell.match(/(?<!\d)(\d{7})(?!\d)/);
         if (!m) continue;
-
         const repId = `REP ${m[1]}`;
-        const day   = parseInt(m[2], 10);
-        const month = parseInt(m[3], 10) - 1; // 0-indexed
-
-        // Determine year: try current year; if >6 months in past, try next year
-        let year = today.getFullYear();
-        let delivDate = new Date(year, month, day);
-        delivDate.setHours(0,0,0,0);
-        if ((today - delivDate) > 180 * 86400000) {
-          delivDate = new Date(year + 1, month, day);
-          delivDate.setHours(0,0,0,0);
-        }
-
-        const diffDays = Math.round((delivDate - today) / 86400000);
-        if (diffDays < -1 || diffDays > 14) continue;
-
-        const key = delivDate.toISOString().slice(0, 10);
-        if (!loadsByDateKey[key]) {
-          loadsByDateKey[key] = { date: delivDate, diffDays, reps: [] };
-        }
-        if (!loadsByDateKey[key].reps.find(r => r.id === repId)) {
-          loadsByDateKey[key].reps.push({
-            id: repId,
-            s: { wm:[], fm:0, ct:0, sw:0, uh:[], as:0, qc:0 }
-          });
+        if (!slots[slotIdx].reps.find(r => r.id === repId)) {
+          slots[slotIdx].reps.push({ id: repId, s: { wm:[], fm:0, ct:0, sw:0, uh:[], as:0, qc:0 } });
         }
       }
     }
 
-
-    const fmt = d => d.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
-
-    // Build slots: yesterday + today always shown, then next 3 days that actually have loads
-    const yest = new Date(today); yest.setDate(today.getDate() - 1);
-    const fixedKeys = [
-      { date: yest,           label: 'Yesterday', cls: 'yest'  },
-      { date: new Date(today),label: 'Today',     cls: 'today' },
-    ];
-
-    // Find up to 3 future dates (within 14 days) that have loads
-    const futureDates = Object.values(loadsByDateKey)
-      .filter(e => e.diffDays >= 1 && e.diffDays <= 14 && e.reps.length > 0)
-      .sort((a, b) => a.date - b.date)
-      .slice(0, 3);
-
     OV_DAYS.length = 0;
-    fixedKeys.forEach(slot => {
-      slot.date.setHours(0,0,0,0);
-      const key   = slot.date.toISOString().slice(0, 10);
-      const entry = loadsByDateKey[key];
-      OV_DAYS.push({ label: slot.label, date: fmt(slot.date), cls: slot.cls, reps: entry ? entry.reps : [] });
-    });
-    futureDates.forEach(entry => {
-      OV_DAYS.push({ label: fmt(entry.date), date: fmt(entry.date), cls: '', reps: entry.reps });
-    });
+    slots.forEach(s => OV_DAYS.push({ label: s.label, date: fmt(s.date), cls: s.cls, reps: s.reps }));
 
     const syncTime = new Date().toTimeString().slice(0, 5);
     if (pill) { pill.className = 'sync-pill synced'; lbl.textContent = `Live · synced ${syncTime}`; }
