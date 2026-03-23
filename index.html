@@ -2533,8 +2533,12 @@ async function loadLoadPlanFromSharePoint() {
     );
 
     const values = range.values || [];
-    if (values.length < 7) {
-      console.warn('Load plan sheet has fewer than 7 rows — check sheet name');
+    console.log('ROW2:', JSON.stringify(values[1]?.slice(0,12)));
+    console.log('ROW3:', JSON.stringify(values[2]?.slice(0,12)));
+    console.log('ROW4:', JSON.stringify(values[3]?.slice(0,12)));
+    console.log('ROW5:', JSON.stringify(values[4]?.slice(0,12)));
+    if (values.length < 4) {
+      console.warn('Load plan sheet has fewer than 4 rows — check sheet name');
       return;
     }
 
