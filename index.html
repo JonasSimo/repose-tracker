@@ -2549,6 +2549,7 @@ async function loadLoadPlanFromSharePoint() {
     // Scan every cell, extract REP + delivery date from the pattern
     const repPattern = /(\d{6,8})\s*-\s*(\d{2})\/(\d{2})/;
     const loadsByDateKey = {}; // "YYYY-MM-DD" → { date, diffDays, reps[] }
+    let debugMatches = [];
 
     for (let row = 0; row < values.length; row++) {
       const rowVals = values[row] || [];
@@ -2556,6 +2557,7 @@ async function loadLoadPlanFromSharePoint() {
         const cell = String(rowVals[col] ?? '').trim();
         const m = cell.match(repPattern);
         if (!m) continue;
+        if (debugMatches.length < 15) debugMatches.push(`row${row+1} col${col+1}: "${cell}" → REP=${m[1]} day=${m[2]} month=${m[3]}`);
 
         const repId = `REP ${m[1]}`;
         const day   = parseInt(m[2], 10);
@@ -2587,6 +2589,7 @@ async function loadLoadPlanFromSharePoint() {
     }
 
     console.log('LOAD PLAN DEBUG — dates found:', Object.keys(loadsByDateKey));
+    console.log('LOAD PLAN DEBUG — first 15 matches:', debugMatches);
 
     // Build day slots: yesterday, today, then next 3 working days (Mon–Fri)
     const fmt = d => d.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
