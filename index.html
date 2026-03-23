@@ -2545,37 +2545,38 @@ async function loadLoadPlanFromSharePoint() {
 
     const today = new Date(); today.setHours(0,0,0,0);
 
-    // Parse each column (skip col 0 = column A which is QC completions)
+    // Each REP cell contains date inline: "2549053 - 01/12 JOB 32"
+    // Scan every cell, extract REP + delivery date from the pattern
+    const repPattern = /(\d{6,8})\s*-\s*(\d{2})\/(\d{2})/;
     const loadsByDateKey = {}; // "YYYY-MM-DD" → { date, diffDays, reps[] }
-    const numCols = Math.max(...values.map(r => r.length));
 
-    for (let col = 1; col < numCols; col++) {
-      const rawDate = values[5]?.[col]; // Row 6 (index 5) = delivery date
-      if (!rawDate) continue;
-
-      let delivDate;
-      if (typeof rawDate === 'number') {
-        delivDate = excelDateToJS(rawDate);
-      } else {
-        delivDate = new Date(rawDate);
-      }
-      if (isNaN(delivDate)) continue;
-      delivDate.setHours(0,0,0,0);
-
-      const diffDays = Math.round((delivDate - today) / 86400000);
-      if (diffDays < -7 || diffDays > 14) continue; // Up to 2 weeks ahead
-
-      const key = delivDate.toISOString().slice(0, 10);
-      if (!loadsByDateKey[key]) {
-        loadsByDateKey[key] = { date: delivDate, diffDays, reps: [] };
-      }
-
-      // Rows 7+ (index 6+) contain REP numbers for this column
-      for (let row = 6; row < values.length; row++) {
-        const cell = String(values[row]?.[col] ?? '').trim();
-        const m = cell.match(/\b(\d{7})\b/);
+    for (let row = 0; row < values.length; row++) {
+      const rowVals = values[row] || [];
+      for (let col = 1; col < rowVals.length; col++) {
+        const cell = String(rowVals[col] ?? '').trim();
+        const m = cell.match(repPattern);
         if (!m) continue;
+
         const repId = `REP ${m[1]}`;
+        const day   = parseInt(m[2], 10);
+        const month = parseInt(m[3], 10) - 1; // 0-indexed
+
+        // Determine year: try current year; if >6 months in past, try next year
+        let year = today.getFullYear();
+        let delivDate = new Date(year, month, day);
+        delivDate.setHours(0,0,0,0);
+        if ((today - delivDate) > 180 * 86400000) {
+          delivDate = new Date(year + 1, month, day);
+          delivDate.setHours(0,0,0,0);
+        }
+
+        const diffDays = Math.round((delivDate - today) / 86400000);
+        if (diffDays < -1 || diffDays > 14) continue;
+
+        const key = delivDate.toISOString().slice(0, 10);
+        if (!loadsByDateKey[key]) {
+          loadsByDateKey[key] = { date: delivDate, diffDays, reps: [] };
+        }
         if (!loadsByDateKey[key].reps.find(r => r.id === repId)) {
           loadsByDateKey[key].reps.push({
             id: repId,
@@ -2585,34 +2586,34 @@ async function loadLoadPlanFromSharePoint() {
       }
     }
 
-    // Rebuild OV_DAYS
-    const dayDefs = [
-      { diff:-1, label:'Yesterday', cls:'yest'  },
-      { diff: 0, label:'Today',     cls:'today' },
-      { diff: 1, label:'Tomorrow',  cls:''      },
-      { diff: 2, label:'+2 Days',   cls:''      },
-      { diff: 3, label:'+3 Days',   cls:''      },
-      { diff: 4, label:'+4 Days',   cls:''      },
-      { diff: 5, label:'+5 Days',   cls:''      },
-      { diff: 6, label:'+6 Days',   cls:''      },
-      { diff: 7, label:'+7 Days',   cls:''      },
-      { diff: 8, label:'+8 Days',   cls:''      },
-      { diff: 9, label:'+9 Days',   cls:''      },
-      { diff:10, label:'+10 Days',  cls:''      },
-      { diff:11, label:'+11 Days',  cls:''      },
-      { diff:12, label:'+12 Days',  cls:''      },
-      { diff:13, label:'+13 Days',  cls:''      },
-      { diff:14, label:'+14 Days',  cls:''      },
-    ];
+    console.log('LOAD PLAN DEBUG — dates found:', Object.keys(loadsByDateKey));
+
+    // Build day slots: yesterday, today, then next 3 working days (Mon–Fri)
     const fmt = d => d.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
+    const isWorkday = d => d.getDay() !== 0 && d.getDay() !== 6;
+
+    const slots = [];
+    // Yesterday
+    const yest = new Date(today); yest.setDate(today.getDate() - 1);
+    slots.push({ date: yest, label: 'Yesterday', cls: 'yest' });
+    // Today
+    slots.push({ date: new Date(today), label: 'Today', cls: 'today' });
+    // Next 3 working days
+    let d = new Date(today); let workdaysAdded = 0;
+    while (workdaysAdded < 3) {
+      d = new Date(d); d.setDate(d.getDate() + 1);
+      if (isWorkday(d)) {
+        slots.push({ date: new Date(d), label: fmt(d), cls: '' });
+        workdaysAdded++;
+      }
+    }
 
     OV_DAYS.length = 0;
-    dayDefs.forEach(dd => {
-      const d = new Date(today);
-      d.setDate(today.getDate() + dd.diff);
-      const key   = d.toISOString().slice(0, 10);
+    slots.forEach(slot => {
+      slot.date.setHours(0,0,0,0);
+      const key   = slot.date.toISOString().slice(0, 10);
       const entry = loadsByDateKey[key];
-      OV_DAYS.push({ label:dd.label, date:fmt(d), cls:dd.cls, reps: entry ? entry.reps : [] });
+      OV_DAYS.push({ label: slot.label, date: fmt(slot.date), cls: slot.cls, reps: entry ? entry.reps : [] });
     });
 
     const syncTime = new Date().toTimeString().slice(0, 5);
