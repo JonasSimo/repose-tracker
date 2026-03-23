@@ -2533,11 +2533,6 @@ async function loadLoadPlanFromSharePoint() {
     );
 
     const values = range.values || [];
-    console.log('LOAD PLAN DEBUG — total rows:', values.length, 'cols:', values[0]?.length);
-    console.log('Row 1 (week numbers):', JSON.stringify(values[0]?.slice(0,10)));
-    console.log('Row 6 (dates):', JSON.stringify(values[5]?.slice(0,10)));
-    console.log('Row 7 (first REP row):', JSON.stringify(values[6]?.slice(0,10)));
-    console.log('Row 8:', JSON.stringify(values[7]?.slice(0,10)));
     if (values.length < 7) {
       console.warn('Load plan sheet has fewer than 7 rows — check sheet name');
       return;
@@ -2549,21 +2544,12 @@ async function loadLoadPlanFromSharePoint() {
     // Scan every cell, extract REP + delivery date from the pattern
     const repPattern = /(\d{6,8})\s*-\s*(\d{2})\/(\d{2})/;
     const loadsByDateKey = {}; // "YYYY-MM-DD" → { date, diffDays, reps[] }
-    let debugMatches = [];
-
     for (let row = 0; row < values.length; row++) {
       const rowVals = values[row] || [];
       for (let col = 1; col < rowVals.length; col++) {
         const cell = String(rowVals[col] ?? '').trim();
         const m = cell.match(repPattern);
         if (!m) continue;
-        // Debug: log matches within ±30 days of today, or containing 2613072
-        const _d = parseInt(m[2],10), _mo = parseInt(m[3],10)-1;
-        const _dt = new Date(today.getFullYear(), _mo, _d);
-        const _diff = Math.round((_dt - today) / 86400000);
-        if (Math.abs(_diff) <= 30 || cell.includes('2613072')) {
-          debugMatches.push(`row${row+1} col${col+1}: "${cell}" → day=${m[2]} month=${m[3]} diff=${_diff}d`);
-        }
 
         const repId = `REP ${m[1]}`;
         const day   = parseInt(m[2], 10);
@@ -2594,35 +2580,31 @@ async function loadLoadPlanFromSharePoint() {
       }
     }
 
-    console.log('LOAD PLAN DEBUG — dates found:', Object.keys(loadsByDateKey));
-    console.log('LOAD PLAN DEBUG — matches near today or REP 2613072:', debugMatches);
 
-    // Build day slots: yesterday, today, then next 3 working days (Mon–Fri)
     const fmt = d => d.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
-    const isWorkday = d => d.getDay() !== 0 && d.getDay() !== 6;
 
-    const slots = [];
-    // Yesterday
+    // Build slots: yesterday + today always shown, then next 3 days that actually have loads
     const yest = new Date(today); yest.setDate(today.getDate() - 1);
-    slots.push({ date: yest, label: 'Yesterday', cls: 'yest' });
-    // Today
-    slots.push({ date: new Date(today), label: 'Today', cls: 'today' });
-    // Next 3 working days
-    let d = new Date(today); let workdaysAdded = 0;
-    while (workdaysAdded < 3) {
-      d = new Date(d); d.setDate(d.getDate() + 1);
-      if (isWorkday(d)) {
-        slots.push({ date: new Date(d), label: fmt(d), cls: '' });
-        workdaysAdded++;
-      }
-    }
+    const fixedKeys = [
+      { date: yest,           label: 'Yesterday', cls: 'yest'  },
+      { date: new Date(today),label: 'Today',     cls: 'today' },
+    ];
+
+    // Find up to 3 future dates (within 14 days) that have loads
+    const futureDates = Object.values(loadsByDateKey)
+      .filter(e => e.diffDays >= 1 && e.diffDays <= 14 && e.reps.length > 0)
+      .sort((a, b) => a.date - b.date)
+      .slice(0, 3);
 
     OV_DAYS.length = 0;
-    slots.forEach(slot => {
+    fixedKeys.forEach(slot => {
       slot.date.setHours(0,0,0,0);
       const key   = slot.date.toISOString().slice(0, 10);
       const entry = loadsByDateKey[key];
       OV_DAYS.push({ label: slot.label, date: fmt(slot.date), cls: slot.cls, reps: entry ? entry.reps : [] });
+    });
+    futureDates.forEach(entry => {
+      OV_DAYS.push({ label: fmt(entry.date), date: fmt(entry.date), cls: '', reps: entry.reps });
     });
 
     const syncTime = new Date().toTimeString().slice(0, 5);
