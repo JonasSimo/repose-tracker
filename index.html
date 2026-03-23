@@ -2533,6 +2533,11 @@ async function loadLoadPlanFromSharePoint() {
     );
 
     const values = range.values || [];
+    console.log('LOAD PLAN DEBUG — total rows:', values.length, 'cols:', values[0]?.length);
+    console.log('Row 1 (week numbers):', JSON.stringify(values[0]?.slice(0,10)));
+    console.log('Row 6 (dates):', JSON.stringify(values[5]?.slice(0,10)));
+    console.log('Row 7 (first REP row):', JSON.stringify(values[6]?.slice(0,10)));
+    console.log('Row 8:', JSON.stringify(values[7]?.slice(0,10)));
     if (values.length < 7) {
       console.warn('Load plan sheet has fewer than 7 rows — check sheet name');
       return;
