@@ -1281,7 +1281,10 @@ function openTeam(name, hasSubs) {
 function renderTeamSidebar() {
   const list = document.getElementById('teamList');
   let html = '';
-  TEAMS_CFG.forEach(t => {
+  const visibleTeams = TABLET_TEAM
+    ? TEAMS_CFG.filter(t => t.name.toLowerCase() === TABLET_TEAM.toLowerCase())
+    : TEAMS_CFG;
+  visibleTeams.forEach(t => {
     const isActive = t.name === activeTeam;
     const subKeys = t.hasSubs ? SUBS : ['all'];
 
@@ -1316,7 +1319,7 @@ function renderTeamSidebar() {
       html += `</div>`;
     }
 
-    if (t.name !== TEAMS_CFG[TEAMS_CFG.length-1].name) {
+    if (t.name !== visibleTeams[visibleTeams.length-1].name) {
       html += `<div class="team-divider"></div>`;
     }
   });
@@ -1621,8 +1624,25 @@ function tickJob(ji) {
     undoJob(activeTeam, sk, activeWC, activePrep, ji);
     return;
   }
-  // Show initials modal
   const job = PROD[activeWC][activePrep][ji];
+
+  // Woodmill — complete directly without initials
+  if (activeTeam === 'Woodmill') {
+    const sk = activeSub;
+    s.done     = true;
+    s.doneAt   = new Date().toTimeString().slice(0,5);
+    s.doneDate = new Date().toLocaleDateString('en-GB');
+    s.initials = '';
+    recentDone.unshift({ team:activeTeam, sub:sk, wc:activeWC, prep:activePrep, ji, label:job.rep });
+    if (recentDone.length > 20) recentDone.pop();
+    toast(`${job.rep} · marked complete`, 's');
+    saveCompletionToList(activeTeam, sk, activeWC, activePrep, ji).catch(console.warn);
+    renderJobs();
+    renderTeamSidebar();
+    return;
+  }
+
+  // All other teams — show initials modal
   pendingTick = { ji };
   document.getElementById('modal-rep-label').textContent = job.rep;
   const inp = document.getElementById('modal-initials-input');
@@ -2547,6 +2567,11 @@ const GRAPH_SCOPES     = ['Files.Read', 'User.Read', 'Sites.ReadWrite.All'];
 const PROD_SHARING_URL = 'https://reposefurniturelimited.sharepoint.com/:x:/s/ReposeFurniture-PlanningRepose/IQBLf67iYnbQSq2O8UU_zQihARfBedzZcW-CmO0q3v5zC3o?e=nfze02';
 
 const GRAPH_READY = AZURE_CLIENT_ID !== 'YOUR_CLIENT_ID_HERE';
+
+// Tablet team lock — add ?team=Woodmill (or any team name) to the URL
+// to lock the tablet to that team only, hiding all others
+const TABLET_TEAM = new URLSearchParams(window.location.search).get('team') || '';
+
 let msalInstance = null;
 let graphAccount  = null;
 
@@ -2820,6 +2845,15 @@ function toast(msg, type='s') {
 }
 
 // ─── Init ───
+if (TABLET_TEAM) {
+  // Auto-open the locked team and hide the team-select screen
+  const cfg = TEAMS_CFG.find(t => t.name.toLowerCase() === TABLET_TEAM.toLowerCase());
+  if (cfg) openTeam(cfg.name, cfg.hasSubs);
+  // Hide "← Teams" button
+  document.querySelectorAll('button').forEach(b => {
+    if (b.textContent.trim().startsWith('← Teams')) b.style.display = 'none';
+  });
+}
 renderTeamSidebar();
 renderWeekList();
 // Init Graph API auth after MSAL library loads
