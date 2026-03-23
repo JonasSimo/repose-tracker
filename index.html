@@ -2263,10 +2263,15 @@ async function deleteCompletionFromList(team, sub, wk, prep, ji) {
   }
 }
 
-// Full refresh — production data + completions — runs every 2 hours
+// Completions refresh — runs every 1 minute
+async function refreshCompletions() {
+  await loadCompletionsFromList();
+}
+
+// Full refresh — production data + load plan — runs every 10 minutes
 async function fullRefresh() {
   await loadProductionFromSharePoint();
-  await loadCompletionsFromList();
+  await loadLoadPlanFromSharePoint();
   const t = new Date().toTimeString().slice(0,5);
   toast(`Auto-refreshed at ${t}`, 's');
 }
@@ -2571,7 +2576,8 @@ async function graphSignIn() {
     await loadCompletionsFromList();
     await loadLoadPlanFromSharePoint();
     startQCAutoSync();
-    setInterval(fullRefresh, 2 * 60 * 60 * 1000); // auto-refresh every 2 hours
+    setInterval(refreshCompletions, 60 * 1000);        // completions every 1 min
+    setInterval(fullRefresh, 10 * 60 * 1000);          // production + load plan every 10 min
   } catch(e) {
     console.error('Sign-in failed', e);
     toast('Sign-in failed — check Azure app config', 'u');
@@ -2778,7 +2784,8 @@ async function initGraph() {
     await loadCompletionsFromList();
     await loadLoadPlanFromSharePoint();
     startQCAutoSync();
-    setInterval(fullRefresh, 2 * 60 * 60 * 1000); // auto-refresh every 2 hours
+    setInterval(refreshCompletions, 60 * 1000);        // completions every 1 min
+    setInterval(fullRefresh, 10 * 60 * 1000);          // production + load plan every 10 min
   }
 }
 
