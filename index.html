@@ -2544,9 +2544,19 @@ async function checkForSpecChanges() {
   for (const a of toAlert) await writeSpecAlert(a).catch(e => console.warn('writeSpecAlert:', e.message));
 }
 
+async function specAlertExists(siteId, listId, rep, fieldKey) {
+  try {
+    const enc  = encodeURIComponent(`fields/Title eq '${rep}' and fields/FieldKey eq '${fieldKey}' and fields/Status eq 'unread'`);
+    const data = await graphGet(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$filter=${enc}&$top=1`);
+    return (data.value || []).length > 0;
+  } catch { return false; }
+}
+
 async function writeSpecAlert(a) {
   const siteId = await getSpSiteId();
   const listId = await getListIdByName(SP_SPEC_ALERTS_LIST);
+  // Dedup: skip if another device already wrote this alert
+  if (await specAlertExists(siteId, listId, a.rep, a.fieldKey)) return;
   const token  = await getGraphToken();
   const now    = new Date().toLocaleDateString('en-GB') + ' ' + new Date().toTimeString().slice(0,5);
   const res = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`, {
@@ -3286,8 +3296,9 @@ async function loadProductionFromSharePoint() {
     const now2 = new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
     if (pill) { pill.className = 'sync-pill synced'; lbl.textContent = `Live · synced ${now2}`; }
     toast('Production data loaded from SharePoint', 's');
-    checkForSpecChanges().catch(e => console.warn('checkForSpecChanges:', e.message));
+    // Fetch first so in-memory SPEC_ALERTS is populated before change detection runs
     fetchSpecAlerts().catch(e => console.warn('fetchSpecAlerts:', e.message));
+    checkForSpecChanges().catch(e => console.warn('checkForSpecChanges:', e.message));
 
   } catch(e) {
     console.error('Production load failed', e);
