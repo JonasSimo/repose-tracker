@@ -536,6 +536,48 @@ body {
 }
 .dh-out { font-size: 9px; font-weight: 600; color: var(--amber); margin-top: 2px; }
 
+/* ─── QC AUTO BADGE ─── */
+.jc-qc-badge {
+  font-size: 10px; font-weight: 700;
+  color: var(--teal); background: var(--tbg);
+  padding: 1px 6px; border-radius: 4px; border: 1px solid var(--tborder);
+  white-space: nowrap;
+}
+
+/* ─── PRODUCTION PLAN ─── */
+.pp-wrap { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.pp-week-bar {
+  display: flex; gap: 6px; padding: 10px 16px;
+  border-bottom: 1px solid var(--border); flex-shrink: 0; overflow-x: auto;
+}
+.pp-wk-btn {
+  padding: 6px 14px; border-radius: 7px; border: 1.5px solid var(--border2);
+  background: var(--bg3); font-size: 11px; font-weight: 600; color: var(--text2);
+  cursor: pointer; white-space: nowrap; font-family: inherit; transition: .12s;
+  text-align: center; line-height: 1.4;
+}
+.pp-wk-btn:hover { background: var(--bg4); }
+.pp-wk-btn.active { background: var(--repose-blue); border-color: var(--repose-blue); color: #fff; }
+.pp-area { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+.pp-grid { flex: 1; display: grid; grid-template-columns: repeat(6,1fr); overflow: hidden; }
+.pp-col { display: flex; flex-direction: column; border-right: 1px solid var(--border); overflow: hidden; }
+.pp-col:last-child { border-right: none; }
+.pp-col-head { padding: 8px 10px; background: var(--bg2); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.pp-col-head.express { background: #fffbeb; border-bottom-color: #fed7aa; }
+.pp-col-title { font-size: 11px; font-weight: 700; color: var(--repose-navy); }
+.pp-col-head.express .pp-col-title { color: #92400e; }
+.pp-col-day { font-size: 9px; color: var(--text3); margin-top: 1px; }
+.pp-col-ct  { font-size: 9px; color: var(--text3); }
+.pp-col-body { flex: 1; overflow-y: auto; }
+.pp-job {
+  padding: 5px 10px; border-bottom: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 1px;
+}
+.pp-job:last-child { border-bottom: none; }
+.pp-job-code { font-size: 9px; font-weight: 700; color: var(--text2); }
+.pp-job-rep  { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--text3); }
+.pp-empty { padding: 16px 10px; text-align: center; font-size: 11px; color: var(--text3); }
+
 /* ─── SYNC PILL ─── */
 .sync-pill {
   display: inline-flex; align-items: center; gap: 6px;
@@ -802,6 +844,7 @@ body {
     <div class="tab-bar">
       <button class="tab-btn active" onclick="showView('team-select')">Team View</button>
       <button class="tab-btn" onclick="showView('overview')">Load Plan</button>
+      <button class="tab-btn" onclick="showView('production')">Production Plan</button>
     </div>
   </div>
 </div>
@@ -955,19 +998,11 @@ body {
   </div>
 </div>
 
-<!-- Overview password modal -->
-<div id="modal-ov-pw" class="modal-overlay" style="display:none" onclick="if(event.target===this)ovPwCancel()">
-  <div class="modal-box">
-    <div class="modal-title">🔒 Access Required</div>
-    <div class="modal-sub" id="ov-pw-sub">Enter the password to continue</div>
-    <input id="ov-pw-input" class="modal-input" type="password" maxlength="30" placeholder="••••••"
-      autocomplete="off" oninput="document.getElementById('ov-pw-err').style.display='none'">
-    <div id="ov-pw-err" style="display:none;color:var(--red);font-size:11px;text-align:center">Incorrect password — try again</div>
-    <div class="modal-hint">Passwords are case-insensitive</div>
-    <div class="modal-actions">
-      <button class="modal-cancel" onclick="ovPwCancel()">Cancel</button>
-      <button class="modal-confirm" onclick="ovPwConfirm()">🔓 Unlock</button>
-    </div>
+<!-- Production Plan view -->
+<div class="view" id="view-production">
+  <div class="pp-wrap">
+    <div id="pp-week-bar" class="pp-week-bar"></div>
+    <div id="pp-area" class="pp-area"></div>
   </div>
 </div>
 
@@ -1248,32 +1283,11 @@ let qcSyncError     = false;  // true if last sync failed
 let qcSyncing       = false;  // true while a sync is in progress
 let qcCompletedReps = new Set(); // 7-digit REP numbers confirmed done by QC sheet
 
-// Load Plan tab passwords (stored lowercase for case-insensitive comparison)
-const OV_PASSWORDS = {
-  'overall':     'admin',
-  'Woodmill':    'woodmill',
-  'Foam':        'foam',
-  'Cutting':     'cutting',
-  'Sewing':      'sewing',
-  'Upholstery':  'upholstery',
-  'Assembly':    'assembly',
-  'QC':          'qc',
-};
 const OV_TABS = [
-  { id:'overall',    label:'Overall',    icon:'📊' },
-  { id:'Woodmill',   label:'Woodmill',   icon:'🪵' },
-  { id:'Foam',       label:'Foam',       icon:'🟦' },
-  { id:'Cutting',    label:'Cutting',    icon:'✂️'  },
-  { id:'Sewing',     label:'Sewing',     icon:'🧵' },
-  { id:'Upholstery', label:'Upholstery', icon:'🪑' },
-  { id:'Assembly',   label:'Assembly',   icon:'🔩' },
-  { id:'QC',         label:'QC',         icon:'✅' },
+  { id:'overall', label:'Overall', icon:'📊' },
 ];
 
-// Session-level unlock state — cleared on page reload
-const ovUnlocked = {};
-let ovActiveTab  = null;
-let ovPendingTab = null;
+let ovActiveTab = null;
 
 // Completion state: state[team][sub|'all'][wc][prep][repIdx] = {done,doneAt}
 // sub is 'Arms'|'Backs'|'Seats' for woodmill/upholstery, 'all' otherwise
@@ -1285,14 +1299,13 @@ TEAMS_CFG.forEach(t => {
     STATE[t.name][k] = {};
     WEEKS.forEach(wc => {
       STATE[t.name][k][wc] = {};
-      for (let p=1;p<=5;p++) {
+      [1,2,3,4,5,'express'].forEach(p => {
         const jobs = PROD[wc][p]||[];
-        // Pre-fill first week Prep 1 as partially done (demo)
         STATE[t.name][k][wc][p] = jobs.map((_, ji) => ({
           done: wc==='WK 12' && p===1 && ji<(t.hasSubs?2:3),
           doneAt: (wc==='WK 12' && p===1 && ji<(t.hasSubs?2:3)) ? ['09:14','10:02','11:30'][ji]||'' : '',
         }));
-      }
+      });
     });
   });
 });
@@ -1308,17 +1321,20 @@ let activeHasSubs = false;
 let activeSub = 'all';
 let activeWC = 'WK 12'; // default to current week
 let activePrep = 1;
+let activeProdWC = null;
 
 // ═══════════════════════════════════════════════
 // ROUTING
 // ═══════════════════════════════════════════════
 function showView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-  document.querySelectorAll('.tab-btn').forEach((b,i) => {
-    b.classList.toggle('active', (i===0 && name!=='overview') || (i===1 && name==='overview'));
+  const tabMap = { 'team-select':0, 'tracker':0, 'overview':1, 'production':2 };
+  document.querySelectorAll('.tab-btn').forEach((b, i) => {
+    b.classList.toggle('active', tabMap[name] === i);
   });
   document.getElementById('view-' + name).classList.add('active');
-  if (name==='overview') { renderOverviewTabs(); renderOverview(); }
+  if (name === 'overview')    { ovActiveTab = 'overall'; renderOverviewTabs(); renderOverview(); }
+  if (name === 'production')  { renderProductionPlan(); }
 }
 
 function openTeam(name, hasSubs) {
@@ -1587,14 +1603,21 @@ function renderPrepGrid() {
   if (!activeWC || activeWC === 'PRIORITY') { sec.style.display='none'; return; }
   sec.style.display = 'block';
   const wkData = PROD[activeWC]||{};
-  grid.innerHTML = [1,2,3,4,5].map(p => {
+  const prepBtns = [1,2,3,4,5].map(p => {
     const jobs = wkData[p]||[];
     return `<button class="prep-btn ${activePrep===p?'active':''}" onclick="selectPrep(${p})">
       <span class="prep-num">${p}</span>
       <span class="prep-day">${PREP_DAYS[p-1]}</span>
       <span class="prep-ct">${jobs.length} job${jobs.length!==1?'s':''}</span>
     </button>`;
-  }).join('');
+  });
+  const expJobs = wkData.express||[];
+  prepBtns.push(`<button class="prep-btn ${activePrep==='express'?'active':''}" onclick="selectPrep('express')" style="border-color:${activePrep==='express'?'':'#fed7aa'};${activePrep!=='express'?'background:#fffbeb;color:#92400e':''}">
+    <span class="prep-num">EXP</span>
+    <span class="prep-day">Express</span>
+    <span class="prep-ct">${expJobs.length} job${expJobs.length!==1?'s':''}</span>
+  </button>`);
+  grid.innerHTML = prepBtns.join('');
 }
 
 function selectPrep(p) {
@@ -1625,10 +1648,12 @@ function renderJobs() {
   const pct   = total ? Math.round(done/total*100) : 0;
 
   // Header
+  const prepLabel = activePrep === 'express' ? 'Express / M-FT' : `Prep ${activePrep}`;
+  const dayLabel  = activePrep === 'express' ? 'Fast Track' : (PREP_DAYS[activePrep-1] || '');
   document.getElementById('jh-title').textContent =
-    `${activeTeam}${activeHasSubs?' — '+activeSub:''}: Prep ${activePrep}`;
+    `${activeTeam}${activeHasSubs?' — '+activeSub:''}: ${prepLabel}`;
   document.getElementById('jh-sub').textContent =
-    `${activeWC} · w/c ${PROD[activeWC]?.wc||''} · ${PREP_DAYS[activePrep-1]} · ${total} job${total!==1?'s':''}`;
+    `${activeWC} · w/c ${PROD[activeWC]?.wc||''} · ${dayLabel} · ${total} job${total!==1?'s':''}`;
 
   const statsEl = document.getElementById('jh-stats');
   statsEl.style.display = total ? 'flex' : 'none';
@@ -1648,17 +1673,21 @@ function renderJobs() {
   jobs.forEach((job, ji) => {
     const s = stateSlice[ji] || { done:false, doneAt:'', initials:'' };
     const sk2 = activeSub;
-    const isAuto = s.autoSync && s.done;
+    const isQcAuto = s.qcAuto && s.done;
+    const isAuto   = s.autoSync && s.done;
+    const barColor = s.done ? (isQcAuto ? 'var(--teal)' : isAuto ? 'var(--teal)' : 'var(--green)') : color;
     html += `
       <div class="job-card ${s.done?'done':''}">
-        <div class="jc-bar" style="background:${s.done?(isAuto?'var(--teal)':'var(--green)'):color}"></div>
+        <div class="jc-bar" style="background:${barColor}"></div>
         <div class="jc-body">
           <span class="jc-item">Job ${job.itemNo}</span>
           <span class="jc-rep">${job.rep}</span>
           ${s.done ? `<div class="card-undo">
-            ${isAuto ? `<span class="jc-auto-badge">📋 AUTO</span>` : (s.initials?`<span class="jc-initials">${s.initials}</span>`:'')}
+            ${isQcAuto ? `<span class="jc-qc-badge">QC ✓</span>` :
+              isAuto ? `<span class="jc-auto-badge">📋 AUTO</span>` :
+              (s.initials?`<span class="jc-initials">${s.initials}</span>`:'')}
             ${s.doneAt?`<span class="jc-time-sm">${s.doneAt}</span>`:''}
-            <button class="card-undo-btn" onclick="undoJob('${activeTeam}','${sk2}','${activeWC}',${activePrep},${ji})">↩ Undo</button>
+            ${!isQcAuto ? `<button class="card-undo-btn" onclick="undoJob('${activeTeam}','${sk2}','${activeWC}','${activePrep}',${ji})">↩ Undo</button>` : ''}
           </div>` : `<span class="jc-qty">Qty: ${job.qty||'—'}</span>`}
         </div>
         <button class="tick-btn ${s.done?'ticked':''}" onclick="tickJob(${ji})">
@@ -1776,8 +1805,6 @@ function modalCancel() {
 document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && pendingTick !== null) modalConfirm();
   if (e.key === 'Escape' && pendingTick !== null) modalCancel();
-  if (e.key === 'Enter' && ovPendingTab !== null) ovPwConfirm();
-  if (e.key === 'Escape' && ovPendingTab !== null) ovPwCancel();
 });
 
 function renderUndo() {
@@ -1787,7 +1814,7 @@ function renderUndo() {
 
 function undoJob(team, sub, wc, prep, ji) {
   const s = STATE[team][sub][wc][prep][ji];
-  s.done = false; s.doneAt = ''; s.initials = ''; s.doneDate = ''; s.autoSync = false;
+  s.done = false; s.doneAt = ''; s.initials = ''; s.doneDate = ''; s.autoSync = false; s.qcAuto = false;
   deleteCompletionFromList(team, sub, wc, prep, ji).catch(console.warn);
   const idx = recentDone.findIndex(r=>r.team===team&&r.sub===sub&&r.wc===wc&&r.prep===prep&&r.ji===ji);
   if (idx>=0) recentDone.splice(idx,1);
@@ -1997,74 +2024,23 @@ function teamTileState(d, rep) {
 function renderOverviewTabs() {
   const row = document.getElementById('ovTabRow');
   if (!row) return;
-  row.innerHTML = OV_TABS.map(t => {
-    const isActive   = ovActiveTab === t.id;
-    const isUnlocked = ovUnlocked[t.id];
-    return `<button class="ov-tab-btn ${isActive ? 'active' : ''}" onclick="selectOvTab('${t.id}')">
+  row.innerHTML = OV_TABS.map(t =>
+    `<button class="ov-tab-btn ${ovActiveTab===t.id?'active':''}" onclick="selectOvTab('${t.id}')">
       ${t.icon} ${t.label}
-      ${!isUnlocked ? '<span class="ov-tab-lock">🔒</span>' : ''}
-    </button>`;
-  }).join('');
+    </button>`
+  ).join('');
 }
 
 function selectOvTab(tabId) {
-  if (ovUnlocked[tabId]) {
-    ovActiveTab = tabId;
-    renderOverviewTabs();
-    renderOverview();
-    return;
-  }
-  // Need password
-  ovPendingTab = tabId;
-  const label = OV_TABS.find(t => t.id === tabId)?.label || tabId;
-  document.getElementById('ov-pw-sub').textContent =
-    `Enter the password for "${label}"`;
-  const inp = document.getElementById('ov-pw-input');
-  inp.value = '';
-  document.getElementById('ov-pw-err').style.display = 'none';
-  document.getElementById('modal-ov-pw').style.display = 'flex';
-  setTimeout(() => inp.focus(), 80);
-}
-
-function ovPwConfirm() {
-  if (!ovPendingTab) return;
-  const inp = document.getElementById('ov-pw-input');
-  const entered = inp.value.trim().toLowerCase();
-  const expected = OV_PASSWORDS[ovPendingTab];
-  if (entered !== expected) {
-    document.getElementById('ov-pw-err').style.display = 'block';
-    inp.value = ''; inp.focus();
-    return;
-  }
-  // Correct — unlock and open
-  ovUnlocked[ovPendingTab] = true;
-  ovActiveTab = ovPendingTab;
-  ovPendingTab = null;
-  document.getElementById('modal-ov-pw').style.display = 'none';
+  ovActiveTab = tabId;
   renderOverviewTabs();
   renderOverview();
 }
 
-function ovPwCancel() {
-  ovPendingTab = null;
-  document.getElementById('modal-ov-pw').style.display = 'none';
-}
-
 // ── Main dispatcher ──
 function renderOverview() {
-  if (!ovActiveTab) {
-    document.getElementById('ovArea').innerHTML = `<div class="ov-locked">
-      <div class="ov-locked-icon">🔒</div>
-      <div class="ov-locked-title">Select a view above</div>
-      <div class="ov-locked-sub">Choose Overall or a team tab to get started</div>
-    </div>`;
-    return;
-  }
-  if (ovActiveTab === 'overall') {
-    renderOverviewAll();
-  } else {
-    renderOverviewTeam(ovActiveTab);
-  }
+  if (!ovActiveTab) { ovActiveTab = 'overall'; }
+  renderOverviewAll();
 }
 
 // ── Overall view (all teams) ──
@@ -2368,6 +2344,7 @@ async function loadCompletionsFromList() {
       s.listItemId  = item.id;
     });
 
+    applyQCAutoToTeamView();
     renderJobs();
     renderTeamSidebar();
     renderPriorityBtn();
@@ -2380,6 +2357,7 @@ async function loadCompletionsFromList() {
 }
 
 async function saveCompletionToList(team, sub, wk, prep, ji) {
+  if (typeof prep === 'string' && isNaN(Number(prep))) return; // express — not in list schema yet
   try {
     const siteId = await getSpSiteId();
     const listId = await getSpListId();
@@ -2533,6 +2511,7 @@ async function autoSyncQCCompletions() {
     qcSyncError     = false;
     qcSyncing       = false;
 
+    applyQCAutoToTeamView(); // mark all teams done for QC-completed REPs
     if (activeTeam === 'QC') {
       renderJobs();
       renderTeamSidebar();
@@ -2837,14 +2816,21 @@ function parseSheetValues(values) {
   for (let i = startRow; i < values.length; i++) {
     const row = values[i];
     if (!row || row.length < 12) continue;
-    const itemNo = Number(row[10]);
-    if (!Number.isInteger(itemNo) || itemNo <= 0) continue;
+    const kRaw = String(row[10]||'').trim();
+    const isExpressCode = /^(EXP|M-FT)\d*/i.test(kRaw);
+    const itemNo = isExpressCode ? kRaw : Number(kRaw);
+    if (!kRaw || (!isExpressCode && (!Number.isFinite(itemNo) || itemNo <= 0))) continue;
     const lCell = String(row[11]||'');
     const m = lCell.match(/REP(\d{7})/);
     if (!m) continue;
-    // Prep day from column BI (index 60)
-    const prepVal = Number(row[60]);
-    const prep = (Number.isInteger(prepVal) && prepVal >= 1 && prepVal <= 5) ? prepVal : null;
+    // Prep day from column BI (index 60): 1-5 or EXP/M-FT → 'express'
+    const biRaw = String(row[60]||'').trim().toUpperCase();
+    let prep;
+    if (biRaw === 'EXP' || biRaw === 'M-FT' || biRaw === 'MFT') prep = 'express';
+    else {
+      const prepVal = parseInt(biRaw, 10);
+      prep = (prepVal >= 1 && prepVal <= 5) ? prepVal : null;
+    }
     jobs.push({ itemNo, rep: `REP ${m[1]}`, prep });
   }
   return jobs;
@@ -2852,17 +2838,22 @@ function parseSheetValues(values) {
 
 function distributeIntoPreps(jobs) {
   const hasPrep = jobs.some(j => j.prep !== null);
-  const preps = {1:[],2:[],3:[],4:[],5:[]};
+  const preps = {1:[],2:[],3:[],4:[],5:[],express:[]};
   if (hasPrep) {
-    // Use prep column values directly
-    jobs.forEach(j => { const p = j.prep||1; preps[p].push({ itemNo:j.itemNo, rep:j.rep }); });
-  } else {
-    // Even distribution across 5 preps until prep column is added
-    const n = jobs.length;
-    jobs.forEach((j, i) => {
-      const p = n === 0 ? 1 : Math.min(5, Math.floor(i * 5 / n) + 1);
-      preps[p].push({ itemNo:j.itemNo, rep:j.rep });
+    jobs.forEach(j => {
+      const p = j.prep || 1;
+      if (!preps[p]) preps[p] = [];
+      preps[p].push({ itemNo: j.itemNo, rep: j.rep });
     });
+  } else {
+    // Even distribution across preps 1-5 (express items stay in express)
+    const normalJobs = jobs.filter(j => j.prep !== 'express');
+    const n = normalJobs.length;
+    normalJobs.forEach((j, i) => {
+      const p = n === 0 ? 1 : Math.min(5, Math.floor(i * 5 / n) + 1);
+      preps[p].push({ itemNo: j.itemNo, rep: j.rep });
+    });
+    jobs.filter(j => j.prep === 'express').forEach(j => preps.express.push({ itemNo: j.itemNo, rep: j.rep }));
   }
   return preps;
 }
@@ -2903,7 +2894,7 @@ async function loadProductionFromSharePoint() {
         newPROD[sheetName] = { wc, ...distributeIntoPreps(jobs) };
       } catch(e) {
         console.warn(`Sheet ${sheetName} unavailable:`, e.message);
-        newPROD[sheetName] = { wc, 1:[], 2:[], 3:[], 4:[], 5:[] };
+        newPROD[sheetName] = { wc, 1:[], 2:[], 3:[], 4:[], 5:[], express:[] };
       }
       newWEEKS.push(sheetName);
     }
@@ -2922,12 +2913,12 @@ async function loadProductionFromSharePoint() {
         if (!STATE[t.name][k]) STATE[t.name][k] = {};
         WEEKS.forEach(wk => {
           if (!STATE[t.name][k][wk]) STATE[t.name][k][wk] = {};
-          for (let p=1; p<=5; p++) {
+          [1,2,3,4,5,'express'].forEach(p => {
             const jobs = PROD[wk][p] || [];
             if (!STATE[t.name][k][wk][p] || STATE[t.name][k][wk][p].length !== jobs.length) {
               STATE[t.name][k][wk][p] = jobs.map(() => ({ done:false, doneAt:'' }));
             }
-          }
+          });
         });
       });
     });
@@ -3005,6 +2996,97 @@ function ovToggleSub(dayLabel, ri, dept, sub) {
   renderOverview();
   renderPriorityBtn();
   if (activeWC === 'PRIORITY') renderJobs();
+}
+
+// ═══════════════════════════════════════════════
+// QC AUTO-COMPLETE ALL TEAMS
+// ═══════════════════════════════════════════════
+// When QC has completed a REP, mark it as done for every team in Team View.
+// Preserves manually-done entries (non-qcAuto). Safe to re-run on every sync.
+function applyQCAutoToTeamView() {
+  if (!qcCompletedReps.size) return;
+  const timeStr = new Date().toTimeString().slice(0, 5);
+  const dateStr = new Date().toLocaleDateString('en-GB');
+  TEAMS_CFG.forEach(t => {
+    const subKeys = t.hasSubs ? SUBS : ['all'];
+    subKeys.forEach(sk => {
+      WEEKS.forEach(wk => {
+        const wkData = PROD[wk] || {};
+        [1,2,3,4,5,'express'].forEach(p => {
+          const jobs = wkData[p] || [];
+          if (!STATE[t.name]?.[sk]?.[wk]?.[p]) return;
+          jobs.forEach((job, ji) => {
+            const digits = job.rep.replace(/\D/g, '');
+            if (!qcCompletedReps.has(digits)) return;
+            const s = STATE[t.name][sk][wk][p][ji];
+            if (!s) return;
+            if (s.done && !s.qcAuto) return; // manually done — preserve
+            if (!s.done) {
+              s.done    = true;
+              s.initials = 'QC';
+              s.doneAt  = timeStr;
+              s.doneDate = dateStr;
+              s.qcAuto  = true;
+            }
+          });
+        });
+      });
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════
+// PRODUCTION PLAN VIEW
+// ═══════════════════════════════════════════════
+const PP_COLS = [
+  { key:1,         title:'Prep 1', day:'Monday',    express:false },
+  { key:2,         title:'Prep 2', day:'Tuesday',   express:false },
+  { key:3,         title:'Prep 3', day:'Wednesday', express:false },
+  { key:4,         title:'Prep 4', day:'Thursday',  express:false },
+  { key:5,         title:'Prep 5', day:'Friday',    express:false },
+  { key:'express', title:'Express / M-FT', day:'Fast Track', express:true },
+];
+
+function renderProductionPlan() {
+  const weekBar = document.getElementById('pp-week-bar');
+  const area    = document.getElementById('pp-area');
+  if (!weekBar || !area) return;
+
+  if (!activeProdWC || !PROD[activeProdWC]) activeProdWC = WEEKS[2] || WEEKS[0];
+
+  weekBar.innerHTML = WEEKS.map((wk, i) => {
+    const wc = PROD[wk]?.wc || '';
+    return `<button class="pp-wk-btn ${activeProdWC===wk?'active':''}" onclick="selectProdWC('${wk}')">
+      ${wk}${i===2?' ★':''}<br><span style="font-size:9px;font-weight:400">w/c ${wc}</span>
+    </button>`;
+  }).join('');
+
+  const wkData = PROD[activeProdWC] || {};
+  const gridCols = PP_COLS.map(col => {
+    const jobs = wkData[col.key] || [];
+    const headCls = col.express ? 'pp-col-head express' : 'pp-col-head';
+    const jobRows = jobs.length
+      ? jobs.map(j => `<div class="pp-job">
+          <span class="pp-job-code">${j.itemNo}</span>
+          <span class="pp-job-rep">${j.rep}</span>
+        </div>`).join('')
+      : `<div class="pp-empty">No jobs</div>`;
+    return `<div class="pp-col">
+      <div class="${headCls}">
+        <div class="pp-col-title">${col.title}</div>
+        <div class="pp-col-day">${col.day}</div>
+        <div class="pp-col-ct">${jobs.length} job${jobs.length!==1?'s':''}</div>
+      </div>
+      <div class="pp-col-body">${jobRows}</div>
+    </div>`;
+  }).join('');
+
+  area.innerHTML = `<div class="pp-grid">${gridCols}</div>`;
+}
+
+function selectProdWC(wk) {
+  activeProdWC = wk;
+  renderProductionPlan();
 }
 
 // ═══════════════════════════════════════════════
