@@ -2544,19 +2544,11 @@ async function checkForSpecChanges() {
   for (const a of toAlert) await writeSpecAlert(a).catch(e => console.warn('writeSpecAlert:', e.message));
 }
 
-async function specAlertExists(siteId, listId, rep, fieldKey) {
-  try {
-    const enc  = encodeURIComponent(`fields/Title eq '${rep}' and fields/FieldKey eq '${fieldKey}' and fields/Status eq 'unread'`);
-    const data = await graphGet(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$filter=${enc}&$top=1`);
-    return (data.value || []).length > 0;
-  } catch { return false; }
-}
-
 async function writeSpecAlert(a) {
+  // Dedup: skip if already in the in-memory list (populated by fetchSpecAlerts before this runs)
+  if (SPEC_ALERTS.some(x => x.rep === a.rep && x.fieldKey === a.fieldKey)) return;
   const siteId = await getSpSiteId();
   const listId = await getListIdByName(SP_SPEC_ALERTS_LIST);
-  // Dedup: skip if another device already wrote this alert
-  if (await specAlertExists(siteId, listId, a.rep, a.fieldKey)) return;
   const token  = await getGraphToken();
   const now    = new Date().toLocaleDateString('en-GB') + ' ' + new Date().toTimeString().slice(0,5);
   const res = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`, {
@@ -2576,19 +2568,23 @@ async function fetchSpecAlerts() {
   try {
     const siteId = await getSpSiteId();
     const listId = await getListIdByName(SP_SPEC_ALERTS_LIST);
-    const data   = await graphGet(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$filter=fields/Status eq 'unread'&$orderby=fields/DetectedAt desc&$top=50`);
-    SPEC_ALERTS = (data.value || []).map(item => ({
-      id:         item.id,
-      rep:        item.fields.Title      || '',
-      jobNo:      item.fields.JobNo      || '',
-      week:       item.fields.Week       || '',
-      prep:       item.fields.Prep       || '',
-      fieldKey:   item.fields.FieldKey   || '',
-      field:      item.fields.FieldLabel || item.fields.FieldKey || '',
-      oldVal:     item.fields.OldValue   || '',
-      newVal:     item.fields.NewValue   || '',
-      detectedAt: item.fields.DetectedAt || '',
-    }));
+    // Fetch all items without $filter (Status not indexed) and filter client-side
+    const data = await graphGet(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999`);
+    SPEC_ALERTS = (data.value || [])
+      .filter(item => (item.fields.Status || '') === 'unread')
+      .sort((a, b) => (b.fields.DetectedAt || '').localeCompare(a.fields.DetectedAt || ''))
+      .map(item => ({
+        id:         item.id,
+        rep:        item.fields.Title      || '',
+        jobNo:      item.fields.JobNo      || '',
+        week:       item.fields.Week       || '',
+        prep:       item.fields.Prep       || '',
+        fieldKey:   item.fields.FieldKey   || '',
+        field:      item.fields.FieldLabel || item.fields.FieldKey || '',
+        oldVal:     item.fields.OldValue   || '',
+        newVal:     item.fields.NewValue   || '',
+        detectedAt: item.fields.DetectedAt || '',
+      }));
     renderSpecAlerts();
   } catch(e) { console.warn('fetchSpecAlerts:', e.message); }
 }
@@ -3296,8 +3292,8 @@ async function loadProductionFromSharePoint() {
     const now2 = new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
     if (pill) { pill.className = 'sync-pill synced'; lbl.textContent = `Live · synced ${now2}`; }
     toast('Production data loaded from SharePoint', 's');
-    // Fetch first so in-memory SPEC_ALERTS is populated before change detection runs
-    fetchSpecAlerts().catch(e => console.warn('fetchSpecAlerts:', e.message));
+    // Await fetch so SPEC_ALERTS is populated before change detection runs (needed for dedup)
+    await fetchSpecAlerts().catch(e => console.warn('fetchSpecAlerts:', e.message));
     checkForSpecChanges().catch(e => console.warn('checkForSpecChanges:', e.message));
 
   } catch(e) {
