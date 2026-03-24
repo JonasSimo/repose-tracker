@@ -2672,8 +2672,8 @@ async function graphSignIn() {
     graphAccount = res.account;
     updateAuthBadge();
     await loadProductionFromSharePoint();
-    await loadCompletionsFromList();
     await loadLoadPlanFromSharePoint();
+    await loadCompletionsFromList();
     startQCAutoSync();
     setInterval(refreshCompletions, 60 * 1000);        // completions every 1 min
     setInterval(fullRefresh, 10 * 60 * 1000);          // production + load plan every 10 min
@@ -2880,8 +2880,8 @@ async function initGraph() {
     graphAccount = accounts[0];
     updateAuthBadge();
     await loadProductionFromSharePoint();
-    await loadCompletionsFromList();
     await loadLoadPlanFromSharePoint();
+    await loadCompletionsFromList();
     startQCAutoSync();
     setInterval(refreshCompletions, 60 * 1000);        // completions every 1 min
     setInterval(fullRefresh, 10 * 60 * 1000);          // production + load plan every 10 min
@@ -2928,9 +2928,6 @@ function applyStateToOvBadges() {
     });
   });
 
-  console.log('[OvBadges] OV_DAYS REP IDs:', Object.keys(repIndex));
-
-  let matchCount = 0;
   // Apply done completions from STATE
   TEAMS_CFG.forEach(t => {
     const ovMap = TEAM_OV_MAP[t.name];
@@ -2944,8 +2941,6 @@ function applyStateToOvBadges() {
           const jobs = PROD[wk]?.[p] || [];
           jobs.forEach((job, ji) => {
             if (!STATE[t.name]?.[subKey]?.[wk]?.[p]?.[ji]?.done) return;
-            console.log(`[OvBadges] Done: ${job.rep} (${t.name}/${subKey}) → in OV_DAYS: ${!!repIndex[job.rep]}`);
-            matchCount++;
             (repIndex[job.rep] || []).forEach(rep => {
               if (t.hasSubs) {
                 if (!rep.s[deptKey].includes(shortSub)) rep.s[deptKey].push(shortSub);
@@ -2958,8 +2953,6 @@ function applyStateToOvBadges() {
       });
     });
   });
-
-  console.log(`[OvBadges] Total done jobs found: ${matchCount}`);
 
   if (document.getElementById('view-overview')?.classList.contains('active')) renderOverview();
   renderPriorityBtn();
