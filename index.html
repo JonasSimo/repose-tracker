@@ -588,11 +588,18 @@ body {
 }
 .pp-job:last-child { border-bottom: none; }
 .pp-job-top { display: flex; align-items: center; gap: 5px; }
-.pp-job-code { font-size: 9px; font-weight: 700; color: var(--text2); white-space: nowrap; flex-shrink: 0; }
-.pp-job-rep  { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.pp-job-code { font-size: 12px; font-weight: 700; color: var(--repose-navy); white-space: nowrap; flex-shrink: 0; }
+.pp-job-rep  { font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 600; color: var(--text2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 /* Team badge highlight/dim in production plan */
 .pp-badge-dim { opacity: 0.18; }
 .pp-badge-sel { outline: 2px solid var(--repose-blue); border-radius: 5px; padding: 1px; }
+/* Production plan badge strip — non-sub badges same size as A/B/S chips */
+.pp-badge-strip .dbadge {
+  min-width: 16px; width: 16px; height: 16px; border-radius: 50%; padding: 0;
+}
+.pp-badge-strip .db-lbl { font-size: 6px; letter-spacing: 0; }
+.pp-badge-strip .bdiv   { height: 13px; }
+.pp-badge-strip .dbadge-grp-lbl { font-size: 6px; }
 .pp-empty { padding: 12px 8px; text-align: center; font-size: 10px; color: var(--text3); }
 
 /* ─── SYNC PILL ─── */
@@ -3147,8 +3154,8 @@ function renderProductionPlan() {
       ? jobs.map((j, ji) => {
           const s = getPPJobTeamStatus(col.key, ji);
           const codeLabel = col.express ? `${j.itemNo}` : `Job ${j.itemNo}`;
-          // Badge strip — same design as Load Plan
-          let badgeHtml = '<div class="badge-strip" style="flex-wrap:wrap;gap:2px">';
+          // Badge strip — same design as Load Plan, scaled down via pp-badge-strip
+          let badgeHtml = '<div class="badge-strip pp-badge-strip" style="flex-wrap:wrap;gap:2px">';
           OV_DEPTS.forEach((d, di) => {
             if (di > 0) badgeHtml += `<div class="bdiv"></div>`;
             const dimCls = activeProdTeam && d.k !== activeProdTeam ? 'pp-badge-dim' : '';
