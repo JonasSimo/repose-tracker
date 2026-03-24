@@ -1669,6 +1669,7 @@ function tickJob(ji) {
     if (recentDone.length > 20) recentDone.pop();
     toast(`${job.rep} · marked complete`, 's');
     saveCompletionToList(activeTeam, sk, activeWC, activePrep, ji).catch(console.warn);
+    applyStateToOvBadges();
     renderJobs();
     renderTeamSidebar();
     return;
@@ -1733,6 +1734,7 @@ function modalConfirm() {
   toast(`${job.rep} · ${initials} · marked complete`, 's');
   // Save to SharePoint List in background (don't await — keep UI fast)
   saveCompletionToList(activeTeam, sk, activeWC, activePrep, ji).catch(console.warn);
+  applyStateToOvBadges();
   renderJobs();
   renderTeamSidebar();
 }
@@ -1761,6 +1763,7 @@ function undoJob(team, sub, wc, prep, ji) {
   deleteCompletionFromList(team, sub, wc, prep, ji).catch(console.warn);
   const idx = recentDone.findIndex(r=>r.team===team&&r.sub===sub&&r.wc===wc&&r.prep===prep&&r.ji===ji);
   if (idx>=0) recentDone.splice(idx,1);
+  applyStateToOvBadges();
   renderJobs(); renderTeamSidebar();
   toast('Marked incomplete — completion removed', 'u');
 }
@@ -2285,6 +2288,7 @@ async function loadCompletionsFromList() {
     renderJobs();
     renderTeamSidebar();
     renderPriorityBtn();
+    applyStateToOvBadges();
     const t = new Date().toTimeString().slice(0,5);
     console.log(`Completions loaded from SharePoint at ${t} — ${allItems.length} records`);
   } catch(e) {
@@ -2434,6 +2438,7 @@ async function autoSyncQCCompletions() {
       renderTeamSidebar();
     }
     if (newlyDone > 0) {
+      applyStateToOvBadges();
       toast(`QC: ${newlyDone} job${newlyDone !== 1 ? 's' : ''} auto-completed from sheet`, 's');
     }
 
@@ -2605,10 +2610,11 @@ async function loadLoadPlanFromSharePoint() {
     OV_DAYS.length = 0;
     slots.forEach(s => OV_DAYS.push({ label: s.label, date: fmt(s.date), cls: s.cls, reps: s.reps }));
 
+    // Re-apply team completions from STATE (badges reset to 0 above)
+    applyStateToOvBadges();
+
     const syncTime = new Date().toTimeString().slice(0, 5);
     if (pill) { pill.className = 'sync-pill synced'; lbl.textContent = `Live · synced ${syncTime}`; }
-    if (document.getElementById('view-overview')?.classList.contains('active')) renderOverview();
-    renderPriorityBtn();
 
   } catch(e) {
     console.error('loadLoadPlanFromSharePoint failed:', e.message);
@@ -2896,6 +2902,59 @@ function ovToggleSub(dayLabel, ri, dept, sub) {
   const idx = rep.s[dept].indexOf(sub);
   if (idx>=0) rep.s[dept].splice(idx,1); else rep.s[dept].push(sub);
   renderOverview();
+  renderPriorityBtn();
+  if (activeWC === 'PRIORITY') renderJobs();
+}
+
+// ═══════════════════════════════════════════════
+// SYNC STATE → LOAD PLAN BADGES
+// ═══════════════════════════════════════════════
+// Rebuilds all OV_DAYS badge states from the current STATE object.
+// Called after any completion change or after OV_DAYS is rebuilt from SharePoint.
+function applyStateToOvBadges() {
+  // Reset all badges
+  OV_DAYS.forEach(day => {
+    day.reps.forEach(rep => {
+      rep.s = { wm:[], fm:0, ct:0, sw:0, uh:[], as:0, qc:0 };
+    });
+  });
+
+  // Build a fast lookup: repId → [{day, rep}]
+  const repIndex = {};
+  OV_DAYS.forEach(day => {
+    day.reps.forEach(rep => {
+      if (!repIndex[rep.id]) repIndex[rep.id] = [];
+      repIndex[rep.id].push(rep);
+    });
+  });
+
+  // Apply done completions from STATE
+  TEAMS_CFG.forEach(t => {
+    const ovMap = TEAM_OV_MAP[t.name];
+    if (!ovMap) return;
+    const deptKey = ovMap.key;
+    const subKeys = t.hasSubs ? SUBS : ['all'];
+    subKeys.forEach(subKey => {
+      const shortSub = t.hasSubs ? SUB_SHORT[subKey] : null;
+      WEEKS.forEach(wk => {
+        for (let p = 1; p <= 5; p++) {
+          const jobs = PROD[wk]?.[p] || [];
+          jobs.forEach((job, ji) => {
+            if (!STATE[t.name]?.[subKey]?.[wk]?.[p]?.[ji]?.done) return;
+            (repIndex[job.rep] || []).forEach(rep => {
+              if (t.hasSubs) {
+                if (!rep.s[deptKey].includes(shortSub)) rep.s[deptKey].push(shortSub);
+              } else {
+                rep.s[deptKey] = 1;
+              }
+            });
+          });
+        }
+      });
+    });
+  });
+
+  if (document.getElementById('view-overview')?.classList.contains('active')) renderOverview();
   renderPriorityBtn();
   if (activeWC === 'PRIORITY') renderJobs();
 }
