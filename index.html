@@ -846,6 +846,34 @@ body {
 .auth-dot.off { background: #fbbf24; }
 .sync-pill.error { background: var(--rbg); border-color: var(--rborder); color: var(--red); }
 .sync-pill.error .sync-dot { background: var(--red); animation: none; }
+/* ── Spec change alerts ── */
+.spec-alert-area { padding: 6px 14px 0; display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+.spec-alert-card {
+  background: #fff7ed; border: 1.5px solid #fed7aa; border-radius: 10px;
+  padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;
+}
+.spec-alert-hdr  { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.spec-alert-rep  { font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700; color: #92400e; }
+.spec-alert-meta { font-size: 10px; color: #b45309; }
+.spec-alert-body { font-size: 12px; color: #92400e; line-height: 1.5; }
+.spec-alert-field { font-weight: 700; }
+.spec-alert-old  { text-decoration: line-through; opacity: .65; }
+.spec-alert-new  { font-weight: 700; color: #78350f; }
+.spec-alert-time { font-size: 10px; color: #b45309; margin-top: 1px; }
+.spec-alert-btns { display: flex; gap: 6px; }
+.spec-alert-ack {
+  flex: 1; padding: 7px 6px; border-radius: 7px; font-size: 11px; font-weight: 600;
+  border: 1.5px solid #d97706; background: transparent; color: #92400e;
+  cursor: pointer; font-family: inherit;
+}
+.spec-alert-ack:hover   { background: #fef3c7; }
+.spec-alert-scrap {
+  flex: 1; padding: 7px 6px; border-radius: 7px; font-size: 11px; font-weight: 600;
+  border: 1.5px solid #dc2626; background: transparent; color: #dc2626;
+  cursor: pointer; font-family: inherit;
+}
+.spec-alert-scrap:hover { background: #fee2e2; }
+
 .prod-sync-bar { display: flex; align-items: center; gap: 8px; padding: 0 16px 10px; flex-shrink: 0; }
 
 /* ── Job spec modal ── */
@@ -1017,6 +1045,7 @@ body {
         <button class="search-clear" id="search-clear-btn" onclick="clearSearch()" style="display:none">✕ Clear</button>
         <button class="export-btn" onclick="exportCSV()" title="Export all completions to CSV">⬇ Export</button>
       </div>
+      <div class="spec-alert-area" id="specAlertArea"></div>
       <div class="job-list-area" id="jobListArea">
         <div class="no-jobs">
           <div style="font-size:28px">📋</div>
@@ -2427,10 +2456,15 @@ function renderOverviewTeam(teamName) {
 // ═══════════════════════════════════════════════
 const SP_HOST      = 'reposefurniturelimited.sharepoint.com';
 const SP_SITE_PATH = '/sites/ReposeFurniture-PlanningRepose';
-const SP_LIST_NAME = 'ProductionCompletions';
+const SP_LIST_NAME        = 'ProductionCompletions';
+// SpecAlerts columns: Title(REP), JobNo, Week, Prep, FieldKey, FieldLabel, OldValue, NewValue, DetectedAt, Status, AcknowledgedAt
+const SP_SPEC_ALERTS_LIST = 'SpecAlerts';
+// ScrapLog columns: Title(REP), JobNo, Week, Prep, Team, FieldLabel, OldValue, NewValue, LoggedAt, Reason
+const SP_SCRAP_LOG_LIST   = 'ScrapLog';
 
 let _spSiteId = null;
 let _spListId = null;
+const _spListIdCache = {};
 
 async function getSpSiteId() {
   if (_spSiteId) return _spSiteId;
@@ -2445,6 +2479,180 @@ async function getSpListId() {
   const res = await graphGet(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${SP_LIST_NAME}`);
   _spListId = res.id;
   return _spListId;
+}
+
+async function getListIdByName(name) {
+  if (_spListIdCache[name]) return _spListIdCache[name];
+  const siteId = await getSpSiteId();
+  const res = await graphGet(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${name}`);
+  _spListIdCache[name] = res.id;
+  return res.id;
+}
+
+// ═══════════════════════════════════════════════
+// SPEC CHANGE DETECTION & ALERTS
+// ═══════════════════════════════════════════════
+
+const SPEC_FIELD_LABELS = {
+  customer:   'Customer',    sewLabel:   'Sew Label',
+  model:      'Model',       backDesign: 'Back Design',
+  coverCode:  'Cover Code',  fabric:     'Fabric',
+  mechanism1: 'Mechanism',   mechanism2: 'Additional Mechanism',
+  seatHeight: 'Seat Height', seatWidth:  'Seat Width', seatDepth:  'Seat Depth',
+  backHeight: 'Back Height', armHeight:  'Arm Height',
+  seatOption: 'Seat Option', castor1:    'Castor 1',   castor2:    'Castor 2',
+  specialInst:'Special Instructions',   optExtras:  'Optional Extras',
+};
+
+let SPEC_SNAPSHOT   = (() => { try { return JSON.parse(localStorage.getItem('spec_snapshot')    || '{}'); } catch { return {}; } })();
+let SPEC_ALERT_SENT = new Set((() => { try { return JSON.parse(localStorage.getItem('spec_alert_cache') || '[]'); } catch { return []; } })());
+let SPEC_ALERTS     = [];
+
+function saveSpecSnapshot()   { try { localStorage.setItem('spec_snapshot',    JSON.stringify(SPEC_SNAPSHOT)); }           catch(e) {} }
+function saveSpecAlertCache() { try { localStorage.setItem('spec_alert_cache', JSON.stringify([...SPEC_ALERT_SENT])); }    catch(e) {} }
+
+async function checkForSpecChanges() {
+  if (!graphAccount) return;
+  const newSnap = {};
+  Object.keys(PROD).forEach(wk => {
+    [1,2,3,4,5,'express'].forEach(p => {
+      (PROD[wk]?.[p] || []).forEach(job => {
+        if (job.spec && job.rep) newSnap[job.rep] = { ...job.spec, _itemNo: job.itemNo, _wk: wk, _prep: p };
+      });
+    });
+  });
+
+  const toAlert = [];
+  Object.keys(newSnap).forEach(rep => {
+    const oldSpec = SPEC_SNAPSHOT[rep];
+    if (!oldSpec) return; // first time seeing this REP — not a change
+    const newSpec = newSnap[rep];
+    Object.keys(SPEC_FIELD_LABELS).forEach(key => {
+      const ov = (oldSpec[key] || '').trim();
+      const nv = (newSpec[key] || '').trim();
+      if (!ov || !nv || ov === nv) return; // skip blanks and unchanged
+      const cacheKey = `${rep}__${key}`;
+      if (SPEC_ALERT_SENT.has(cacheKey)) return;
+      SPEC_ALERT_SENT.add(cacheKey);
+      toAlert.push({ rep, itemNo: newSpec._itemNo, wk: newSpec._wk, prep: String(newSpec._prep), fieldKey: key, fieldLabel: SPEC_FIELD_LABELS[key], oldVal: ov, newVal: nv });
+    });
+  });
+
+  SPEC_SNAPSHOT = newSnap;
+  saveSpecSnapshot();
+  saveSpecAlertCache();
+  for (const a of toAlert) await writeSpecAlert(a).catch(e => console.warn('writeSpecAlert:', e.message));
+}
+
+async function writeSpecAlert(a) {
+  const siteId = await getSpSiteId();
+  const listId = await getListIdByName(SP_SPEC_ALERTS_LIST);
+  const token  = await getGraphToken();
+  const now    = new Date().toLocaleDateString('en-GB') + ' ' + new Date().toTimeString().slice(0,5);
+  const res = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields: {
+      Title: a.rep, JobNo: a.itemNo, Week: a.wk, Prep: a.prep,
+      FieldKey: a.fieldKey, FieldLabel: a.fieldLabel,
+      OldValue: a.oldVal, NewValue: a.newVal, DetectedAt: now, Status: 'unread',
+    }})
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
+async function fetchSpecAlerts() {
+  if (!graphAccount) return;
+  try {
+    const siteId = await getSpSiteId();
+    const listId = await getListIdByName(SP_SPEC_ALERTS_LIST);
+    const data   = await graphGet(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$filter=fields/Status eq 'unread'&$orderby=fields/DetectedAt desc&$top=50`);
+    SPEC_ALERTS = (data.value || []).map(item => ({
+      id:         item.id,
+      rep:        item.fields.Title      || '',
+      jobNo:      item.fields.JobNo      || '',
+      week:       item.fields.Week       || '',
+      prep:       item.fields.Prep       || '',
+      fieldKey:   item.fields.FieldKey   || '',
+      field:      item.fields.FieldLabel || item.fields.FieldKey || '',
+      oldVal:     item.fields.OldValue   || '',
+      newVal:     item.fields.NewValue   || '',
+      detectedAt: item.fields.DetectedAt || '',
+    }));
+    renderSpecAlerts();
+  } catch(e) { console.warn('fetchSpecAlerts:', e.message); }
+}
+
+async function acknowledgeAlert(alertId) {
+  const alert = SPEC_ALERTS.find(a => a.id === alertId);
+  try {
+    const siteId = await getSpSiteId();
+    const listId = await getListIdByName(SP_SPEC_ALERTS_LIST);
+    const token  = await getGraphToken();
+    const now    = new Date().toLocaleDateString('en-GB') + ' ' + new Date().toTimeString().slice(0,5);
+    await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${alertId}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields: { Status: 'acknowledged', AcknowledgedAt: now } })
+    });
+    if (alert) { SPEC_ALERT_SENT.delete(`${alert.rep}__${alert.fieldKey}`); saveSpecAlertCache(); }
+    SPEC_ALERTS = SPEC_ALERTS.filter(a => a.id !== alertId);
+    renderSpecAlerts();
+    toast('Alert acknowledged', 's');
+  } catch(e) { console.warn('acknowledgeAlert:', e.message); toast('Could not update alert — check connection', 'u'); }
+}
+
+async function logScrapAndDismiss(alertId) {
+  const alert = SPEC_ALERTS.find(a => a.id === alertId);
+  if (!alert) return;
+  try {
+    const siteId   = await getSpSiteId();
+    const token    = await getGraphToken();
+    const scrapId  = await getListIdByName(SP_SCRAP_LOG_LIST);
+    const alertsId = await getListIdByName(SP_SPEC_ALERTS_LIST);
+    const now      = new Date().toLocaleDateString('en-GB') + ' ' + new Date().toTimeString().slice(0,5);
+    await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${scrapId}/items`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields: {
+        Title: alert.rep, JobNo: alert.jobNo, Week: alert.week, Prep: alert.prep,
+        Team: activeTeam || 'Unknown', FieldLabel: alert.field,
+        OldValue: alert.oldVal, NewValue: alert.newVal, LoggedAt: now, Reason: 'Late spec change',
+      }})
+    });
+    await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${alertsId}/items/${alertId}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields: { Status: 'scrapped', AcknowledgedAt: now } })
+    });
+    if (alert) { SPEC_ALERT_SENT.delete(`${alert.rep}__${alert.fieldKey}`); saveSpecAlertCache(); }
+    SPEC_ALERTS = SPEC_ALERTS.filter(a => a.id !== alertId);
+    renderSpecAlerts();
+    toast(`${alert.rep} logged as scrap`, 's');
+  } catch(e) { console.warn('logScrapAndDismiss:', e.message); toast('Could not save scrap record — check connection', 'u'); }
+}
+
+function renderSpecAlerts() {
+  const area = document.getElementById('specAlertArea');
+  if (!area) return;
+  if (!SPEC_ALERTS.length) { area.innerHTML = ''; return; }
+  area.innerHTML = SPEC_ALERTS.map(a => `
+    <div class="spec-alert-card">
+      <div class="spec-alert-hdr">
+        <span class="spec-alert-rep">⚠ ${a.rep}</span>
+        <span class="spec-alert-meta">Job ${a.jobNo} · ${a.week}${a.prep ? ' · Prep ' + a.prep : ''}</span>
+      </div>
+      <div class="spec-alert-body">
+        <span class="spec-alert-field">${a.field}</span> changed:
+        <span class="spec-alert-old">${a.oldVal}</span> → <span class="spec-alert-new">${a.newVal}</span>
+      </div>
+      <div class="spec-alert-time">Detected ${a.detectedAt}</div>
+      <div class="spec-alert-btns">
+        <button class="spec-alert-ack"   onclick="acknowledgeAlert('${a.id}')">✓ Acknowledge</button>
+        <button class="spec-alert-scrap" onclick="logScrapAndDismiss('${a.id}')">🗑 Already Produced</button>
+      </div>
+    </div>
+  `).join('');
 }
 
 async function loadCompletionsFromList() {
@@ -2872,6 +3080,7 @@ async function graphSignIn() {
     await loadLoadPlanFromSharePoint();
     await loadCompletionsFromList();
     startQCAutoSync();
+    fetchSpecAlerts().catch(console.warn);
     setInterval(refreshCompletions, 60 * 1000);        // completions every 1 min
     setInterval(fullRefresh, 10 * 60 * 1000);          // production + load plan every 10 min
   } catch(e) {
@@ -3077,6 +3286,8 @@ async function loadProductionFromSharePoint() {
     const now2 = new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
     if (pill) { pill.className = 'sync-pill synced'; lbl.textContent = `Live · synced ${now2}`; }
     toast('Production data loaded from SharePoint', 's');
+    checkForSpecChanges().catch(e => console.warn('checkForSpecChanges:', e.message));
+    fetchSpecAlerts().catch(e => console.warn('fetchSpecAlerts:', e.message));
 
   } catch(e) {
     console.error('Production load failed', e);
@@ -3123,6 +3334,7 @@ async function initGraph() {
     await loadLoadPlanFromSharePoint();
     await loadCompletionsFromList();
     startQCAutoSync();
+    fetchSpecAlerts().catch(console.warn);
     setInterval(refreshCompletions, 60 * 1000);        // completions every 1 min
     setInterval(fullRefresh, 10 * 60 * 1000);          // production + load plan every 10 min
   }
