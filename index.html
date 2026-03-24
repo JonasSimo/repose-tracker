@@ -578,7 +578,7 @@ body {
 .search-result {
   display: flex; align-items: center; gap: 8px;
   padding: 10px 14px; border-bottom: 1px solid var(--border);
-  background: var(--bg2); cursor: pointer; transition: .1s;
+  background: var(--bg2); transition: .1s;
 }
 .search-result:hover { background: var(--bbg); }
 .sr-ctx { font-size: 10px; color: var(--text3); white-space: nowrap; }
@@ -587,6 +587,12 @@ body {
 .sr-badge.pending { background: var(--bbg); border-color: var(--bborder); color: var(--blue); }
 .sr-job { font-size: 10px; color: var(--text2); white-space: nowrap; }
 .search-no-results { padding: 30px 16px; text-align: center; color: var(--text3); font-size: 13px; }
+.sr-mark-btn { flex-shrink:0; padding: 6px 14px; border-radius: 6px; border: none; background: var(--blue); color: #fff; font-size: 12px; font-weight: 700; cursor: pointer; }
+.sr-mark-btn:active { opacity: .8; }
+.sr-nav { flex-shrink:0; font-size:11px; color:var(--text3); cursor:pointer; padding: 4px; }
+/* Load plan search highlight */
+.rep-row.ov-highlight { background: #fef9c3 !important; outline: 2px solid #d97706; outline-offset: -2px; border-radius: 4px; }
+.rep-row.ov-dim { opacity: .25; }
 
 /* ─── INITIALS MODAL ─── */
 .modal-overlay {
@@ -919,6 +925,10 @@ body {
       </div>
     </div>
     <div class="ov-tab-row" id="ovTabRow"></div>
+    <div style="padding:8px 16px 0;max-width:320px">
+      <input id="ov-search" class="search-input" type="text" placeholder="Search REP number…"
+        oninput="onOvSearch(this.value)" autocomplete="off" style="width:100%;box-sizing:border-box">
+    </div>
     <div class="ov-area" id="ovArea">
       <div class="ov-locked">
         <div class="ov-locked-icon">🔒</div>
@@ -1586,6 +1596,7 @@ function getTeamColor() {
 }
 
 function renderJobs() {
+  if (searchQuery) { renderSearchResults(); return; }
   if (activeWC === 'PRIORITY') { renderPriorityJobsList(); return; }
   if (!activeWC || !activePrep) return;
   const jobs = PROD[activeWC]?.[activePrep] || [];
@@ -1772,7 +1783,8 @@ function undoJob(team, sub, wc, prep, ji) {
 // ═══════════════════════════════════════════════
 // SEARCH
 // ═══════════════════════════════════════════════
-let searchQuery = '';
+let searchQuery   = '';
+let ovSearchQuery = '';
 
 function onSearch(val) {
   searchQuery = val.trim().toUpperCase();
@@ -1820,8 +1832,8 @@ function renderSearchResults() {
     const { wk, p, ji, job, s } = r;
     const ctx = `${wk} · ${PROD[wk]?.wc||''} · Prep ${p} (${PREP_DAYS[p-1]})`;
     const isDone = s.done;
-    return `<div class="search-result" onclick="goToJob('${wk}',${p})">
-      <div style="flex:1;min-width:0">
+    return `<div class="search-result">
+      <div style="flex:1;min-width:0;cursor:pointer" onclick="goToJob('${wk}',${p})">
         <div style="display:flex;align-items:center;gap:8px">
           <span class="sr-job">Job ${job.itemNo}</span>
           <span class="sr-rep">${job.rep}</span>
@@ -1829,9 +1841,15 @@ function renderSearchResults() {
         </div>
         <div class="sr-ctx">${ctx}</div>
       </div>
-      <span style="font-size:11px;color:var(--text3)">→</span>
+      ${!isDone ? `<button class="sr-mark-btn" onclick="tickFromSearch('${wk}',${p},${ji})">MARK</button>` : ''}
+      <span class="sr-nav" onclick="goToJob('${wk}',${p})">→</span>
     </div>`;
   }).join('');
+}
+
+function onOvSearch(val) {
+  ovSearchQuery = val.trim().replace(/\s/g,'').toUpperCase();
+  renderOverview();
 }
 
 function goToJob(wk, prep) {
@@ -1841,6 +1859,15 @@ function goToJob(wk, prep) {
   renderWeekList();
   renderPrepGrid();
   renderJobs();
+}
+
+function tickFromSearch(wk, prep, ji) {
+  // Set context so tickJob targets the right STATE slot
+  activeWC   = wk;
+  activePrep = prep;
+  tickJob(ji);
+  // renderJobs() called by tickJob/modalConfirm will re-render search results
+  // because renderJobs() now checks searchQuery first
 }
 
 // ═══════════════════════════════════════════════
@@ -2063,7 +2090,10 @@ function renderOverviewAll() {
 
     day.reps.forEach((rep, ri) => {
       const allDone = OV_DEPTS.every(d => teamTileState(d, rep) === 'done');
-      gridHtml += `<div class="rep-row ${allDone?'all-done':''}">
+      const repDigits = rep.id.replace(/\D/g,'');
+      const ovMatch = ovSearchQuery && repDigits.includes(ovSearchQuery);
+      const ovRowCls = ovSearchQuery ? (ovMatch ? 'ov-highlight' : 'ov-dim') : '';
+      gridHtml += `<div class="rep-row ${allDone?'all-done':''} ${ovRowCls}">
         <span class="rep-num">${rep.id}</span>
         <div class="badge-strip">`;
       OV_DEPTS.forEach((d, di) => {
@@ -2172,7 +2202,10 @@ function renderOverviewTeam(teamName) {
           : rep.id;
       }
 
-      html += `<div class="rep-row ${teamDone ? 'all-done' : ''}">
+      const repDigits2 = rep.id.replace(/\D/g,'');
+      const ovMatch2   = ovSearchQuery && repDigits2.includes(ovSearchQuery);
+      const ovRowCls2  = ovSearchQuery ? (ovMatch2 ? 'ov-highlight' : 'ov-dim') : '';
+      html += `<div class="rep-row ${teamDone ? 'all-done' : ''} ${ovRowCls2}">
         <span class="rep-num">${repLabel}</span>
         <div class="badge-strip">`;
 
