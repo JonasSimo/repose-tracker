@@ -2919,7 +2919,7 @@ function applyStateToOvBadges() {
     });
   });
 
-  // Build a fast lookup: repId → [{day, rep}]
+  // Build a fast lookup: repId → [rep objects]
   const repIndex = {};
   OV_DAYS.forEach(day => {
     day.reps.forEach(rep => {
@@ -2928,6 +2928,9 @@ function applyStateToOvBadges() {
     });
   });
 
+  console.log('[OvBadges] OV_DAYS REP IDs:', Object.keys(repIndex));
+
+  let matchCount = 0;
   // Apply done completions from STATE
   TEAMS_CFG.forEach(t => {
     const ovMap = TEAM_OV_MAP[t.name];
@@ -2941,6 +2944,8 @@ function applyStateToOvBadges() {
           const jobs = PROD[wk]?.[p] || [];
           jobs.forEach((job, ji) => {
             if (!STATE[t.name]?.[subKey]?.[wk]?.[p]?.[ji]?.done) return;
+            console.log(`[OvBadges] Done: ${job.rep} (${t.name}/${subKey}) → in OV_DAYS: ${!!repIndex[job.rep]}`);
+            matchCount++;
             (repIndex[job.rep] || []).forEach(rep => {
               if (t.hasSubs) {
                 if (!rep.s[deptKey].includes(shortSub)) rep.s[deptKey].push(shortSub);
@@ -2953,6 +2958,8 @@ function applyStateToOvBadges() {
       });
     });
   });
+
+  console.log(`[OvBadges] Total done jobs found: ${matchCount}`);
 
   if (document.getElementById('view-overview')?.classList.contains('active')) renderOverview();
   renderPriorityBtn();
