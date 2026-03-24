@@ -847,6 +847,55 @@ body {
 .sync-pill.error { background: var(--rbg); border-color: var(--rborder); color: var(--red); }
 .sync-pill.error .sync-dot { background: var(--red); animation: none; }
 .prod-sync-bar { display: flex; align-items: center; gap: 8px; padding: 0 16px 10px; flex-shrink: 0; }
+
+/* ── Job spec modal ── */
+.spec-modal {
+  position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 2000;
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.spec-card {
+  background: #fff; border-radius: 14px; width: 100%; max-width: 480px;
+  max-height: 88vh; overflow-y: auto; box-shadow: 0 24px 64px rgba(0,0,0,.3);
+  display: flex; flex-direction: column;
+}
+.spec-head {
+  padding: 16px 20px 14px; border-bottom: 1.5px solid var(--border);
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+  position: sticky; top: 0; background: #fff; z-index: 1; border-radius: 14px 14px 0 0;
+}
+.spec-head-rep  { font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 700; color: var(--repose-navy); }
+.spec-head-model{ font-size: 16px; font-weight: 700; color: var(--repose-navy); margin-top: 3px; }
+.spec-head-cust { font-size: 12px; color: var(--text2); margin-top: 2px; }
+.spec-close {
+  flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%;
+  border: 1.5px solid var(--border2); background: var(--bg3);
+  cursor: pointer; font-size: 13px; color: var(--text2);
+  display: flex; align-items: center; justify-content: center; margin-top: 2px;
+}
+.spec-close:hover { background: var(--border2); }
+.spec-body  { padding: 14px 20px 20px; display: flex; flex-direction: column; gap: 16px; }
+.spec-section-title {
+  font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em;
+  color: var(--text3); margin-bottom: 8px;
+}
+.spec-row   { display: flex; align-items: baseline; gap: 8px; margin-bottom: 5px; }
+.spec-lbl   { font-size: 11px; color: var(--text3); min-width: 110px; flex-shrink: 0; }
+.spec-val   { font-size: 12px; font-weight: 600; color: var(--repose-navy); }
+.spec-dim-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.spec-dim-cell {
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 8px;
+  padding: 7px 10px; display: flex; flex-direction: column; align-items: center; min-width: 72px;
+}
+.spec-dim-val { font-size: 14px; font-weight: 700; color: var(--repose-navy); }
+.spec-dim-lbl { font-size: 9px; color: var(--text3); margin-top: 2px; text-transform: uppercase; letter-spacing: .06em; }
+.spec-special {
+  background: #fff7ed; border-radius: 8px; padding: 10px 14px;
+  border-left: 3px solid var(--amber);
+}
+.spec-special-title { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: #92400e; margin-bottom: 5px; }
+.spec-special-text  { font-size: 13px; font-weight: 600; color: #92400e; }
+.jc-body { cursor: pointer; }
+.jc-body:hover .jc-rep { color: var(--repose-blue); }
 </style>
 <script src="/msal-browser.min.js" defer></script>
 </head>
@@ -1714,7 +1763,7 @@ function renderJobs() {
     html += `
       <div class="job-card ${s.done?'done':''}">
         <div class="jc-bar" style="background:${barColor}"></div>
-        <div class="jc-body">
+        <div class="jc-body" onclick="openSpecModal('${activeWC}','${activePrep}',${ji})">
           <span class="jc-item">Job ${job.itemNo}</span>
           <span class="jc-rep">${job.rep}</span>
           ${s.done ? `<div class="card-undo">
@@ -1722,7 +1771,7 @@ function renderJobs() {
               isAuto ? `<span class="jc-auto-badge">📋 AUTO</span>` :
               (s.initials?`<span class="jc-initials">${s.initials}</span>`:'')}
             ${s.doneAt?`<span class="jc-time-sm">${s.doneAt}</span>`:''}
-            ${!isQcAuto ? `<button class="card-undo-btn" onclick="undoJob('${activeTeam}','${sk2}','${activeWC}','${activePrep}',${ji})">↩ Undo</button>` : ''}
+            ${!isQcAuto ? `<button class="card-undo-btn" onclick="event.stopPropagation();undoJob('${activeTeam}','${sk2}','${activeWC}','${activePrep}',${ji})">↩ Undo</button>` : ''}
           </div>` : `<span class="jc-qty">Qty: ${job.qty||'—'}</span>`}
         </div>
         <button class="tick-btn ${s.done?'ticked':''}" onclick="tickJob(${ji})">
@@ -1838,9 +1887,75 @@ function modalCancel() {
 
 // Allow Enter key to confirm
 document.addEventListener('keydown', e => {
-  if (e.key === 'Enter' && pendingTick !== null) modalConfirm();
+  if (e.key === 'Enter'  && pendingTick !== null) modalConfirm();
   if (e.key === 'Escape' && pendingTick !== null) modalCancel();
+  if (e.key === 'Escape' && document.getElementById('specModal')?.style.display !== 'none') closeSpecModal();
 });
+
+// ── Job spec modal ──
+function openSpecModal(wc, prep, ji) {
+  const job = PROD[wc]?.[prep]?.[ji];
+  if (!job) return;
+  const sp = job.spec || {};
+  const v  = x => (x && String(x).trim()) || '';
+  const row = (lbl, val) => val ? `<div class="spec-row"><span class="spec-lbl">${lbl}</span><span class="spec-val">${val}</span></div>` : '';
+  const dim = (lbl, val) => val ? `<div class="spec-dim-cell"><div class="spec-dim-val">${val}</div><div class="spec-dim-lbl">${lbl}</div></div>` : '';
+
+  const mechanism = [v(sp.mechanism1), v(sp.mechanism2)].filter(Boolean).join(' + ');
+  const castors   = [v(sp.castor1),    v(sp.castor2)   ].filter(Boolean).join(', ');
+
+  const noSpec = !Object.values(sp).some(x => v(x));
+
+  document.getElementById('specCard').innerHTML = `
+    <div class="spec-head">
+      <div>
+        <div class="spec-head-rep">${job.rep} &nbsp;·&nbsp; Job ${job.itemNo}</div>
+        <div class="spec-head-model">${v(sp.model) || '—'}</div>
+        <div class="spec-head-cust">${v(sp.customer) || ''}</div>
+      </div>
+      <button class="spec-close" onclick="closeSpecModal()">✕</button>
+    </div>
+    ${noSpec ? `<div class="spec-body" style="color:var(--text3);font-size:13px;padding:24px 20px">No specification data — sync from SharePoint first.</div>` : `
+    <div class="spec-body">
+      <div>
+        <div class="spec-section-title">Identity</div>
+        ${row('Sew Label',   v(sp.sewLabel))}
+        ${row('Back Design', v(sp.backDesign))}
+      </div>
+      <div>
+        <div class="spec-section-title">Fabric &amp; Cover</div>
+        ${row('Cover Code / Supplier', v(sp.coverCode))}
+        ${row('Fabric Description',    v(sp.fabric))}
+        ${row('Mechanism',             mechanism || '—')}
+      </div>
+      <div>
+        <div class="spec-section-title">Dimensions</div>
+        <div class="spec-dim-grid">
+          ${dim('Seat H',  v(sp.seatHeight))}
+          ${dim('Seat W',  v(sp.seatWidth))}
+          ${dim('Seat D',  v(sp.seatDepth))}
+          ${dim('Back H',  v(sp.backHeight))}
+          ${dim('Arm H',   v(sp.armHeight))}
+        </div>
+      </div>
+      <div>
+        <div class="spec-section-title">Options</div>
+        ${row('Seat Option',     v(sp.seatOption))}
+        ${row('Castors',         castors || (v(sp.castor1) || v(sp.castor2) ? '' : '—'))}
+        ${row('Optional Extras', v(sp.optExtras))}
+      </div>
+      ${v(sp.specialInst) ? `<div class="spec-special">
+        <div class="spec-special-title">⚠ Special Instructions</div>
+        <div class="spec-special-text">${v(sp.specialInst)}</div>
+      </div>` : ''}
+    </div>`}
+  `;
+  document.getElementById('specModal').style.display = 'flex';
+}
+
+function closeSpecModal() {
+  document.getElementById('specModal').style.display = 'none';
+}
 
 function renderUndo() {
   const strip = document.getElementById('undoStrip');
@@ -2833,7 +2948,28 @@ function parseSheetValues(values) {
       const prepVal = parseInt(biRaw, 10);
       prep = (prepVal >= 1 && prepVal <= 5) ? prepVal : null;
     }
-    jobs.push({ itemNo, rep: `REP ${m[1]}`, prep });
+    const sp = idx => String(row[idx] ?? '').trim();
+    const spec = {
+      customer:   sp(17),  // R
+      sewLabel:   sp(18),  // S
+      model:      sp(19),  // T
+      backDesign: sp(20),  // U
+      coverCode:  sp(21),  // V
+      fabric:     sp(22),  // W
+      mechanism1: sp(24),  // Y
+      mechanism2: sp(25),  // Z (additional mechanism)
+      seatHeight: sp(26),  // AA
+      seatWidth:  sp(27),  // AB
+      seatDepth:  sp(28),  // AC
+      backHeight: sp(29),  // AD
+      armHeight:  sp(30),  // AE
+      seatOption: sp(31),  // AF
+      castor1:    sp(32),  // AG
+      castor2:    sp(33),  // AH
+      specialInst:sp(34),  // AI
+      optExtras:  sp(35),  // AJ
+    };
+    jobs.push({ itemNo, rep: `REP ${m[1]}`, prep, spec });
   }
   return jobs;
 }
@@ -2841,7 +2977,8 @@ function parseSheetValues(values) {
 function distributeIntoPreps(jobs) {
   const preps = {1:[],2:[],3:[],4:[],5:[],express:[]};
   // Express jobs always go to express bucket regardless of other prep values
-  jobs.filter(j => j.prep === 'express').forEach(j => preps.express.push({ itemNo: j.itemNo, rep: j.rep }));
+  const jo = j => ({ itemNo: j.itemNo, rep: j.rep, spec: j.spec });
+  jobs.filter(j => j.prep === 'express').forEach(j => preps.express.push(jo(j)));
   const normalJobs = jobs.filter(j => j.prep !== 'express');
   const hasNumericPrep = normalJobs.some(j => typeof j.prep === 'number');
   if (hasNumericPrep) {
@@ -2851,10 +2988,10 @@ function distributeIntoPreps(jobs) {
     let ni = 0;
     normalJobs.forEach(j => {
       if (j.prep !== null) {
-        preps[j.prep].push({ itemNo: j.itemNo, rep: j.rep });
+        preps[j.prep].push(jo(j));
       } else {
         const p = n === 0 ? 1 : Math.min(5, Math.floor(ni * 5 / n) + 1);
-        preps[p].push({ itemNo: j.itemNo, rep: j.rep });
+        preps[p].push(jo(j));
         ni++;
       }
     });
@@ -2863,7 +3000,7 @@ function distributeIntoPreps(jobs) {
     const n = normalJobs.length;
     normalJobs.forEach((j, i) => {
       const p = n === 0 ? 1 : Math.min(5, Math.floor(i * 5 / n) + 1);
-      preps[p].push({ itemNo: j.itemNo, rep: j.rep });
+      preps[p].push(jo(j));
     });
   }
   return preps;
@@ -3304,5 +3441,10 @@ renderWeekList();
 // Init Graph API auth after MSAL library loads
 window.addEventListener('load', () => initGraph().catch(console.error));
 </script>
+
+<!-- Job spec modal -->
+<div id="specModal" class="spec-modal" style="display:none" onclick="if(event.target===this)closeSpecModal()">
+  <div class="spec-card" id="specCard"></div>
+</div>
 </body>
 </html>
