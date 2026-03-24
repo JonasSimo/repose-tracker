@@ -466,33 +466,31 @@ body {
 
 /* Single dept badge */
 .dbadge {
-  display: inline-flex; flex-direction: column; align-items: center;
-  justify-content: center;
-  min-width: 22px; height: 20px; padding: 0 3px;
-  border-radius: 3px; border: 1px solid var(--border2);
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 25px; height: 22px; padding: 0 4px;
+  border-radius: 5px; border: 1.5px solid var(--border2);
   background: var(--bg3); cursor: pointer;
-  transition: all .1s; user-select: none;
+  transition: all .12s; user-select: none;
   -webkit-tap-highlight-color: transparent; flex-shrink: 0;
 }
-.dbadge:hover:not(.done):not(.partial) { background: var(--bg4); }
+.dbadge:hover:not(.done):not(.partial):not(.qc-impl) { background: var(--bg4); }
 .dbadge:active { transform: scale(.93); }
 
-.dbadge.done    { background: var(--gbg);  border-color: var(--gborder); }
-.dbadge.done.qc { background: var(--tbg);  border-color: var(--tborder); }
-.dbadge.partial { background: var(--abg);  border-color: var(--aborder); }
+.dbadge.done     { background: var(--green); border-color: var(--green); }
+.dbadge.done.qc  { background: var(--teal);  border-color: var(--teal);  }
+.dbadge.partial  { background: var(--abg);   border-color: var(--aborder); }
+.dbadge.qc-impl  { background: #d1fae5; border: 1.5px dashed var(--green); }
 
 .db-lbl {
-  font-size: 7px; font-weight: 700; letter-spacing: .03em;
+  font-size: 7.5px; font-weight: 700; letter-spacing: .04em;
   color: var(--text3); line-height: 1; white-space: nowrap;
 }
-.dbadge.done    .db-lbl { color: var(--green); }
-.dbadge.done.qc .db-lbl { color: var(--teal);  }
-.dbadge.partial .db-lbl { color: var(--amber);  }
+.dbadge.done     .db-lbl { color: #fff; }
+.dbadge.done.qc  .db-lbl { color: #fff; }
+.dbadge.partial  .db-lbl { color: var(--amber); }
+.dbadge.qc-impl  .db-lbl { color: var(--green); }
 
-.db-icon { font-size: 8px; line-height: 1; color: var(--text3); margin-top: 1px; }
-.dbadge.done    .db-icon { color: var(--green); }
-.dbadge.done.qc .db-icon { color: var(--teal);  }
-.dbadge.partial .db-icon { color: var(--amber);  }
+.db-icon { display: none; }
 
 /* Sub-badge group (WM / UH — A B S) */
 .dbadge-grp { display: flex; gap: 1px; flex-shrink: 0; align-items: stretch; }
@@ -506,19 +504,37 @@ body {
 }
 .dbadge-grp-lbl.done    { color: var(--green); }
 .dbadge-grp-lbl.partial { color: var(--amber); }
+.dbadge-grp-lbl.qc-impl { color: var(--green); opacity: .7; }
 
 .dsub {
-  width: 13px; height: 12px; border-radius: 2px;
-  border: 1px solid var(--border2); background: var(--bg3);
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 1.5px solid var(--border2); background: transparent;
   display: flex; align-items: center; justify-content: center;
   font-size: 6px; font-weight: 700; color: var(--text3);
-  cursor: pointer; transition: all .1s; flex-shrink: 0;
+  cursor: pointer; transition: all .12s; flex-shrink: 0;
 }
-.dsub.on  { background: var(--green); border-color: var(--green); color: #fff; }
-.dsub:hover:not(.on) { background: var(--bg4); }
+.dsub.on       { background: var(--green); border-color: var(--green); color: #fff; }
+.dsub.qc-impl  { background: #d1fae5; border: 1.5px dashed var(--green); color: var(--green); }
+.dsub:hover:not(.on):not(.qc-impl) { background: var(--bg4); }
 
 /* thin divider between dept groups */
 .bdiv { width: 1px; height: 18px; background: var(--border2); flex-shrink: 0; margin: 0 1px; }
+
+/* ─── TODAY OUTSTANDING ALERT ─── */
+.ov-alert {
+  background: #fff7ed; border: 1px solid #fed7aa;
+  border-radius: 8px; padding: 10px 14px; margin-bottom: 10px;
+}
+.ov-alert-title {
+  font-size: 12px; font-weight: 700; color: #92400e;
+  display: flex; align-items: center; gap: 6px; margin-bottom: 7px;
+}
+.ov-alert-reps { display: flex; flex-wrap: wrap; gap: 5px; }
+.ov-alert-rep {
+  font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 600;
+  background: #fed7aa; color: #92400e; padding: 2px 7px; border-radius: 4px;
+}
+.dh-out { font-size: 9px; font-weight: 600; color: var(--amber); margin-top: 2px; }
 
 /* ─── SYNC PILL ─── */
 .sync-pill {
@@ -2055,9 +2071,10 @@ function renderOverview() {
 function renderOverviewAll() {
   const area = document.getElementById('ovArea');
   const legendHtml = `<div class="ov-legend" style="padding:10px 0 12px;display:flex;gap:12px;flex-wrap:wrap;align-items:center">
-    <div class="leg"><div class="dbadge done" style="pointer-events:none"><span class="db-lbl">SW</span><span class="db-icon">✓</span></div>&nbsp;Done</div>
-    <div class="leg"><div class="dbadge partial" style="pointer-events:none"><span class="db-lbl">SW</span><span class="db-icon">–</span></div>&nbsp;Pending</div>
-    <div class="leg"><div class="dbadge done qc" style="pointer-events:none"><span class="db-lbl">QC</span><span class="db-icon">✓</span></div>&nbsp;QC</div>
+    <div class="leg"><div class="dbadge done" style="pointer-events:none"><span class="db-lbl">SW</span></div>&nbsp;Done</div>
+    <div class="leg"><div class="dbadge" style="pointer-events:none"><span class="db-lbl">SW</span></div>&nbsp;Pending</div>
+    <div class="leg"><div class="dbadge done qc" style="pointer-events:none"><span class="db-lbl">QC</span></div>&nbsp;QC done</div>
+    <div class="leg"><div class="dbadge qc-impl" style="pointer-events:none"><span class="db-lbl">SW</span></div>&nbsp;QC implied</div>
     <div class="leg">
       <div class="dbadge-grp-wrap" style="pointer-events:none">
         <span class="dbadge-grp-lbl partial">WM</span>
@@ -2065,6 +2082,19 @@ function renderOverviewAll() {
       </div>&nbsp;Arms/Backs/Seats
     </div>
   </div>`;
+
+  // Today's outstanding alert
+  const todayDay = OV_DAYS.find(d => d.cls === 'today');
+  let alertHtml = '';
+  if (todayDay) {
+    const todayOut = todayDay.reps.filter(r => !OV_DEPTS.every(d => teamTileState(d, r) === 'done'));
+    if (todayOut.length > 0) {
+      alertHtml = `<div class="ov-alert">
+        <div class="ov-alert-title">&#9888; Today's outstanding loads &mdash; ${todayOut.length} remaining</div>
+        <div class="ov-alert-reps">${todayOut.map(r => `<span class="ov-alert-rep">${r.id}</span>`).join('')}</div>
+      </div>`;
+    }
+  }
 
   let gridHtml = '<div class="ov-grid">';
   OV_DAYS.forEach(day => {
@@ -2076,23 +2106,36 @@ function renderOverviewAll() {
       });
     });
     const pct = tot ? Math.round(dn/tot*100) : 0;
+    const outstanding = day.reps.filter(r => !OV_DEPTS.every(d => teamTileState(d, r) === 'done')).length;
 
     gridHtml += `<div class="day-col">
       <div class="day-head ${day.cls}">
         <div class="dh-label">${day.label}</div>
         <div class="dh-date">${day.date}</div>
         <div class="dh-ct">${day.reps.length} load${day.reps.length!==1?'s':''} · ${pct}%</div>
+        ${outstanding > 0 ? `<div class="dh-out">${outstanding} outstanding</div>` : ''}
         <div class="dh-prog"><div class="dh-pfill" style="width:${pct}%"></div></div>
       </div>
       <div class="day-body">`;
 
     if (!day.reps.length) gridHtml += `<div class="day-empty">No loads scheduled</div>`;
 
-    day.reps.forEach((rep, ri) => {
+    // Sort: outstanding first for today, then done
+    const repsOrdered = day.cls === 'today'
+      ? [...day.reps].sort((a,b) => {
+          const aDone = OV_DEPTS.every(d => teamTileState(d, a) === 'done') ? 1 : 0;
+          const bDone = OV_DEPTS.every(d => teamTileState(d, b) === 'done') ? 1 : 0;
+          return aDone - bDone;
+        })
+      : day.reps;
+
+    repsOrdered.forEach((rep, ri) => {
       const allDone = OV_DEPTS.every(d => teamTileState(d, rep) === 'done');
       const repDigits = rep.id.replace(/\D/g,'');
       const ovMatch = ovSearchQuery && repDigits.includes(ovSearchQuery);
       const ovRowCls = ovSearchQuery ? (ovMatch ? 'ov-highlight' : 'ov-dim') : '';
+      // Use original index for toggle callbacks
+      const origRi = day.reps.indexOf(rep);
       gridHtml += `<div class="rep-row ${allDone?'all-done':''} ${ovRowCls}">
         <span class="rep-num">${rep.id}</span>
         <div class="badge-strip">`;
@@ -2102,23 +2145,26 @@ function renderOverviewAll() {
         const isQC  = d.k === 'qc';
         if (d.hasSubs) {
           const done = Array.isArray(rep.s[d.k]) ? rep.s[d.k] : [];
-          const grpCls = state==='done'?'done':state==='partial'?'partial':'';
+          const impliedSubs = Array.isArray(rep._qcImpl?.[d.k]) ? rep._qcImpl[d.k] : [];
+          const grpCls = state==='done' ? (impliedSubs.length===3?'qc-impl':'done') : state==='partial'?'partial':'';
           gridHtml += `<div class="dbadge-grp-wrap">
             <span class="dbadge-grp-lbl ${grpCls}">${d.lbl}</span>
             <div class="dbadge-grp">
               ${OV_SUBS_SHORT.map(s => {
                 const on = done.includes(s);
-                return `<div class="dsub ${on?'on':''}" title="${d.lbl} ${s==='A'?'Arms':s==='B'?'Backs':'Seats'}"
-                  onclick="ovToggleSub('${day.label}',${ri},'${d.k}','${s}')">${s}</div>`;
+                const isImpl = on && impliedSubs.includes(s);
+                return `<div class="dsub ${on?(isImpl?'on qc-impl':'on'):''}" title="${d.lbl} ${s==='A'?'Arms':s==='B'?'Backs':'Seats'}"
+                  onclick="ovToggleSub('${day.label}',${origRi},'${d.k}','${s}')">${s}</div>`;
               }).join('')}
             </div>
           </div>`;
         } else {
-          const icon = state==='done'?'✓':'–';
-          const cls  = state + (isQC && state==='done' ? ' qc' : '');
-          gridHtml += `<div class="dbadge ${cls}" onclick="ovToggle('${day.label}',${ri},'${d.k}')">
+          const isImpl = rep._qcImpl?.[d.k] === true;
+          const cls = state==='done'
+            ? ('done' + (isQC ? ' qc' : '') + (isImpl ? ' qc-impl' : ''))
+            : state==='partial' ? 'partial' : '';
+          gridHtml += `<div class="dbadge ${cls}" onclick="ovToggle('${day.label}',${origRi},'${d.k}')">
             <span class="db-lbl">${d.lbl}</span>
-            <span class="db-icon">${icon}</span>
           </div>`;
         }
       });
@@ -2127,7 +2173,7 @@ function renderOverviewAll() {
     gridHtml += `</div></div>`;
   });
   gridHtml += '</div>';
-  area.innerHTML = legendHtml + gridHtml;
+  area.innerHTML = legendHtml + alertHtml + gridHtml;
 }
 
 // ── Team-specific view ──
@@ -2172,11 +2218,16 @@ function renderOverviewTeam(teamName) {
     });
     const pct = tot ? Math.round(dn/tot*100) : 0;
 
+    const teamOutstanding = day.reps.filter(rep => {
+      if (map.hasSubs) { const done = Array.isArray(rep.s[map.key]) ? rep.s[map.key] : []; return done.length < 3; }
+      return !rep.s[map.key];
+    }).length;
     html += `<div class="day-col">
       <div class="day-head ${day.cls}">
         <div class="dh-label">${day.label}</div>
         <div class="dh-date">${day.date}</div>
         <div class="dh-ct">${day.reps.length} load${day.reps.length!==1?'s':''} · ${pct}%</div>
+        ${teamOutstanding > 0 ? `<div class="dh-out">${teamOutstanding} outstanding</div>` : ''}
         <div class="dh-prog"><div class="dh-pfill" style="width:${pct}%"></div></div>
       </div>
       <div class="day-body">`;
@@ -2225,11 +2276,9 @@ function renderOverviewTeam(teamName) {
       } else {
         const st   = teamDone ? 'done' : '';
         const isQC = teamName === 'QC';
-        const icon = teamDone ? '✓' : '–';
         const cls  = st + (isQC && teamDone ? ' qc' : '');
         html += `<div class="dbadge ${cls}" onclick="ovToggle('${day.label}',${ri},'${map.key}')">
           <span class="db-lbl">${map.key.toUpperCase()}</span>
-          <span class="db-icon">${icon}</span>
         </div>`;
       }
 
@@ -2968,6 +3017,7 @@ function applyStateToOvBadges() {
   OV_DAYS.forEach(day => {
     day.reps.forEach(rep => {
       rep.s = { wm:[], fm:0, ct:0, sw:0, uh:[], as:0, qc:0 };
+      rep._qcImpl = {};
     });
   });
 
@@ -3018,16 +3068,27 @@ function applyStateToOvBadges() {
   }
 
   // QC done = everything done — QC is the final check so all badges go green
+  // Track which badges were QC-forced (not genuinely marked by that team)
   OV_DAYS.forEach(day => {
     day.reps.forEach(rep => {
-      if (rep.s.qc) {
-        rep.s.wm = ['A','B','S'];
-        rep.s.fm = 1;
-        rep.s.ct = 1;
-        rep.s.sw = 1;
-        rep.s.uh = ['A','B','S'];
-        rep.s.as = 1;
-      }
+      if (!rep.s.qc) return;
+      // Sub-teams: record which individual subs are being forced
+      const genuineWm = [...rep.s.wm];
+      const genuineUh = [...rep.s.uh];
+      const forcedWm = ['A','B','S'].filter(s => !genuineWm.includes(s));
+      const forcedUh = ['A','B','S'].filter(s => !genuineUh.includes(s));
+      if (forcedWm.length) rep._qcImpl.wm = forcedWm;
+      if (forcedUh.length) rep._qcImpl.uh = forcedUh;
+      if (!rep.s.fm) rep._qcImpl.fm = true;
+      if (!rep.s.ct) rep._qcImpl.ct = true;
+      if (!rep.s.sw) rep._qcImpl.sw = true;
+      if (!rep.s.as) rep._qcImpl.as = true;
+      rep.s.wm = ['A','B','S'];
+      rep.s.fm = 1;
+      rep.s.ct = 1;
+      rep.s.sw = 1;
+      rep.s.uh = ['A','B','S'];
+      rep.s.as = 1;
     });
   });
 
