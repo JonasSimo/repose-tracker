@@ -1220,6 +1220,7 @@ let qcSyncInterval  = null;   // setInterval handle
 let qcLastSyncTime  = null;   // Date of last successful sync
 let qcSyncError     = false;  // true if last sync failed
 let qcSyncing       = false;  // true while a sync is in progress
+let qcCompletedReps = new Set(); // 7-digit REP numbers confirmed done by QC sheet
 
 // Load Plan tab passwords (stored lowercase for case-insensitive comparison)
 const OV_PASSWORDS = {
@@ -2445,16 +2446,18 @@ async function autoSyncQCCompletions() {
       newlyDone++;
     });
 
-    qcLastSyncTime = now;
-    qcSyncError    = false;
-    qcSyncing      = false;
+    qcCompletedReps = repNums; // store for applyStateToOvBadges
+    qcLastSyncTime  = now;
+    qcSyncError     = false;
+    qcSyncing       = false;
 
     if (activeTeam === 'QC') {
       renderJobs();
       renderTeamSidebar();
     }
+    // Always re-apply badges — QC sheet may contain REPs not in production plan
+    applyStateToOvBadges();
     if (newlyDone > 0) {
-      applyStateToOvBadges();
       toast(`QC: ${newlyDone} job${newlyDone !== 1 ? 's' : ''} auto-completed from sheet`, 's');
     }
 
@@ -2967,6 +2970,31 @@ function applyStateToOvBadges() {
           });
         }
       });
+    });
+  });
+
+  // Apply QC sheet completions directly to load plan
+  // (covers REPs on the load plan that aren't in the current production window)
+  if (qcCompletedReps.size > 0) {
+    OV_DAYS.forEach(day => {
+      day.reps.forEach(rep => {
+        const digits = rep.id.replace(/\D/g, '');
+        if (qcCompletedReps.has(digits)) rep.s.qc = 1;
+      });
+    });
+  }
+
+  // QC done = everything done — QC is the final check so all badges go green
+  OV_DAYS.forEach(day => {
+    day.reps.forEach(rep => {
+      if (rep.s.qc) {
+        rep.s.wm = ['A','B','S'];
+        rep.s.fm = 1;
+        rep.s.ct = 1;
+        rep.s.sw = 1;
+        rep.s.uh = ['A','B','S'];
+        rep.s.as = 1;
+      }
     });
   });
 
