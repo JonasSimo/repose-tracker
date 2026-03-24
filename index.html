@@ -2395,21 +2395,17 @@ async function autoSyncQCCompletions() {
     const driveId   = driveItem.parentReference.driveId;
     const itemId    = driveItem.id;
 
-    // First 20,000 rows are historical — skip them.
-    // Get row count, then fetch all remaining chunks in parallel.
-    const QC_SKIP_ROWS = 20000;
-    const CHUNK        = 10000;
-    const startRow     = QC_SKIP_ROWS + 1;
+    // Get row count, then fetch all chunks in parallel (no rows skipped — correct > fast)
+    const CHUNK = 10000;
 
     const dims = await graphGet(
       `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}` +
       `/workbook/worksheets('${encodeURIComponent(QC_SHEET_NAME)}')/usedRange?$select=rowCount`
     );
-    const lastRow = dims.rowCount || startRow;
+    const lastRow = dims.rowCount || 1;
 
-    // Build all chunk ranges, then fetch them all at once
     const ranges = [];
-    for (let r = startRow; r <= lastRow; r += CHUNK) {
+    for (let r = 1; r <= lastRow; r += CHUNK) {
       ranges.push([r, Math.min(r + CHUNK - 1, lastRow)]);
     }
 
@@ -2424,7 +2420,8 @@ async function autoSyncQCCompletions() {
     chunkResults.forEach(chunk => {
       (chunk.values || []).forEach(row => {
         const cell = String(row[0] ?? '').trim();
-        const m = cell.match(/\b(\d{7})\b/);
+        // Use lookahead/lookbehind instead of \b — handles REP2610016 (no space) correctly
+        const m = cell.match(/(?<!\d)(\d{7})(?!\d)/);
         if (m) repNums.add(m[1]);
       });
     });
