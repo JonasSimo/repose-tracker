@@ -2533,15 +2533,15 @@ async function checkForSpecChanges() {
       if (!ov || !nv || ov === nv) return; // skip blanks and unchanged
       const cacheKey = `${rep}__${key}`;
       if (SPEC_ALERT_SENT.has(cacheKey)) return;
-      SPEC_ALERT_SENT.add(cacheKey);
-      toAlert.push({ rep, itemNo: newSpec._itemNo, wk: newSpec._wk, prep: String(newSpec._prep), fieldKey: key, fieldLabel: SPEC_FIELD_LABELS[key], oldVal: ov, newVal: nv });
+      toAlert.push({ rep, itemNo: newSpec._itemNo, wk: newSpec._wk, prep: String(newSpec._prep), fieldKey: key, fieldLabel: SPEC_FIELD_LABELS[key], oldVal: ov, newVal: nv, cacheKey });
     });
   });
 
   SPEC_SNAPSHOT = newSnap;
   saveSpecSnapshot();
-  saveSpecAlertCache();
-  for (const a of toAlert) await writeSpecAlert(a).catch(e => console.warn('writeSpecAlert:', e.message));
+  for (const a of toAlert) {
+    await writeSpecAlert(a).catch(e => console.warn('writeSpecAlert:', e.message));
+  }
 }
 
 async function writeSpecAlert(a) {
@@ -2555,12 +2555,15 @@ async function writeSpecAlert(a) {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ fields: {
-      Title: a.rep, JobNo: a.itemNo, Week: a.wk, Prep: a.prep,
+      Title: a.rep, JobNo: String(a.itemNo), Week: a.wk, Prep: a.prep,
       FieldKey: a.fieldKey, FieldLabel: a.fieldLabel,
       OldValue: a.oldVal, NewValue: a.newVal, DetectedAt: now, Status: 'unread',
     }})
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  // Only mark as sent after successful write so failed writes are retried on next sync
+  SPEC_ALERT_SENT.add(a.cacheKey);
+  saveSpecAlertCache();
 }
 
 async function fetchSpecAlerts() {
