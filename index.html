@@ -547,36 +547,60 @@ body {
 /* ─── PRODUCTION PLAN ─── */
 .pp-wrap { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 .pp-week-bar {
-  display: flex; gap: 6px; padding: 10px 16px;
+  display: flex; gap: 6px; padding: 8px 16px;
   border-bottom: 1px solid var(--border); flex-shrink: 0; overflow-x: auto;
 }
 .pp-wk-btn {
-  padding: 6px 14px; border-radius: 7px; border: 1.5px solid var(--border2);
+  padding: 5px 12px; border-radius: 7px; border: 1.5px solid var(--border2);
   background: var(--bg3); font-size: 11px; font-weight: 600; color: var(--text2);
   cursor: pointer; white-space: nowrap; font-family: inherit; transition: .12s;
   text-align: center; line-height: 1.4;
 }
 .pp-wk-btn:hover { background: var(--bg4); }
 .pp-wk-btn.active { background: var(--repose-blue); border-color: var(--repose-blue); color: #fff; }
-.pp-area { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
-.pp-grid { flex: 1; display: grid; grid-template-columns: repeat(6,1fr); overflow: hidden; }
-.pp-col { display: flex; flex-direction: column; border-right: 1px solid var(--border); overflow: hidden; }
+/* Team highlight selector bar */
+.pp-team-bar {
+  display: flex; gap: 5px; padding: 6px 16px; align-items: center;
+  border-bottom: 1px solid var(--border); flex-shrink: 0; overflow-x: auto;
+}
+.pp-team-lbl { font-size: 10px; color: var(--text3); font-weight: 500; white-space: nowrap; margin-right: 2px; }
+.pp-team-btn {
+  padding: 3px 9px; border-radius: 6px; border: 1.5px solid var(--border2);
+  background: var(--bg3); font-size: 10px; font-weight: 700; color: var(--text2);
+  cursor: pointer; font-family: inherit; transition: .12s; display: flex; align-items: center; gap: 4px;
+}
+.pp-team-btn:hover { background: var(--bg4); }
+.pp-team-btn.active { background: var(--repose-blue); border-color: var(--repose-blue); color: #fff; }
+/* Scrollable area — all columns scroll together */
+.pp-area { flex: 1; overflow-y: auto; overflow-x: hidden; }
+.pp-grid { display: grid; grid-template-columns: repeat(6,1fr); min-height: 100%; }
+.pp-col { display: flex; flex-direction: column; border-right: 1px solid var(--border); }
 .pp-col:last-child { border-right: none; }
-.pp-col-head { padding: 8px 10px; background: var(--bg2); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.pp-col-head { padding: 6px 8px; background: var(--bg2); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 2; }
 .pp-col-head.express { background: #fffbeb; border-bottom-color: #fed7aa; }
 .pp-col-title { font-size: 11px; font-weight: 700; color: var(--repose-navy); }
 .pp-col-head.express .pp-col-title { color: #92400e; }
-.pp-col-day { font-size: 9px; color: var(--text3); margin-top: 1px; }
-.pp-col-ct  { font-size: 9px; color: var(--text3); }
-.pp-col-body { flex: 1; overflow-y: auto; }
+.pp-col-sub { font-size: 9px; color: var(--text3); margin-top: 1px; }
+/* Compact job rows */
 .pp-job {
-  padding: 5px 10px; border-bottom: 1px solid var(--border);
-  display: flex; flex-direction: column; gap: 1px;
+  display: flex; align-items: center; gap: 4px;
+  padding: 2px 6px; border-bottom: 1px solid var(--border); min-height: 22px;
 }
 .pp-job:last-child { border-bottom: none; }
-.pp-job-code { font-size: 9px; font-weight: 700; color: var(--text2); }
-.pp-job-rep  { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--text3); }
-.pp-empty { padding: 16px 10px; text-align: center; font-size: 11px; color: var(--text3); }
+.pp-job-bar { width: 3px; align-self: stretch; border-radius: 1px; flex-shrink: 0; background: var(--border2); }
+.pp-job-bar.done    { background: var(--green); }
+.pp-job-bar.partial { background: var(--amber); }
+.pp-job-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0; }
+.pp-job-code { font-size: 8.5px; font-weight: 700; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pp-job-rep  { font-family: 'JetBrains Mono', monospace; font-size: 8px; color: var(--text3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Team status dots */
+.pp-dots { display: flex; gap: 2px; align-items: center; flex-shrink: 0; }
+.pp-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border2); flex-shrink: 0; transition: .12s; }
+.pp-dot.done    { background: var(--green); }
+.pp-dot.partial { background: var(--amber); }
+.pp-dot.dim     { width: 4px; height: 4px; opacity: 0.35; }
+.pp-dot.sel     { width: 8px; height: 8px; box-shadow: 0 0 0 1.5px var(--repose-blue); }
+.pp-empty { padding: 12px 8px; text-align: center; font-size: 10px; color: var(--text3); }
 
 /* ─── SYNC PILL ─── */
 .sync-pill {
@@ -1002,6 +1026,7 @@ body {
 <div class="view" id="view-production">
   <div class="pp-wrap">
     <div id="pp-week-bar" class="pp-week-bar"></div>
+    <div id="pp-team-bar" class="pp-team-bar"></div>
     <div id="pp-area" class="pp-area"></div>
   </div>
 </div>
@@ -1321,7 +1346,8 @@ let activeHasSubs = false;
 let activeSub = 'all';
 let activeWC = 'WK 12'; // default to current week
 let activePrep = 1;
-let activeProdWC = null;
+let activeProdWC   = null;
+let activeProdTeam = null; // team key being highlighted (e.g. 'wm')
 
 // ═══════════════════════════════════════════════
 // ROUTING
@@ -3061,13 +3087,40 @@ const PP_COLS = [
   { key:'express', title:'Express / M-FT', day:'Fast Track', express:true },
 ];
 
+const PP_TEAMS = [
+  { key:'wm', icon:'🪵', lbl:'WM' },
+  { key:'fm', icon:'🟦', lbl:'FM' },
+  { key:'ct', icon:'✂️',  lbl:'CT' },
+  { key:'sw', icon:'🧵', lbl:'SW' },
+  { key:'uh', icon:'🪑', lbl:'UH' },
+  { key:'as', icon:'🔩', lbl:'AS' },
+  { key:'qc', icon:'✅', lbl:'QC' },
+];
+
+function getPPJobTeamStatus(prep, ji) {
+  const wk = activeProdWC;
+  const r = { wm:'', fm:'', ct:'', sw:'', uh:'', as:'', qc:'' };
+  TEAMS_CFG.forEach(t => {
+    const ovMap = TEAM_OV_MAP[t.name]; if (!ovMap) return;
+    if (t.hasSubs) {
+      const n = SUBS.filter(sub => STATE[t.name]?.[sub]?.[wk]?.[prep]?.[ji]?.done).length;
+      r[ovMap.key] = n === 3 ? 'done' : n > 0 ? 'partial' : '';
+    } else {
+      r[ovMap.key] = STATE[t.name]?.['all']?.[wk]?.[prep]?.[ji]?.done ? 'done' : '';
+    }
+  });
+  return r;
+}
+
 function renderProductionPlan() {
-  const weekBar = document.getElementById('pp-week-bar');
-  const area    = document.getElementById('pp-area');
+  const weekBar  = document.getElementById('pp-week-bar');
+  const teamBar  = document.getElementById('pp-team-bar');
+  const area     = document.getElementById('pp-area');
   if (!weekBar || !area) return;
 
   if (!activeProdWC || !PROD[activeProdWC]) activeProdWC = WEEKS[2] || WEEKS[0];
 
+  // Week selector
   weekBar.innerHTML = WEEKS.map((wk, i) => {
     const wc = PROD[wk]?.wc || '';
     return `<button class="pp-wk-btn ${activeProdWC===wk?'active':''}" onclick="selectProdWC('${wk}')">
@@ -3075,23 +3128,59 @@ function renderProductionPlan() {
     </button>`;
   }).join('');
 
+  // Team highlight selector
+  if (teamBar) {
+    teamBar.innerHTML = `<span class="pp-team-lbl">Highlight team:</span>` +
+      PP_TEAMS.map(t =>
+        `<button class="pp-team-btn ${activeProdTeam===t.key?'active':''}" onclick="selectProdTeam('${t.key}')">
+          ${t.icon} ${t.lbl}
+        </button>`
+      ).join('');
+  }
+
   const wkData = PROD[activeProdWC] || {};
   const gridCols = PP_COLS.map(col => {
     const jobs = wkData[col.key] || [];
     const headCls = col.express ? 'pp-col-head express' : 'pp-col-head';
+    const total = jobs.length;
+    let doneCount = 0;
+    if (activeProdTeam) {
+      jobs.forEach((_, ji) => { if (getPPJobTeamStatus(col.key, ji)[activeProdTeam] === 'done') doneCount++; });
+    }
+
     const jobRows = jobs.length
-      ? jobs.map(j => `<div class="pp-job">
-          <span class="pp-job-code">${j.itemNo}</span>
-          <span class="pp-job-rep">${j.rep}</span>
-        </div>`).join('')
+      ? jobs.map((j, ji) => {
+          const status = getPPJobTeamStatus(col.key, ji);
+          const teamSt = activeProdTeam ? status[activeProdTeam] : '';
+          const barCls = teamSt === 'done' ? 'done' : teamSt === 'partial' ? 'partial' : '';
+          const codeLabel = col.express ? `${j.itemNo}` : `Job ${j.itemNo}`;
+          const dotsHtml = PP_TEAMS.map(t => {
+            const st = status[t.key];
+            let cls = st === 'done' ? 'done' : st === 'partial' ? 'partial' : '';
+            if (activeProdTeam) cls += (t.key === activeProdTeam ? ' sel' : ' dim');
+            return `<div class="pp-dot ${cls}" title="${t.lbl}: ${st||'pending'}"></div>`;
+          }).join('');
+          return `<div class="pp-job">
+            <div class="pp-job-bar ${barCls}"></div>
+            <div class="pp-job-info">
+              <span class="pp-job-code">${codeLabel}</span>
+              <span class="pp-job-rep">${j.rep}</span>
+            </div>
+            <div class="pp-dots">${dotsHtml}</div>
+          </div>`;
+        }).join('')
       : `<div class="pp-empty">No jobs</div>`;
+
+    const subLine = activeProdTeam
+      ? `${doneCount}/${total} done`
+      : `${total} job${total!==1?'s':''}`;
+
     return `<div class="pp-col">
       <div class="${headCls}">
         <div class="pp-col-title">${col.title}</div>
-        <div class="pp-col-day">${col.day}</div>
-        <div class="pp-col-ct">${jobs.length} job${jobs.length!==1?'s':''}</div>
+        <div class="pp-col-sub">${col.day} · ${subLine}</div>
       </div>
-      <div class="pp-col-body">${jobRows}</div>
+      ${jobRows}
     </div>`;
   }).join('');
 
@@ -3100,6 +3189,11 @@ function renderProductionPlan() {
 
 function selectProdWC(wk) {
   activeProdWC = wk;
+  renderProductionPlan();
+}
+
+function selectProdTeam(key) {
+  activeProdTeam = activeProdTeam === key ? null : key; // toggle
   renderProductionPlan();
 }
 
