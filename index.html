@@ -1450,12 +1450,12 @@ function switchSub(sub) {
 // PRIORITY JOBS
 // ═══════════════════════════════════════════════
 
-// Returns outstanding Load Plan jobs for this team/sub across Today, Week Ahead, Two Weeks Ahead
+// Returns outstanding Load Plan jobs for this team/sub across Yesterday, Today, Tomorrow
 function getPriorityJobs(team, sub) {
   const map = TEAM_OV_MAP[team];
   if (!map) return [];
   const results = [];
-  // OV_DAYS[0]=Today, [1]=Week Ahead, [2]=Two Weeks Ahead — all 3 are "priority"
+  // OV_DAYS[0]=Yesterday, [1]=Today, [2]=Tomorrow — only these 3 are "priority"
   OV_DAYS.slice(0, 3).forEach((day, dayIdx) => {
     day.reps.forEach((rep, repIdx) => {
       let outstanding = false;
@@ -1485,7 +1485,7 @@ function renderPriorityBtn() {
     <span class="pb-icon">${hasJobs ? '⚠️' : '✅'}</span>
     <span class="pb-text">
       <div class="pb-title">Priority Jobs</div>
-      <div class="pb-sub">${hasJobs ? `${count} outstanding · Today & Ahead` : 'All clear · Today & Ahead'}</div>
+      <div class="pb-sub">${hasJobs ? `${count} outstanding · Yest–Tmrw` : 'All clear · Yest–Tmrw'}</div>
     </span>
     ${hasJobs ? `<span class="pb-badge">${count}</span>` : ''}
   </button>`;
@@ -1505,7 +1505,7 @@ function renderPriorityJobsList() {
   const subLabel = activeHasSubs ? ` — ${activeSub}` : '';
 
   document.getElementById('jh-title').textContent = `${activeTeam}${subLabel}: Priority Jobs`;
-  document.getElementById('jh-sub').textContent = 'Outstanding from Load Plan · Today, Week Ahead & Two Weeks Ahead';
+  document.getElementById('jh-sub').textContent = 'Outstanding from Load Plan · Yesterday, Today & Tomorrow';
   statsEl.style.display = 'none';
 
   const jobs = getPriorityJobs(activeTeam, activeSub);
@@ -1514,7 +1514,7 @@ function renderPriorityJobsList() {
     area.innerHTML = `<div class="pj-clear">
       <div class="pj-clear-icon">🎉</div>
       <div class="pj-clear-title">All clear!</div>
-      <div class="pj-clear-sub">${activeTeam}${subLabel} has no outstanding jobs<br>in Today, Week Ahead or Two Weeks Ahead load plan.</div>
+      <div class="pj-clear-sub">${activeTeam}${subLabel} has no outstanding jobs<br>in Yesterday, Today or Tomorrow's load plan.</div>
     </div>`;
     return;
   }
@@ -1529,10 +1529,10 @@ function renderPriorityJobsList() {
   const map = TEAM_OV_MAP[activeTeam];
   let html = '';
 
-  ['Today', 'Week Ahead', 'Two Weeks Ahead'].forEach(dayLabel => {
+  ['Yesterday', 'Today', 'Tomorrow'].forEach(dayLabel => {
     const group = byDay[dayLabel];
     if (!group) return;
-    const cls = dayLabel === 'Today' ? 'today' : dayLabel === 'Week Ahead' ? 'wk1' : 'wk2';
+    const cls = dayLabel === 'Today' ? 'today' : dayLabel === 'Yesterday' ? 'yest' : 'tmrw';
     html += `<div class="pj-day-section">
       <div class="pj-day-hdr ${cls}">
         <div class="pj-dot"></div>
@@ -2006,7 +2006,14 @@ const OV_SUBS_SHORT = ['A','B','S'];
 // REP numbers are 7-digit codes from Planning sheet row 4+ (e.g. 2607038)
 // Displayed as "REP 2607038" — each column in the sheet = one load, row 4 = delivery date
 const OV_DAYS = [
-  { label:'Today', date:'Mon 24 Mar', cls:'today',
+  { label:'Yesterday', date:'Wed 19 Mar', cls:'yest',
+    reps:[
+      { id:'REP 2607038', s:{ wm:['A','B','S'],fm:1,ct:1,sw:1,uh:['A','B','S'],as:1,qc:1 }},
+      { id:'REP 2607188', s:{ wm:['A','B','S'],fm:1,ct:1,sw:1,uh:['A','B'],   as:1,qc:0 }},
+      { id:'REP 2608070', s:{ wm:['A','B','S'],fm:1,ct:1,sw:1,uh:['A','B','S'],as:1,qc:1 }},
+    ]
+  },
+  { label:'Today', date:'Thu 20 Mar', cls:'today',
     reps:[
       { id:'REP 2608036', s:{ wm:['A','B','S'],fm:1,ct:1,sw:1,uh:['A'],as:0,qc:0 }},
       { id:'REP 2608144', s:{ wm:['A','B'],    fm:1,ct:0,sw:0,uh:[],   as:0,qc:0 }},
@@ -2014,14 +2021,19 @@ const OV_DAYS = [
       { id:'REP 2609240', s:{ wm:[],           fm:0,ct:0,sw:0,uh:[],   as:0,qc:0 }},
     ]
   },
-  { label:'Week Ahead', date:'Mon 31 Mar', cls:'wk1',
+  { label:'Tomorrow', date:'Fri 21 Mar', cls:'',
     reps:[
       { id:'REP 2607083', s:{ wm:[],fm:0,ct:0,sw:0,uh:[],as:0,qc:0 }},
       { id:'REP 2609115', s:{ wm:[],fm:0,ct:0,sw:0,uh:[],as:0,qc:0 }},
-      { id:'REP 2609301', s:{ wm:[],fm:0,ct:0,sw:0,uh:[],as:0,qc:0 }},
     ]
   },
-  { label:'Two Weeks Ahead', date:'Mon 7 Apr', cls:'wk2',
+  { label:'+2 Days', date:'Mon 24 Mar', cls:'',
+    reps:[
+      { id:'REP 2609301', s:{ wm:[],fm:0,ct:0,sw:0,uh:[],as:0,qc:0 }},
+      { id:'REP 2609402', s:{ wm:[],fm:0,ct:0,sw:0,uh:[],as:0,qc:0 }},
+    ]
+  },
+  { label:'+3 Days', date:'Tue 25 Mar', cls:'',
     reps:[
       { id:'REP 2609518', s:{ wm:[],fm:0,ct:0,sw:0,uh:[],as:0,qc:0 }},
       { id:'REP 2609622', s:{ wm:[],fm:0,ct:0,sw:0,uh:[],as:0,qc:0 }},
@@ -2195,7 +2207,7 @@ function renderOverviewTeam(teamName) {
 
   let html = `<div style="padding:10px 0 12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
     <div style="font-size:13px;font-weight:600;color:var(--repose-navy)">${cfg.icon} ${teamName} — Load Plan Progress</div>
-    <div style="font-size:11px;color:var(--text2)">Today · Week Ahead · Two Weeks Ahead: ${doneSlots}/${totalSlots} slots done (${pctOverall}%)</div>
+    <div style="font-size:11px;color:var(--text2)">Yesterday · Today · Tomorrow: ${doneSlots}/${totalSlots} slots done (${pctOverall}%)</div>
   </div>
   <div class="ov-grid">`;
 
@@ -2644,23 +2656,29 @@ async function loadLoadPlanFromSharePoint() {
 
     const today = new Date(); today.setHours(0,0,0,0);
 
-    // Add n working days (skip Sat/Sun)
-    function addWorkdays(d, n) {
+    // Working day helpers
+    function prevWorkday(d) {
       const r = new Date(d);
-      let added = 0;
-      while (added < n) {
-        r.setDate(r.getDate() + 1);
-        if (r.getDay() !== 0 && r.getDay() !== 6) added++;
-      }
+      do { r.setDate(r.getDate() - 1); } while (r.getDay() === 0 || r.getDay() === 6);
+      return r;
+    }
+    function nextWorkday(d) {
+      const r = new Date(d);
+      do { r.setDate(r.getDate() + 1); } while (r.getDay() === 0 || r.getDay() === 6);
       return r;
     }
 
-    // Build 3 slots: Today, +5 workdays, +10 workdays
+    // Build 5 fixed working-day slots
     const fmt = d => d.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
+    const wd1 = nextWorkday(today);
+    const wd2 = nextWorkday(wd1);
+    const wd3 = nextWorkday(wd2);
     const slots = [
-      { date: new Date(today),      label: 'Today',           cls: 'today', reps: [] },
-      { date: addWorkdays(today,5), label: 'Week Ahead',      cls: 'wk1',   reps: [] },
-      { date: addWorkdays(today,10),label: 'Two Weeks Ahead', cls: 'wk2',   reps: [] },
+      { date: prevWorkday(today), label: 'Yesterday',   cls: 'yest',  reps: [] },
+      { date: new Date(today),    label: 'Today',       cls: 'today', reps: [] },
+      { date: wd1,                label: 'Tomorrow',    cls: '',      reps: [] },
+      { date: wd2,                label: 'Tomorrow +1', cls: '',      reps: [] },
+      { date: wd3,                label: 'Tomorrow +2', cls: '',      reps: [] },
     ];
     slots.forEach(s => s.date.setHours(0,0,0,0));
 
