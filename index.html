@@ -771,6 +771,8 @@ body {
 .pj-day-hdr.today { color: var(--repose-blue); }
 .pj-day-hdr.yest  { color: var(--text3); opacity: .7; }
 .pj-day-hdr.tmrw  { color: var(--amber); }
+.pj-day-hdr.wk1   { color: var(--repose-navy); }
+.pj-day-hdr.wk2   { color: var(--repose-navy); }
 .pj-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
 .pj-date { font-family: 'Inter',sans-serif; font-weight: 500; letter-spacing: 0; color: inherit; opacity: .8; }
 .pj-job-row {
@@ -1016,7 +1018,7 @@ body {
       <div class="ov-locked">
         <div class="ov-locked-icon">🔒</div>
         <div class="ov-locked-title">Select a view above</div>
-        <div class="ov-locked-sub">Choose Overall or a team tab to get started</div>
+        <div class="ov-locked-sub">Choose Live, Week +1 or Week +2 to get started</div>
       </div>
     </div>
   </div>
@@ -1309,7 +1311,9 @@ let qcSyncing       = false;  // true while a sync is in progress
 let qcCompletedReps = new Set(); // 7-digit REP numbers confirmed done by QC sheet
 
 const OV_TABS = [
-  { id:'overall', label:'Overall', icon:'📊' },
+  { id:'live', label:'Live',    icon:'📡' },
+  { id:'wk1',  label:'Week +1', icon:'📅' },
+  { id:'wk2',  label:'Week +2', icon:'📅' },
 ];
 
 let ovActiveTab = null;
@@ -1359,7 +1363,7 @@ function showView(name) {
     b.classList.toggle('active', tabMap[name] === i);
   });
   document.getElementById('view-' + name).classList.add('active');
-  if (name === 'overview')    { ovActiveTab = 'overall'; renderOverviewTabs(); renderOverview(); }
+  if (name === 'overview')    { if (!ovActiveTab) ovActiveTab = 'live'; buildOvSlots(ovActiveTab==='wk1'?5:ovActiveTab==='wk2'?10:0); applyStateToOvBadges(); renderOverviewTabs(); renderOverview(); }
   if (name === 'production')  { renderProductionPlan(); }
 }
 
@@ -2005,41 +2009,45 @@ const OV_SUBS_SHORT = ['A','B','S'];
 
 // REP numbers are 7-digit codes from Planning sheet row 4+ (e.g. 2607038)
 // Displayed as "REP 2607038" — each column in the sheet = one load, row 4 = delivery date
-const OV_DAYS = [
-  { label:'Yesterday', date:'Wed 19 Mar', cls:'yest',
-    reps:[
-      { id:'REP 2607038', s:{ wm:['A','B','S'],fm:1,ct:1,sw:1,uh:['A','B','S'],as:1,qc:1 }},
-      { id:'REP 2607188', s:{ wm:['A','B','S'],fm:1,ct:1,sw:1,uh:['A','B'],   as:1,qc:0 }},
-      { id:'REP 2608070', s:{ wm:['A','B','S'],fm:1,ct:1,sw:1,uh:['A','B','S'],as:1,qc:1 }},
-    ]
-  },
-  { label:'Today', date:'Thu 20 Mar', cls:'today',
-    reps:[
-      { id:'REP 2608036', s:{ wm:['A','B','S'],fm:1,ct:1,sw:1,uh:['A'],as:0,qc:0 }},
-      { id:'REP 2608144', s:{ wm:['A','B'],    fm:1,ct:0,sw:0,uh:[],   as:0,qc:0 }},
-      { id:'REP 2606169', s:{ wm:['A'],        fm:0,ct:0,sw:0,uh:[],   as:0,qc:0 }},
-      { id:'REP 2609240', s:{ wm:[],           fm:0,ct:0,sw:0,uh:[],   as:0,qc:0 }},
-    ]
-  },
-  { label:'Tomorrow', date:'Fri 21 Mar', cls:'',
-    reps:[
-      { id:'REP 2607083', s:{ wm:[],fm:0,ct:0,sw:0,uh:[],as:0,qc:0 }},
-      { id:'REP 2609115', s:{ wm:[],fm:0,ct:0,sw:0,uh:[],as:0,qc:0 }},
-    ]
-  },
-  { label:'+2 Days', date:'Mon 24 Mar', cls:'',
-    reps:[
-      { id:'REP 2609301', s:{ wm:[],fm:0,ct:0,sw:0,uh:[],as:0,qc:0 }},
-      { id:'REP 2609402', s:{ wm:[],fm:0,ct:0,sw:0,uh:[],as:0,qc:0 }},
-    ]
-  },
-  { label:'+3 Days', date:'Tue 25 Mar', cls:'',
-    reps:[
-      { id:'REP 2609518', s:{ wm:[],fm:0,ct:0,sw:0,uh:[],as:0,qc:0 }},
-      { id:'REP 2609622', s:{ wm:[],fm:0,ct:0,sw:0,uh:[],as:0,qc:0 }},
-    ]
-  },
-];
+let OV_DAYS = [];
+let OV_RAW  = {}; // { 'YYYY-MM-DD': ['REP 1234567', ...] } — all parsed from SharePoint
+
+function addWorkdays(d, n) {
+  const r = new Date(d);
+  const step = n >= 0 ? 1 : -1;
+  let remaining = Math.abs(n);
+  while (remaining > 0) { r.setDate(r.getDate() + step); if (r.getDay() !== 0 && r.getDay() !== 6) remaining--; }
+  return r;
+}
+
+function buildOvSlots(offset) {
+  const realToday = new Date(); realToday.setHours(0,0,0,0);
+  const base = offset === 0 ? realToday : addWorkdays(realToday, offset);
+  const fmt = d => d.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
+  const slots = [
+    { date: addWorkdays(base,-1), label:'Yesterday',   cls: offset===0 ? 'yest'  : '' },
+    { date: new Date(base),       label:'Today',       cls: offset===0 ? 'today' : '' },
+    { date: addWorkdays(base, 1), label:'Tomorrow',    cls: '' },
+    { date: addWorkdays(base, 2), label:'Tomorrow +1', cls: '' },
+    { date: addWorkdays(base, 3), label:'Tomorrow +2', cls: '' },
+  ];
+  slots.forEach(s => {
+    const key = s.date.toISOString().slice(0,10);
+    s.reps = (OV_RAW[key] || []).map(repId => ({ id: repId, s: { wm:[], fm:0, ct:0, sw:0, uh:[], as:0, qc:0 } }));
+  });
+  OV_DAYS.length = 0;
+  slots.forEach(s => OV_DAYS.push({ label: s.label, date: fmt(s.date), cls: s.cls, reps: s.reps }));
+}
+
+function refreshOvDays() {
+  const offset = ovActiveTab === 'wk1' ? 5 : ovActiveTab === 'wk2' ? 10 : 0;
+  buildOvSlots(offset);
+  applyStateToOvBadges();
+  if (document.getElementById('view-overview')?.classList.contains('active')) {
+    renderOverview();
+    renderPriorityBtn();
+  }
+}
 
 function teamTileState(d, rep) {
   if (d.hasSubs) {
@@ -2065,12 +2073,12 @@ function renderOverviewTabs() {
 function selectOvTab(tabId) {
   ovActiveTab = tabId;
   renderOverviewTabs();
-  renderOverview();
+  refreshOvDays();
 }
 
 // ── Main dispatcher ──
 function renderOverview() {
-  if (!ovActiveTab) { ovActiveTab = 'overall'; }
+  if (!ovActiveTab) { ovActiveTab = 'live'; }
   renderOverviewAll();
 }
 
@@ -2656,73 +2664,36 @@ async function loadLoadPlanFromSharePoint() {
 
     const today = new Date(); today.setHours(0,0,0,0);
 
-    // Working day helpers
-    function prevWorkday(d) {
-      const r = new Date(d);
-      do { r.setDate(r.getDate() - 1); } while (r.getDay() === 0 || r.getDay() === 6);
-      return r;
-    }
-    function nextWorkday(d) {
-      const r = new Date(d);
-      do { r.setDate(r.getDate() + 1); } while (r.getDay() === 0 || r.getDay() === 6);
-      return r;
-    }
-
-    // Build 5 fixed working-day slots
-    const fmt = d => d.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
-    const wd1 = nextWorkday(today);
-    const wd2 = nextWorkday(wd1);
-    const wd3 = nextWorkday(wd2);
-    const slots = [
-      { date: prevWorkday(today), label: 'Yesterday',   cls: 'yest',  reps: [] },
-      { date: new Date(today),    label: 'Today',       cls: 'today', reps: [] },
-      { date: wd1,                label: 'Tomorrow',    cls: '',      reps: [] },
-      { date: wd2,                label: 'Tomorrow +1', cls: '',      reps: [] },
-      { date: wd3,                label: 'Tomorrow +2', cls: '',      reps: [] },
-    ];
-    slots.forEach(s => s.date.setHours(0,0,0,0));
-
-    // Index slots by date key for fast lookup
-    const slotByKey = {};
-    slots.forEach((s, i) => { slotByKey[s.date.toISOString().slice(0,10)] = i; });
-
+    // Parse ALL date columns into OV_RAW so tab switching works without re-fetching
     // Row 3 (index 2) contains Excel serial dates per column
     // Rows 4+ (index 3+) contain REP numbers (any 7-digit number)
     const dateRow = values[2] || [];
     const numCols = Math.max(...values.map(r => r.length));
+    OV_RAW = {};
 
     for (let col = 1; col < numCols; col++) {
       const rawDate = dateRow[col];
       if (!rawDate) continue;
 
-      // Convert Excel serial or string to JS Date
       let delivDate = typeof rawDate === 'number'
         ? excelDateToJS(rawDate)
         : new Date(rawDate);
       if (!delivDate || isNaN(delivDate)) continue;
       delivDate.setHours(0,0,0,0);
-
       const key = delivDate.toISOString().slice(0,10);
-      const slotIdx = slotByKey[key];
-      if (slotIdx === undefined) continue;
 
-      // Scan rows 4+ for 7-digit REP numbers in this column
       for (let row = 3; row < values.length; row++) {
         const cell = String(values[row]?.[col] ?? '').trim();
         const m = cell.match(/(?<!\d)(\d{7})(?!\d)/);
         if (!m) continue;
         const repId = `REP ${m[1]}`;
-        if (!slots[slotIdx].reps.find(r => r.id === repId)) {
-          slots[slotIdx].reps.push({ id: repId, s: { wm:[], fm:0, ct:0, sw:0, uh:[], as:0, qc:0 } });
-        }
+        if (!OV_RAW[key]) OV_RAW[key] = [];
+        if (!OV_RAW[key].includes(repId)) OV_RAW[key].push(repId);
       }
     }
 
-    OV_DAYS.length = 0;
-    slots.forEach(s => OV_DAYS.push({ label: s.label, date: fmt(s.date), cls: s.cls, reps: s.reps }));
-
-    // Re-apply team completions from STATE (badges reset to 0 above)
-    applyStateToOvBadges();
+    // Build OV_DAYS for current tab and re-apply badges
+    refreshOvDays();
 
     const syncTime = new Date().toTimeString().slice(0, 5);
     if (pill) { pill.className = 'sync-pill synced'; lbl.textContent = `Live · synced ${syncTime}`; }
