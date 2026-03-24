@@ -2395,32 +2395,39 @@ async function autoSyncQCCompletions() {
     const driveId   = driveItem.parentReference.driveId;
     const itemId    = driveItem.id;
 
-    // Get row count — avoid fetching all columns from a potentially huge sheet
+    // First 20,000 rows are historical — skip them.
+    // Get row count, then fetch all remaining chunks in parallel.
+    const QC_SKIP_ROWS = 20000;
+    const CHUNK        = 10000;
+    const startRow     = QC_SKIP_ROWS + 1;
+
     const dims = await graphGet(
       `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}` +
       `/workbook/worksheets('${encodeURIComponent(QC_SHEET_NAME)}')/usedRange?$select=rowCount`
     );
-    const lastRow = dims.rowCount || 1;
+    const lastRow = dims.rowCount || startRow;
 
-    // First 20,000 rows are historical — skip them.
-    // Read only column A from row 20,001 onwards in 10,000-row chunks.
-    const QC_SKIP_ROWS = 20000;
-    const CHUNK = 10000;
-    const startRow = QC_SKIP_ROWS + 1;
-
-    const repNums = new Set();
+    // Build all chunk ranges, then fetch them all at once
+    const ranges = [];
     for (let r = startRow; r <= lastRow; r += CHUNK) {
-      const end = Math.min(r + CHUNK - 1, lastRow);
-      const chunk = await graphGet(
+      ranges.push([r, Math.min(r + CHUNK - 1, lastRow)]);
+    }
+
+    const chunkResults = await Promise.all(ranges.map(([r, end]) =>
+      graphGet(
         `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}` +
         `/workbook/worksheets('${encodeURIComponent(QC_SHEET_NAME)}')/range(address='A${r}:A${end}')?$select=values`
-      );
+      )
+    ));
+
+    const repNums = new Set();
+    chunkResults.forEach(chunk => {
       (chunk.values || []).forEach(row => {
         const cell = String(row[0] ?? '').trim();
         const m = cell.match(/\b(\d{7})\b/);
         if (m) repNums.add(m[1]);
       });
-    }
+    });
 
     // Auto-mark matching QC jobs that aren't already done
     const now     = new Date();
