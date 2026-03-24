@@ -583,23 +583,16 @@ body {
 .pp-col-sub { font-size: 9px; color: var(--text3); margin-top: 1px; }
 /* Compact job rows */
 .pp-job {
-  display: flex; align-items: center; gap: 4px;
-  padding: 2px 6px; border-bottom: 1px solid var(--border); min-height: 22px;
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 4px 6px; border-bottom: 1px solid var(--border);
 }
 .pp-job:last-child { border-bottom: none; }
-.pp-job-bar { width: 3px; align-self: stretch; border-radius: 1px; flex-shrink: 0; background: var(--border2); }
-.pp-job-bar.done    { background: var(--green); }
-.pp-job-bar.partial { background: var(--amber); }
-.pp-job-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0; }
-.pp-job-code { font-size: 8.5px; font-weight: 700; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pp-job-rep  { font-family: 'JetBrains Mono', monospace; font-size: 8px; color: var(--text3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* Team status dots */
-.pp-dots { display: flex; gap: 2px; align-items: center; flex-shrink: 0; }
-.pp-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border2); flex-shrink: 0; transition: .12s; }
-.pp-dot.done    { background: var(--green); }
-.pp-dot.partial { background: var(--amber); }
-.pp-dot.dim     { width: 4px; height: 4px; opacity: 0.35; }
-.pp-dot.sel     { width: 8px; height: 8px; box-shadow: 0 0 0 1.5px var(--repose-blue); }
+.pp-job-top { display: flex; align-items: center; gap: 5px; }
+.pp-job-code { font-size: 9px; font-weight: 700; color: var(--text2); white-space: nowrap; flex-shrink: 0; }
+.pp-job-rep  { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+/* Team badge highlight/dim in production plan */
+.pp-badge-dim { opacity: 0.18; }
+.pp-badge-sel { outline: 2px solid var(--repose-blue); border-radius: 5px; padding: 1px; }
 .pp-empty { padding: 12px 8px; text-align: center; font-size: 10px; color: var(--text3); }
 
 /* ─── SYNC PILL ─── */
@@ -3098,15 +3091,17 @@ const PP_TEAMS = [
 ];
 
 function getPPJobTeamStatus(prep, ji) {
+  // Returns same structure as rep.s in Load Plan: { wm:['A','B','S'], fm:0|1, ... }
   const wk = activeProdWC;
-  const r = { wm:'', fm:'', ct:'', sw:'', uh:'', as:'', qc:'' };
+  const r = { wm:[], fm:0, ct:0, sw:0, uh:[], as:0, qc:0 };
   TEAMS_CFG.forEach(t => {
     const ovMap = TEAM_OV_MAP[t.name]; if (!ovMap) return;
     if (t.hasSubs) {
-      const n = SUBS.filter(sub => STATE[t.name]?.[sub]?.[wk]?.[prep]?.[ji]?.done).length;
-      r[ovMap.key] = n === 3 ? 'done' : n > 0 ? 'partial' : '';
+      SUBS.forEach(sub => {
+        if (STATE[t.name]?.[sub]?.[wk]?.[prep]?.[ji]?.done) r[ovMap.key].push(SUB_SHORT[sub]);
+      });
     } else {
-      r[ovMap.key] = STATE[t.name]?.['all']?.[wk]?.[prep]?.[ji]?.done ? 'done' : '';
+      if (STATE[t.name]?.['all']?.[wk]?.[prep]?.[ji]?.done) r[ovMap.key] = 1;
     }
   });
   return r;
@@ -3150,23 +3145,39 @@ function renderProductionPlan() {
 
     const jobRows = jobs.length
       ? jobs.map((j, ji) => {
-          const status = getPPJobTeamStatus(col.key, ji);
-          const teamSt = activeProdTeam ? status[activeProdTeam] : '';
-          const barCls = teamSt === 'done' ? 'done' : teamSt === 'partial' ? 'partial' : '';
+          const s = getPPJobTeamStatus(col.key, ji);
           const codeLabel = col.express ? `${j.itemNo}` : `Job ${j.itemNo}`;
-          const dotsHtml = PP_TEAMS.map(t => {
-            const st = status[t.key];
-            let cls = st === 'done' ? 'done' : st === 'partial' ? 'partial' : '';
-            if (activeProdTeam) cls += (t.key === activeProdTeam ? ' sel' : ' dim');
-            return `<div class="pp-dot ${cls}" title="${t.lbl}: ${st||'pending'}"></div>`;
-          }).join('');
+          // Badge strip — same design as Load Plan
+          let badgeHtml = '<div class="badge-strip" style="flex-wrap:wrap;gap:2px">';
+          OV_DEPTS.forEach((d, di) => {
+            if (di > 0) badgeHtml += `<div class="bdiv"></div>`;
+            const dimCls = activeProdTeam && d.k !== activeProdTeam ? 'pp-badge-dim' : '';
+            const selCls = activeProdTeam && d.k === activeProdTeam ? 'pp-badge-sel' : '';
+            if (d.hasSubs) {
+              const done = Array.isArray(s[d.k]) ? s[d.k] : [];
+              const grpCls = done.length===3?'done':done.length>0?'partial':'';
+              badgeHtml += `<div class="dbadge-grp-wrap ${dimCls} ${selCls}">
+                <span class="dbadge-grp-lbl ${grpCls}">${d.lbl}</span>
+                <div class="dbadge-grp">
+                  ${OV_SUBS_SHORT.map(sub => `<div class="dsub ${done.includes(sub)?'on':''}"
+                    title="${d.lbl} ${sub==='A'?'Arms':sub==='B'?'Backs':'Seats'}">${sub}</div>`).join('')}
+                </div>
+              </div>`;
+            } else {
+              const st = s[d.k] ? 'done' : '';
+              const cls = st + (d.k==='qc' && st ? ' qc' : '');
+              badgeHtml += `<div class="dbadge ${cls} ${dimCls} ${selCls}">
+                <span class="db-lbl">${d.lbl}</span>
+              </div>`;
+            }
+          });
+          badgeHtml += '</div>';
           return `<div class="pp-job">
-            <div class="pp-job-bar ${barCls}"></div>
-            <div class="pp-job-info">
+            <div class="pp-job-top">
               <span class="pp-job-code">${codeLabel}</span>
               <span class="pp-job-rep">${j.rep}</span>
             </div>
-            <div class="pp-dots">${dotsHtml}</div>
+            ${badgeHtml}
           </div>`;
         }).join('')
       : `<div class="pp-empty">No jobs</div>`;
