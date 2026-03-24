@@ -1669,8 +1669,13 @@ function renderJobs() {
   }
 
   const color = getTeamColor();
+  // Pending jobs first, done jobs at the bottom
+  const sortedIndices = jobs.map((_, ji) => ji).sort((a, b) =>
+    (stateSlice[a]?.done ? 1 : 0) - (stateSlice[b]?.done ? 1 : 0)
+  );
   let html = '';
-  jobs.forEach((job, ji) => {
+  sortedIndices.forEach(ji => {
+    const job = jobs[ji];
     const s = stateSlice[ji] || { done:false, doneAt:'', initials:'' };
     const sk2 = activeSub;
     const isQcAuto = s.qcAuto && s.done;
@@ -2837,23 +2842,32 @@ function parseSheetValues(values) {
 }
 
 function distributeIntoPreps(jobs) {
-  const hasPrep = jobs.some(j => j.prep !== null);
   const preps = {1:[],2:[],3:[],4:[],5:[],express:[]};
-  if (hasPrep) {
-    jobs.forEach(j => {
-      const p = j.prep || 1;
-      if (!preps[p]) preps[p] = [];
-      preps[p].push({ itemNo: j.itemNo, rep: j.rep });
+  // Express jobs always go to express bucket regardless of other prep values
+  jobs.filter(j => j.prep === 'express').forEach(j => preps.express.push({ itemNo: j.itemNo, rep: j.rep }));
+  const normalJobs = jobs.filter(j => j.prep !== 'express');
+  const hasNumericPrep = normalJobs.some(j => typeof j.prep === 'number');
+  if (hasNumericPrep) {
+    // Use explicit prep values; jobs with null prep distributed evenly
+    const nullJobs = normalJobs.filter(j => j.prep === null);
+    const n = nullJobs.length;
+    let ni = 0;
+    normalJobs.forEach(j => {
+      if (j.prep !== null) {
+        preps[j.prep].push({ itemNo: j.itemNo, rep: j.rep });
+      } else {
+        const p = n === 0 ? 1 : Math.min(5, Math.floor(ni * 5 / n) + 1);
+        preps[p].push({ itemNo: j.itemNo, rep: j.rep });
+        ni++;
+      }
     });
   } else {
-    // Even distribution across preps 1-5 (express items stay in express)
-    const normalJobs = jobs.filter(j => j.prep !== 'express');
+    // No numeric preps — distribute all normal jobs evenly across 1-5
     const n = normalJobs.length;
     normalJobs.forEach((j, i) => {
       const p = n === 0 ? 1 : Math.min(5, Math.floor(i * 5 / n) + 1);
       preps[p].push({ itemNo: j.itemNo, rep: j.rep });
     });
-    jobs.filter(j => j.prep === 'express').forEach(j => preps.express.push({ itemNo: j.itemNo, rep: j.rep }));
   }
   return preps;
 }
@@ -3124,7 +3138,8 @@ function applyStateToOvBadges() {
         for (let p = 1; p <= 5; p++) {
           const jobs = PROD[wk]?.[p] || [];
           jobs.forEach((job, ji) => {
-            if (!STATE[t.name]?.[subKey]?.[wk]?.[p]?.[ji]?.done) return;
+            const st = STATE[t.name]?.[subKey]?.[wk]?.[p]?.[ji];
+            if (!st?.done || st.qcAuto) return; // skip undone or QC-auto (not a genuine team completion)
             (repIndex[job.rep] || []).forEach(rep => {
               if (t.hasSubs) {
                 if (!rep.s[deptKey].includes(shortSub)) rep.s[deptKey].push(shortSub);
