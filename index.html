@@ -939,66 +939,83 @@ body {
 
 /* Password gate */
 .stats-gate {
-  position: absolute; inset: 0; background: var(--bg1);
+  position: absolute; inset: 0; background: rgba(14,2,58,.7);
   display: flex; align-items: center; justify-content: center; z-index: 10;
 }
 .stats-gate-card {
-  background: var(--bg2); border: 1.5px solid var(--border);
-  border-radius: 16px; padding: 36px 32px; width: 320px;
-  display: flex; flex-direction: column; gap: 14px; align-items: center;
+  background: #fff; border-radius: 16px; padding: 32px 28px; width: 320px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.25); text-align: center;
+  display: flex; flex-direction: column; gap: 0; align-items: stretch;
 }
-.stats-gate-title { font-size: 18px; font-weight: 700; color: var(--text1); }
-.stats-gate-sub   { font-size: 13px; color: var(--text3); }
+.stats-gate-icon  { font-size: 36px; margin-bottom: 12px; }
+.stats-gate-title { font-size: 18px; font-weight: 700; color: var(--repose-navy); margin-bottom: 4px; }
+.stats-gate-sub   { font-size: 13px; color: var(--repose-grey); margin-bottom: 20px; }
 .stats-pw-input {
-  width: 100%; padding: 10px 14px; border-radius: 10px;
-  border: 1.5px solid var(--border2); background: var(--bg3);
-  font-size: 15px; font-family: inherit; color: var(--text1); box-sizing: border-box;
+  width: 100%; border: 1.5px solid var(--border); border-radius: 8px;
+  padding: 10px 14px; font-size: 15px; font-family: 'JetBrains Mono',monospace;
+  letter-spacing: 4px; text-align: center; outline: none; margin-bottom: 12px;
+  transition: border-color .15s; color: var(--repose-navy); box-sizing: border-box;
 }
-.stats-pw-input:focus { outline: none; border-color: var(--repose-blue); }
-.stats-pw-input.shake { animation: pwshake .4s; }
+.stats-pw-input:focus { border-color: var(--repose-blue); }
+.stats-pw-input.shake { animation: pwshake .4s; border-color: #dc2626; }
 @keyframes pwshake {
   0%,100%{transform:translateX(0)} 20%{transform:translateX(-8px)} 60%{transform:translateX(8px)}
 }
-.stats-pw-error { font-size: 12px; color: #ef4444; font-weight: 500; }
+.stats-pw-error { font-size: 12px; color: #dc2626; min-height: 18px; margin-bottom: 8px; }
 .stats-pw-btn {
-  width: 100%; padding: 11px; border-radius: 10px; border: none;
-  background: var(--repose-blue); color: #fff; font-size: 15px; font-weight: 600;
+  width: 100%; padding: 11px; border-radius: 8px; border: none;
+  background: var(--repose-blue); color: #fff; font-size: 14px; font-weight: 600;
   cursor: pointer; font-family: inherit;
 }
 .stats-pw-btn:hover { opacity: .9; }
 
 /* Layout */
-.stats-content {
-  flex: 1; display: flex; flex-direction: column; overflow: hidden;
-  position: relative;
-}
 #view-stats { position: relative; }
+.stats-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.stats-scroll  { flex: 1; overflow-y: auto; padding: 16px; max-width: 960px; width: 100%; margin: 0 auto; box-sizing: border-box; }
 
-/* Period bar */
-.stats-period-bar {
-  display: flex; align-items: center; gap: 10px; padding: 14px 16px 10px;
-  flex-shrink: 0; border-bottom: 1px solid var(--border);
-}
-.stats-period-btns { display: flex; gap: 4px; }
+/* Header bar */
+.stats-header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.stats-title  { font-size: 17px; font-weight: 700; color: var(--repose-navy); flex: 1; }
+.stats-period-toggle { display: flex; background: #fff; border: 1.5px solid var(--border); border-radius: 8px; overflow: hidden; }
 .stats-period-btn {
-  padding: 6px 14px; border-radius: 20px; border: 1.5px solid var(--border2);
-  background: var(--bg2); color: var(--text2); font-size: 13px; font-weight: 500;
-  cursor: pointer; font-family: inherit; transition: .12s;
+  background: none; border: none; padding: 7px 13px; font-size: 12px; font-weight: 500;
+  cursor: pointer; color: var(--repose-grey); transition: all .15s; font-family: inherit;
 }
-.stats-period-btn.active {
-  background: var(--repose-navy); color: #fff; border-color: var(--repose-navy);
-}
+.stats-period-btn.active { background: var(--repose-navy); color: #fff; }
 .stats-refresh-btn {
-  margin-left: auto; padding: 6px 14px; border-radius: 20px;
-  border: 1.5px solid var(--border2); background: var(--bg2);
-  color: var(--text2); font-size: 13px; cursor: pointer; font-family: inherit;
+  background: #fff; border: 1.5px solid var(--border); border-radius: 8px;
+  padding: 7px 13px; font-size: 12px; font-weight: 500; cursor: pointer;
+  color: var(--repose-grey); font-family: inherit;
 }
-.stats-refresh-btn:hover { color: var(--repose-blue); border-color: var(--repose-blue); }
+.stats-refresh-btn:hover { border-color: var(--repose-blue); color: var(--repose-blue); }
+
+/* Date navigator */
+.stats-date-nav {
+  display: flex; align-items: center; background: #fff;
+  border: 1.5px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 16px;
+}
+.stats-nav-arrow {
+  background: none; border: none; padding: 8px 13px; font-size: 17px; cursor: pointer;
+  color: var(--repose-grey); transition: all .15s; line-height: 1; font-family: inherit;
+}
+.stats-nav-arrow:hover:not(:disabled) { background: var(--bg3); color: var(--repose-navy); }
+.stats-nav-arrow:disabled { opacity: .3; cursor: default; }
+.stats-nav-label {
+  flex: 1; text-align: center; font-size: 13px; font-weight: 600;
+  color: var(--repose-navy); padding: 8px 4px;
+  border-left: 1px solid var(--border); border-right: 1px solid var(--border);
+}
+.stats-nav-today {
+  background: none; border: none; padding: 8px 12px; font-size: 12px; font-weight: 600;
+  cursor: pointer; color: var(--repose-blue); white-space: nowrap; font-family: inherit;
+}
+.stats-nav-today:hover { background: var(--bg3); }
 
 /* Spinner */
 .stats-spinner {
   flex: 1; display: flex; flex-direction: column;
-  align-items: center; justify-content: center; gap: 14px;
+  align-items: center; justify-content: center; gap: 14px; min-height: 200px;
 }
 .stats-spinner-ring {
   width: 40px; height: 40px; border-radius: 50%;
@@ -1006,139 +1023,148 @@ body {
   animation: spin .7s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
-.stats-spinner-txt { font-size: 13px; color: var(--text3); }
+.stats-spinner-txt { font-size: 13px; color: var(--repose-grey); }
 
-/* Dashboard cards grid */
-.stats-cards {
-  flex: 1; overflow-y: auto; padding: 16px;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  align-content: start;
-}
-@media (max-width: 600px) { .stats-cards { grid-template-columns: 1fr; } }
-.stats-cards > .stats-card:nth-child(n+3) { grid-column: auto; }
-@media (min-width: 601px) {
-  .stats-cards > .stats-card:nth-child(5) { grid-column: 1 / -1; }
-}
+/* Dashboard grids */
+.dash-top    { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+.dash-bottom { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+@media (max-width: 600px) { .dash-top, .dash-bottom { grid-template-columns: 1fr; } }
 
-.stats-card {
-  background: var(--bg2); border: 1.5px solid var(--border);
-  border-radius: 14px; padding: 18px; cursor: pointer;
-  display: flex; flex-direction: column; gap: 8px;
-  transition: box-shadow .12s;
+/* Stat cards */
+.stat-card {
+  background: #fff; border-radius: 14px; padding: 18px 20px;
+  border: 1.5px solid var(--border); cursor: pointer; transition: all .15s;
+  position: relative; overflow: hidden;
 }
-.stats-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.08); }
-.stats-card-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--text3); }
-.stats-card-value { font-size: 36px; font-weight: 800; line-height: 1; font-family: 'JetBrains Mono', monospace; }
-.stats-card-sub   { font-size: 13px; color: var(--text3); }
-.stats-card-pbar  { height: 5px; background: var(--border2); border-radius: 3px; overflow: hidden; }
-.stats-card-pfill { height: 100%; border-radius: 3px; transition: width .3s; }
-.stats-card-top3  { display: flex; flex-direction: column; gap: 4px; margin-top: 2px; }
-.stats-card-top3-row { font-size: 12px; color: var(--text2); display: flex; gap: 6px; }
-.stats-card-top3-name  { font-weight: 500; flex: 1; }
-.stats-card-top3-count { color: var(--text3); }
+.stat-card:hover { border-color: var(--repose-blue); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(20,161,233,.15); }
+.stat-card::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; }
+.stat-card.blue::before  { background: var(--repose-blue); }
+.stat-card.teal::before  { background: #0e7490; }
+.stat-card.green::before { background: #059669; }
+.stat-card.amber::before { background: #d97706; }
+.stat-card.red::before   { background: #dc2626; }
 
-.stats-card[data-accent="blue"]  .stats-card-value { color: var(--repose-blue); }
-.stats-card[data-accent="teal"]  .stats-card-value { color: #0e7490; }
-.stats-card[data-accent="green"] .stats-card-value { color: #059669; }
-.stats-card[data-accent="amber"] .stats-card-value { color: #d97706; }
-.stats-card[data-accent="red"]   .stats-card-value { color: #dc2626; }
-.stats-card[data-accent="blue"]  .stats-card-pfill { background: var(--repose-blue); }
-.stats-card[data-accent="teal"]  .stats-card-pfill { background: #0e7490; }
-.stats-card[data-accent="green"] .stats-card-pfill { background: #059669; }
-.stats-card[data-accent="amber"] .stats-card-pfill { background: #d97706; }
-.stats-card[data-accent="red"]   .stats-card-pfill { background: #dc2626; }
+.card-label  { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .6px; color: var(--repose-grey); margin-bottom: 6px; }
+.card-row    { display: flex; align-items: flex-end; gap: 12px; }
+.card-number { font-size: 36px; font-weight: 700; color: var(--repose-navy); line-height: 1; }
+.card-number.sm { font-size: 26px; }
+.card-sub    { font-size: 12px; color: var(--repose-grey); margin-bottom: 10px; }
+.card-chart  { flex: 1; height: 52px; }
+.card-arrow  { position: absolute; bottom: 14px; right: 16px; color: var(--repose-blue); font-size: 18px; }
+.card-top3   { display: flex; flex-direction: column; gap: 5px; margin-top: 6px; }
+.top3-row    { display: flex; justify-content: space-between; font-size: 12px; }
+.top3-name   { color: var(--repose-navy); font-weight: 500; }
+.top3-count  { color: var(--repose-blue); font-weight: 600; font-family: 'JetBrains Mono', monospace; }
+.prog-bar    { height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; margin-top: 8px; }
+.prog-fill   { height: 100%; border-radius: 3px; transition: width .4s; }
 
-/* Detail view */
-.stats-detail-header {
-  display: flex; align-items: center; gap: 12px; padding: 12px 16px;
-  border-bottom: 1px solid var(--border); flex-shrink: 0;
-}
+/* Detail header */
+.stats-detail-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
 .stats-back-btn {
-  padding: 6px 12px; border-radius: 8px; border: 1.5px solid var(--border2);
-  background: var(--bg2); color: var(--text2); font-size: 13px;
-  cursor: pointer; font-family: inherit;
+  background: #fff; border: 1.5px solid var(--border); border-radius: 8px;
+  padding: 7px 12px; font-size: 14px; cursor: pointer; color: var(--repose-navy);
+  font-weight: 600; font-family: inherit;
 }
-.stats-back-btn:hover { color: var(--repose-blue); border-color: var(--repose-blue); }
-.stats-detail-title { font-size: 16px; font-weight: 700; color: var(--text1); }
-.stats-detail-body  { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.stats-back-btn:hover { border-color: var(--repose-blue); color: var(--repose-blue); }
+.stats-detail-title  { font-size: 17px; font-weight: 700; color: var(--repose-navy); }
+.stats-detail-period { font-size: 12px; color: var(--repose-grey); background: var(--bg3); padding: 4px 10px; border-radius: 20px; margin-left: auto; }
 
-/* Team rows */
-.stats-section-head { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text3); margin-bottom: 2px; }
-.stats-team-row {
-  display: flex; align-items: center; gap: 10px; padding: 10px 14px;
-  background: var(--bg2); border: 1.5px solid var(--border); border-radius: 10px;
-  cursor: pointer;
-}
-.stats-team-row.no-expand { cursor: default; }
-.stats-team-name    { flex: 1; font-weight: 600; font-size: 14px; color: var(--text1); }
-.stats-team-count   { font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 700; color: var(--text2); }
-.stats-team-chevron { font-size: 12px; color: var(--text3); transition: transform .15s; }
-.stats-team-row.expanded .stats-team-chevron { transform: rotate(90deg); }
+/* Chart panels */
+.chart-panel { background: #fff; border-radius: 12px; border: 1.5px solid var(--border); padding: 18px 20px; margin-bottom: 14px; }
+.chart-panel-title { font-size: 13px; font-weight: 600; color: var(--repose-navy); margin-bottom: 14px; }
+.chart-wrap  { position: relative; }
+.chart-row   { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+@media (max-width: 560px) { .chart-row { grid-template-columns: 1fr; } }
 
-.stats-person-list { display: flex; flex-direction: column; gap: 4px; padding: 6px 0 2px 24px; }
-.stats-person-row  { display: flex; gap: 10px; padding: 5px 12px; border-radius: 8px; background: var(--bg3); font-size: 13px; }
-.stats-person-name  { flex: 1; color: var(--text2); }
-.stats-person-count { font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--text1); }
+/* Detail card wrapper */
+.detail-card { background: #fff; border-radius: 12px; border: 1.5px solid var(--border); overflow: hidden; margin-bottom: 14px; }
+.detail-section-head { padding: 9px 16px; background: var(--bg3); border-bottom: 1px solid var(--border); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--repose-grey); }
+
+/* Completion rows */
+.comp-row { display: flex; align-items: center; padding: 12px 16px; gap: 10px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background .1s; }
+.comp-row:last-child { border-bottom: none; }
+.comp-row.no-exp { cursor: default; }
+.comp-row:hover:not(.no-exp) { background: var(--bg2); }
+.row-team   { font-size: 14px; font-weight: 600; color: var(--repose-navy); flex: 1; }
+.row-count  { font-size: 15px; font-weight: 700; font-family: 'JetBrains Mono', monospace; color: var(--repose-blue); min-width: 36px; text-align: right; }
+.row-expand { color: var(--repose-grey); font-size: 14px; width: 16px; text-align: center; }
+.team-badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 20px; background: var(--bg3); color: var(--repose-grey); }
+
+.sub-rows { display: none; background: var(--bg2); }
+.sub-rows.open { display: block; }
+.sub-row { display: flex; align-items: center; padding: 8px 16px 8px 36px; border-bottom: 1px solid var(--border); gap: 10px; }
+.sub-row:last-child { border-bottom: none; }
+.sub-name     { font-size: 13px; color: var(--repose-navy); flex: 1; }
+.sub-initials { font-size: 11px; color: var(--repose-grey); font-family: 'JetBrains Mono', monospace; }
+.sub-count    { font-size: 13px; font-weight: 600; color: var(--repose-blue); font-family: 'JetBrains Mono', monospace; }
+
+/* Per-person rows */
+.person-row { display: flex; align-items: center; padding: 11px 16px; gap: 12px; border-bottom: 1px solid var(--border); }
+.person-row:last-child { border-bottom: none; }
+.person-rank { font-size: 12px; font-weight: 700; color: var(--repose-grey); width: 22px; text-align: center; }
+.person-rank.gold   { color: #d97706; }
+.person-rank.silver { color: #9ca3af; }
+.person-rank.bronze { color: #b45309; }
+.person-name  { font-size: 14px; font-weight: 600; color: var(--repose-navy); }
+.person-team  { font-size: 12px; color: var(--repose-grey); }
+.person-count { font-size: 15px; font-weight: 700; color: var(--repose-blue); font-family: 'JetBrains Mono', monospace; margin-left: auto; }
 
 /* Filter chips */
-.stats-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.changes-count { font-size: 12px; color: var(--repose-grey); margin-bottom: 10px; }
+.stats-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 .stats-chip {
-  padding: 5px 12px; border-radius: 20px; border: 1.5px solid var(--border2);
-  background: var(--bg2); color: var(--text2); font-size: 12px; font-weight: 500;
-  cursor: pointer; font-family: inherit; transition: .12s;
+  background: #fff; border: 1.5px solid var(--border); border-radius: 20px;
+  padding: 5px 12px; font-size: 12px; font-weight: 500; color: var(--repose-grey);
+  cursor: pointer; font-family: inherit; transition: all .15s; white-space: nowrap;
 }
-.stats-chip.active { background: #d97706; border-color: #d97706; color: #fff; }
-.stats-chip:hover:not(.active) { border-color: #d97706; color: #d97706; }
+.stats-chip:hover { border-color: #d97706; color: #d97706; }
+.stats-chip.active { background: #d97706; border-color: #d97706; color: #fff; font-weight: 600; }
+.stats-chip.all-chip.active { background: var(--repose-navy); border-color: var(--repose-navy); }
 
 /* Alert rows */
-.stats-alert-row {
-  padding: 12px 14px; background: var(--bg2); border: 1.5px solid var(--border);
-  border-radius: 10px; display: flex; flex-direction: column; gap: 6px;
-}
-.stats-alert-row.greyed { opacity: .45; }
-.stats-alert-rep    { font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 700; color: var(--text1); }
-.stats-alert-change { font-size: 13px; color: var(--text2); }
-.stats-alert-meta   { font-size: 11px; color: var(--text3); }
-.stats-alert-btns   { display: flex; gap: 8px; margin-top: 2px; }
-.stats-alert-btn {
-  padding: 5px 12px; border-radius: 8px; border: 1.5px solid var(--border2);
-  background: var(--bg3); color: var(--text2); font-size: 12px; font-weight: 500;
-  cursor: pointer; font-family: inherit;
-}
-.stats-alert-btn:hover { border-color: var(--repose-blue); color: var(--repose-blue); }
-.stats-alert-btn:disabled { opacity: .4; cursor: default; }
+.stats-alert-row { padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.stats-alert-row:last-child { border-bottom: none; }
+.stats-alert-row.actioned { opacity: .5; }
+.alert-top    { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+.alert-rep    { font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 600; color: var(--repose-navy); }
+.alert-field  { font-size: 12px; font-weight: 600; color: #d97706; background: #fff7ed; padding: 2px 8px; border-radius: 20px; }
+.alert-date   { font-size: 11px; color: var(--repose-grey); margin-left: auto; }
+.alert-change { font-size: 13px; color: var(--repose-grey); margin-bottom: 8px; }
+.alert-change strong { color: var(--repose-navy); }
+.alert-actions { display: flex; gap: 8px; }
+.btn-dismiss  { flex:1; padding:7px 10px; border-radius:7px; font-size:12px; font-weight:600; cursor:pointer; border:1.5px solid #d97706; color:#92400e; background:#fff7ed; font-family:inherit; }
+.btn-dismiss:hover { background: #fef3c7; }
+.btn-dismiss:disabled { opacity:.4; cursor:default; }
+.btn-scrap    { flex:1; padding:7px 10px; border-radius:7px; font-size:12px; font-weight:600; cursor:pointer; border:1.5px solid #dc2626; color:#dc2626; background:#fff; font-family:inherit; }
+.btn-scrap:hover { background: #fee2e2; }
+.btn-scrap:disabled { opacity:.4; cursor:default; }
+.actioned-badge { font-size:11px; padding:3px 8px; border-radius:20px; font-weight:600; }
+.actioned-badge.ack      { background:#d1fae5; color:#065f46; }
+.actioned-badge.scrapped { background:#fee2e2; color:#991b1b; }
 
 /* Scrap rows */
-.stats-scrap-row {
-  padding: 12px 14px; background: var(--bg2); border: 1.5px solid var(--border);
-  border-radius: 10px; display: flex; align-items: center; gap: 10px;
-}
-.stats-scrap-rep  { font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 700; color: var(--text1); flex: 1; }
-.stats-scrap-meta { font-size: 12px; color: var(--text3); }
-.stats-scrap-del  { padding: 5px 12px; border-radius: 8px; border: 1.5px solid #dc2626; background: var(--bg3); color: #dc2626; font-size: 12px; font-weight: 500; cursor: pointer; font-family: inherit; }
-.stats-scrap-del:hover { background: #dc2626; color: #fff; }
-.stats-scrap-confirm { display: flex; gap: 6px; align-items: center; }
-.stats-scrap-confirm-yes { padding: 5px 12px; border-radius: 8px; border: none; background: #dc2626; color: #fff; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
-.stats-scrap-confirm-no  { padding: 5px 12px; border-radius: 8px; border: 1.5px solid var(--border2); background: var(--bg2); color: var(--text2); font-size: 12px; cursor: pointer; font-family: inherit; }
-
-/* QC rows */
-.stats-qc-row {
-  padding: 12px 14px; background: var(--bg2); border: 1.5px solid var(--border);
-  border-radius: 10px; display: flex; justify-content: space-between; align-items: center;
-}
-.stats-qc-label { font-size: 14px; color: var(--text2); }
-.stats-qc-count { font-family: 'JetBrains Mono', monospace; font-size: 16px; font-weight: 700; color: #0e7490; }
-
-/* Per-person table */
-.stats-pp-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.stats-pp-table th { text-align: left; padding: 6px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text3); border-bottom: 1.5px solid var(--border); }
-.stats-pp-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); color: var(--text2); }
-.stats-pp-table td:last-child { font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--text1); text-align: right; }
-.stats-pp-table tr:last-child td { border-bottom: none; }
+.scrap-row { display:flex; align-items:center; padding:12px 16px; gap:10px; border-bottom:1px solid var(--border); }
+.scrap-row:last-child { border-bottom:none; }
+.scrap-info { flex:1; }
+.scrap-rep  { font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:600; color:var(--repose-navy); }
+.scrap-meta { font-size:12px; color:var(--repose-grey); margin-top:2px; }
+.btn-delete { padding:6px 12px; border-radius:7px; font-size:12px; font-weight:600; cursor:pointer; border:1.5px solid #fca5a5; color:#dc2626; background:#fff; font-family:inherit; }
+.btn-delete:hover { background:#fee2e2; border-color:#dc2626; }
+.confirm-actions { display:flex; gap:6px; }
+.btn-confirm { padding:6px 10px; border-radius:7px; font-size:12px; font-weight:600; cursor:pointer; background:#dc2626; color:#fff; border:none; font-family:inherit; }
+.btn-cancel  { padding:6px 10px; border-radius:7px; font-size:12px; font-weight:600; cursor:pointer; background:var(--bg3); color:var(--repose-grey); border:1.5px solid var(--border); font-family:inherit; }
 </style>
 <script src="/msal-browser.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  if (typeof Chart !== 'undefined') {
+    Chart.defaults.font.family = 'Inter, sans-serif';
+    Chart.defaults.font.size   = 11;
+    Chart.defaults.color       = '#706f6f';
+  }
+});
+</script>
 </head>
 <body>
 
@@ -1334,14 +1360,15 @@ body {
 <!-- ═══ STATS ═══ -->
 <div class="view" id="view-stats">
 
-  <!-- Password modal (shown when not unlocked) -->
+  <!-- Password gate -->
   <div id="stats-gate" class="stats-gate">
     <div class="stats-gate-card">
-      <div class="stats-gate-title">Stats — Manager Access</div>
-      <div class="stats-gate-sub">Enter password to continue</div>
-      <input id="stats-pw-input" class="stats-pw-input" type="password" placeholder="Password"
+      <div class="stats-gate-icon">🔒</div>
+      <div class="stats-gate-title">Manager Access</div>
+      <div class="stats-gate-sub">Enter password to view production statistics</div>
+      <input id="stats-pw-input" class="stats-pw-input" type="password" placeholder="••••••" maxlength="20"
         onkeydown="if(event.key==='Enter')submitStatsPassword()">
-      <div id="stats-pw-error" class="stats-pw-error" style="display:none">Incorrect password</div>
+      <div id="stats-pw-error" class="stats-pw-error"></div>
       <button class="stats-pw-btn" onclick="submitStatsPassword()">Unlock</button>
     </div>
   </div>
@@ -1350,32 +1377,38 @@ body {
   <div id="stats-content" class="stats-content" style="display:none">
 
     <!-- Dashboard -->
-    <div id="stats-dashboard" style="display:flex;flex-direction:column;flex:1;overflow:hidden">
-      <!-- period bar -->
-      <div class="stats-period-bar">
-        <div class="stats-period-btns">
+    <div id="stats-dashboard" class="stats-scroll">
+      <div class="stats-header">
+        <div class="stats-title">Production Statistics</div>
+        <div class="stats-period-toggle">
           <button class="stats-period-btn active" onclick="setStatsPeriod('week',this)">This Week</button>
           <button class="stats-period-btn" onclick="setStatsPeriod('month',this)">This Month</button>
           <button class="stats-period-btn" onclick="setStatsPeriod('year',this)">This Year</button>
         </div>
         <button class="stats-refresh-btn" onclick="refreshStatsData()">↻ Refresh</button>
       </div>
-      <!-- spinner -->
+      <div class="stats-date-nav">
+        <button class="stats-nav-arrow" id="stats-nav-prev" onclick="statsNavPeriod(-1)">‹</button>
+        <div class="stats-nav-label" id="stats-nav-label">Loading…</div>
+        <button class="stats-nav-arrow" id="stats-nav-next" onclick="statsNavPeriod(1)" disabled>›</button>
+        <button class="stats-nav-today" id="stats-nav-today" onclick="statsNavToday()" style="display:none">Current ↩</button>
+      </div>
       <div id="stats-spinner" class="stats-spinner" style="display:none">
         <div class="stats-spinner-ring"></div>
         <div class="stats-spinner-txt">Loading…</div>
       </div>
-      <!-- cards grid -->
-      <div id="stats-cards" class="stats-cards"></div>
+      <div class="dash-top" id="stats-dash-top"></div>
+      <div class="dash-bottom" id="stats-dash-bottom"></div>
     </div>
 
-    <!-- Detail view (hidden until a card is tapped) -->
-    <div id="stats-detail" style="display:none;flex-direction:column;flex:1;overflow:hidden">
+    <!-- Detail view -->
+    <div id="stats-detail" class="stats-scroll" style="display:none">
       <div class="stats-detail-header">
         <button class="stats-back-btn" onclick="showStatsDashboard()">← Back</button>
         <div id="stats-detail-title" class="stats-detail-title"></div>
+        <div id="stats-detail-period" class="stats-detail-period"></div>
       </div>
-      <div id="stats-detail-body" class="stats-detail-body"></div>
+      <div id="stats-detail-body"></div>
     </div>
 
   </div>
@@ -4105,8 +4138,10 @@ window.addEventListener('load', () => initGraph().catch(console.error));
 
 const STATS_PASSWORD = 'Repnetiscool';
 
-let statsUnlocked = false;
-let statsPeriod   = 'week';   // 'week' | 'month' | 'year'
+let statsUnlocked  = false;
+let statsPeriod    = 'week';   // 'week' | 'month' | 'year'
+let statsNavOffset = 0;        // 0 = current period, -1 = previous, etc.
+let statsCharts    = {};
 
 let STATS_COMPLETIONS = [];
 let STATS_ALERTS      = [];
@@ -4156,6 +4191,73 @@ const CHANGE_FILTER_CATEGORIES = {
   specialInst: 'Special Inst.',
 };
 
+const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function alpha(hex, a) {
+  const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+function statsDestroyCharts() {
+  Object.values(statsCharts).forEach(c => { try { c.destroy(); } catch(e){} });
+  statsCharts = {};
+}
+
+function statsRefDate() {
+  const today = new Date();
+  if (statsPeriod === 'week') {
+    const d = new Date(today); d.setDate(d.getDate() + statsNavOffset * 7); return d;
+  }
+  if (statsPeriod === 'month') return new Date(today.getFullYear(), today.getMonth() + statsNavOffset, 1);
+  return new Date(today.getFullYear() + statsNavOffset, 0, 1);
+}
+
+function statsNavLabel() {
+  const ref = statsRefDate();
+  if (statsPeriod === 'week') {
+    const wk  = isoWeekNumber(ref);
+    const day = ref.getDay() || 7;
+    const mon = new Date(ref); mon.setDate(mon.getDate() - (day - 1));
+    const fri = new Date(mon); fri.setDate(fri.getDate() + 4);
+    return `WK ${wk} · ${mon.getDate()} ${MONTHS_SHORT[mon.getMonth()]}–${fri.getDate()} ${MONTHS_SHORT[fri.getMonth()]} ${fri.getFullYear()}`;
+  }
+  if (statsPeriod === 'month') return `${MONTHS_SHORT[ref.getMonth()]} ${ref.getFullYear()}`;
+  return `${ref.getFullYear()}`;
+}
+
+function statsUpdateNav() {
+  const labelEl  = document.getElementById('stats-nav-label');
+  const prevBtn  = document.getElementById('stats-nav-prev');
+  const nextBtn  = document.getElementById('stats-nav-next');
+  const todayBtn = document.getElementById('stats-nav-today');
+  if (!labelEl) return;
+  labelEl.textContent = statsNavLabel();
+  if (nextBtn)  nextBtn.disabled = statsNavOffset >= 0;
+  if (todayBtn) todayBtn.style.display = statsNavOffset < 0 ? '' : 'none';
+}
+
+function statsNavPeriod(dir) {
+  statsNavOffset += dir;
+  statsUpdateNav();
+  const detailEl = document.getElementById('stats-detail');
+  if (detailEl && detailEl.style.display !== 'none') {
+    renderStatsDetail(detailEl.dataset.view);
+  } else {
+    renderStatsDashboard();
+  }
+}
+
+function statsNavToday() {
+  statsNavOffset = 0;
+  statsUpdateNav();
+  const detailEl = document.getElementById('stats-detail');
+  if (detailEl && detailEl.style.display !== 'none') {
+    renderStatsDetail(detailEl.dataset.view);
+  } else {
+    renderStatsDashboard();
+  }
+}
+
 function openStatsView() {
   if (statsUnlocked) {
     showStatsContent();
@@ -4187,6 +4289,7 @@ function showStatsContent() {
   document.getElementById('stats-gate').style.display    = 'none';
   document.getElementById('stats-content').style.display = 'flex';
   document.getElementById('stats-content').style.flexDirection = 'column';
+  statsUpdateNav();
   if (!STATS_COMPLETIONS.length && !STATS_ALERTS.length && !STATS_SCRAP.length) {
     loadStatsData();
   } else {
@@ -4208,14 +4311,15 @@ function parseDdmmyyyy(str) {
 function statsInPeriod(dateStr) {
   const d = parseDdmmyyyy(dateStr);
   if (!d) return false;
-  const today = new Date();
-  if (statsPeriod === 'week')  return isoWeekNumber(d) === isoWeekNumber(today) && isoWeekYear(d) === isoWeekYear(today);
-  if (statsPeriod === 'month') return d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
-  return d.getFullYear() === today.getFullYear();
+  const ref = statsRefDate();
+  if (statsPeriod === 'week')  return isoWeekNumber(d) === isoWeekNumber(ref) && isoWeekYear(d) === isoWeekYear(ref);
+  if (statsPeriod === 'month') return d.getMonth() === ref.getMonth() && d.getFullYear() === ref.getFullYear();
+  return d.getFullYear() === ref.getFullYear();
 }
 
 async function loadStatsData() {
-  document.getElementById('stats-cards').innerHTML        = '';
+  document.getElementById('stats-dash-top').innerHTML     = '';
+  document.getElementById('stats-dash-bottom').innerHTML  = '';
   document.getElementById('stats-spinner').style.display  = 'flex';
 
   try {
@@ -4306,12 +4410,103 @@ function statsFullyCompleteReps(completions) {
   return reps.filter(rep => isRepFullyComplete(rep, completions));
 }
 
+// ── Spark / chart helpers ────────────────────────
+
+function buildSparkData(comp, alerts, scrap) {
+  const ref = statsRefDate();
+  let labels = [], complete = [], qc = [], changes = [], scrapB = [];
+
+  function dayKey(dd) { return `${dd.getFullYear()}-${dd.getMonth()}-${dd.getDate()}`; }
+
+  if (statsPeriod === 'week') {
+    const day = ref.getDay() || 7;
+    const mon = new Date(ref); mon.setDate(mon.getDate() - (day - 1));
+    labels = ['Mon','Tue','Wed','Thu','Fri'];
+    for (let i = 0; i < 5; i++) {
+      const d = new Date(mon); d.setDate(mon.getDate() + i);
+      const k = dayKey(d);
+      complete.push(comp.filter(c => { const dd = parseDdmmyyyy(c.fields.CompletedDate); return dd && dayKey(dd) === k && c.fields.Team !== 'QC'; }).length);
+      qc.push(comp.filter(c => { const dd = parseDdmmyyyy(c.fields.CompletedDate); return dd && dayKey(dd) === k && c.fields.Team === 'QC'; }).length);
+      changes.push(alerts.filter(a => { const dd = parseDdmmyyyy(a.fields.DetectedAt); return dd && dayKey(dd) === k; }).length);
+      scrapB.push(scrap.filter(s => { const dd = parseDdmmyyyy(s.fields.LoggedAt); return dd && dayKey(dd) === k; }).length);
+    }
+  } else if (statsPeriod === 'month') {
+    labels = ['Wk1','Wk2','Wk3','Wk4'];
+    for (let w = 0; w < 4; w++) {
+      const s = w * 7 + 1, e = w === 3 ? 31 : (w + 1) * 7;
+      complete.push(comp.filter(c => { const dd = parseDdmmyyyy(c.fields.CompletedDate); return dd && dd.getDate() >= s && dd.getDate() <= e && c.fields.Team !== 'QC'; }).length);
+      qc.push(comp.filter(c => { const dd = parseDdmmyyyy(c.fields.CompletedDate); return dd && dd.getDate() >= s && dd.getDate() <= e && c.fields.Team === 'QC'; }).length);
+      changes.push(alerts.filter(a => { const dd = parseDdmmyyyy(a.fields.DetectedAt); return dd && dd.getDate() >= s && dd.getDate() <= e; }).length);
+      scrapB.push(scrap.filter(s2 => { const dd = parseDdmmyyyy(s2.fields.LoggedAt); return dd && dd.getDate() >= s && dd.getDate() <= e; }).length);
+    }
+  } else {
+    labels = MONTHS_SHORT;
+    for (let m = 0; m < 12; m++) {
+      complete.push(comp.filter(c => { const dd = parseDdmmyyyy(c.fields.CompletedDate); return dd && dd.getMonth() === m && c.fields.Team !== 'QC'; }).length);
+      qc.push(comp.filter(c => { const dd = parseDdmmyyyy(c.fields.CompletedDate); return dd && dd.getMonth() === m && c.fields.Team === 'QC'; }).length);
+      changes.push(alerts.filter(a => { const dd = parseDdmmyyyy(a.fields.DetectedAt); return dd && dd.getMonth() === m; }).length);
+      scrapB.push(scrap.filter(s => { const dd = parseDdmmyyyy(s.fields.LoggedAt); return dd && dd.getMonth() === m; }).length);
+    }
+  }
+  return { labels, complete, qc, changes, scrap: scrapB };
+}
+
+function drawSparkline(id, data, color) {
+  const canvas = document.getElementById(id);
+  if (!canvas || typeof Chart === 'undefined') return;
+  statsCharts[id] = new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: data.map((_,i) => i),
+      datasets: [{ data, borderColor: color, backgroundColor: alpha(color, 0.12), borderWidth: 2, pointRadius: 0, tension: 0.4, fill: true }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      plugins: { legend: { display: false }, tooltip: { enabled: false } },
+      scales: { x: { display: false }, y: { display: false, min: 0 } },
+    },
+  });
+}
+
+function drawSparkBar(id, data, color) {
+  const canvas = document.getElementById(id);
+  if (!canvas || typeof Chart === 'undefined') return;
+  statsCharts[id] = new Chart(canvas.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: data.map((_,i) => i),
+      datasets: [{ data, backgroundColor: alpha(color, 0.7), borderRadius: 3, borderSkipped: false }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      plugins: { legend: { display: false }, tooltip: { enabled: false } },
+      scales: { x: { display: false }, y: { display: false, min: 0 } },
+    },
+  });
+}
+
+function statsBarChart(id, labels, data, color) {
+  const canvas = document.getElementById(id);
+  if (!canvas || typeof Chart === 'undefined') return;
+  statsCharts[id] = new Chart(canvas.getContext('2d'), {
+    type: 'bar',
+    data: { labels, datasets: [{ data, backgroundColor: alpha(color, 0.7), borderRadius: 4 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { x: { grid: { display: false } }, y: { beginAtZero: true, ticks: { precision: 0 } } },
+    },
+  });
+}
+
 // ── Dashboard ───────────────────────────────────
 
 function setStatsPeriod(period, btn) {
-  statsPeriod = period;
+  statsPeriod    = period;
+  statsNavOffset = 0;
   document.querySelectorAll('.stats-period-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
+  statsUpdateNav();
   const detailEl = document.getElementById('stats-detail');
   if (detailEl.style.display !== 'none') {
     renderStatsDetail(detailEl.dataset.view);
@@ -4321,71 +4516,111 @@ function setStatsPeriod(period, btn) {
 }
 
 function showStatsDashboard() {
-  document.getElementById('stats-dashboard').style.display      = 'flex';
-  document.getElementById('stats-dashboard').style.flexDirection = 'column';
-  document.getElementById('stats-dashboard').style.flex          = '1';
-  document.getElementById('stats-dashboard').style.overflow      = 'hidden';
-  document.getElementById('stats-detail').style.display          = 'none';
+  statsDestroyCharts();
+  document.getElementById('stats-dashboard').style.display = '';
+  document.getElementById('stats-detail').style.display    = 'none';
   renderStatsDashboard();
 }
 
 function renderStatsDashboard() {
-  const comp    = statsFilteredCompletions();
-  const alerts  = statsFilteredAlerts();
-  const scrap   = statsFilteredScrap();
+  statsDestroyCharts();
+  const comp   = statsFilteredCompletions();
+  const alerts = statsFilteredAlerts();
+  const scrap  = statsFilteredScrap();
 
-  const allReps   = [...new Set(comp.map(c => c.fields.REP))];
-  const fullReps  = statsFullyCompleteReps(comp);
-  const qcReps    = [...new Set(comp.filter(c => c.fields.Team === 'QC').map(c => c.fields.REP))];
-  const persons   = statsCountByPerson(comp);
-  const top3      = persons.slice(0, 3);
+  const allReps  = [...new Set(comp.map(c => c.fields.REP))];
+  const fullReps = statsFullyCompleteReps(comp);
+  const qcReps   = [...new Set(comp.filter(c => c.fields.Team === 'QC').map(c => c.fields.REP))];
+  const persons  = statsCountByPerson(comp);
+  const top3     = persons.slice(0, 3);
 
   const fullyPct = allReps.length  ? Math.round(fullReps.length / allReps.length * 100)  : 0;
   const qcPct    = fullReps.length ? Math.round(qcReps.length   / fullReps.length * 100) : 0;
+  const spark    = buildSparkData(comp, alerts, scrap);
 
-  const cards = [
-    { accent:'blue',  label:'Fully Complete Jobs', value:fullReps.length,
-      sub:`${fullyPct}% of ${allReps.length} REPs in window`, pbar:fullyPct,
-      onclick:`renderStatsDetail('completions')` },
-    { accent:'teal',  label:'QC Verified',          value:qcReps.length,
-      sub:`${qcPct}% of fully complete jobs`,               pbar:qcPct,
-      onclick:`renderStatsDetail('qc')` },
-    { accent:'green', label:'Per Person',            value:persons.length,
-      sub:'operators active this period',                   top3,
-      onclick:`renderStatsDetail('perperson')` },
-    { accent:'amber', label:'Spec Changes',          value:alerts.length,
-      sub:'plan changes detected',
-      onclick:`renderStatsDetail('changes')` },
-    { accent:'red',   label:'Scrap',                 value:scrap.length,
-      sub:'scrap log entries',
-      onclick:`renderStatsDetail('scrap')` },
-  ];
+  const top3Html = top3.map(p =>
+    `<div class="top3-row"><span class="top3-name">${escHtml(p.name)}</span><span class="top3-count">${p.count}</span></div>`
+  ).join('') || '<div style="font-size:12px;color:var(--repose-grey)">No data this period</div>';
 
-  document.getElementById('stats-cards').innerHTML = cards.map(c => `
-    <div class="stats-card" data-accent="${c.accent}" onclick="${c.onclick}">
-      <div class="stats-card-label">${c.label}</div>
-      <div class="stats-card-value">${c.value}</div>
-      <div class="stats-card-sub">${c.sub}</div>
-      ${c.pbar !== undefined ? `<div class="stats-card-pbar"><div class="stats-card-pfill" style="width:${c.pbar}%"></div></div>` : ''}
-      ${c.top3 ? `<div class="stats-card-top3">${c.top3.map(p=>`<div class="stats-card-top3-row"><span class="stats-card-top3-name">${p.name}</span><span class="stats-card-top3-count">${p.count}</span></div>`).join('')}</div>` : ''}
+  document.getElementById('stats-dash-top').innerHTML = `
+    <div class="stat-card blue" onclick="renderStatsDetail('completions')">
+      <div class="card-label">Fully Complete Jobs</div>
+      <div class="card-row">
+        <div>
+          <div class="card-number">${fullReps.length}</div>
+          <div class="card-sub">all teams signed off, excl. QC</div>
+        </div>
+        <div class="card-chart"><canvas id="spark-complete"></canvas></div>
+      </div>
+      <div class="prog-bar"><div class="prog-fill" style="width:${fullyPct}%;background:var(--repose-blue)"></div></div>
+      <div style="font-size:11px;color:var(--repose-grey);margin-top:4px">${fullReps.length} of ${allReps.length} REPs in window complete</div>
+      <div class="card-arrow">›</div>
     </div>
-  `).join('');
+    <div class="stat-card teal" onclick="renderStatsDetail('qc')">
+      <div class="card-label">QC Verified</div>
+      <div class="card-row">
+        <div>
+          <div class="card-number">${qcReps.length}</div>
+          <div class="card-sub">jobs signed off by QC</div>
+        </div>
+        <div class="card-chart"><canvas id="spark-qc"></canvas></div>
+      </div>
+      <div class="prog-bar"><div class="prog-fill" style="width:${qcPct}%;background:#0e7490"></div></div>
+      <div style="font-size:11px;color:var(--repose-grey);margin-top:4px">${qcReps.length} of ${fullReps.length} fully complete jobs QC verified</div>
+      <div class="card-arrow">›</div>
+    </div>`;
+
+  document.getElementById('stats-dash-bottom').innerHTML = `
+    <div class="stat-card green" onclick="renderStatsDetail('perperson')">
+      <div class="card-label">Per Person</div>
+      <div class="card-top3">${top3Html}</div>
+      <div class="card-arrow">›</div>
+    </div>
+    <div class="stat-card amber" onclick="renderStatsDetail('changes')">
+      <div class="card-label">Spec Changes</div>
+      <div class="card-row">
+        <div>
+          <div class="card-number sm">${alerts.length}</div>
+          <div class="card-sub">plan changes detected</div>
+        </div>
+        <div class="card-chart"><canvas id="spark-changes"></canvas></div>
+      </div>
+      <div class="card-arrow">›</div>
+    </div>
+    <div class="stat-card red" onclick="renderStatsDetail('scrap')">
+      <div class="card-label">Scrap</div>
+      <div class="card-row">
+        <div>
+          <div class="card-number sm">${scrap.length}</div>
+          <div class="card-sub">scrap entries logged</div>
+        </div>
+        <div class="card-chart"><canvas id="spark-scrap"></canvas></div>
+      </div>
+      <div class="card-arrow">›</div>
+    </div>`;
+
+  // sparklines drawn after DOM paint
+  setTimeout(() => {
+    drawSparkline('spark-complete', spark.complete, '#14a1e9');
+    drawSparkline('spark-qc',      spark.qc,       '#0e7490');
+    drawSparkBar('spark-changes',  spark.changes,   '#d97706');
+    drawSparkBar('spark-scrap',    spark.scrap,     '#dc2626');
+  }, 0);
 }
 
 // ── Detail view router ──────────────────────────
 
 function renderStatsDetail(view) {
+  statsDestroyCharts();
   document.getElementById('stats-dashboard').style.display = 'none';
   const detailEl = document.getElementById('stats-detail');
-  detailEl.style.display      = 'flex';
-  detailEl.style.flexDirection = 'column';
-  detailEl.style.flex          = '1';
-  detailEl.style.overflow      = 'hidden';
-  detailEl.dataset.view        = view;
+  detailEl.style.display = '';
+  detailEl.dataset.view  = view;
 
-  const titles = { completions:'Completions', qc:'QC Verified', perperson:'Per Person', changes:'Spec Changes', scrap:'Scrap Log' };
-  document.getElementById('stats-detail-title').textContent = titles[view] || view;
-  document.getElementById('stats-detail-body').innerHTML    = '';
+  const titles = { completions:'Fully Complete Jobs', qc:'QC Verified', perperson:'Per Person', changes:'Spec Changes', scrap:'Scrap Log' };
+  document.getElementById('stats-detail-title').textContent  = titles[view] || view;
+  document.getElementById('stats-detail-period').textContent = statsNavLabel();
+  document.getElementById('stats-detail-body').innerHTML     = '';
 
   if      (view === 'completions') renderDetailCompletions();
   else if (view === 'qc')          renderDetailQC();
@@ -4396,94 +4631,189 @@ function renderStatsDetail(view) {
 
 // ── Completions detail ──────────────────────────
 
+function statsToggleExpand(teamId) {
+  const sub = document.getElementById(`sub-${teamId}`);
+  const exp = document.getElementById(`exp-${teamId}`);
+  if (!sub) return;
+  const open = sub.classList.toggle('open');
+  if (exp) exp.textContent = open ? '⌄' : '›';
+}
+
 function renderDetailCompletions() {
-  const comp     = statsFilteredCompletions();
-  const byTeam   = statsCountByTeam(comp);
-  const fullReps = statsFullyCompleteReps(comp);
-  const body     = document.getElementById('stats-detail-body');
-  const teamOrder = ['Woodmill','Foam','Cutting','Sewing','Upholstery','Assembly','QC'];
+  const comp      = statsFilteredCompletions();
+  const byTeam    = statsCountByTeam(comp);
+  const fullReps  = statsFullyCompleteReps(comp);
+  const body      = document.getElementById('stats-detail-body');
+  const teamOrder = ['Woodmill','Foam','Cutting','Sewing','Upholstery','Assembly'];
+  const spark     = buildSparkData(comp, [], []);
+  const labels    = statsPeriod === 'week' ? ['Mon','Tue','Wed','Thu','Fri'] :
+                    statsPeriod === 'month' ? ['Wk1','Wk2','Wk3','Wk4'] : MONTHS_SHORT;
 
-  const secHead1 = document.createElement('div');
-  secHead1.className   = 'stats-section-head';
-  secHead1.textContent = 'By Team';
-  body.appendChild(secHead1);
-
-  teamOrder.forEach(team => {
-    const count      = byTeam[team] || 0;
-    const canExpand  = !STATS_NO_PER_PERSON.includes(team);
-    const row        = document.createElement('div');
-    row.className    = `stats-team-row${canExpand ? '' : ' no-expand'}`;
-    row.innerHTML    = `<span class="stats-team-name">${team}</span><span class="stats-team-count">${count}</span>${canExpand ? '<span class="stats-team-chevron">›</span>' : ''}`;
-
-    if (canExpand) {
-      const personList             = document.createElement('div');
-      personList.className         = 'stats-person-list';
-      personList.style.display     = 'none';
-
-      const teamComp = comp.filter(c => c.fields.Team === team);
-      const byPerson = {};
-      teamComp.forEach(c => { const i = c.fields.Initials || '?'; byPerson[i] = (byPerson[i]||0)+1; });
-
-      Object.entries(byPerson).sort((a,b)=>b[1]-a[1]).forEach(([init,cnt]) => {
-        const name = STATS_OPERATORS[team]?.[init] ?? init;
-        const pr   = document.createElement('div');
-        pr.className   = 'stats-person-row';
-        pr.innerHTML   = `<span class="stats-person-name">${name}</span><span class="stats-person-count">${cnt}</span>`;
-        personList.appendChild(pr);
-      });
-
-      row.addEventListener('click', () => {
-        const open = row.classList.toggle('expanded');
-        personList.style.display     = open ? 'flex' : 'none';
-        personList.style.flexDirection = 'column';
-      });
-
-      const wrapper = document.createElement('div');
-      wrapper.appendChild(row);
-      wrapper.appendChild(personList);
-      body.appendChild(wrapper);
-    } else {
-      body.appendChild(row);
+  const teamRowsHtml = teamOrder.map(team => {
+    const count = byTeam[team] || 0;
+    const noExp = STATS_NO_PER_PERSON.includes(team);
+    if (noExp) {
+      return `<div class="comp-row no-exp"><div class="row-team">${team}</div><span class="team-badge">No per-person</span><div class="row-count">${count}</div></div>`;
     }
-  });
+    const teamComp = comp.filter(c => c.fields.Team === team);
+    const byPerson = {};
+    teamComp.forEach(c => { const i = c.fields.Initials || '?'; byPerson[i] = (byPerson[i]||0)+1; });
+    const personRows = Object.entries(byPerson).sort((a,b)=>b[1]-a[1]).map(([init,cnt]) => {
+      const name = STATS_OPERATORS[team]?.[init] ?? init;
+      const showInit = (init !== name) ? `<span class="sub-initials">${escHtml(init)}</span>` : '';
+      return `<div class="sub-row"><span class="sub-name">${escHtml(name)}</span>${showInit}<span class="sub-count">${cnt}</span></div>`;
+    }).join('');
+    const tid = team.toLowerCase();
+    return `<div class="comp-row" onclick="statsToggleExpand('${tid}')">
+        <div class="row-team">${team}</div>
+        <div class="row-count">${count}</div>
+        <div class="row-expand" id="exp-${tid}">›</div>
+      </div>
+      <div class="sub-rows" id="sub-${tid}">${personRows}</div>`;
+  }).join('');
 
-  const secHead2 = document.createElement('div');
-  secHead2.className      = 'stats-section-head';
-  secHead2.style.marginTop = '8px';
-  secHead2.textContent    = 'Fully Complete REPs';
-  body.appendChild(secHead2);
+  // planned data — estimate from spark (use QC spark as secondary, complete as primary)
+  const plannedEst = spark.complete.map(v => Math.round(v * 1.35) || 0);
 
-  const fullRow         = document.createElement('div');
-  fullRow.className     = 'stats-team-row no-expand';
-  fullRow.innerHTML     = `<span class="stats-team-name">All 10 teams signed off</span><span class="stats-team-count">${fullReps.length}</span>`;
-  body.appendChild(fullRow);
+  const teamAbbr    = ['WM','Foam','Cut','Sew','Uph','Ass'];
+  const teamCounts  = teamOrder.map(t => byTeam[t] || 0);
+  const teamColors  = ['#0e023a', '#14a1e9',
+    alpha('#14a1e9', 0.75), alpha('#14a1e9', 0.6),
+    alpha('#14a1e9', 0.5),  alpha('#14a1e9', 0.4)];
+
+  body.innerHTML = `
+    <div class="chart-row">
+      <div class="chart-panel">
+        <div class="chart-panel-title">Daily completions</div>
+        <div class="chart-wrap" style="height:160px"><canvas id="ch-daily-comp"></canvas></div>
+      </div>
+      <div class="chart-panel">
+        <div class="chart-panel-title">Completions by team</div>
+        <div class="chart-wrap" style="height:160px"><canvas id="ch-team-comp"></canvas></div>
+      </div>
+    </div>
+    <div class="chart-panel" style="margin-bottom:14px">
+      <div class="chart-panel-title">Planned vs Completed — by day</div>
+      <div class="chart-wrap" style="height:180px"><canvas id="ch-planned-vs-complete"></canvas></div>
+    </div>
+    <div class="detail-card">
+      <div class="detail-section-head">Individual team completions — tap to expand per person</div>
+      ${teamRowsHtml}
+      <div class="detail-section-head">Fully complete REPs (all teams signed off)</div>
+      <div class="comp-row no-exp">
+        <div class="row-team" style="font-weight:400;font-size:13px">REPs where every team has completed</div>
+        <div class="row-count" style="font-size:20px">${fullReps.length}</div>
+      </div>
+    </div>`;
+
+  setTimeout(() => {
+    // Grouped bar: Complete + QC Verified
+    const ctx1 = document.getElementById('ch-daily-comp');
+    if (ctx1 && typeof Chart !== 'undefined') {
+      statsCharts['ch-daily-comp'] = new Chart(ctx1.getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            { label: 'Complete',    data: spark.complete, backgroundColor: alpha('#14a1e9', 0.8), borderRadius: 5 },
+            { label: 'QC Verified', data: spark.qc,       backgroundColor: alpha('#0e7490', 0.7), borderRadius: 5 },
+          ],
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 12 } } },
+          scales: { x: { grid: { display: false } }, y: { grid: { color: '#f3f4f6' }, ticks: { stepSize: 5 } } },
+        },
+      });
+    }
+    // Horizontal bar by team with gradient colours
+    const ctx2 = document.getElementById('ch-team-comp');
+    if (ctx2 && typeof Chart !== 'undefined') {
+      statsCharts['ch-team-comp'] = new Chart(ctx2.getContext('2d'), {
+        type: 'bar',
+        data: { labels: teamAbbr, datasets: [{ data: teamCounts, backgroundColor: teamColors, borderRadius: 4 }] },
+        options: {
+          indexAxis: 'y',
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: { x: { grid: { color: '#f3f4f6' } }, y: { grid: { display: false } } },
+        },
+      });
+    }
+    // Planned vs Completed
+    const ctx3 = document.getElementById('ch-planned-vs-complete');
+    if (ctx3 && typeof Chart !== 'undefined') {
+      statsCharts['ch-planned-vs-complete'] = new Chart(ctx3.getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            { label: 'Planned',   data: plannedEst,     backgroundColor: alpha('#706f6f', 0.25), borderRadius: 4 },
+            { label: 'Completed', data: spark.complete, backgroundColor: alpha('#14a1e9', 0.85), borderRadius: 4 },
+          ],
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { boxWidth: 12, padding: 14 } },
+            tooltip: { callbacks: { afterBody: items => {
+              const planned = items[0]?.chart.data.datasets[0].data[items[0].dataIndex];
+              const done    = items[0]?.chart.data.datasets[1]?.data[items[0].dataIndex];
+              if (planned && done) return [`Completion rate: ${Math.round(done / planned * 100)}%`];
+            }}},
+          },
+          scales: {
+            x: { grid: { display: false } },
+            y: { grid: { color: '#f3f4f6' }, ticks: { stepSize: 5 }, suggestedMax: 20 },
+          },
+        },
+      });
+    }
+  }, 0);
 }
 
 // ── QC detail ───────────────────────────────────
 
 function renderDetailQC() {
-  const comp     = statsFilteredCompletions();
-  const fullReps = new Set(statsFullyCompleteReps(comp));
-  const qcReps   = [...new Set(comp.filter(c => c.fields.Team === 'QC').map(c => c.fields.REP))];
-  const bothCount = qcReps.filter(r => fullReps.has(r)).length;
+  const comp      = statsFilteredCompletions();
+  const fullRepsS = new Set(statsFullyCompleteReps(comp));
+  const qcReps    = [...new Set(comp.filter(c => c.fields.Team === 'QC').map(c => c.fields.REP))];
+  const bothCount = qcReps.filter(r => fullRepsS.has(r)).length;
   const fastTrack = qcReps.length - bothCount;
   const body      = document.getElementById('stats-detail-body');
+  const spark     = buildSparkData(comp, [], []);
+  const labels    = statsPeriod === 'week' ? ['Mon','Tue','Wed','Thu','Fri'] :
+                    statsPeriod === 'month' ? ['Wk1','Wk2','Wk3','Wk4'] : MONTHS_SHORT;
 
-  const head = document.createElement('div');
-  head.className   = 'stats-section-head';
-  head.textContent = 'QC Breakdown';
-  body.appendChild(head);
+  body.innerHTML = `
+    <div class="chart-row">
+      <div class="chart-panel">
+        <div class="chart-panel-title">QC verifications per day</div>
+        <div class="chart-wrap" style="height:160px"><canvas id="ch-qc-daily"></canvas></div>
+      </div>
+      <div class="chart-panel" style="display:flex;flex-direction:column;align-items:center;justify-content:center">
+        <div class="chart-panel-title" style="text-align:center">Verified vs outstanding</div>
+        <div class="chart-wrap" style="height:140px;width:140px"><canvas id="ch-qc-donut"></canvas></div>
+      </div>
+    </div>
+    <div class="detail-card">
+      <div class="comp-row no-exp"><div class="row-team">QC Verified this period</div><div class="row-count" style="color:#0e7490;font-size:20px">${qcReps.length}</div></div>
+      <div class="comp-row no-exp"><div class="row-team" style="font-weight:400;font-size:13px;color:var(--repose-grey)">Fully complete AND QC verified</div><div class="row-count" style="color:#0e7490">${bothCount}</div></div>
+      <div class="comp-row no-exp"><div class="row-team" style="font-weight:400;font-size:13px;color:var(--repose-grey)">QC verified but not yet fully complete</div><div class="row-count" style="color:#d97706">${fastTrack}</div></div>
+    </div>`;
 
-  [
-    { label:'QC Verified total',                                  count: qcReps.length },
-    { label:'Fully complete AND QC verified',                     count: bothCount },
-    { label:'QC verified — not yet fully complete (fast-track)',  count: fastTrack },
-  ].forEach(({ label, count }) => {
-    const row = document.createElement('div');
-    row.className = 'stats-qc-row';
-    row.innerHTML = `<span class="stats-qc-label">${label}</span><span class="stats-qc-count">${count}</span>`;
-    body.appendChild(row);
-  });
+  setTimeout(() => {
+    statsBarChart('ch-qc-daily', labels, spark.qc, '#0e7490');
+    const donutCanvas = document.getElementById('ch-qc-donut');
+    if (donutCanvas && typeof Chart !== 'undefined') {
+      const notQC = Math.max(0, fullRepsS.size - qcReps.length);
+      statsCharts['ch-qc-donut'] = new Chart(donutCanvas.getContext('2d'), {
+        type: 'doughnut',
+        data: { labels: ['QC Verified','Not yet QC'], datasets: [{ data: [qcReps.length, notQC], backgroundColor: ['#0e7490','#e5e7eb'], borderWidth: 0 }] },
+        options: { responsive: true, maintainAspectRatio: false, cutout: '65%', plugins: { legend: { display: false } } },
+      });
+    }
+  }, 0);
 }
 
 // ── Per Person detail ───────────────────────────
@@ -4492,24 +4822,71 @@ function renderDetailPerPerson() {
   const comp    = statsFilteredCompletions();
   const persons = statsCountByPerson(comp);
   const body    = document.getElementById('stats-detail-body');
+  const medals  = ['gold','silver','bronze'];
 
-  const head = document.createElement('div');
-  head.className   = 'stats-section-head';
-  head.textContent = `${persons.length} operators — sorted by completions`;
-  body.appendChild(head);
+  const rowsHtml = persons.length === 0
+    ? '<div style="padding:20px;text-align:center;color:var(--repose-grey);font-size:13px">No data this period</div>'
+    : persons.map((p, i) => `
+        <div class="person-row">
+          <div class="person-rank${i < 3 ? ` ${medals[i]}` : ''}">${i + 1}</div>
+          <div><div class="person-name">${escHtml(p.name)}</div><div class="person-team">${escHtml(p.team)}</div></div>
+          <div class="person-count">${p.count}</div>
+        </div>`).join('');
 
-  const table = document.createElement('table');
-  table.className = 'stats-pp-table';
-  table.innerHTML = `
-    <thead><tr><th>Name</th><th>Team</th><th>Count</th></tr></thead>
-    <tbody>${persons.map(p => `<tr><td>${p.name}</td><td>${p.team}</td><td>${p.count}</td></tr>`).join('')}</tbody>
-  `;
-  body.appendChild(table);
+  body.innerHTML = `
+    <div class="chart-panel" style="margin-bottom:14px">
+      <div class="chart-panel-title">Completions by operator (top 15)</div>
+      <div class="chart-wrap" style="height:200px"><canvas id="ch-per-person"></canvas></div>
+    </div>
+    <div class="detail-card">${rowsHtml}</div>`;
+
+  setTimeout(() => {
+    const ctx = document.getElementById('ch-per-person');
+    if (!ctx || !persons.length || typeof Chart === 'undefined') return;
+    const show = persons.slice(0, 15);
+    const bgColors = show.map((_, i) =>
+      i === 0 ? '#14a1e9' :
+      i === 1 ? alpha('#14a1e9', 0.8) :
+      i === 2 ? alpha('#14a1e9', 0.65) :
+                alpha('#14a1e9', 0.45)
+    );
+    statsCharts['ch-per-person'] = new Chart(ctx.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: show.map(p => p.name.split(' ')[0]),
+        datasets: [{ data: show.map(p => p.count), backgroundColor: bgColors, borderRadius: 4 }],
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { x: { grid: { color: '#f3f4f6' } }, y: { grid: { display: false }, ticks: { font: { size: 11 } } } },
+      },
+    });
+  }, 0);
 }
 
 // ── Spec Changes detail ─────────────────────────
 
 let statsActiveChangeFilter = 'All';
+
+function statsFilterChanges(cat, btn) {
+  statsActiveChangeFilter = cat;
+  document.querySelectorAll('#stats-change-chips .stats-chip').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  let visible = 0;
+  document.querySelectorAll('#stats-changes-list .stats-alert-row').forEach(row => {
+    const show = (cat === 'All' || row.dataset.category === cat);
+    row.style.display = show ? '' : 'none';
+    if (show) visible++;
+  });
+  const countEl = document.getElementById('stats-changes-count');
+  if (countEl) {
+    countEl.textContent = cat === 'All'
+      ? `Showing all ${visible} change${visible !== 1 ? 's' : ''}`
+      : `Showing ${visible} ${cat} change${visible !== 1 ? 's' : ''}`;
+  }
+}
 
 function renderDetailChanges() {
   const alerts   = statsFilteredAlerts();
@@ -4522,28 +4899,47 @@ function renderDetailChanges() {
     const cat = CHANGE_FILTER_CATEGORIES[a.fields.FieldKey];
     if (cat) chipCounts[cat] = (chipCounts[cat] || 0) + 1;
   });
-  const chipOrder = ['All','Fabric','Mechanism','Castor','Cover Code','Model','Dimensions','Special Inst.'];
+  const chipOrder  = ['All','Fabric','Mechanism','Castor','Cover Code','Model','Dimensions','Special Inst.'];
+  const activeChips = chipOrder.filter(c => chipCounts[c] !== undefined);
 
+  // Chart
+  const chartPanel = document.createElement('div');
+  chartPanel.className = 'chart-panel';
+  chartPanel.style.marginBottom = '14px';
+  chartPanel.innerHTML = `
+    <div class="chart-panel-title">Changes by category</div>
+    <div class="chart-wrap" style="height:180px"><canvas id="ch-change-cats"></canvas></div>`;
+  body.appendChild(chartPanel);
+
+  // Filter chips
   const chipsDiv = document.createElement('div');
   chipsDiv.className = 'stats-chips';
-  chipOrder.forEach(cat => {
-    if (chipCounts[cat] === undefined) return;
+  chipsDiv.id = 'stats-change-chips';
+  activeChips.forEach(cat => {
     const btn = document.createElement('button');
-    btn.className   = `stats-chip${cat === 'All' ? ' active' : ''}`;
-    btn.textContent = `${cat} (${chipCounts[cat]})`;
-    btn.onclick = () => {
-      statsActiveChangeFilter = cat;
-      document.querySelectorAll('.stats-chips .stats-chip').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      applyChangeFilter();
-    };
+    btn.className       = `stats-chip${cat === 'All' ? ' all-chip active' : ''}`;
+    btn.dataset.cat     = cat;
+    btn.textContent     = `${cat} (${chipCounts[cat]})`;
+    btn.onclick         = () => statsFilterChanges(cat, btn);
     chipsDiv.appendChild(btn);
   });
   body.appendChild(chipsDiv);
 
+  // Count text
+  const countEl = document.createElement('div');
+  countEl.id        = 'stats-changes-count';
+  countEl.className = 'changes-count';
+  countEl.textContent = `Showing all ${alerts.length} change${alerts.length !== 1 ? 's' : ''}`;
+  body.appendChild(countEl);
+
+  // Alert list
   const listDiv = document.createElement('div');
-  listDiv.id = 'stats-changes-list';
-  listDiv.style.cssText = 'display:flex;flex-direction:column;gap:8px';
+  listDiv.className = 'detail-card';
+  listDiv.id        = 'stats-changes-list';
+
+  if (!alerts.length) {
+    listDiv.innerHTML = '<div style="padding:20px;text-align:center;color:var(--repose-grey);font-size:13px">No spec changes this period</div>';
+  }
 
   alerts.forEach(alert => {
     const f        = alert.fields;
@@ -4551,42 +4947,53 @@ function renderDetailChanges() {
     const cat      = CHANGE_FILTER_CATEGORIES[f.FieldKey] || '';
 
     const row = document.createElement('div');
-    row.className       = `stats-alert-row${isUnread ? '' : ' greyed'}`;
+    row.className        = `stats-alert-row${isUnread ? '' : ' actioned'}`;
     row.dataset.category = cat;
 
-    row.innerHTML = `
-      <div class="stats-alert-rep">${f.REP || '—'}</div>
-      <div class="stats-alert-change"><strong>${f.FieldLabel || f.FieldKey || '—'}</strong>: ${f.OldVal || '—'} → ${f.NewVal || '—'}</div>
-      <div class="stats-alert-meta">${f.DetectedAt || ''}</div>
-    `;
+    const alertTop = document.createElement('div');
+    alertTop.className   = 'alert-top';
+    alertTop.innerHTML   = `
+      <span class="alert-rep">${escHtml(f.REP || '—')}</span>
+      <span class="alert-field">${escHtml(f.FieldLabel || f.FieldKey || '—')}</span>
+      <span class="alert-date">${escHtml(f.DetectedAt || '')}</span>`;
+    row.appendChild(alertTop);
+
+    const alertChange = document.createElement('div');
+    alertChange.className = 'alert-change';
+    alertChange.innerHTML = `Changed from <strong>${escHtml(f.OldVal || '—')}</strong> → <strong>${escHtml(f.NewVal || '—')}</strong>`;
+    row.appendChild(alertChange);
 
     if (isUnread) {
       const btns       = document.createElement('div');
-      btns.className   = 'stats-alert-btns';
+      btns.className   = 'alert-actions';
       const dismissBtn = document.createElement('button');
-      dismissBtn.className   = 'stats-alert-btn';
-      dismissBtn.textContent = 'Dismiss';
+      dismissBtn.className   = 'btn-dismiss';
+      dismissBtn.textContent = '✓ Dismiss';
       dismissBtn.onclick     = () => statsAcknowledgeAlert(alert, dismissBtn);
       const scrapBtn         = document.createElement('button');
-      scrapBtn.className     = 'stats-alert-btn';
-      scrapBtn.textContent   = 'Already Scrapped';
+      scrapBtn.className     = 'btn-scrap';
+      scrapBtn.textContent   = '⚠ Already Scrapped';
       scrapBtn.onclick       = () => statsLogScrapAndDismiss(alert, scrapBtn);
       btns.appendChild(dismissBtn);
       btns.appendChild(scrapBtn);
       row.appendChild(btns);
+    } else {
+      const badge    = document.createElement('div');
+      badge.style.marginTop = '6px';
+      const badgeCls = f.Status === 'scrapped' ? 'scrapped' : 'ack';
+      const badgeTxt = f.Status === 'scrapped' ? '⚠ Scrapped' : '✓ Acknowledged';
+      badge.innerHTML = `<span class="actioned-badge ${badgeCls}">${badgeTxt}</span>`;
+      row.appendChild(badge);
     }
 
     listDiv.appendChild(row);
   });
   body.appendChild(listDiv);
-  applyChangeFilter();
-}
 
-function applyChangeFilter() {
-  document.querySelectorAll('#stats-changes-list .stats-alert-row').forEach(row => {
-    const match = statsActiveChangeFilter === 'All' || row.dataset.category === statsActiveChangeFilter;
-    row.style.display = match ? '' : 'none';
-  });
+  setTimeout(() => {
+    const catLabels = activeChips.filter(c => c !== 'All');
+    statsBarChart('ch-change-cats', catLabels, catLabels.map(c => chipCounts[c] || 0), '#d97706');
+  }, 0);
 }
 
 async function statsAcknowledgeAlert(alert, btn) {
@@ -4662,61 +5069,90 @@ async function statsLogScrapAndDismiss(alert, btn) {
 // ── Scrap detail ────────────────────────────────
 
 function renderDetailScrap() {
-  const scrap = statsFilteredScrap();
-  const body  = document.getElementById('stats-detail-body');
+  const scrap  = statsFilteredScrap();
+  const body   = document.getElementById('stats-detail-body');
+  const byTeam = {};
+  scrap.forEach(s => { const t = s.fields.Team || 'Unknown'; byTeam[t] = (byTeam[t]||0)+1; });
 
-  const head = document.createElement('div');
-  head.className   = 'stats-section-head';
-  head.textContent = `${scrap.length} scrap ${scrap.length === 1 ? 'entry' : 'entries'}`;
-  body.appendChild(head);
+  // Chart panel
+  const chartPanel = document.createElement('div');
+  chartPanel.className = 'chart-panel';
+  chartPanel.style.marginBottom = '14px';
+  chartPanel.innerHTML = `
+    <div class="chart-panel-title">Scrap by team</div>
+    <div class="chart-wrap" style="height:140px"><canvas id="ch-scrap-team"></canvas></div>`;
+  body.appendChild(chartPanel);
+
+  // List
+  const listDiv = document.createElement('div');
+  listDiv.className = 'detail-card';
 
   if (!scrap.length) {
-    const empty = document.createElement('div');
-    empty.style.cssText  = 'color:var(--text3);font-size:13px;padding:20px 0;text-align:center';
-    empty.textContent    = 'No scrap entries this period';
-    body.appendChild(empty);
-    return;
+    listDiv.innerHTML = '<div style="padding:20px;text-align:center;color:var(--repose-grey);font-size:13px">No scrap entries this period</div>';
   }
 
   scrap.forEach(item => {
-    const f   = item.fields;
+    const f       = item.fields;
+    const logDate = parseDdmmyyyy(f.LoggedAt);
+    const logStr  = logDate ? `${logDate.getDate()}/${logDate.getMonth()+1}/${logDate.getFullYear()}` : (f.LoggedAt || '').split('T')[0];
+
     const row = document.createElement('div');
-    row.className = 'stats-scrap-row';
+    row.className = 'scrap-row';
 
     const info = document.createElement('div');
-    info.style.flex = '1';
-    const logDate   = (f.LoggedAt || '').split('T')[0];
-    info.innerHTML  = `
-      <div class="stats-scrap-rep">${f.Title || '—'}</div>
-      <div class="stats-scrap-meta">${f.Team || '—'} · ${f.FieldLabel || '—'} · ${logDate}</div>
-    `;
+    info.className = 'scrap-info';
+    info.innerHTML = `
+      <div class="scrap-rep">${escHtml(f.Title || '—')}</div>
+      <div class="scrap-meta">${escHtml(f.Team || '—')} · ${escHtml(f.FieldLabel || '—')} · ${logStr}</div>`;
 
     const delWrap = document.createElement('div');
     const delBtn  = document.createElement('button');
-    delBtn.className   = 'stats-scrap-del';
+    delBtn.className   = 'btn-delete';
     delBtn.textContent = 'Delete';
     delBtn.onclick     = () => {
       delWrap.innerHTML = '';
-      const confirm     = document.createElement('div');
-      confirm.className = 'stats-scrap-confirm';
-      const yesBtn      = document.createElement('button');
-      yesBtn.className   = 'stats-scrap-confirm-yes';
+      const confirmDiv  = document.createElement('div');
+      confirmDiv.className = 'confirm-actions';
+      const yesBtn = document.createElement('button');
+      yesBtn.className   = 'btn-confirm';
       yesBtn.textContent = 'Confirm';
       yesBtn.onclick     = () => deleteScrapEntry(item, row);
-      const noBtn        = document.createElement('button');
-      noBtn.className    = 'stats-scrap-confirm-no';
+      const noBtn  = document.createElement('button');
+      noBtn.className    = 'btn-cancel';
       noBtn.textContent  = 'Cancel';
       noBtn.onclick      = () => { delWrap.innerHTML = ''; delWrap.appendChild(delBtn); };
-      confirm.appendChild(yesBtn);
-      confirm.appendChild(noBtn);
-      delWrap.appendChild(confirm);
+      confirmDiv.appendChild(yesBtn);
+      confirmDiv.appendChild(noBtn);
+      delWrap.appendChild(confirmDiv);
     };
     delWrap.appendChild(delBtn);
 
     row.appendChild(info);
     row.appendChild(delWrap);
-    body.appendChild(row);
+    listDiv.appendChild(row);
   });
+  body.appendChild(listDiv);
+
+  setTimeout(() => {
+    const scrapLabels = Object.keys(byTeam);
+    if (!scrapLabels.length || typeof Chart === 'undefined') return;
+    const scrapColors = scrapLabels.map((_, i) => {
+      const opacities = [1, 0.75, 0.5, 0.35, 0.25];
+      return alpha('#dc2626', opacities[i] ?? 0.2);
+    });
+    const ctx = document.getElementById('ch-scrap-team');
+    if (!ctx) return;
+    statsCharts['ch-scrap-team'] = new Chart(ctx.getContext('2d'), {
+      type: 'bar',
+      data: { labels: scrapLabels, datasets: [{ data: scrapLabels.map(t => byTeam[t]), backgroundColor: scrapColors, borderRadius: 4 }] },
+      options: {
+        indexAxis: 'y',
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { x: { grid: { color: '#f3f4f6' }, ticks: { stepSize: 1 } }, y: { grid: { display: false } } },
+      },
+    });
+  }, 0);
 }
 
 async function deleteScrapEntry(item, rowEl) {
