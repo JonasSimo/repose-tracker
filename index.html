@@ -4291,6 +4291,93 @@ function renderStatsDashboard() {
     </div>
   `).join('');
 }
+
+// ── Detail view router ──────────────────────────
+
+function renderStatsDetail(view) {
+  document.getElementById('stats-dashboard').style.display = 'none';
+  const detailEl = document.getElementById('stats-detail');
+  detailEl.style.display      = 'flex';
+  detailEl.style.flexDirection = 'column';
+  detailEl.style.flex          = '1';
+  detailEl.style.overflow      = 'hidden';
+  detailEl.dataset.view        = view;
+
+  const titles = { completions:'Completions', qc:'QC Verified', perperson:'Per Person', changes:'Spec Changes', scrap:'Scrap Log' };
+  document.getElementById('stats-detail-title').textContent = titles[view] || view;
+  document.getElementById('stats-detail-body').innerHTML    = '';
+
+  if      (view === 'completions') renderDetailCompletions();
+  else if (view === 'qc')          renderDetailQC();
+  else if (view === 'perperson')   renderDetailPerPerson();
+  else if (view === 'changes')     renderDetailChanges();
+  else if (view === 'scrap')       renderDetailScrap();
+}
+
+// ── Completions detail ──────────────────────────
+
+function renderDetailCompletions() {
+  const comp     = statsFilteredCompletions();
+  const byTeam   = statsCountByTeam(comp);
+  const fullReps = statsFullyCompleteReps(comp);
+  const body     = document.getElementById('stats-detail-body');
+  const teamOrder = ['Woodmill','Foam','Cutting','Sewing','Upholstery','Assembly','QC'];
+
+  const secHead1 = document.createElement('div');
+  secHead1.className   = 'stats-section-head';
+  secHead1.textContent = 'By Team';
+  body.appendChild(secHead1);
+
+  teamOrder.forEach(team => {
+    const count      = byTeam[team] || 0;
+    const canExpand  = !STATS_NO_PER_PERSON.includes(team);
+    const row        = document.createElement('div');
+    row.className    = `stats-team-row${canExpand ? '' : ' no-expand'}`;
+    row.innerHTML    = `<span class="stats-team-name">${team}</span><span class="stats-team-count">${count}</span>${canExpand ? '<span class="stats-team-chevron">›</span>' : ''}`;
+
+    if (canExpand) {
+      const personList             = document.createElement('div');
+      personList.className         = 'stats-person-list';
+      personList.style.display     = 'none';
+
+      const teamComp = comp.filter(c => c.fields.Team === team);
+      const byPerson = {};
+      teamComp.forEach(c => { const i = c.fields.Initials || '?'; byPerson[i] = (byPerson[i]||0)+1; });
+
+      Object.entries(byPerson).sort((a,b)=>b[1]-a[1]).forEach(([init,cnt]) => {
+        const name = STATS_OPERATORS[team]?.[init] ?? init;
+        const pr   = document.createElement('div');
+        pr.className   = 'stats-person-row';
+        pr.innerHTML   = `<span class="stats-person-name">${name}</span><span class="stats-person-count">${cnt}</span>`;
+        personList.appendChild(pr);
+      });
+
+      row.addEventListener('click', () => {
+        const open = row.classList.toggle('expanded');
+        personList.style.display     = open ? 'flex' : 'none';
+        personList.style.flexDirection = 'column';
+      });
+
+      const wrapper = document.createElement('div');
+      wrapper.appendChild(row);
+      wrapper.appendChild(personList);
+      body.appendChild(wrapper);
+    } else {
+      body.appendChild(row);
+    }
+  });
+
+  const secHead2 = document.createElement('div');
+  secHead2.className      = 'stats-section-head';
+  secHead2.style.marginTop = '8px';
+  secHead2.textContent    = 'Fully Complete REPs';
+  body.appendChild(secHead2);
+
+  const fullRow         = document.createElement('div');
+  fullRow.className     = 'stats-team-row no-expand';
+  fullRow.innerHTML     = `<span class="stats-team-name">All 10 teams signed off</span><span class="stats-team-count">${fullReps.length}</span>`;
+  body.appendChild(fullRow);
+}
 </script>
 
 <!-- Job spec modal -->
