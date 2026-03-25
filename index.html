@@ -1633,6 +1633,21 @@ const TEAM_OPERATORS = {
     { name: 'Thomas Bailey',  initials: 'TB' },
     { name: 'Mark Wood',      initials: 'MW' },
   ],
+  'Sewing': [
+    { name: 'Dawn Cochrane',   initials: 'DC' },
+    { name: 'Debbie Price',    initials: 'DP' },
+    { name: 'Jane Botfield',   initials: 'JB' },
+    { name: 'Julie Somersall', initials: 'JS' },
+    { name: 'Karen Edwards',   initials: 'KE' },
+    { name: 'Karen Marsh',     initials: 'KM' },
+    { name: 'Laura Priest',    initials: 'LP' },
+    { name: 'Lesley Russell',  initials: 'LR' },
+    { name: 'Lorraine Cochrane', initials: 'LC' },
+    { name: 'Mandy Duffy',     initials: 'MD' },
+    { name: 'Simone Smith',    initials: 'SS' },
+    { name: 'Tracey Reed',     initials: 'TR' },
+    { name: 'Gillian Fletcher', initials: 'GF' },
+  ],
 };
 
 // Maps team name → OV_DAYS dept key (for Priority Jobs cross-reference with Load Plan)
@@ -4055,7 +4070,13 @@ const STATS_NO_PER_PERSON = ['Woodmill', 'QC'];
 const STATS_OPERATORS = {
   Foam:       { },
   Cutting:    { },
-  Sewing:     { },
+  Sewing: {
+    'DC': 'Dawn Cochrane',   'DP': 'Debbie Price',    'JB': 'Jane Botfield',
+    'JS': 'Julie Somersall', 'KE': 'Karen Edwards',   'KM': 'Karen Marsh',
+    'LP': 'Laura Priest',    'LR': 'Lesley Russell',  'LC': 'Lorraine Cochrane',
+    'MD': 'Mandy Duffy',     'SS': 'Simone Smith',    'TR': 'Tracey Reed',
+    'GF': 'Gillian Fletcher',
+  },
   Upholstery: { },
   Assembly:   { },
 };
