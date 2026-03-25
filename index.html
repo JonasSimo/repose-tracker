@@ -80,6 +80,11 @@ body {
   background: var(--repose-navy);
   border-bottom: 3px solid var(--repose-blue);
   flex-shrink: 0; gap: 12px;
+  position: relative;
+}
+.topbar-center {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; pointer-events: none;
 }
 .tl { display: flex; align-items: center; gap: 12px; }
 .logo-img { height: 30px; width: auto; }
@@ -940,7 +945,8 @@ body {
       alt="Repose"
       onerror="this.style.display='none';document.getElementById('logo-fb').style.display='block'">
     <span id="logo-fb" style="display:none;color:#fff;font-weight:700;font-size:16px;letter-spacing:-.02em">Repose</span>
-    <div class="tdiv"></div>
+  </div>
+  <div class="topbar-center">
     <svg width="93" height="26" viewBox="0 0 200 56" fill="none" aria-label="RepNet">
       <rect x="0" y="48" width="56" height="3" rx="1.5" fill="rgba(255,255,255,.3)"/>
       <text x="0" y="36" font-family="Inter,sans-serif" font-size="36" font-weight="900" fill="#fff">REP</text>
