@@ -301,6 +301,11 @@
         <div class="chart-wrap" style="height:160px"><canvas id="chartTeamComp"></canvas></div>
       </div>
     </div>
+    <div class="chart-panel" style="margin-bottom:14px">
+      <div class="chart-panel-title">Planned vs Completed — by day</div>
+      <div class="chart-wrap" style="height:180px"><canvas id="chartPlannedVsComplete"></canvas></div>
+    </div>
+
     <div class="detail-card">
       <div class="detail-section-head">Individual team completions — tap to expand per person</div>
       <div class="comp-row no-exp"><div class="row-team">Woodmill</div><span class="team-badge">No per-person</span><div class="row-count" style="color:var(--blue)">93</div></div>
@@ -479,6 +484,33 @@ function buildCharts() {
     type: 'bar',
     data: { labels: weekLabels, datasets: [{ label:'Complete', data:[6,9,8,11,13], backgroundColor: alpha(C.blue,.8), borderRadius: 5 }, { label:'QC Verified', data:[5,7,7,9,10], backgroundColor: alpha(C.teal,.7), borderRadius: 5 }] },
     options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{ boxWidth:10, padding:12 } } }, scales:{ x:{ grid:{ display:false } }, y:{ grid:{ color:'#f3f4f6' }, ticks:{ stepSize:5 } } } }
+  });
+
+  charts.plannedVsComplete = new Chart(document.getElementById('chartPlannedVsComplete'), {
+    type: 'bar',
+    data: {
+      labels: weekLabels,
+      datasets: [
+        { label: 'Planned',   data: [12, 14, 13, 15, 14], backgroundColor: alpha(C.grey, .25), borderRadius: 4 },
+        { label: 'Completed', data: [ 6,  9,  8, 11, 13], backgroundColor: alpha(C.blue, .85), borderRadius: 4 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 14 } },
+        tooltip: { callbacks: { afterBody: items => {
+          const planned = items[0]?.chart.data.datasets[0].data[items[0].dataIndex];
+          const done    = items[0]?.chart.data.datasets[1]?.data[items[0].dataIndex];
+          if (planned && done) return [`Completion rate: ${Math.round(done/planned*100)}%`];
+        }}}
+      },
+      scales: {
+        x: { grid: { display: false } },
+        y: { grid: { color: '#f3f4f6' }, ticks: { stepSize: 5 },
+          suggestedMax: 20
+        }
+      }
+    }
   });
 
   charts.teamComp = new Chart(document.getElementById('chartTeamComp'), {
