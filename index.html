@@ -4113,6 +4113,62 @@ function showStatsContent() {
     renderStatsDashboard();
   }
 }
+
+// ── Data fetch ──────────────────────────────────
+
+function parseDdmmyyyy(str) {
+  if (!str) return null;
+  const parts = String(str).split(' ')[0].split('/');
+  if (parts.length !== 3) return null;
+  const [d, m, y] = parts.map(Number);
+  if (!d || !m || !y) return null;
+  return new Date(y, m - 1, d);
+}
+
+function statsInPeriod(dateStr) {
+  const d = parseDdmmyyyy(dateStr);
+  if (!d) return false;
+  const today = new Date();
+  if (statsPeriod === 'week')  return isoWeekNumber(d) === isoWeekNumber(today) && isoWeekYear(d) === isoWeekYear(today);
+  if (statsPeriod === 'month') return d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
+  return d.getFullYear() === today.getFullYear();
+}
+
+async function loadStatsData() {
+  document.getElementById('stats-cards').innerHTML        = '';
+  document.getElementById('stats-spinner').style.display  = 'flex';
+
+  try {
+    const siteId = await getSpSiteId();
+    const [compId, alertId, scrapId] = await Promise.all([
+      getListIdByName('ProductionCompletions'),
+      getListIdByName('SpecAlerts'),
+      getListIdByName('ScrapLog'),
+    ]);
+    const base = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists`;
+    const [comp, alerts, scrap] = await Promise.all([
+      graphGetAll(`${base}/${compId}/items?$expand=fields&$top=999`),
+      graphGetAll(`${base}/${alertId}/items?$expand=fields&$top=999`),
+      graphGetAll(`${base}/${scrapId}/items?$expand=fields&$top=999`),
+    ]);
+    STATS_COMPLETIONS = comp;
+    STATS_ALERTS      = alerts;
+    STATS_SCRAP       = scrap;
+  } catch(e) {
+    console.warn('loadStatsData:', e.message);
+    toast('Could not load stats — check connection', 'u');
+  } finally {
+    document.getElementById('stats-spinner').style.display = 'none';
+  }
+  renderStatsDashboard();
+}
+
+async function refreshStatsData() {
+  STATS_COMPLETIONS = [];
+  STATS_ALERTS      = [];
+  STATS_SCRAP       = [];
+  await loadStatsData();
+}
 </script>
 
 <!-- Job spec modal -->
