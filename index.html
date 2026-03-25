@@ -1829,26 +1829,30 @@ function renderJobs() {
 let pendingTick = null; // { ji, team, sub, wc, prep }
 
 function tickJob(ji) {
-  const sk = activeSub;
-  const s = STATE[activeTeam][sk][activeWC][activePrep][ji];
+  // Snapshot all context at call time — globals may shift if team/week changes during async modal
+  const snapTeam = activeTeam;
+  const snapSub  = activeSub;
+  const snapWC   = activeWC;
+  const snapPrep = activePrep;
+  const sk = snapSub;
+  const s = STATE[snapTeam][sk][snapWC][snapPrep][ji];
   if (s.done) {
     // Already done — undo directly
-    undoJob(activeTeam, sk, activeWC, activePrep, ji);
+    undoJob(snapTeam, sk, snapWC, snapPrep, ji);
     return;
   }
-  const job = PROD[activeWC][activePrep][ji];
+  const job = PROD[snapWC][snapPrep][ji];
 
   // Woodmill — complete directly without initials
-  if (activeTeam === 'Woodmill') {
-    const sk = activeSub;
+  if (snapTeam === 'Woodmill') {
     s.done     = true;
     s.doneAt   = new Date().toTimeString().slice(0,5);
     s.doneDate = new Date().toLocaleDateString('en-GB');
     s.initials = '';
-    recentDone.unshift({ team:activeTeam, sub:sk, wc:activeWC, prep:activePrep, ji, label:job.rep });
+    recentDone.unshift({ team:snapTeam, sub:sk, wc:snapWC, prep:snapPrep, ji, label:job.rep });
     if (recentDone.length > 20) recentDone.pop();
     toast(`${job.rep} · marked complete`, 's');
-    saveCompletionToList(activeTeam, sk, activeWC, activePrep, ji).catch(console.warn);
+    saveCompletionToList(snapTeam, sk, snapWC, snapPrep, ji).catch(console.warn);
     applyStateToOvBadges();
     renderJobs();
     renderTeamSidebar();
@@ -1856,7 +1860,7 @@ function tickJob(ji) {
   }
 
   // All other teams — show initials modal
-  pendingTick = { ji, team: activeTeam, sub: activeSub, wc: activeWC, prep: activePrep };
+  pendingTick = { ji, team: snapTeam, sub: snapSub, wc: snapWC, prep: snapPrep };
   document.getElementById('modal-rep-label').textContent = job.rep;
 
   const operators = TEAM_OPERATORS[activeTeam];
@@ -3051,12 +3055,13 @@ async function loadLoadPlanFromSharePoint() {
 
     const today = new Date(); today.setHours(0,0,0,0);
 
-    // Parse ALL date columns into OV_RAW so tab switching works without re-fetching
+    // Parse ALL date columns into a local dict — swap into OV_RAW only when complete
+    // so the display never blanks during the async fetch
     // Row 3 (index 2) contains Excel serial dates per column
     // Rows 4+ (index 3+) contain REP numbers (any 7-digit number)
     const dateRow = values[2] || [];
     const numCols = Math.max(...values.map(r => r.length));
-    OV_RAW = {};
+    const newRaw = {};
 
     for (let col = 1; col < numCols; col++) {
       const rawDate = dateRow[col];
@@ -3074,10 +3079,13 @@ async function loadLoadPlanFromSharePoint() {
         const m = cell.match(/(?<!\d)(\d{7})(?!\d)/);
         if (!m) continue;
         const repId = `REP ${m[1]}`;
-        if (!OV_RAW[key]) OV_RAW[key] = [];
-        if (!OV_RAW[key].includes(repId)) OV_RAW[key].push(repId);
+        if (!newRaw[key]) newRaw[key] = [];
+        if (!newRaw[key].includes(repId)) newRaw[key].push(repId);
       }
     }
+
+    // Atomic swap — old data stays visible until new data is fully parsed
+    OV_RAW = newRaw;
 
     // Build OV_DAYS for current tab and re-apply badges
     refreshOvDays();
