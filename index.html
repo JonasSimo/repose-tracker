@@ -1684,8 +1684,7 @@ const TEAM_OPERATORS = {
     { name: 'Craig Harris',    initials: 'CH' },
   ],
   'Assembly': [
-    // NOTE: JS duplicate — Justin Taylor listed as JS and Joshua Shaw also JS.
-    // Keeping Joshua Shaw as JS here; confirm correct initials for Justin Taylor in Assembly.
+    { name: 'Justin Taylor',   initials: 'Justin Taylor' },
     { name: 'Joshua Shaw',     initials: 'JS' },
     { name: 'Darren Nock',     initials: 'DN' },
     { name: 'James Wilson',    initials: 'JW' },
@@ -2206,7 +2205,7 @@ function tickJob(ji) {
     inputSection.style.display = 'none';
     document.getElementById('modal-ops-list').innerHTML = operators.map(op =>
       `<button class="modal-op-btn" onclick="modalSelectOperator('${op.initials}')">
-        <span class="modal-op-initials">${op.initials}</span>
+        ${op.initials !== op.name ? `<span class="modal-op-initials">${op.initials}</span>` : ''}
         <span>${op.name}</span>
       </button>`
     ).join('');
@@ -4134,6 +4133,7 @@ const STATS_OPERATORS = {
     'PA': 'Paul Adkins',     'KW': 'Keiron Wright',
   },
   Assembly: {
+    'Justin Taylor': 'Justin Taylor',
     'JS': 'Joshua Shaw',     'DN': 'Darren Nock',     'JW': 'James Wilson',
     'RS': 'Robert Shaw',     'CH': 'Craig Harris',    'DS': 'Daniel Seymour',
     'LS': 'Luke Southall',   'CL': 'Corey Lloyd',     'RH': 'Richard Harper',
