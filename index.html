@@ -3197,8 +3197,31 @@ async function graphGet(url) {
   return r.json();
 }
 
+async function graphGetAll(url) {
+  let items = [];
+  let nextUrl = url;
+  while (nextUrl) {
+    const page = await graphGet(nextUrl);
+    items = items.concat(page.value || []);
+    nextUrl = page['@odata.nextLink'] || null;
+  }
+  return items;
+}
+
 function encodeSharingUrl(link) {
   return 'u!' + btoa(link).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');
+}
+
+function isoWeekNumber(d) {
+  const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  tmp.setUTCDate(tmp.getUTCDate() + 4 - (tmp.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
+  return Math.ceil((((tmp - yearStart) / 86400000) + 1) / 7);
+}
+function isoWeekYear(d) {
+  const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  tmp.setUTCDate(tmp.getUTCDate() + 4 - (tmp.getUTCDay() || 7));
+  return tmp.getUTCFullYear();
 }
 
 function isoWeekMonday(isoWeek) {
