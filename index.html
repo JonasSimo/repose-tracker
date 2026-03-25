@@ -4169,6 +4169,62 @@ async function refreshStatsData() {
   STATS_SCRAP       = [];
   await loadStatsData();
 }
+
+// ── Aggregation helpers ─────────────────────────
+
+const REQUIRED_COMPLETIONS = [
+  ['Woodmill','Arms'], ['Woodmill','Backs'], ['Woodmill','Seats'],
+  ['Foam',''],         ['Cutting',''],       ['Sewing',''],
+  ['Upholstery','Arms'], ['Upholstery','Backs'], ['Upholstery','Seats'],
+  ['Assembly',''],
+];
+
+function isRepFullyComplete(rep, completions) {
+  return REQUIRED_COMPLETIONS.every(([team, sub]) =>
+    completions.some(c => {
+      const f = c.fields;
+      return f.REP === rep && f.Team === team &&
+        (sub === '' ? (!f.SubTeam || f.SubTeam === '') : f.SubTeam === sub);
+    })
+  );
+}
+
+function statsFilteredCompletions() {
+  return STATS_COMPLETIONS.filter(c => statsInPeriod(c.fields.CompletedDate));
+}
+function statsFilteredAlerts() {
+  return STATS_ALERTS.filter(a => statsInPeriod(a.fields.DetectedAt));
+}
+function statsFilteredScrap() {
+  return STATS_SCRAP.filter(s => statsInPeriod(s.fields.LoggedAt));
+}
+
+function statsCountByTeam(completions) {
+  return completions.reduce((acc, c) => {
+    const t = c.fields.Team || 'Unknown';
+    acc[t] = (acc[t] || 0) + 1;
+    return acc;
+  }, {});
+}
+
+function statsCountByPerson(completions) {
+  const map = {};
+  completions.forEach(c => {
+    const f = c.fields;
+    if (STATS_NO_PER_PERSON.includes(f.Team)) return;
+    const key = `${f.Team}__${f.Initials}`;
+    if (!map[key]) map[key] = { team: f.Team, initials: f.Initials, count: 0 };
+    map[key].count++;
+  });
+  return Object.values(map)
+    .map(r => ({ ...r, name: STATS_OPERATORS[r.team]?.[r.initials] ?? r.initials }))
+    .sort((a, b) => b.count - a.count);
+}
+
+function statsFullyCompleteReps(completions) {
+  const reps = [...new Set(completions.map(c => c.fields.REP))];
+  return reps.filter(rep => isRepFullyComplete(rep, completions));
+}
 </script>
 
 <!-- Job spec modal -->
