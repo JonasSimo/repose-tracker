@@ -1634,19 +1634,67 @@ const TEAM_OPERATORS = {
     { name: 'Mark Wood',      initials: 'MW' },
   ],
   'Sewing': [
-    { name: 'Dawn Cochrane',   initials: 'DC' },
-    { name: 'Debbie Price',    initials: 'DP' },
-    { name: 'Jane Botfield',   initials: 'JB' },
-    { name: 'Julie Somersall', initials: 'JS' },
-    { name: 'Karen Edwards',   initials: 'KE' },
-    { name: 'Karen Marsh',     initials: 'KM' },
-    { name: 'Laura Priest',    initials: 'LP' },
-    { name: 'Lesley Russell',  initials: 'LR' },
+    { name: 'Dawn Cochrane',    initials: 'DC' },
+    { name: 'Debbie Price',     initials: 'DP' },
+    { name: 'Jane Botfield',    initials: 'JB' },
+    { name: 'Julie Somersall',  initials: 'JS' },
+    { name: 'Karen Edwards',    initials: 'KE' },
+    { name: 'Karen Marsh',      initials: 'KM' },
+    { name: 'Laura Priest',     initials: 'LP' },
+    { name: 'Lesley Russell',   initials: 'LR' },
     { name: 'Lorraine Cochrane', initials: 'LC' },
-    { name: 'Mandy Duffy',     initials: 'MD' },
-    { name: 'Simone Smith',    initials: 'SS' },
-    { name: 'Tracey Reed',     initials: 'TR' },
+    { name: 'Mandy Duffy',      initials: 'MD' },
+    { name: 'Simone Smith',     initials: 'SS' },
+    { name: 'Tracey Reed',      initials: 'TR' },
     { name: 'Gillian Fletcher', initials: 'GF' },
+  ],
+  'Upholstery Seats': [
+    { name: 'Balazs Fazakas',  initials: 'BF' },
+    { name: 'Kevin Evans',     initials: 'KE' },
+    { name: 'David Bassinder', initials: 'DB' },
+    { name: 'Richard Harper',  initials: 'RH' },
+    { name: 'Corey Lloyd',     initials: 'CL' },
+    { name: 'Justin Taylor',   initials: 'JT' },
+    { name: 'Luke Southall',   initials: 'LS' },
+    { name: 'Craig Harris',    initials: 'CH' },
+  ],
+  'Upholstery Backs': [
+    { name: 'Corey Lloyd',     initials: 'CL' },
+    { name: 'Richard Harper',  initials: 'RH' },
+    { name: 'Luke Southall',   initials: 'LS' },
+    { name: 'Justin Taylor',   initials: 'JT' },
+    { name: 'Kevin Morgan',    initials: 'KM' },
+    { name: 'Robert Pardoe',   initials: 'RP' },
+    { name: 'Steven Sibley',   initials: 'SS' },
+    { name: 'David Terry',     initials: 'DT' },
+    { name: 'Kyle Jones',      initials: 'KJ' },
+    { name: 'Eugenie Bacon',   initials: 'EB' },
+    { name: 'Craig Harris',    initials: 'CH' },
+  ],
+  'Upholstery Arms': [
+    { name: 'Mark Jones',      initials: 'MJ' },
+    { name: 'Corey Lloyd',     initials: 'CL' },
+    { name: 'Paul Adkins',     initials: 'PA' },
+    { name: 'Eugenie Bacon',   initials: 'EB' },
+    { name: 'Keiron Wright',   initials: 'KW' },
+    { name: 'Kyle Jones',      initials: 'KJ' },
+    { name: 'Richard Harper',  initials: 'RH' },
+    { name: 'Luke Southall',   initials: 'LS' },
+    { name: 'Justin Taylor',   initials: 'JT' },
+    { name: 'Craig Harris',    initials: 'CH' },
+  ],
+  'Assembly': [
+    // NOTE: JS duplicate — Justin Taylor listed as JS and Joshua Shaw also JS.
+    // Keeping Joshua Shaw as JS here; confirm correct initials for Justin Taylor in Assembly.
+    { name: 'Joshua Shaw',     initials: 'JS' },
+    { name: 'Darren Nock',     initials: 'DN' },
+    { name: 'James Wilson',    initials: 'JW' },
+    { name: 'Robert Shaw',     initials: 'RS' },
+    { name: 'Craig Harris',    initials: 'CH' },
+    { name: 'Daniel Seymour',  initials: 'DS' },
+    { name: 'Luke Southall',   initials: 'LS' },
+    { name: 'Corey Lloyd',     initials: 'CL' },
+    { name: 'Richard Harper',  initials: 'RH' },
   ],
 };
 
@@ -2146,7 +2194,7 @@ function tickJob(ji) {
   pendingTick = { ji, team: snapTeam, sub: snapSub, wc: snapWC, prep: snapPrep };
   document.getElementById('modal-rep-label').textContent = job.rep;
 
-  const operators = TEAM_OPERATORS[activeTeam];
+  const operators = TEAM_OPERATORS[`${activeTeam} ${activeSub}`] || TEAM_OPERATORS[activeTeam];
   const opsSection   = document.getElementById('modal-ops-section');
   const inputSection = document.getElementById('modal-input-section');
   const subLabel     = document.getElementById('modal-sub-label');
@@ -4077,8 +4125,19 @@ const STATS_OPERATORS = {
     'MD': 'Mandy Duffy',     'SS': 'Simone Smith',    'TR': 'Tracey Reed',
     'GF': 'Gillian Fletcher',
   },
-  Upholstery: { },
-  Assembly:   { },
+  Upholstery: {
+    'BF': 'Balazs Fazakas',  'KE': 'Kevin Evans',     'DB': 'David Bassinder',
+    'RH': 'Richard Harper',  'CL': 'Corey Lloyd',     'JT': 'Justin Taylor',
+    'LS': 'Luke Southall',   'CH': 'Craig Harris',    'KM': 'Kevin Morgan',
+    'RP': 'Robert Pardoe',   'SS': 'Steven Sibley',   'DT': 'David Terry',
+    'KJ': 'Kyle Jones',      'EB': 'Eugenie Bacon',   'MJ': 'Mark Jones',
+    'PA': 'Paul Adkins',     'KW': 'Keiron Wright',
+  },
+  Assembly: {
+    'JS': 'Joshua Shaw',     'DN': 'Darren Nock',     'JW': 'James Wilson',
+    'RS': 'Robert Shaw',     'CH': 'Craig Harris',    'DS': 'Daniel Seymour',
+    'LS': 'Luke Southall',   'CL': 'Corey Lloyd',     'RH': 'Richard Harper',
+  },
 };
 
 const CHANGE_FILTER_CATEGORIES = {
