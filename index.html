@@ -458,8 +458,11 @@ body {
   font-family: 'JetBrains Mono', monospace; font-size: 10px;
   font-weight: 600; color: var(--text2); flex: 1; min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  cursor: pointer;
 }
+.rep-num:hover { color: var(--repose-blue); text-decoration: underline; }
 .rep-row.all-done .rep-num { color: var(--green); }
+.rep-row.all-done .rep-num:hover { color: var(--repose-blue); }
 
 /* Badge strip — one badge per dept */
 .badge-strip { display: flex; gap: 2px; flex-shrink: 0; align-items: center; }
@@ -1982,6 +1985,31 @@ function openSpecModal(wc, prep, ji) {
   document.getElementById('specModal').style.display = 'flex';
 }
 
+function openSpecModalByRep(repId) {
+  // Search PROD for the job matching this REP number
+  for (const wk of Object.keys(PROD)) {
+    for (const p of [1,2,3,4,5,'express']) {
+      const jobs = PROD[wk]?.[p] || [];
+      const ji = jobs.findIndex(j => j.rep === repId);
+      if (ji >= 0) { openSpecModal(wk, p, ji); return; }
+    }
+  }
+  // REP found in Load Plan but not in current PROD window — show basic info
+  const card = document.getElementById('specCard');
+  card.innerHTML = `
+    <div class="spec-head">
+      <div>
+        <div class="spec-head-rep">${repId}</div>
+        <div class="spec-head-model" style="color:var(--text2);font-size:13px">Not in current 4-week window</div>
+      </div>
+      <button class="spec-close" onclick="closeSpecModal()">✕</button>
+    </div>
+    <div class="spec-body" style="color:var(--text3);font-size:12px">
+      Spec data is only available for jobs within the current production week range.
+    </div>`;
+  document.getElementById('specModal').style.display = 'flex';
+}
+
 function closeSpecModal() {
   document.getElementById('specModal').style.display = 'none';
 }
@@ -2296,7 +2324,7 @@ function renderOverviewAll() {
       // Use original index for toggle callbacks
       const origRi = day.reps.indexOf(rep);
       gridHtml += `<div class="rep-row ${allDone?'all-done':''} ${ovRowCls}">
-        <span class="rep-num">${rep.id}</span>
+        <span class="rep-num" onclick="openSpecModalByRep('${rep.id}')">${rep.id}</span>
         <div class="badge-strip">`;
       OV_DEPTS.forEach((d, di) => {
         if (di > 0) gridHtml += `<div class="bdiv"></div>`;
@@ -2416,7 +2444,7 @@ function renderOverviewTeam(teamName) {
       const ovMatch2   = ovSearchQuery && repDigits2.includes(ovSearchQuery);
       const ovRowCls2  = ovSearchQuery ? (ovMatch2 ? 'ov-highlight' : 'ov-dim') : '';
       html += `<div class="rep-row ${teamDone ? 'all-done' : ''} ${ovRowCls2}">
-        <span class="rep-num">${repLabel}</span>
+        <span class="rep-num" onclick="openSpecModalByRep('${rep.id}')">${repLabel}</span>
         <div class="badge-strip">`;
 
       if (map.hasSubs) {
@@ -2512,7 +2540,7 @@ function saveSpecSnapshot()   { try { localStorage.setItem('spec_snapshot',    J
 function saveSpecAlertCache() { try { localStorage.setItem('spec_alert_cache', JSON.stringify([...SPEC_ALERT_SENT])); }    catch(e) {} }
 
 async function checkForSpecChanges() {
-  if (!graphAccount) return;
+  if (!graphAccount) { console.log('[SpecAlert] skipped — not signed in'); return; }
   const newSnap = {};
   Object.keys(PROD).forEach(wk => {
     [1,2,3,4,5,'express'].forEach(p => {
@@ -2522,21 +2550,27 @@ async function checkForSpecChanges() {
     });
   });
 
+  const snapSize = Object.keys(SPEC_SNAPSHOT).length;
+  const newSize  = Object.keys(newSnap).length;
+  console.log(`[SpecAlert] snapshot has ${snapSize} REPs, new data has ${newSize} REPs`);
+
   const toAlert = [];
   Object.keys(newSnap).forEach(rep => {
     const oldSpec = SPEC_SNAPSHOT[rep];
-    if (!oldSpec) return; // first time seeing this REP — not a change
+    if (!oldSpec) return;
     const newSpec = newSnap[rep];
     Object.keys(SPEC_FIELD_LABELS).forEach(key => {
       const ov = (oldSpec[key] || '').trim();
       const nv = (newSpec[key] || '').trim();
-      if (!ov || !nv || ov === nv) return; // skip blanks and unchanged
+      if (!ov || !nv || ov === nv) return;
       const cacheKey = `${rep}__${key}`;
-      if (SPEC_ALERT_SENT.has(cacheKey)) return;
+      if (SPEC_ALERT_SENT.has(cacheKey)) { console.log(`[SpecAlert] skipped (already sent): ${rep} ${key}`); return; }
+      console.log(`[SpecAlert] CHANGE DETECTED: ${rep} — ${key}: "${ov}" → "${nv}"`);
       toAlert.push({ rep, itemNo: newSpec._itemNo, wk: newSpec._wk, prep: String(newSpec._prep), fieldKey: key, fieldLabel: SPEC_FIELD_LABELS[key], oldVal: ov, newVal: nv, cacheKey });
     });
   });
 
+  console.log(`[SpecAlert] ${toAlert.length} alert(s) to write`);
   SPEC_SNAPSHOT = newSnap;
   saveSpecSnapshot();
   for (const a of toAlert) {
@@ -3296,6 +3330,7 @@ async function loadProductionFromSharePoint() {
     if (pill) { pill.className = 'sync-pill synced'; lbl.textContent = `Live · synced ${now2}`; }
     toast('Production data loaded from SharePoint', 's');
     // Await fetch so SPEC_ALERTS is populated before change detection runs (needed for dedup)
+    console.log('[SpecAlert] production sync complete — running spec check');
     await fetchSpecAlerts().catch(e => console.warn('fetchSpecAlerts:', e.message));
     checkForSpecChanges().catch(e => console.warn('checkForSpecChanges:', e.message));
 
