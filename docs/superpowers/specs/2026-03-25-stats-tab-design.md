@@ -35,17 +35,25 @@ Stats tab added to top nav bar alongside Team View and Load Plan. Same visual st
 
 ### 3.2 Dashboard (entry view)
 Displayed after successful password entry. Contains:
-- **Period toggle** at top: `This Week` / `This Month` / `This Year` — applies to all four cards and all detail views
+- **Period toggle** at top: `This Week` / `This Month` / `This Year` — applies to all five cards and all detail views
 - **Manual refresh button** — re-fetches all three SharePoint lists without page reload
 - **Loading spinner** shown during data fetch on tab open and on manual refresh
-- **Four summary cards** in a 2×2 grid (stacks to single column on narrow viewports):
+- **Five summary cards** — two headline cards on top row, three supporting cards on bottom row (stacks to single column on narrow viewports):
 
-| Card | Summary shown | Tap action |
-|---|---|---|
-| Completions | Total jobs done this period | → Completions detail |
-| Per Person | Top 3 operators this period | → Per Person detail |
-| Spec Changes | Count of changes detected | → Spec Changes detail |
-| Scrap | Count of `ScrapLog` rows this period (one row per scrapped field, not distinct REPs) | → Scrap detail |
+**Top row (headline):**
+
+| Card | Colour | Summary shown | Tap action |
+|---|---|---|---|
+| Fully Complete Jobs | Blue | REPs where every team has signed off (excl. QC) + progress bar vs total in window | → Completions detail |
+| QC Verified | Teal | REPs signed off by QC + progress bar vs fully complete count | → QC detail |
+
+**Bottom row (supporting):**
+
+| Card | Colour | Summary shown | Tap action |
+|---|---|---|---|
+| Per Person | Green | Top 3 operators this period | → Per Person detail |
+| Spec Changes | Amber | Count of plan changes detected | → Spec Changes detail |
+| Scrap | Red | Count of `ScrapLog` rows this period (one row per scrapped field, not distinct REPs) | → Scrap detail |
 
 ### 3.3 Detail Views
 Accessed by tapping a dashboard card. A back arrow returns to the dashboard. Period selection carries through from the dashboard and cannot be changed in detail views.
@@ -55,13 +63,24 @@ Accessed by tapping a dashboard card. A back arrow returns to the dashboard. Per
 ---
 
 **Completions detail**
-- Table: one row per team, showing job count for the period (filtered by `CompletedDate`)
-- Sub-team breakdown is not shown — all sub-teams within a team are aggregated together
-- Each team row is tappable to expand and show per-person breakdown
-- Teams in `STATS_NO_PER_PERSON` (Woodmill, QC): total count only, no expand affordance
-- All other teams: expand to show operator full name (via `STATS_OPERATORS` lookup) + count, sorted descending
+
+A REP is counted as **fully complete** when all of the following team/sub-team combinations have a `ProductionCompletions` entry for it: Woodmill/Arms, Woodmill/Backs, Woodmill/Seats, Foam, Cutting, Sewing, Upholstery/Arms, Upholstery/Backs, Upholstery/Seats, Assembly (10 required completions per REP, QC excluded).
+
+The detail view has two sections:
+1. **By team — individual completions**: one row per team showing raw completion count. Expandable per-person rows for teams not in `STATS_NO_PER_PERSON`. Sub-teams aggregated at team level (not broken out). Woodmill and QC: total only, no expand.
+2. **Fully complete REPs**: single row showing the count of REPs that have all 10 required completions.
+
 - Operators whose initials are not in `STATS_OPERATORS` for their team are shown with raw initials
-- Teams not present in `STATS_OPERATORS` at all: shown in Completions total; raw initials shown in per-person expand (not silently dropped)
+- Teams not present in `STATS_OPERATORS` at all: shown in total; raw initials in per-person expand (not silently dropped)
+- Read only — no manager actions
+
+---
+
+**QC detail**
+
+- Count of REPs with a QC `ProductionCompletions` entry in the period
+- Breakdown: "Fully complete AND QC verified" vs "QC verified but not yet fully complete" (fast-track jobs)
+- QC per-person breakdown not shown (QC is in `STATS_NO_PER_PERSON`)
 - Read only — no manager actions
 
 ---
@@ -83,6 +102,21 @@ Accessed by tapping a dashboard card. A back arrow returns to the dashboard. Per
 - Each entry shows: REP number, field that changed, old value → new value, date detected
 - Entries with `Status === 'unread'`: show two action buttons
 - Entries with `Status === 'acknowledged'` or `'scrapped'`: shown greyed, no action buttons
+
+**Filter chips** displayed above the list — filter by field category. Active chip highlighted amber. Each chip shows count for that category (based on full period, regardless of active filter):
+
+| Chip | Covers `FieldKey` values |
+|---|---|
+| All | — (all entries) |
+| Fabric | `fabric` |
+| Mechanism | `mechanism1`, `mechanism2` |
+| Castor | `castor1`, `castor2` |
+| Cover Code | `coverCode` |
+| Model | `model` |
+| Dimensions | `seatHeight`, `seatWidth`, `seatDepth`, `backHeight`, `armHeight` |
+| Special Inst. | `specialInst` |
+
+A `CHANGE_FILTER_CATEGORIES` constant maps each `FieldKey` to its chip label. Fields not in the map (`customer`, `sewLabel`, `backDesign`, `seatOption`, `optExtras`) appear under "All" only — no dedicated chip.
 - Two inline action buttons per unread entry:
   - **Dismiss** — calls `statsAcknowledgeAlert(alert, btn)`: PATCHes `SpecAlerts` item `Status` → `'acknowledged'`, removes from `SPEC_ALERT_SENT` cache, updates entry in `STATS_ALERTS` in-memory, re-renders the Stats detail view. Does NOT call `acknowledgeAlert()` directly — that function mutates `SPEC_ALERTS` (Team View global) and calls `renderSpecAlerts()` (Team View renderer).
   - **Already Scrapped** — calls `statsLogScrapAndDismiss(alert, btn)`: writes a new `ScrapLog` item using data from the alert object in memory (`alert.rep`, `alert.jobNo`, `alert.week`, `alert.prep`, `alert.fieldLabel`, `alert.oldVal`, `alert.newVal`), then PATCHes `SpecAlerts` item `Status` → `'scrapped'`, updates `STATS_ALERTS` in-memory, re-renders. `Team` is written as `''` (empty string) because the `SpecAlerts` list does not store which team the job belongs to; this is a known limitation in the Stats context. Does NOT call `logScrapAndDismiss()` directly (same reason as above).
@@ -202,8 +236,10 @@ Placeholder names used at build time. User to provide real names per department.
 | `graphGetAll(url)` | Paginated Graph API fetch — follows `@odata.nextLink` until exhausted |
 | `isoWeekNumber(d)` | Returns ISO week number for a date (extracted from existing inline logic) |
 | `isoWeekYear(d)` | Returns ISO week year for a date (extracted from existing inline logic) |
-| `renderStatsDashboard()` | Renders the 4-card dashboard for the current period |
-| `renderStatsDetail(view)` | Renders a detail view (`'completions'`, `'perperson'`, `'changes'`, `'scrap'`) |
+| `isRepFullyComplete(rep, completions)` | Returns true if a REP has all 10 required team/sub completions |
+| `renderStatsDashboard()` | Renders the 5-card dashboard for the current period |
+| `renderStatsDetail(view)` | Renders a detail view (`'completions'`, `'qc'`, `'perperson'`, `'changes'`, `'scrap'`) |
+| `filterChanges(category)` | Filters the Spec Changes list by field category chip |
 
 ## 7. Reuse of Existing Functions
 

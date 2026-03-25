@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Repose Stats — Mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --blue:   #14a1e9;
+    --navy:   #0e023a;
+    --grey:   #706f6f;
+    --green:  #059669;
+    --amber:  #d97706;
+    --red:    #dc2626;
+    --teal:   #0e7490;
+    --border: #e5e7eb;
+    --bg2:    #f9fafb;
+    --bg3:    #f3f4f6;
+  }
+  body { font-family: 'Inter', sans-serif; background: #f0f2f5; min-height: 100vh; }
+
+  /* TOPBAR */
+  .topbar { background: var(--navy); color: #fff; height: 52px; display: flex; align-items: center; padding: 0 16px; gap: 12px; position: sticky; top: 0; z-index: 100; }
+  .topbar-logo { font-weight: 700; font-size: 15px; letter-spacing: .5px; }
+  .topbar-tabs { display: flex; gap: 4px; margin-left: auto; }
+  .tab-btn { background: none; border: none; color: rgba(255,255,255,.6); font-size: 13px; font-weight: 500; padding: 6px 14px; border-radius: 6px; cursor: pointer; transition: all .15s; }
+  .tab-btn:hover { background: rgba(255,255,255,.1); color: #fff; }
+  .tab-btn.active { background: var(--blue); color: #fff; }
+
+  /* PASSWORD GATE */
+  .pw-overlay { position: fixed; inset: 0; background: rgba(14,2,58,.7); display: flex; align-items: center; justify-content: center; z-index: 500; }
+  .pw-card { background: #fff; border-radius: 16px; padding: 32px 28px; width: 320px; box-shadow: 0 20px 60px rgba(0,0,0,.25); text-align: center; }
+  .pw-icon { font-size: 36px; margin-bottom: 12px; }
+  .pw-title { font-size: 18px; font-weight: 700; color: var(--navy); margin-bottom: 4px; }
+  .pw-sub { font-size: 13px; color: var(--grey); margin-bottom: 20px; }
+  .pw-input { width: 100%; border: 1.5px solid var(--border); border-radius: 8px; padding: 10px 14px; font-size: 15px; font-family: 'JetBrains Mono', monospace; letter-spacing: 4px; text-align: center; outline: none; margin-bottom: 12px; transition: border-color .15s; }
+  .pw-input:focus { border-color: var(--blue); }
+  .pw-input.shake { animation: shake .35s; border-color: var(--red); }
+  .pw-btn { width: 100%; background: var(--blue); color: #fff; border: none; border-radius: 8px; padding: 11px; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .pw-error { font-size: 12px; color: var(--red); margin-top: 8px; min-height: 18px; }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-6px)} 40%{transform:translateX(6px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)} }
+
+  /* MAIN */
+  .view { display: none; padding: 16px; max-width: 900px; margin: 0 auto; }
+  .view.active { display: block; }
+
+  /* HEADER */
+  .stats-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+  .stats-title { font-size: 18px; font-weight: 700; color: var(--navy); flex: 1; }
+  .period-toggle { display: flex; background: #fff; border: 1.5px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .period-btn { background: none; border: none; padding: 7px 14px; font-size: 13px; font-weight: 500; cursor: pointer; color: var(--grey); transition: all .15s; }
+  .period-btn.active { background: var(--navy); color: #fff; }
+  .refresh-btn { background: #fff; border: 1.5px solid var(--border); border-radius: 8px; padding: 7px 14px; font-size: 13px; font-weight: 500; cursor: pointer; color: var(--grey); }
+  .refresh-btn:hover { border-color: var(--blue); color: var(--blue); }
+
+  /* DASHBOARD GRID — top 2 headline cards, bottom 3 cards */
+  .dash-top { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+  .dash-bottom { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+  @media (max-width: 600px) {
+    .dash-top, .dash-bottom { grid-template-columns: 1fr; }
+  }
+
+  .stat-card { background: #fff; border-radius: 14px; padding: 20px; border: 1.5px solid var(--border); cursor: pointer; transition: all .15s; position: relative; overflow: hidden; }
+  .stat-card:hover { border-color: var(--blue); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(20,161,233,.15); }
+  .stat-card::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; }
+  .stat-card.blue::before   { background: var(--blue); }
+  .stat-card.teal::before   { background: var(--teal); }
+  .stat-card.green::before  { background: var(--green); }
+  .stat-card.amber::before  { background: var(--amber); }
+  .stat-card.red::before    { background: var(--red); }
+
+  .card-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .6px; color: var(--grey); margin-bottom: 8px; }
+  .card-number { font-size: 38px; font-weight: 700; color: var(--navy); line-height: 1; margin-bottom: 4px; }
+  .card-number.small { font-size: 28px; }
+  .card-sub { font-size: 13px; color: var(--grey); }
+  .card-top3 { display: flex; flex-direction: column; gap: 5px; margin-top: 8px; }
+  .top3-row { display: flex; justify-content: space-between; font-size: 12px; }
+  .top3-name { color: var(--navy); font-weight: 500; }
+  .top3-count { color: var(--blue); font-weight: 600; font-family: 'JetBrains Mono', monospace; }
+  .card-arrow { position: absolute; bottom: 14px; right: 16px; color: var(--blue); font-size: 18px; }
+
+  /* progress bar inside completions card */
+  .card-progress { margin-top: 10px; }
+  .prog-row { display: flex; justify-content: space-between; font-size: 11px; color: var(--grey); margin-bottom: 4px; }
+  .prog-bar { height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
+  .prog-fill { height: 100%; border-radius: 3px; }
+
+  /* DETAIL HEADER */
+  .detail-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+  .back-btn { background: #fff; border: 1.5px solid var(--border); border-radius: 8px; padding: 7px 12px; font-size: 14px; cursor: pointer; color: var(--navy); font-weight: 600; }
+  .back-btn:hover { border-color: var(--blue); color: var(--blue); }
+  .detail-title { font-size: 17px; font-weight: 700; color: var(--navy); }
+  .detail-period { font-size: 12px; color: var(--grey); background: var(--bg3); padding: 4px 10px; border-radius: 20px; margin-left: auto; }
+
+  /* TABLE */
+  .detail-card { background: #fff; border-radius: 12px; border: 1.5px solid var(--border); overflow: hidden; }
+
+  /* completions rows */
+  .comp-row { display: flex; align-items: center; padding: 13px 16px; gap: 10px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background .1s; }
+  .comp-row:last-child { border-bottom: none; }
+  .comp-row.no-exp { cursor: default; }
+  .comp-row.no-exp:hover { background: none; }
+  .comp-row:hover { background: var(--bg2); }
+  .row-team { font-size: 14px; font-weight: 600; color: var(--navy); flex: 1; }
+  .row-count { font-size: 15px; font-weight: 700; font-family: 'JetBrains Mono', monospace; min-width: 36px; text-align: right; }
+  .row-count.blue  { color: var(--blue); }
+  .row-count.teal  { color: var(--teal); }
+  .row-expand { color: var(--grey); font-size: 14px; transition: transform .2s; width: 16px; text-align: center; }
+  .team-badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 20px; background: var(--bg3); color: var(--grey); }
+
+  .sub-rows { display: none; background: var(--bg2); }
+  .sub-rows.open { display: block; }
+  .sub-row { display: flex; align-items: center; padding: 8px 16px 8px 36px; border-bottom: 1px solid var(--border); gap: 10px; }
+  .sub-row:last-child { border-bottom: none; }
+  .sub-name { font-size: 13px; color: var(--navy); flex: 1; }
+  .sub-initials { font-size: 11px; color: var(--grey); font-family: 'JetBrains Mono', monospace; }
+  .sub-count { font-size: 13px; font-weight: 600; color: var(--blue); font-family: 'JetBrains Mono', monospace; }
+
+  /* section divider inside detail */
+  .detail-section-head { padding: 10px 16px 8px; background: var(--bg3); border-bottom: 1px solid var(--border); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--grey); }
+
+  /* PER PERSON */
+  .person-row { display: flex; align-items: center; padding: 11px 16px; gap: 12px; border-bottom: 1px solid var(--border); }
+  .person-row:last-child { border-bottom: none; }
+  .person-rank { font-size: 12px; font-weight: 700; color: var(--grey); width: 22px; text-align: center; }
+  .person-rank.gold   { color: #d97706; }
+  .person-rank.silver { color: #9ca3af; }
+  .person-rank.bronze { color: #b45309; }
+  .person-name { font-size: 14px; font-weight: 600; color: var(--navy); }
+  .person-team { font-size: 12px; color: var(--grey); }
+  .person-count { font-size: 15px; font-weight: 700; color: var(--blue); font-family: 'JetBrains Mono', monospace; margin-left: auto; }
+
+  /* SPEC CHANGES */
+  .alert-row { padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  .alert-row:last-child { border-bottom: none; }
+  .alert-row.actioned { opacity: .45; }
+  .alert-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+  .alert-rep { font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 600; color: var(--navy); }
+  .alert-field { font-size: 12px; font-weight: 600; color: var(--amber); background: #fff7ed; padding: 2px 8px; border-radius: 20px; }
+  .alert-date { font-size: 11px; color: var(--grey); margin-left: auto; }
+  .alert-change { font-size: 13px; color: var(--grey); margin-bottom: 8px; }
+  .alert-change strong { color: var(--navy); }
+  .alert-actions { display: flex; gap: 8px; }
+  .btn-dismiss { flex: 1; padding: 7px 10px; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1.5px solid #d97706; color: #92400e; background: #fff7ed; }
+  .btn-scrap   { flex: 1; padding: 7px 10px; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1.5px solid var(--red); color: var(--red); background: #fff; }
+  .actioned-badge { font-size: 11px; padding: 3px 8px; border-radius: 20px; font-weight: 600; }
+  .actioned-badge.ack      { background: #d1fae5; color: #065f46; }
+  .actioned-badge.scrapped { background: #fee2e2; color: #991b1b; }
+
+  /* FILTER CHIPS */
+  .filter-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .filter-chip {
+    background: #fff; border: 1.5px solid var(--border); border-radius: 20px;
+    padding: 5px 12px; font-size: 12px; font-weight: 500; color: var(--grey);
+    cursor: pointer; transition: all .15s; white-space: nowrap;
+  }
+  .filter-chip:hover { border-color: var(--amber); color: var(--amber); }
+  .filter-chip.active { background: var(--amber); border-color: var(--amber); color: #fff; font-weight: 600; }
+  .filter-chip.all.active { background: var(--navy); border-color: var(--navy); }
+  .changes-count { font-size: 12px; color: var(--grey); margin-bottom: 10px; padding: 0 2px; }
+
+  /* SCRAP */
+  .scrap-row { display: flex; align-items: center; padding: 12px 16px; gap: 10px; border-bottom: 1px solid var(--border); }
+  .scrap-row:last-child { border-bottom: none; }
+  .scrap-info { flex: 1; }
+  .scrap-rep  { font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 600; color: var(--navy); }
+  .scrap-meta { font-size: 12px; color: var(--grey); margin-top: 2px; }
+  .btn-delete { padding: 6px 12px; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1.5px solid #fca5a5; color: var(--red); background: #fff; }
+  .btn-delete:hover { background: #fee2e2; border-color: var(--red); }
+  .confirm-actions { display: flex; gap: 6px; }
+  .btn-confirm { padding: 6px 10px; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer; background: var(--red); color: #fff; border: none; }
+  .btn-cancel  { padding: 6px 10px; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer; background: var(--bg3); color: var(--grey); border: 1.5px solid var(--border); }
+
+  /* TOAST */
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px); background: var(--navy); color: #fff; padding: 10px 20px; border-radius: 8px; font-size: 13px; font-weight: 500; z-index: 999; transition: transform .25s; pointer-events: none; }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.green { background: var(--green); }
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="topbar-logo">REPOSE</div>
+  <div class="topbar-tabs">
+    <button class="tab-btn" onclick="showToast('Other views not interactive in mockup')">Team View</button>
+    <button class="tab-btn" onclick="showToast('Other views not interactive in mockup')">Load Plan</button>
+    <button class="tab-btn active">📊 Stats</button>
+  </div>
+</div>
+
+<!-- PASSWORD GATE -->
+<div class="pw-overlay" id="pwOverlay">
+  <div class="pw-card">
+    <div class="pw-icon">🔒</div>
+    <div class="pw-title">Manager Access</div>
+    <div class="pw-sub">Enter password to view production statistics</div>
+    <input class="pw-input" id="pwInput" type="password" placeholder="••••••" maxlength="12"
+      onkeydown="if(event.key==='Enter') checkPassword()">
+    <button class="pw-btn" onclick="checkPassword()">Unlock</button>
+    <div class="pw-error" id="pwError"></div>
+    <div style="font-size:11px;color:var(--grey);margin-top:12px;">Hint for mockup: <code>repose</code></div>
+  </div>
+</div>
+
+<!-- STATS VIEW -->
+<div class="view active" id="view-stats">
+
+  <!-- ── DASHBOARD ── -->
+  <div id="dashboard">
+    <div class="stats-header">
+      <div class="stats-title">Production Statistics</div>
+      <div class="period-toggle">
+        <button class="period-btn active" onclick="setPeriod('week',this)">This Week</button>
+        <button class="period-btn" onclick="setPeriod('month',this)">This Month</button>
+        <button class="period-btn" onclick="setPeriod('year',this)">This Year</button>
+      </div>
+      <button class="refresh-btn" onclick="showToast('Data refreshed',true)">↻ Refresh</button>
+    </div>
+
+    <!-- Top row: 2 headline cards -->
+    <div class="dash-top">
+      <!-- Fully Complete -->
+      <div class="stat-card blue" onclick="showDetail('completions')">
+        <div class="card-label">Fully Complete Jobs</div>
+        <div class="card-number" id="card-complete">47</div>
+        <div class="card-sub" id="card-complete-sub">all teams signed off, excl. QC</div>
+        <div class="card-progress">
+          <div class="prog-row"><span>Progress vs total in window</span><span id="card-complete-pct">47 / 68</span></div>
+          <div class="prog-bar"><div class="prog-fill" id="card-prog" style="width:69%;background:var(--blue)"></div></div>
+        </div>
+        <div class="card-arrow">›</div>
+      </div>
+
+      <!-- QC Verified -->
+      <div class="stat-card teal" onclick="showDetail('qc')">
+        <div class="card-label">QC Verified</div>
+        <div class="card-number" id="card-qc">38</div>
+        <div class="card-sub" id="card-qc-sub">jobs signed off by QC this week</div>
+        <div class="card-progress">
+          <div class="prog-row"><span>Of fully complete jobs</span><span id="card-qc-pct">38 / 47</span></div>
+          <div class="prog-bar"><div class="prog-fill" id="card-qc-prog" style="width:81%;background:var(--teal)"></div></div>
+        </div>
+        <div class="card-arrow">›</div>
+      </div>
+    </div>
+
+    <!-- Bottom row: 3 supporting cards -->
+    <div class="dash-bottom">
+      <!-- Per Person -->
+      <div class="stat-card green" onclick="showDetail('perperson')">
+        <div class="card-label">Per Person</div>
+        <div class="card-top3" id="card-top3" style="margin-top:4px">
+          <div class="top3-row"><span class="top3-name">Sarah Thomas</span><span class="top3-count">47</span></div>
+          <div class="top3-row"><span class="top3-name">Ian Jones</span><span class="top3-count">39</span></div>
+          <div class="top3-row"><span class="top3-name">Mark Newton</span><span class="top3-count">35</span></div>
+        </div>
+        <div class="card-arrow">›</div>
+      </div>
+
+      <!-- Spec Changes -->
+      <div class="stat-card amber" onclick="showDetail('changes')">
+        <div class="card-label">Spec Changes</div>
+        <div class="card-number small" id="card-changes">3</div>
+        <div class="card-sub">plan changes detected</div>
+        <div class="card-arrow">›</div>
+      </div>
+
+      <!-- Scrap -->
+      <div class="stat-card red" onclick="showDetail('scrap')">
+        <div class="card-label">Scrap</div>
+        <div class="card-number small" id="card-scrap">2</div>
+        <div class="card-sub">scrap entries logged</div>
+        <div class="card-arrow">›</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── COMPLETIONS DETAIL ── -->
+  <div id="detail-completions" style="display:none">
+    <div class="detail-header">
+      <button class="back-btn" onclick="showDashboard()">← Back</button>
+      <div class="detail-title">Fully Complete Jobs</div>
+      <div class="detail-period" id="dp-completions">This Week</div>
+    </div>
+    <p style="font-size:13px;color:var(--grey);margin-bottom:12px;padding:0 2px">
+      A job is counted as <strong>fully complete</strong> once every team has signed off: Woodmill (Arms + Backs + Seats), Foam, Cutting, Sewing, Upholstery (Arms + Backs + Seats), and Assembly.
+    </p>
+    <div class="detail-card">
+      <div class="detail-section-head">By team — individual completions</div>
+      <!-- Woodmill — no per person -->
+      <div class="comp-row no-exp">
+        <div class="row-team">Woodmill</div>
+        <span class="team-badge">No per-person</span>
+        <div class="row-count blue">93</div>
+      </div>
+      <!-- Foam -->
+      <div class="comp-row" onclick="toggleExpand('foam')">
+        <div class="row-team">Foam</div>
+        <div class="row-count blue">52</div>
+        <div class="row-expand" id="exp-foam">›</div>
+      </div>
+      <div class="sub-rows" id="sub-foam">
+        <div class="sub-row"><span class="sub-name">Alice Brown</span><span class="sub-initials">AB</span><span class="sub-count">28</span></div>
+        <div class="sub-row"><span class="sub-name">Chris Davis</span><span class="sub-initials">CD</span><span class="sub-count">24</span></div>
+      </div>
+      <!-- Cutting -->
+      <div class="comp-row" onclick="toggleExpand('cutting')">
+        <div class="row-team">Cutting</div>
+        <div class="row-count blue">41</div>
+        <div class="row-expand" id="exp-cutting">›</div>
+      </div>
+      <div class="sub-rows" id="sub-cutting">
+        <div class="sub-row"><span class="sub-name">Eve Foster</span><span class="sub-initials">EF</span><span class="sub-count">22</span></div>
+        <div class="sub-row"><span class="sub-name">George Hall</span><span class="sub-initials">GH</span><span class="sub-count">19</span></div>
+      </div>
+      <!-- Sewing -->
+      <div class="comp-row" onclick="toggleExpand('sewing')">
+        <div class="row-team">Sewing</div>
+        <div class="row-count blue">38</div>
+        <div class="row-expand" id="exp-sewing">›</div>
+      </div>
+      <div class="sub-rows" id="sub-sewing">
+        <div class="sub-row"><span class="sub-name">Ian Jones</span><span class="sub-initials">IJ</span><span class="sub-count">39</span></div>
+        <div class="sub-row"><span class="sub-name">Karen Lewis</span><span class="sub-initials">KL</span><span class="sub-count">29</span></div>
+      </div>
+      <!-- Upholstery — no per person -->
+      <div class="comp-row no-exp">
+        <div class="row-team">Upholstery</div>
+        <span class="team-badge">No per-person</span>
+        <div class="row-count blue">67</div>
+      </div>
+      <!-- Assembly -->
+      <div class="comp-row" onclick="toggleExpand('assembly')">
+        <div class="row-team">Assembly</div>
+        <div class="row-count blue">39</div>
+        <div class="row-expand" id="exp-assembly">›</div>
+      </div>
+      <div class="sub-rows" id="sub-assembly">
+        <div class="sub-row"><span class="sub-name">Quinn Reid</span><span class="sub-initials">QR</span><span class="sub-count">21</span></div>
+        <div class="sub-row"><span class="sub-name">Sarah Thomas</span><span class="sub-initials">ST</span><span class="sub-count">47</span></div>
+      </div>
+      <div class="detail-section-head">Fully complete REPs (all teams done)</div>
+      <div class="comp-row no-exp" style="cursor:default">
+        <div class="row-team" style="font-weight:400;font-size:13px">Jobs where every team has signed off</div>
+        <div class="row-count blue" style="font-size:20px">47</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── QC DETAIL ── -->
+  <div id="detail-qc" style="display:none">
+    <div class="detail-header">
+      <button class="back-btn" onclick="showDashboard()">← Back</button>
+      <div class="detail-title">QC Verified</div>
+      <div class="detail-period" id="dp-qc">This Week</div>
+    </div>
+    <p style="font-size:13px;color:var(--grey);margin-bottom:12px;padding:0 2px">
+      Jobs signed off by the QC team. A job can be QC verified without all other teams being complete (e.g. fast-track QC), so this is tracked separately.
+    </p>
+    <div class="detail-card">
+      <div class="comp-row no-exp">
+        <div class="row-team">QC Verified this period</div>
+        <div class="row-count teal" style="font-size:22px">38</div>
+      </div>
+      <div class="comp-row no-exp">
+        <div class="row-team" style="font-weight:400;font-size:13px;color:var(--grey)">Fully complete AND QC verified</div>
+        <div class="row-count teal">36</div>
+      </div>
+      <div class="comp-row no-exp">
+        <div class="row-team" style="font-weight:400;font-size:13px;color:var(--grey)">QC verified, not yet fully complete</div>
+        <div class="row-count" style="color:var(--amber)">2</div>
+      </div>
+      <div class="detail-section-head">By QC operator</div>
+      <div class="comp-row no-exp">
+        <div class="row-team">QC team completions not tracked per-person</div>
+        <span class="team-badge">Excluded</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PER PERSON DETAIL ── -->
+  <div id="detail-perperson" style="display:none">
+    <div class="detail-header">
+      <button class="back-btn" onclick="showDashboard()">← Back</button>
+      <div class="detail-title">Per Person</div>
+      <div class="detail-period" id="dp-perperson">This Week</div>
+    </div>
+    <div class="detail-card">
+      <div class="person-row"><div class="person-rank gold">1</div><div><div class="person-name">Sarah Thomas</div><div class="person-team">Assembly</div></div><div class="person-count">47</div></div>
+      <div class="person-row"><div class="person-rank silver">2</div><div><div class="person-name">Ian Jones</div><div class="person-team">Sewing</div></div><div class="person-count">39</div></div>
+      <div class="person-row"><div class="person-rank bronze">3</div><div><div class="person-name">Mark Newton</div><div class="person-team">Upholstery</div></div><div class="person-count">35</div></div>
+      <div class="person-row"><div class="person-rank">4</div><div><div class="person-name">Olivia Price</div><div class="person-team">Upholstery</div></div><div class="person-count">32</div></div>
+      <div class="person-row"><div class="person-rank">5</div><div><div class="person-name">Karen Lewis</div><div class="person-team">Sewing</div></div><div class="person-count">29</div></div>
+      <div class="person-row"><div class="person-rank">6</div><div><div class="person-name">Alice Brown</div><div class="person-team">Foam</div></div><div class="person-count">28</div></div>
+      <div class="person-row"><div class="person-rank">7</div><div><div class="person-name">Chris Davis</div><div class="person-team">Foam</div></div><div class="person-count">24</div></div>
+      <div class="person-row"><div class="person-rank">8</div><div><div class="person-name">Eve Foster</div><div class="person-team">Cutting</div></div><div class="person-count">22</div></div>
+      <div class="person-row"><div class="person-rank">9</div><div><div class="person-name">Quinn Reid</div><div class="person-team">Assembly</div></div><div class="person-count">21</div></div>
+      <div class="person-row"><div class="person-rank">10</div><div><div class="person-name">George Hall</div><div class="person-team">Cutting</div></div><div class="person-count">19</div></div>
+    </div>
+  </div>
+
+  <!-- ── SPEC CHANGES DETAIL ── -->
+  <div id="detail-changes" style="display:none">
+    <div class="detail-header">
+      <button class="back-btn" onclick="showDashboard()">← Back</button>
+      <div class="detail-title">Spec Changes</div>
+      <div class="detail-period" id="dp-changes">This Week</div>
+    </div>
+
+    <!-- Filter chips -->
+    <div class="filter-bar" id="change-filters">
+      <button class="filter-chip all active" onclick="filterChanges('all',this)">All <span id="fc-all">11</span></button>
+      <button class="filter-chip" onclick="filterChanges('Fabric',this)">Fabric <span id="fc-fabric">3</span></button>
+      <button class="filter-chip" onclick="filterChanges('Mechanism',this)">Mechanism <span id="fc-mech">2</span></button>
+      <button class="filter-chip" onclick="filterChanges('Castor',this)">Castor <span id="fc-castor">1</span></button>
+      <button class="filter-chip" onclick="filterChanges('Cover Code',this)">Cover Code <span id="fc-cover">2</span></button>
+      <button class="filter-chip" onclick="filterChanges('Model',this)">Model <span id="fc-model">1</span></button>
+      <button class="filter-chip" onclick="filterChanges('Dimensions',this)">Dimensions <span id="fc-dims">1</span></button>
+      <button class="filter-chip" onclick="filterChanges('Special Instructions',this)">Special Inst. <span id="fc-special">1</span></button>
+    </div>
+    <div class="changes-count" id="changes-count">Showing 11 changes</div>
+
+    <div class="detail-card" id="changes-list">
+      <div class="alert-row" id="change-1" data-category="Fabric">
+        <div class="alert-top"><span class="alert-rep">REP 2613044</span><span class="alert-field">Fabric</span><span class="alert-date">25/03/2026 09:14</span></div>
+        <div class="alert-change">Changed from <strong>Shelly Mink</strong> → <strong>Shelly Stone</strong></div>
+        <div class="alert-actions">
+          <button class="btn-dismiss" onclick="dismissChange('change-1')">✓ Dismiss</button>
+          <button class="btn-scrap"   onclick="scrapChange('change-1')">⚠ Already Scrapped</button>
+        </div>
+      </div>
+      <div class="alert-row" id="change-2" data-category="Mechanism">
+        <div class="alert-top"><span class="alert-rep">REP 2614021</span><span class="alert-field">Mechanism</span><span class="alert-date">24/03/2026 14:32</span></div>
+        <div class="alert-change">Changed from <strong>Manual Recliner</strong> → <strong>Power Recliner</strong></div>
+        <div class="alert-actions">
+          <button class="btn-dismiss" onclick="dismissChange('change-2')">✓ Dismiss</button>
+          <button class="btn-scrap"   onclick="scrapChange('change-2')">⚠ Already Scrapped</button>
+        </div>
+      </div>
+      <div class="alert-row" id="change-3" data-category="Cover Code">
+        <div class="alert-top"><span class="alert-rep">REP 2612088</span><span class="alert-field">Cover Code</span><span class="alert-date">25/03/2026 08:50</span></div>
+        <div class="alert-change">Changed from <strong>VEN-01</strong> → <strong>VEN-04</strong></div>
+        <div class="alert-actions">
+          <button class="btn-dismiss" onclick="dismissChange('change-3')">✓ Dismiss</button>
+          <button class="btn-scrap"   onclick="scrapChange('change-3')">⚠ Already Scrapped</button>
+        </div>
+      </div>
+      <div class="alert-row" id="change-4" data-category="Fabric">
+        <div class="alert-top"><span class="alert-rep">REP 2615003</span><span class="alert-field">Fabric</span><span class="alert-date">24/03/2026 16:22</span></div>
+        <div class="alert-change">Changed from <strong>Opulence Cream</strong> → <strong>Opulence Ivory</strong></div>
+        <div class="alert-actions">
+          <button class="btn-dismiss" onclick="dismissChange('change-4')">✓ Dismiss</button>
+          <button class="btn-scrap"   onclick="scrapChange('change-4')">⚠ Already Scrapped</button>
+        </div>
+      </div>
+      <div class="alert-row" id="change-5" data-category="Castor">
+        <div class="alert-top"><span class="alert-rep">REP 2613089</span><span class="alert-field">Castor</span><span class="alert-date">24/03/2026 11:08</span></div>
+        <div class="alert-change">Changed from <strong>Chrome 50mm</strong> → <strong>Black 50mm</strong></div>
+        <div class="alert-actions">
+          <button class="btn-dismiss" onclick="dismissChange('change-5')">✓ Dismiss</button>
+          <button class="btn-scrap"   onclick="scrapChange('change-5')">⚠ Already Scrapped</button>
+        </div>
+      </div>
+      <div class="alert-row" id="change-6" data-category="Dimensions">
+        <div class="alert-top"><span class="alert-rep">REP 2614055</span><span class="alert-field">Seat Height</span><span class="alert-date">23/03/2026 15:30</span></div>
+        <div class="alert-change">Changed from <strong>450mm</strong> → <strong>480mm</strong></div>
+        <div class="alert-actions">
+          <button class="btn-dismiss" onclick="dismissChange('change-6')">✓ Dismiss</button>
+          <button class="btn-scrap"   onclick="scrapChange('change-6')">⚠ Already Scrapped</button>
+        </div>
+      </div>
+      <div class="alert-row" id="change-7" data-category="Model">
+        <div class="alert-top"><span class="alert-rep">REP 2612200</span><span class="alert-field">Model</span><span class="alert-date">23/03/2026 10:15</span></div>
+        <div class="alert-change">Changed from <strong>Regal 3 Seater</strong> → <strong>Regal 2 Seater</strong></div>
+        <div class="alert-actions">
+          <button class="btn-dismiss" onclick="dismissChange('change-7')">✓ Dismiss</button>
+          <button class="btn-scrap"   onclick="scrapChange('change-7')">⚠ Already Scrapped</button>
+        </div>
+      </div>
+      <div class="alert-row" id="change-8" data-category="Special Instructions">
+        <div class="alert-top"><span class="alert-rep">REP 2615011</span><span class="alert-field">Special Inst.</span><span class="alert-date">23/03/2026 09:44</span></div>
+        <div class="alert-change">Changed from <strong>(none)</strong> → <strong>Extra firm seat foam required</strong></div>
+        <div class="alert-actions">
+          <button class="btn-dismiss" onclick="dismissChange('change-8')">✓ Dismiss</button>
+          <button class="btn-scrap"   onclick="scrapChange('change-8')">⚠ Already Scrapped</button>
+        </div>
+      </div>
+      <!-- Acknowledged entries -->
+      <div class="alert-row actioned" id="change-9" data-category="Fabric">
+        <div class="alert-top"><span class="alert-rep">REP 2611044</span><span class="alert-field">Fabric</span><span class="alert-date">22/03/2026 14:10</span></div>
+        <div class="alert-change">Changed from <strong>Brushed Linen</strong> → <strong>Washed Linen</strong></div>
+        <div style="margin-top:6px"><span class="actioned-badge ack">✓ Acknowledged</span></div>
+      </div>
+      <div class="alert-row actioned" id="change-10" data-category="Cover Code">
+        <div class="alert-top"><span class="alert-rep">REP 2610088</span><span class="alert-field">Cover Code</span><span class="alert-date">22/03/2026 11:05</span></div>
+        <div class="alert-change">Changed from <strong>ALK-02</strong> → <strong>ALK-05</strong></div>
+        <div style="margin-top:6px"><span class="actioned-badge ack">✓ Acknowledged</span></div>
+      </div>
+      <div class="alert-row actioned" id="change-11" data-category="Mechanism">
+        <div class="alert-top"><span class="alert-rep">REP 2609031</span><span class="alert-field">Mechanism</span><span class="alert-date">21/03/2026 16:55</span></div>
+        <div class="alert-change">Changed from <strong>Power Recliner</strong> → <strong>Power Recliner + USB</strong></div>
+        <div style="margin-top:6px"><span class="actioned-badge scrapped">⚠ Scrapped</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SCRAP DETAIL ── -->
+  <div id="detail-scrap" style="display:none">
+    <div class="detail-header">
+      <button class="back-btn" onclick="showDashboard()">← Back</button>
+      <div class="detail-title">Scrap Log</div>
+      <div class="detail-period" id="dp-scrap">This Week</div>
+    </div>
+    <div class="detail-card">
+      <div class="scrap-row" id="scrap-1">
+        <div class="scrap-info"><div class="scrap-rep">REP 2613044</div><div class="scrap-meta">Sewing · Fabric changed · 25/03/2026 09:18</div></div>
+        <div id="scrap-1-act"><button class="btn-delete" onclick="startDelete('scrap-1')">Delete</button></div>
+      </div>
+      <div class="scrap-row" id="scrap-2">
+        <div class="scrap-info"><div class="scrap-rep">REP 2611056</div><div class="scrap-meta">Upholstery · Cover Code changed · 22/03/2026 15:44</div></div>
+        <div id="scrap-2-act"><button class="btn-delete" onclick="startDelete('scrap-2')">Delete</button></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const PASSWORD = 'repose';
+const periodData = {
+  week:  { complete:47, total:68, qc:38, qcPct:81, changes:3, scrap:2 },
+  month: { complete:183, total:241, qc:171, qcPct:93, changes:11, scrap:8 },
+  year:  { complete:1840, total:2120, qc:1790, qcPct:97, changes:47, scrap:31 },
+};
+const periodLabels = { week:'This Week', month:'This Month', year:'This Year' };
+
+function checkPassword() {
+  const val = document.getElementById('pwInput').value;
+  if (val === PASSWORD) {
+    document.getElementById('pwOverlay').style.display = 'none';
+  } else {
+    const inp = document.getElementById('pwInput');
+    inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake');
+    document.getElementById('pwError').textContent = 'Incorrect password';
+  }
+}
+
+function setPeriod(p, btn) {
+  document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const d = periodData[p];
+  const pct = Math.round(d.complete / d.total * 100);
+  document.getElementById('card-complete').textContent = d.complete;
+  document.getElementById('card-complete-sub').textContent = 'all teams signed off, excl. QC';
+  document.getElementById('card-complete-pct').textContent = d.complete + ' / ' + d.total;
+  document.getElementById('card-prog').style.width = pct + '%';
+  document.getElementById('card-qc').textContent = d.qc;
+  document.getElementById('card-qc-pct').textContent = d.qc + ' / ' + d.complete;
+  document.getElementById('card-qc-prog').style.width = d.qcPct + '%';
+  document.getElementById('card-changes').textContent = d.changes;
+  document.getElementById('card-scrap').textContent = d.scrap;
+  document.querySelectorAll('[id^="dp-"]').forEach(el => el.textContent = periodLabels[p]);
+}
+
+function showDetail(name) {
+  document.getElementById('dashboard').style.display = 'none';
+  document.querySelectorAll('[id^="detail-"]').forEach(el => el.style.display = 'none');
+  document.getElementById('detail-' + name).style.display = 'block';
+}
+function showDashboard() {
+  document.querySelectorAll('[id^="detail-"]').forEach(el => el.style.display = 'none');
+  document.getElementById('dashboard').style.display = 'block';
+}
+
+function toggleExpand(team) {
+  const sub = document.getElementById('sub-' + team);
+  const arrow = document.getElementById('exp-' + team);
+  const open = sub.classList.toggle('open');
+  arrow.textContent = open ? '⌄' : '›';
+}
+
+// Map field names → filter category
+const FIELD_CATEGORY = {
+  'Fabric': 'Fabric', 'Fabric Description': 'Fabric',
+  'Mechanism': 'Mechanism', 'Mechanism 1': 'Mechanism', 'Mechanism 2': 'Mechanism',
+  'Castor': 'Castor', 'Castor 1': 'Castor', 'Castor 2': 'Castor',
+  'Cover Code': 'Cover Code', 'Cover Code / Supplier': 'Cover Code',
+  'Model': 'Model',
+  'Seat Height': 'Dimensions', 'Seat Width': 'Dimensions', 'Seat Depth': 'Dimensions',
+  'Back Height': 'Dimensions', 'Arm Height': 'Dimensions',
+  'Special Instructions': 'Special Instructions', 'Special Inst.': 'Special Instructions',
+  'Sew Label': 'Sew Label', 'Back Design': 'Back Design',
+  'Customer': 'Customer', 'Seat Option': 'Seat Option',
+};
+
+let activeFilter = 'all';
+
+function filterChanges(category, btn) {
+  activeFilter = category;
+  document.querySelectorAll('#change-filters .filter-chip').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+
+  const rows = document.querySelectorAll('#changes-list .alert-row');
+  let visible = 0;
+  rows.forEach(row => {
+    const cat = row.dataset.category;
+    const match = category === 'all' || cat === category;
+    row.style.display = match ? '' : 'none';
+    if (match) visible++;
+  });
+  document.getElementById('changes-count').textContent =
+    category === 'all' ? `Showing all ${visible} changes` : `Showing ${visible} ${category} change${visible !== 1 ? 's' : ''}`;
+}
+
+function dismissChange(id) {
+  const row = document.getElementById(id);
+  row.classList.add('actioned');
+  row.querySelector('.alert-actions').innerHTML = '<span class="actioned-badge ack">✓ Acknowledged</span>';
+  showToast('Alert acknowledged', true);
+}
+function scrapChange(id) {
+  const row = document.getElementById(id);
+  row.classList.add('actioned');
+  row.querySelector('.alert-actions').innerHTML = '<span class="actioned-badge scrapped">⚠ Scrapped</span>';
+  showToast('Logged as scrap and dismissed', true);
+}
+
+function startDelete(id) {
+  document.getElementById(id + '-act').innerHTML =
+    `<div class="confirm-actions"><button class="btn-cancel" onclick="cancelDelete('${id}')">Cancel</button><button class="btn-confirm" onclick="confirmDelete('${id}')">Delete</button></div>`;
+}
+function cancelDelete(id) {
+  document.getElementById(id + '-act').innerHTML = `<button class="btn-delete" onclick="startDelete('${id}')">Delete</button>`;
+}
+function confirmDelete(id) {
+  document.getElementById(id).remove();
+  showToast('Scrap entry deleted', true);
+}
+
+let toastTimer;
+function showToast(msg, green) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast show' + (green ? ' green' : '');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+</script>
+</body>
+</html>
