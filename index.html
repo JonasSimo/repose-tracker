@@ -4225,6 +4225,72 @@ function statsFullyCompleteReps(completions) {
   const reps = [...new Set(completions.map(c => c.fields.REP))];
   return reps.filter(rep => isRepFullyComplete(rep, completions));
 }
+
+// ── Dashboard ───────────────────────────────────
+
+function setStatsPeriod(period, btn) {
+  statsPeriod = period;
+  document.querySelectorAll('.stats-period-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const detailEl = document.getElementById('stats-detail');
+  if (detailEl.style.display !== 'none') {
+    renderStatsDetail(detailEl.dataset.view);
+  } else {
+    renderStatsDashboard();
+  }
+}
+
+function showStatsDashboard() {
+  document.getElementById('stats-dashboard').style.display      = 'flex';
+  document.getElementById('stats-dashboard').style.flexDirection = 'column';
+  document.getElementById('stats-dashboard').style.flex          = '1';
+  document.getElementById('stats-dashboard').style.overflow      = 'hidden';
+  document.getElementById('stats-detail').style.display          = 'none';
+  renderStatsDashboard();
+}
+
+function renderStatsDashboard() {
+  const comp    = statsFilteredCompletions();
+  const alerts  = statsFilteredAlerts();
+  const scrap   = statsFilteredScrap();
+
+  const allReps   = [...new Set(comp.map(c => c.fields.REP))];
+  const fullReps  = statsFullyCompleteReps(comp);
+  const qcReps    = [...new Set(comp.filter(c => c.fields.Team === 'QC').map(c => c.fields.REP))];
+  const persons   = statsCountByPerson(comp);
+  const top3      = persons.slice(0, 3);
+
+  const fullyPct = allReps.length  ? Math.round(fullReps.length / allReps.length * 100)  : 0;
+  const qcPct    = fullReps.length ? Math.round(qcReps.length   / fullReps.length * 100) : 0;
+
+  const cards = [
+    { accent:'blue',  label:'Fully Complete Jobs', value:fullReps.length,
+      sub:`${fullyPct}% of ${allReps.length} REPs in window`, pbar:fullyPct,
+      onclick:`renderStatsDetail('completions')` },
+    { accent:'teal',  label:'QC Verified',          value:qcReps.length,
+      sub:`${qcPct}% of fully complete jobs`,               pbar:qcPct,
+      onclick:`renderStatsDetail('qc')` },
+    { accent:'green', label:'Per Person',            value:persons.length,
+      sub:'operators active this period',                   top3,
+      onclick:`renderStatsDetail('perperson')` },
+    { accent:'amber', label:'Spec Changes',          value:alerts.length,
+      sub:'plan changes detected',
+      onclick:`renderStatsDetail('changes')` },
+    { accent:'red',   label:'Scrap',                 value:scrap.length,
+      sub:'scrap log entries',
+      onclick:`renderStatsDetail('scrap')` },
+  ];
+
+  document.getElementById('stats-cards').innerHTML = cards.map(c => `
+    <div class="stats-card" data-accent="${c.accent}" onclick="${c.onclick}">
+      <div class="stats-card-label">${c.label}</div>
+      <div class="stats-card-value">${c.value}</div>
+      <div class="stats-card-sub">${c.sub}</div>
+      ${c.pbar !== undefined ? `<div class="stats-card-pbar"><div class="stats-card-pfill" style="width:${c.pbar}%"></div></div>` : ''}
+      ${c.top3 ? `<div class="stats-card-top3">${c.top3.map(p=>`<div class="stats-card-top3-row"><span class="stats-card-top3-name">${p.name}</span><span class="stats-card-top3-count">${p.count}</span></div>`).join('')}</div>` : ''}
+    </div>
+  `).join('');
+}
 </script>
 
 <!-- Job spec modal -->
