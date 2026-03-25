@@ -4378,6 +4378,54 @@ function renderDetailCompletions() {
   fullRow.innerHTML     = `<span class="stats-team-name">All 10 teams signed off</span><span class="stats-team-count">${fullReps.length}</span>`;
   body.appendChild(fullRow);
 }
+
+// ── QC detail ───────────────────────────────────
+
+function renderDetailQC() {
+  const comp     = statsFilteredCompletions();
+  const fullReps = new Set(statsFullyCompleteReps(comp));
+  const qcReps   = [...new Set(comp.filter(c => c.fields.Team === 'QC').map(c => c.fields.REP))];
+  const bothCount = qcReps.filter(r => fullReps.has(r)).length;
+  const fastTrack = qcReps.length - bothCount;
+  const body      = document.getElementById('stats-detail-body');
+
+  const head = document.createElement('div');
+  head.className   = 'stats-section-head';
+  head.textContent = 'QC Breakdown';
+  body.appendChild(head);
+
+  [
+    { label:'QC Verified total',                                  count: qcReps.length },
+    { label:'Fully complete AND QC verified',                     count: bothCount },
+    { label:'QC verified — not yet fully complete (fast-track)',  count: fastTrack },
+  ].forEach(({ label, count }) => {
+    const row = document.createElement('div');
+    row.className = 'stats-qc-row';
+    row.innerHTML = `<span class="stats-qc-label">${label}</span><span class="stats-qc-count">${count}</span>`;
+    body.appendChild(row);
+  });
+}
+
+// ── Per Person detail ───────────────────────────
+
+function renderDetailPerPerson() {
+  const comp    = statsFilteredCompletions();
+  const persons = statsCountByPerson(comp);
+  const body    = document.getElementById('stats-detail-body');
+
+  const head = document.createElement('div');
+  head.className   = 'stats-section-head';
+  head.textContent = `${persons.length} operators — sorted by completions`;
+  body.appendChild(head);
+
+  const table = document.createElement('table');
+  table.className = 'stats-pp-table';
+  table.innerHTML = `
+    <thead><tr><th>Name</th><th>Team</th><th>Count</th></tr></thead>
+    <tbody>${persons.map(p => `<tr><td>${p.name}</td><td>${p.team}</td><td>${p.count}</td></tr>`).join('')}</tbody>
+  `;
+  body.appendChild(table);
+}
 </script>
 
 <!-- Job spec modal -->
