@@ -2174,7 +2174,7 @@ function tickJob(ji) {
   const job = PROD[snapWC][snapPrep][ji];
 
   // Woodmill — complete directly without initials
-  if (snapTeam === 'Woodmill') {
+  if (snapTeam === 'Woodmill' || snapTeam === 'Foam') {
     s.done     = true;
     s.doneAt   = new Date().toTimeString().slice(0,5);
     s.doneDate = new Date().toLocaleDateString('en-GB');
