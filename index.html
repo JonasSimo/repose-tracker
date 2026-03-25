@@ -4578,6 +4578,85 @@ async function statsLogScrapAndDismiss(alert, btn) {
     btn.disabled = false; btn.style.opacity = '';
   }
 }
+
+// ── Scrap detail ────────────────────────────────
+
+function renderDetailScrap() {
+  const scrap = statsFilteredScrap();
+  const body  = document.getElementById('stats-detail-body');
+
+  const head = document.createElement('div');
+  head.className   = 'stats-section-head';
+  head.textContent = `${scrap.length} scrap ${scrap.length === 1 ? 'entry' : 'entries'}`;
+  body.appendChild(head);
+
+  if (!scrap.length) {
+    const empty = document.createElement('div');
+    empty.style.cssText  = 'color:var(--text3);font-size:13px;padding:20px 0;text-align:center';
+    empty.textContent    = 'No scrap entries this period';
+    body.appendChild(empty);
+    return;
+  }
+
+  scrap.forEach(item => {
+    const f   = item.fields;
+    const row = document.createElement('div');
+    row.className = 'stats-scrap-row';
+
+    const info = document.createElement('div');
+    info.style.flex = '1';
+    const logDate   = (f.LoggedAt || '').split('T')[0];
+    info.innerHTML  = `
+      <div class="stats-scrap-rep">${f.Title || '—'}</div>
+      <div class="stats-scrap-meta">${f.Team || '—'} · ${f.FieldLabel || '—'} · ${logDate}</div>
+    `;
+
+    const delWrap = document.createElement('div');
+    const delBtn  = document.createElement('button');
+    delBtn.className   = 'stats-scrap-del';
+    delBtn.textContent = 'Delete';
+    delBtn.onclick     = () => {
+      delWrap.innerHTML = '';
+      const confirm     = document.createElement('div');
+      confirm.className = 'stats-scrap-confirm';
+      const yesBtn      = document.createElement('button');
+      yesBtn.className   = 'stats-scrap-confirm-yes';
+      yesBtn.textContent = 'Confirm';
+      yesBtn.onclick     = () => deleteScrapEntry(item, row);
+      const noBtn        = document.createElement('button');
+      noBtn.className    = 'stats-scrap-confirm-no';
+      noBtn.textContent  = 'Cancel';
+      noBtn.onclick      = () => { delWrap.innerHTML = ''; delWrap.appendChild(delBtn); };
+      confirm.appendChild(yesBtn);
+      confirm.appendChild(noBtn);
+      delWrap.appendChild(confirm);
+    };
+    delWrap.appendChild(delBtn);
+
+    row.appendChild(info);
+    row.appendChild(delWrap);
+    body.appendChild(row);
+  });
+}
+
+async function deleteScrapEntry(item, rowEl) {
+  try {
+    const token  = await getGraphToken();
+    const siteId = await getSpSiteId();
+    const listId = await getListIdByName('ScrapLog');
+    const res    = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${item.id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    STATS_SCRAP = STATS_SCRAP.filter(s => s.id !== item.id);
+    rowEl.remove();
+    toast('Scrap entry deleted', 's');
+  } catch(e) {
+    console.warn('deleteScrapEntry:', e.message);
+    toast('Could not delete — check connection', 'u');
+  }
+}
 </script>
 
 <!-- Job spec modal -->
