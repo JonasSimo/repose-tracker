@@ -3831,6 +3831,83 @@ renderTeamSidebar();
 renderWeekList();
 // Init Graph API auth after MSAL library loads
 window.addEventListener('load', () => initGraph().catch(console.error));
+
+// ═══════════════════════════════════════════════
+// STATS TAB
+// ═══════════════════════════════════════════════
+
+const STATS_PASSWORD = 'repose'; // placeholder — update before sharing with managers
+
+let statsUnlocked = false;
+let statsPeriod   = 'week';   // 'week' | 'month' | 'year'
+
+let STATS_COMPLETIONS = [];
+let STATS_ALERTS      = [];
+let STATS_SCRAP       = [];
+
+const STATS_NO_PER_PERSON = ['Woodmill', 'QC'];
+
+const STATS_OPERATORS = {
+  Foam:       { },
+  Cutting:    { },
+  Sewing:     { },
+  Upholstery: { },
+  Assembly:   { },
+};
+
+const CHANGE_FILTER_CATEGORIES = {
+  fabric:      'Fabric',
+  mechanism1:  'Mechanism',
+  mechanism2:  'Mechanism',
+  castor1:     'Castor',
+  castor2:     'Castor',
+  coverCode:   'Cover Code',
+  model:       'Model',
+  seatHeight:  'Dimensions',
+  seatWidth:   'Dimensions',
+  seatDepth:   'Dimensions',
+  backHeight:  'Dimensions',
+  armHeight:   'Dimensions',
+  specialInst: 'Special Inst.',
+};
+
+function openStatsView() {
+  if (statsUnlocked) {
+    showStatsContent();
+  } else {
+    document.getElementById('stats-gate').style.display     = 'flex';
+    document.getElementById('stats-content').style.display  = 'none';
+    document.getElementById('stats-pw-input').value         = '';
+    document.getElementById('stats-pw-error').style.display = 'none';
+    setTimeout(() => document.getElementById('stats-pw-input').focus(), 80);
+  }
+}
+
+function submitStatsPassword() {
+  const val = document.getElementById('stats-pw-input').value;
+  if (val === STATS_PASSWORD) {
+    statsUnlocked = true;
+    document.getElementById('stats-pw-error').style.display = 'none';
+    showStatsContent();
+  } else {
+    const inp = document.getElementById('stats-pw-input');
+    inp.classList.add('shake');
+    document.getElementById('stats-pw-error').style.display = 'block';
+    inp.value = '';
+    setTimeout(() => inp.classList.remove('shake'), 500);
+  }
+}
+
+function showStatsContent() {
+  document.getElementById('stats-gate').style.display    = 'none';
+  document.getElementById('stats-content').style.display = 'flex';
+  document.getElementById('stats-content').style.flexDirection = 'column';
+  if (!STATS_COMPLETIONS.length && !STATS_ALERTS.length && !STATS_SCRAP.length) {
+    loadStatsData();
+  } else {
+    renderStatsDashboard();
+  }
+}
 </script>
 
 <!-- Job spec modal -->
