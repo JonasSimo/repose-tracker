@@ -962,6 +962,7 @@ body {
       <button class="tab-btn active" onclick="showView('team-select')">Team View</button>
       <button class="tab-btn" onclick="showView('overview')">Load Plan</button>
       <button class="tab-btn" onclick="showView('production')">Production Plan</button>
+      <button class="tab-btn" onclick="showView('stats')">Stats</button>
     </div>
   </div>
 </div>
@@ -1122,6 +1123,56 @@ body {
     <div id="pp-week-bar" class="pp-week-bar"></div>
     <div id="pp-team-bar" class="pp-team-bar"></div>
     <div id="pp-area" class="pp-area"></div>
+  </div>
+</div>
+
+<!-- ═══ STATS ═══ -->
+<div class="view" id="view-stats">
+
+  <!-- Password modal (shown when not unlocked) -->
+  <div id="stats-gate" class="stats-gate">
+    <div class="stats-gate-card">
+      <div class="stats-gate-title">Stats — Manager Access</div>
+      <div class="stats-gate-sub">Enter password to continue</div>
+      <input id="stats-pw-input" class="stats-pw-input" type="password" placeholder="Password"
+        onkeydown="if(event.key==='Enter')submitStatsPassword()">
+      <div id="stats-pw-error" class="stats-pw-error" style="display:none">Incorrect password</div>
+      <button class="stats-pw-btn" onclick="submitStatsPassword()">Unlock</button>
+    </div>
+  </div>
+
+  <!-- Stats content (shown after unlock) -->
+  <div id="stats-content" class="stats-content" style="display:none">
+
+    <!-- Dashboard -->
+    <div id="stats-dashboard" style="display:flex;flex-direction:column;flex:1;overflow:hidden">
+      <!-- period bar -->
+      <div class="stats-period-bar">
+        <div class="stats-period-btns">
+          <button class="stats-period-btn active" onclick="setStatsPeriod('week',this)">This Week</button>
+          <button class="stats-period-btn" onclick="setStatsPeriod('month',this)">This Month</button>
+          <button class="stats-period-btn" onclick="setStatsPeriod('year',this)">This Year</button>
+        </div>
+        <button class="stats-refresh-btn" onclick="refreshStatsData()">↻ Refresh</button>
+      </div>
+      <!-- spinner -->
+      <div id="stats-spinner" class="stats-spinner" style="display:none">
+        <div class="stats-spinner-ring"></div>
+        <div class="stats-spinner-txt">Loading…</div>
+      </div>
+      <!-- cards grid -->
+      <div id="stats-cards" class="stats-cards"></div>
+    </div>
+
+    <!-- Detail view (hidden until a card is tapped) -->
+    <div id="stats-detail" style="display:none;flex-direction:column;flex:1;overflow:hidden">
+      <div class="stats-detail-header">
+        <button class="stats-back-btn" onclick="showStatsDashboard()">← Back</button>
+        <div id="stats-detail-title" class="stats-detail-title"></div>
+      </div>
+      <div id="stats-detail-body" class="stats-detail-body"></div>
+    </div>
+
   </div>
 </div>
 
@@ -1457,13 +1508,14 @@ let activeProdTeam = null; // team key being highlighted (e.g. 'wm')
 // ═══════════════════════════════════════════════
 function showView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-  const tabMap = { 'team-select':0, 'tracker':0, 'overview':1, 'production':2 };
+  const tabMap = { 'team-select':0, 'tracker':0, 'overview':1, 'production':2, 'stats':3 };
   document.querySelectorAll('.tab-btn').forEach((b, i) => {
     b.classList.toggle('active', tabMap[name] === i);
   });
   document.getElementById('view-' + name).classList.add('active');
   if (name === 'overview')    { if (!ovActiveTab) ovActiveTab = 'live'; buildOvSlots(ovActiveTab==='wk1'?5:ovActiveTab==='wk2'?10:0); applyStateToOvBadges(); renderOverviewTabs(); renderOverview(); }
   if (name === 'production')  { renderProductionPlan(); }
+  if (name === 'stats')       { openStatsView(); }
 }
 
 function openTeam(name, hasSubs) {
