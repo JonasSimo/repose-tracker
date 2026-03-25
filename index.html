@@ -1141,6 +1141,13 @@ body {
 
 <script>
 // ═══════════════════════════════════════════════
+// UTILITY
+// ═══════════════════════════════════════════════
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ═══════════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════════
 const PREP_DAYS = ['Mon','Tue','Wed','Thu','Fri'];
@@ -1819,7 +1826,7 @@ function renderJobs() {
 }
 
 // ─── Pending tick (waiting for initials) ───
-let pendingTick = null; // { ji }
+let pendingTick = null; // { ji, team, sub, wc, prep }
 
 function tickJob(ji) {
   const sk = activeSub;
@@ -1849,7 +1856,7 @@ function tickJob(ji) {
   }
 
   // All other teams — show initials modal
-  pendingTick = { ji };
+  pendingTick = { ji, team: activeTeam, sub: activeSub, wc: activeWC, prep: activePrep };
   document.getElementById('modal-rep-label').textContent = job.rep;
 
   const operators = TEAM_OPERATORS[activeTeam];
@@ -1893,20 +1900,20 @@ function modalConfirm() {
   if (!initials) { inp.focus(); inp.style.borderColor='var(--red)'; setTimeout(()=>inp.style.borderColor='',800); return; }
   document.getElementById('modal-initials').style.display = 'none';
 
-  const { ji } = pendingTick;
+  const { ji, team: snapTeam, sub: snapSub, wc: snapWC, prep: snapPrep } = pendingTick;
   pendingTick = null;
-  const sk = activeSub;
-  const s = STATE[activeTeam][sk][activeWC][activePrep][ji];
+  const sk = snapSub;
+  const s = STATE[snapTeam][sk][snapWC][snapPrep][ji];
   s.done     = true;
   s.doneAt   = new Date().toTimeString().slice(0,5);
   s.doneDate = new Date().toLocaleDateString('en-GB');
   s.initials = initials;
-  const job = PROD[activeWC][activePrep][ji];
-  recentDone.unshift({ team:activeTeam, sub:sk, wc:activeWC, prep:activePrep, ji, label:job.rep });
+  const job = PROD[snapWC][snapPrep][ji];
+  recentDone.unshift({ team:snapTeam, sub:sk, wc:snapWC, prep:snapPrep, ji, label:job.rep });
   if (recentDone.length > 20) recentDone.pop();
   toast(`${job.rep} · ${initials} · marked complete`, 's');
   // Save to SharePoint List in background (don't await — keep UI fast)
-  saveCompletionToList(activeTeam, sk, activeWC, activePrep, ji).catch(console.warn);
+  saveCompletionToList(snapTeam, sk, snapWC, snapPrep, ji).catch(console.warn);
   applyStateToOvBadges();
   renderJobs();
   renderTeamSidebar();
@@ -1929,7 +1936,7 @@ function openSpecModal(wc, prep, ji) {
   const job = PROD[wc]?.[prep]?.[ji];
   if (!job) return;
   const sp = job.spec || {};
-  const v  = x => (x && String(x).trim()) || '';
+  const v  = x => escHtml((x && String(x).trim()) || '');
   const row = (lbl, val) => val ? `<div class="spec-row"><span class="spec-lbl">${lbl}</span><span class="spec-val">${val}</span></div>` : '';
   const dim = (lbl, val) => val ? `<div class="spec-dim-cell"><div class="spec-dim-val">${val}</div><div class="spec-dim-lbl">${lbl}</div></div>` : '';
 
@@ -1999,7 +2006,7 @@ function openSpecModalByRep(repId) {
   card.innerHTML = `
     <div class="spec-head">
       <div>
-        <div class="spec-head-rep">${repId}</div>
+        <div class="spec-head-rep">${escHtml(repId)}</div>
         <div class="spec-head-model" style="color:var(--text2);font-size:13px">Not in current 4-week window</div>
       </div>
       <button class="spec-close" onclick="closeSpecModal()">✕</button>
@@ -2059,7 +2066,7 @@ function renderSearchResults() {
   // Search across all weeks and preps
   const results = [];
   WEEKS.forEach(wk => {
-    for (let p = 1; p <= 5; p++) {
+    for (const p of [1,2,3,4,5,'express']) {
       const jobs = PROD[wk]?.[p] || [];
       jobs.forEach((job, ji) => {
         const repClean = job.rep.replace(/\s/g,'').toUpperCase();
@@ -2080,10 +2087,12 @@ function renderSearchResults() {
 
   area.innerHTML = results.map(r => {
     const { wk, p, ji, job, s } = r;
-    const ctx = `${wk} · ${PROD[wk]?.wc||''} · Prep ${p} (${PREP_DAYS[p-1]})`;
+    const ctx = p === 'express'
+      ? `${wk} · ${PROD[wk]?.wc||''} · Express / Fast Track`
+      : `${wk} · ${PROD[wk]?.wc||''} · Prep ${p} (${PREP_DAYS[p-1]})`;
     const isDone = s.done;
     return `<div class="search-result">
-      <div style="flex:1;min-width:0;cursor:pointer" onclick="goToJob('${wk}',${p})">
+      <div style="flex:1;min-width:0;cursor:pointer" onclick="goToJob('${wk}','${p}')">
         <div style="display:flex;align-items:center;gap:8px">
           <span class="sr-job">Job ${job.itemNo}</span>
           <span class="sr-rep">${job.rep}</span>
@@ -2091,8 +2100,8 @@ function renderSearchResults() {
         </div>
         <div class="sr-ctx">${ctx}</div>
       </div>
-      ${!isDone ? `<button class="sr-mark-btn" onclick="tickFromSearch('${wk}',${p},${ji})">MARK</button>` : ''}
-      <span class="sr-nav" onclick="goToJob('${wk}',${p})">→</span>
+      ${!isDone ? `<button class="sr-mark-btn" onclick="tickFromSearch('${wk}','${p}',${ji})">MARK</button>` : ''}
+      <span class="sr-nav" onclick="goToJob('${wk}','${p}')">→</span>
     </div>`;
   }).join('');
 }
@@ -2130,7 +2139,7 @@ function exportCSV() {
     const keys = t.hasSubs ? SUBS : ['all'];
     keys.forEach(sub => {
       WEEKS.forEach(wk => {
-        for (let p = 1; p <= 5; p++) {
+        for (const p of [1,2,3,4,5,'express']) {
           const jobs = PROD[wk]?.[p] || [];
           jobs.forEach((job, ji) => {
             const s = STATE[t.name]?.[sub]?.[wk]?.[p]?.[ji] || {};
@@ -2139,7 +2148,7 @@ function exportCSV() {
               sub === 'all' ? '' : sub,
               wk,
               PROD[wk]?.wc || '',
-              PREP_DAYS[p-1],
+              p === 'express' ? 'Express' : PREP_DAYS[p-1],
               job.itemNo,
               job.rep,
               s.done ? 'Complete' : 'Pending',
@@ -2157,7 +2166,7 @@ function exportCSV() {
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
-  const ts   = new Date().toISOString().slice(0,16).replace('T','_').replace(':','-');
+  const ts   = new Date().toISOString().slice(0,16).replace('T','_').replace(/:/g,'-');
   a.href     = url;
   a.download = `repose-production-${ts}.csv`;
   a.click();
@@ -2540,7 +2549,7 @@ function saveSpecSnapshot()   { try { localStorage.setItem('spec_snapshot',    J
 function saveSpecAlertCache() { try { localStorage.setItem('spec_alert_cache', JSON.stringify([...SPEC_ALERT_SENT])); }    catch(e) {} }
 
 async function checkForSpecChanges() {
-  if (!graphAccount) { console.log('[SpecAlert] skipped — not signed in'); return; }
+  if (!graphAccount) return;
   const newSnap = {};
   Object.keys(PROD).forEach(wk => {
     [1,2,3,4,5,'express'].forEach(p => {
@@ -2549,10 +2558,6 @@ async function checkForSpecChanges() {
       });
     });
   });
-
-  const snapSize = Object.keys(SPEC_SNAPSHOT).length;
-  const newSize  = Object.keys(newSnap).length;
-  console.log(`[SpecAlert] snapshot has ${snapSize} REPs, new data has ${newSize} REPs`);
 
   const toAlert = [];
   Object.keys(newSnap).forEach(rep => {
@@ -2564,17 +2569,27 @@ async function checkForSpecChanges() {
       const nv = (newSpec[key] || '').trim();
       if (!ov || !nv || ov === nv) return;
       const cacheKey = `${rep}__${key}`;
-      if (SPEC_ALERT_SENT.has(cacheKey)) { console.log(`[SpecAlert] skipped (already sent): ${rep} ${key}`); return; }
-      console.log(`[SpecAlert] CHANGE DETECTED: ${rep} — ${key}: "${ov}" → "${nv}"`);
+      if (SPEC_ALERT_SENT.has(cacheKey)) return;
       toAlert.push({ rep, itemNo: newSpec._itemNo, wk: newSpec._wk, prep: String(newSpec._prep), fieldKey: key, fieldLabel: SPEC_FIELD_LABELS[key], oldVal: ov, newVal: nv, cacheKey });
     });
   });
 
-  console.log(`[SpecAlert] ${toAlert.length} alert(s) to write`);
+  const prevSnapshot = SPEC_SNAPSHOT;
   SPEC_SNAPSHOT = newSnap;
-  saveSpecSnapshot();
+  let allWritten = true;
   for (const a of toAlert) {
-    await writeSpecAlert(a).catch(e => console.warn('writeSpecAlert:', e.message));
+    try {
+      await writeSpecAlert(a);
+    } catch(e) {
+      console.warn('writeSpecAlert:', e.message);
+      allWritten = false;
+    }
+  }
+  if (allWritten) {
+    saveSpecSnapshot();
+  } else {
+    // Roll back snapshot so failed changes are retried on next sync
+    SPEC_SNAPSHOT = prevSnapshot;
   }
 }
 
@@ -2626,7 +2641,9 @@ async function fetchSpecAlerts() {
   } catch(e) { console.warn('fetchSpecAlerts:', e.message); }
 }
 
-async function acknowledgeAlert(alertId) {
+async function acknowledgeAlert(alertId, btn) {
+  // Disable button immediately to prevent double-tap
+  if (btn) { btn.disabled = true; btn.style.opacity = '.5'; }
   const alert = SPEC_ALERTS.find(a => a.id === alertId);
   try {
     const siteId = await getSpSiteId();
@@ -2645,7 +2662,9 @@ async function acknowledgeAlert(alertId) {
   } catch(e) { console.warn('acknowledgeAlert:', e.message); toast('Could not update alert — check connection', 'u'); }
 }
 
-async function logScrapAndDismiss(alertId) {
+async function logScrapAndDismiss(alertId, btn) {
+  // Disable button immediately to prevent double-tap
+  if (btn) { btn.disabled = true; btn.style.opacity = '.5'; }
   const alert = SPEC_ALERTS.find(a => a.id === alertId);
   if (!alert) return;
   try {
@@ -2682,17 +2701,17 @@ function renderSpecAlerts() {
   area.innerHTML = SPEC_ALERTS.map(a => `
     <div class="spec-alert-card">
       <div class="spec-alert-hdr">
-        <span class="spec-alert-rep">⚠ ${a.rep}</span>
-        <span class="spec-alert-meta">Job ${a.jobNo} · ${a.week}${a.prep ? ' · Prep ' + a.prep : ''}</span>
+        <span class="spec-alert-rep">⚠ ${escHtml(a.rep)}</span>
+        <span class="spec-alert-meta">Job ${escHtml(a.jobNo)} · ${escHtml(a.week)}${a.prep ? ' · Prep ' + escHtml(a.prep) : ''}</span>
       </div>
       <div class="spec-alert-body">
-        <span class="spec-alert-field">${a.field}</span> changed:
-        <span class="spec-alert-old">${a.oldVal}</span> → <span class="spec-alert-new">${a.newVal}</span>
+        <span class="spec-alert-field">${escHtml(a.field)}</span> changed:
+        <span class="spec-alert-old">${escHtml(a.oldVal)}</span> → <span class="spec-alert-new">${escHtml(a.newVal)}</span>
       </div>
-      <div class="spec-alert-time">Detected ${a.detectedAt}</div>
+      <div class="spec-alert-time">Detected ${escHtml(a.detectedAt)}</div>
       <div class="spec-alert-btns">
-        <button class="spec-alert-ack"   onclick="acknowledgeAlert('${a.id}')">✓ Acknowledge</button>
-        <button class="spec-alert-scrap" onclick="logScrapAndDismiss('${a.id}')">🗑 Already Produced</button>
+        <button class="spec-alert-ack"   onclick="acknowledgeAlert('${a.id}',this)">✓ Acknowledge</button>
+        <button class="spec-alert-scrap" onclick="logScrapAndDismiss('${a.id}',this)">🗑 Already Produced</button>
       </div>
     </div>
   `).join('');
@@ -2717,7 +2736,7 @@ async function loadCompletionsFromList() {
       const keys = t.hasSubs ? SUBS : ['all'];
       keys.forEach(k => {
         WEEKS.forEach(wk => {
-          for (let p = 1; p <= 5; p++) {
+          for (const p of [1,2,3,4,5,'express']) {
             const jobs = PROD[wk]?.[p] || [];
             if (STATE[t.name]?.[k]?.[wk]?.[p]) {
               STATE[t.name][k][wk][p] = jobs.map(() => ({ done:false, doneAt:'', initials:'', doneDate:'', listItemId:null }));
@@ -2734,7 +2753,7 @@ async function loadCompletionsFromList() {
       const team = f.Team;
       const sub  = f.SubTeam || 'all';
       const wk   = f.Week;
-      const prep = Number(f.Prep);
+      const prep = f.Prep === 'express' ? 'express' : Number(f.Prep);
       const rep  = f.REP;
       if (!team || !wk || !prep || !rep) return;
       const jobs = PROD[wk]?.[prep] || [];
@@ -2762,7 +2781,6 @@ async function loadCompletionsFromList() {
 }
 
 async function saveCompletionToList(team, sub, wk, prep, ji) {
-  if (typeof prep === 'string' && isNaN(Number(prep))) return; // express — not in list schema yet
   try {
     const siteId = await getSpSiteId();
     const listId = await getSpListId();
@@ -2800,7 +2818,10 @@ async function saveCompletionToList(team, sub, wk, prep, ji) {
 
 async function deleteCompletionFromList(team, sub, wk, prep, ji) {
   const s = STATE[team]?.[sub]?.[wk]?.[prep]?.[ji];
-  if (!s?.listItemId) return;
+  if (!s?.listItemId) {
+    console.warn('undoJob: no listItemId — completion was not synced to SharePoint, local undo only');
+    return;
+  }
   try {
     const siteId = await getSpSiteId();
     const listId = await getSpListId();
@@ -2836,7 +2857,7 @@ async function fullRefresh() {
 function findJobByRep(rep7) {
   const repStr = `REP ${rep7}`;
   for (const wk of WEEKS) {
-    for (let p = 1; p <= 5; p++) {
+    for (const p of [1,2,3,4,5,'express']) {
       const jobs = PROD[wk]?.[p] || [];
       for (let ji = 0; ji < jobs.length; ji++) {
         if (jobs[ji].rep === repStr) return { wk, prep: p, ji };
@@ -3096,6 +3117,8 @@ const TABLET_TEAM = new URLSearchParams(window.location.search).get('team') || '
 
 let msalInstance = null;
 let graphAccount  = null;
+let _refreshInterval = null;
+let _fullRefreshInterval = null;
 
 function initMSAL() {
   if (!GRAPH_READY || typeof msal === 'undefined') return;
@@ -3124,8 +3147,8 @@ async function graphSignIn() {
     await loadCompletionsFromList();
     startQCAutoSync();
     fetchSpecAlerts().catch(console.warn);
-    setInterval(refreshCompletions, 60 * 1000);        // completions every 1 min
-    setInterval(fullRefresh, 10 * 60 * 1000);          // production + load plan every 10 min
+    if (!_refreshInterval)     _refreshInterval     = setInterval(refreshCompletions, 60 * 1000);
+    if (!_fullRefreshInterval) _fullRefreshInterval = setInterval(fullRefresh, 10 * 60 * 1000);
   } catch(e) {
     console.error('Sign-in failed', e);
     toast('Sign-in failed — check Azure app config', 'u');
@@ -3160,11 +3183,21 @@ function encodeSharingUrl(link) {
 }
 
 function isoWeekMonday(isoWeek) {
-  const year = new Date().getFullYear();
-  const jan4  = new Date(year, 0, 4);
-  const d = new Date(jan4);
-  d.setDate(jan4.getDate() - (jan4.getDay()+6)%7 + (isoWeek-1)*7);
-  return d;
+  // Use the year that contains today's ISO week as a reference
+  const now   = new Date();
+  const year  = now.getFullYear();
+  // Try current year first; if the resulting date is too far off, try adjacent years
+  function weekStart(y) {
+    const jan4 = new Date(y, 0, 4);
+    const d = new Date(jan4);
+    d.setDate(jan4.getDate() - (jan4.getDay()+6)%7 + (isoWeek-1)*7);
+    return d;
+  }
+  // Pick the year whose result is closest to today
+  const candidates = [weekStart(year-1), weekStart(year), weekStart(year+1)];
+  return candidates.reduce((best, d) =>
+    Math.abs(d - now) < Math.abs(best - now) ? d : best
+  );
 }
 
 function ddmmyyyy(d) {
@@ -3316,7 +3349,7 @@ async function loadProductionFromSharePoint() {
           [1,2,3,4,5,'express'].forEach(p => {
             const jobs = PROD[wk][p] || [];
             if (!STATE[t.name][k][wk][p] || STATE[t.name][k][wk][p].length !== jobs.length) {
-              STATE[t.name][k][wk][p] = jobs.map(() => ({ done:false, doneAt:'' }));
+              STATE[t.name][k][wk][p] = jobs.map(() => ({ done:false, doneAt:'', initials:'', doneDate:'', listItemId:null }));
             }
           });
         });
@@ -3354,7 +3387,7 @@ function updateAuthBadge() {
   const lbl  = document.getElementById('prod-sync-lbl');
   if (graphAccount) {
     const name = graphAccount.name || graphAccount.username.split('@')[0];
-    badge.innerHTML = `<span class="auth-dot on"></span><span class="auth-name">${name}</span>`;
+    badge.innerHTML = `<span class="auth-dot on"></span><span class="auth-name">${escHtml(name)}</span>`;
     badge.onclick = null;
     badge.title = `Signed in as ${graphAccount.username}`;
     if (pill) { pill.className = 'sync-pill'; lbl.textContent = 'Ready to sync'; }
@@ -3380,8 +3413,8 @@ async function initGraph() {
     await loadCompletionsFromList();
     startQCAutoSync();
     fetchSpecAlerts().catch(console.warn);
-    setInterval(refreshCompletions, 60 * 1000);        // completions every 1 min
-    setInterval(fullRefresh, 10 * 60 * 1000);          // production + load plan every 10 min
+    if (!_refreshInterval)     _refreshInterval     = setInterval(refreshCompletions, 60 * 1000);
+    if (!_fullRefreshInterval) _fullRefreshInterval = setInterval(fullRefresh, 10 * 60 * 1000);
   }
 }
 
@@ -3512,7 +3545,14 @@ function renderProductionPlan() {
     const total = jobs.length;
     let doneCount = 0;
     if (activeProdTeam) {
-      jobs.forEach((_, ji) => { if (getPPJobTeamStatus(col.key, ji)[activeProdTeam] === 'done') doneCount++; });
+      const tCfg = OV_DEPTS.find(d => d.k === activeProdTeam);
+      if (tCfg) {
+        jobs.forEach((_, ji) => {
+          const tStatus = getPPJobTeamStatus(col.key, ji);
+          const val = tStatus[tCfg.k];
+          if (tCfg.hasSubs ? (Array.isArray(val) && val.length === 3) : val) doneCount++;
+        });
+      }
     }
 
     const jobRows = jobs.length
@@ -3612,7 +3652,7 @@ function applyStateToOvBadges() {
     subKeys.forEach(subKey => {
       const shortSub = t.hasSubs ? SUB_SHORT[subKey] : null;
       WEEKS.forEach(wk => {
-        for (let p = 1; p <= 5; p++) {
+        for (const p of [1,2,3,4,5,'express']) {
           const jobs = PROD[wk]?.[p] || [];
           jobs.forEach((job, ji) => {
             const st = STATE[t.name]?.[subKey]?.[wk]?.[p]?.[ji];
@@ -3680,7 +3720,7 @@ function toast(msg, type='s') {
   el.className = `toast ${type}`;
   el.textContent = (type==='s'?'✓ ':'✕ ') + msg;
   wrap.appendChild(el);
-  setTimeout(()=>el.remove(), 2000);
+  setTimeout(()=>el.remove(), 4000);
 }
 
 // ─── Init ───
