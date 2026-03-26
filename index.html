@@ -1032,6 +1032,29 @@ body {
 .dash-bottom { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
 @media (max-width: 600px) { .dash-top, .dash-bottom { grid-template-columns: 1fr; } }
 
+/* ── Tablet team mode: compact sidebar ── */
+.tablet-mode .team-sidebar { width: 130px; }
+.tablet-mode .week-panel   { width: 148px; }
+.tablet-mode .week-btn {
+  padding: 4px 6px;
+  font-size: 10px;
+  margin-bottom: 2px;
+}
+.tablet-mode .week-tag {
+  font-size: 8px;
+  padding: 1px 4px;
+}
+.tablet-mode .prep-btn {
+  padding: 5px 3px;
+}
+.tablet-mode .prep-num {
+  font-size: 13px;
+}
+.tablet-mode .prep-day,
+.tablet-mode .prep-ct {
+  font-size: 8px;
+}
+
 /* Stat cards */
 .stat-card {
   background: #fff; border-radius: 14px; padding: 18px 20px;
@@ -4223,6 +4246,13 @@ if (TABLET_TEAM) {
   document.querySelectorAll('button').forEach(b => {
     if (b.textContent.trim().startsWith('← Teams')) b.style.display = 'none';
   });
+  // Hide Load Plan, Production Plan, Stats tabs — only Team View visible
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    const txt = b.textContent.trim();
+    if (txt !== 'Team View') b.style.display = 'none';
+  });
+  // Add tablet class for compact sidebar styling
+  document.body.classList.add('tablet-mode');
 }
 renderTeamSidebar();
 renderWeekList();
