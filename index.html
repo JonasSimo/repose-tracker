@@ -4346,6 +4346,7 @@ function applyStateToOvBadges() {
   });
 
   if (document.getElementById('view-overview')?.classList.contains('active')) renderOverview();
+  if (document.getElementById('view-loadsheet')?.classList.contains('active')) renderLoadSheet();
   renderPriorityBtn();
   if (activeWC === 'PRIORITY') renderJobs();
 }
