@@ -476,6 +476,8 @@ body {
 .rep-row.all-done .rep-num:hover { color: var(--repose-blue); }
 .rep-row.mech-row { background: #f0fdf8; }
 .mech-tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; background: var(--tbg); color: var(--teal); border: 1px solid var(--tborder); border-radius: 4px; padding: 1px 5px; margin-left: 5px; vertical-align: middle; }
+.rep-row.acc-row  { background: #faf5ff; }
+.acc-tag  { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; background: #f3e8ff; color: #7c3aed; border: 1px solid #c4b5fd; border-radius: 4px; padding: 1px 5px; margin-left: 5px; vertical-align: middle; }
 
 /* Badge strip — one badge per dept */
 .badge-strip { display: flex; gap: 2px; flex-shrink: 0; align-items: center; }
@@ -1240,6 +1242,7 @@ body {
 .ls-item-rep.qc-done { background:#bbf7d0 !important; }
 .ls-rep-num     { font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:700; color:#0e023a; line-height:1.4; }
 .ls-rep-num .ls-mech-tag { font-size:8px; font-weight:700; background:#cffafe; color:#0e7490; border:1px solid #a5f3fc; border-radius:3px; padding:0 3px; vertical-align:middle; margin-left:3px; }
+.ls-rep-num .ls-acc-tag  { font-size:8px; font-weight:700; background:#f3e8ff; color:#7c3aed; border:1px solid #c4b5fd; border-radius:3px; padding:0 3px; vertical-align:middle; margin-left:3px; }
 .ls-rep-desc    { font-size:9px; color:#555; line-height:1.3; padding-bottom:1px; }
 .ls-item-text   { padding:2px 5px; border-bottom:1px solid #b8c4d8; background:#dce6f5; font-size:9px; font-weight:700; color:#0e023a; text-transform:uppercase; letter-spacing:.03em; line-height:1.5; }
 @keyframes ls-change-fade {
@@ -2501,13 +2504,39 @@ function openSpecModal(wc, prep, ji) {
 function isMechDelivery(repId) {
   return /\bmech\b/i.test(repId);
 }
-
 // Strips "Mech" suffix to get the bare REP number for PROD lookups
 function mechBaseRep(repId) {
   return repId.replace(/\s*\bmech\b\s*/i, '').trim();
 }
 
+// Returns true if the entry is an accessory job ("Job A XXXXXX")
+function isAccDelivery(repId) {
+  return /\bJob\s*A\b/i.test(repId);
+}
+// Returns the job number string from a "Job A XXXXXX" id
+function accJobBase(repId) {
+  const m = repId.match(/\bJob\s*A\s*(\d+)/i);
+  return m ? m[1] : repId;
+}
+
 function openSpecModalByRep(repId) {
+  // Accessory job deliveries — show dedicated modal
+  if (isAccDelivery(repId)) {
+    const card = document.getElementById('specCard');
+    card.innerHTML = `
+      <div class="spec-head">
+        <div>
+          <div class="spec-head-rep">Job A ${escHtml(accJobBase(repId))}</div>
+          <div class="spec-head-model" style="color:#7c3aed">📦 Accessory delivery only</div>
+        </div>
+        <button class="spec-close" onclick="closeSpecModal()">✕</button>
+      </div>
+      <div class="spec-body" style="color:var(--text2);font-size:13px;padding:20px">
+        This is scheduled for an <strong>accessory delivery only</strong>.<br>No full job specification is associated with this entry.
+      </div>`;
+    document.getElementById('specModal').style.display = 'flex';
+    return;
+  }
   // Mechanism-only deliveries — show dedicated modal, no spec
   if (isMechDelivery(repId)) {
     const card = document.getElementById('specCard');
@@ -2862,17 +2891,20 @@ function renderOverviewAll() {
 
     repsOrdered.forEach((rep, ri) => {
       const isMech    = isMechDelivery(rep.id);
-      const allDone   = isMech ? !!rep.s.qc : OV_DEPTS.every(d => teamTileState(d, rep) === 'done');
+      const isAcc     = isAccDelivery(rep.id);
+      const allDone   = (isMech || isAcc) ? !!rep.s.qc : OV_DEPTS.every(d => teamTileState(d, rep) === 'done');
       const repDigits = rep.id.replace(/\D/g,'');
       const ovMatch   = ovSearchQuery && repDigits.includes(ovSearchQuery);
       const ovRowCls  = ovSearchQuery ? (ovMatch ? 'ov-highlight' : 'ov-dim') : '';
       const origRi    = day.reps.indexOf(rep);
       const mechLabel  = isMech ? ` <span class="mech-tag">Mech</span>` : '';
-      const repDisplay = isMech ? mechBaseRep(rep.id) : rep.id;
-      gridHtml += `<div class="rep-row ${allDone?'all-done':''} ${ovRowCls}${isMech?' mech-row':''}">
-        <span class="rep-num" onclick="openSpecModalByRep('${rep.id}')">${repDisplay}${mechLabel}</span>
+      const accLabel   = isAcc  ? ` <span class="acc-tag">Acc</span>`   : '';
+      const repDisplay = isMech ? mechBaseRep(rep.id) : isAcc ? `Job A ${accJobBase(rep.id)}` : rep.id;
+      const rowCls     = isMech ? ' mech-row' : isAcc ? ' acc-row' : '';
+      gridHtml += `<div class="rep-row ${allDone?'all-done':''} ${ovRowCls}${rowCls}">
+        <span class="rep-num" onclick="openSpecModalByRep('${rep.id}')">${repDisplay}${mechLabel}${accLabel}</span>
         <div class="badge-strip">`;
-      const deptsToRender = isMech ? OV_DEPTS.filter(d => d.k === 'qc') : OV_DEPTS;
+      const deptsToRender = (isMech || isAcc) ? OV_DEPTS.filter(d => d.k === 'qc') : OV_DEPTS;
       deptsToRender.forEach((d, di) => {
         if (di > 0) gridHtml += `<div class="bdiv"></div>`;
         const state = teamTileState(d, rep);
@@ -2991,9 +3023,12 @@ function renderOverviewTeam(teamName) {
       const ovMatch2   = ovSearchQuery && repDigits2.includes(ovSearchQuery);
       const ovRowCls2  = ovSearchQuery ? (ovMatch2 ? 'ov-highlight' : 'ov-dim') : '';
       const isMech2    = isMechDelivery(rep.id);
+      const isAcc2     = isAccDelivery(rep.id);
       const mechLabel2 = isMech2 ? ` <span class="mech-tag">Mech</span>` : '';
-      html += `<div class="rep-row ${teamDone ? 'all-done' : ''} ${ovRowCls2}${isMech2?' mech-row':''}">
-        <span class="rep-num" onclick="openSpecModalByRep('${rep.id}')">${repLabel}${mechLabel2}</span>
+      const accLabel2  = isAcc2  ? ` <span class="acc-tag">Acc</span>`   : '';
+      const rowCls2    = isMech2 ? ' mech-row' : isAcc2 ? ' acc-row' : '';
+      html += `<div class="rep-row ${teamDone ? 'all-done' : ''} ${ovRowCls2}${rowCls2}">
+        <span class="rep-num" onclick="openSpecModalByRep('${rep.id}')">${repLabel}${mechLabel2}${accLabel2}</span>
         <div class="badge-strip">`;
 
       if (map.hasSubs) {
@@ -3625,17 +3660,25 @@ async function loadLoadPlanFromSharePoint() {
       for (let row = 3; row < values.length; row++) {
         const cell = String(values[row]?.[col] ?? '').trim();
         if (!cell) continue;
-        const m = cell.match(/(?<!\d)(\d{7})(?!\d)/);
+        const m      = cell.match(/(?<!\d)(\d{7})(?!\d)/);
         const isMech = /\bmech\b/i.test(cell);
+        const mAcc   = !m && cell.match(/\bJob\s*A\s*(\d+)/i);
+        const isAcc  = !!mAcc;
 
         if (m) {
-          // OV_RAW — REPs only (dedup per date)
+          // REP item (7-digit)
           const repId = isMech ? `REP ${m[1]} Mech` : `REP ${m[1]}`;
           if (!newRaw[key]) newRaw[key] = [];
           if (!newRaw[key].includes(repId)) newRaw[key].push(repId);
-          colItems.push({ text: cell, rep7: m[1], isMech });
+          colItems.push({ text: cell, rep7: m[1], isMech, isAcc: false, accJobNum: null });
+        } else if (isAcc) {
+          // Accessory job item ("Job A XXXXXX")
+          const accId = `Job A ${mAcc[1]}`;
+          if (!newRaw[key]) newRaw[key] = [];
+          if (!newRaw[key].includes(accId)) newRaw[key].push(accId);
+          colItems.push({ text: cell, rep7: null, isMech: false, isAcc: true, accJobNum: mAcc[1] });
         } else {
-          colItems.push({ text: cell, rep7: null, isMech: false });
+          colItems.push({ text: cell, rep7: null, isMech: false, isAcc: false, accJobNum: null });
         }
       }
 
@@ -3697,11 +3740,14 @@ async function loadMechQCFromSharePoint() {
       `?$expand=fields&$filter=fields/Team eq 'QC' and createdDateTime ge '${spAfterDate(120)}'&$top=999`
     );
     items.forEach(item => {
-      const rep = String(item.fields?.REP ?? '').trim();
-      const m   = rep.match(/(?<!\d)(\d{7})(?!\d)/);
-      if (m) mechQCDone.add(m[1]);
+      const rep  = String(item.fields?.REP ?? '').trim();
+      const m7   = rep.match(/(?<!\d)(\d{7})(?!\d)/);
+      if (m7) mechQCDone.add(m7[1]);
+      const mAcc = rep.match(/\bJob\s*A\s*(\d+)/i);
+      if (mAcc) accQCDone.add(mAcc[1]);
     });
     saveMechQCDone(mechQCDone);
+    saveAccQCDone(accQCDone);
     applyStateToOvBadges();
   } catch(e) {
     console.warn('loadMechQCFromSharePoint:', e.message);
@@ -4097,6 +4143,17 @@ function ovToggle(dayLabel, ri, dept) {
     }
     saveMechQCDone(mechQCDone);
   }
+  // Persist acc QC completions across reloads
+  if (dept === 'qc' && isAccDelivery(rep.id)) {
+    const jobNum = accJobBase(rep.id);
+    if (nowDone) {
+      accQCDone.add(jobNum);
+      logAccQCCompletion(rep.id).catch(console.warn);
+    } else {
+      accQCDone.delete(jobNum);
+    }
+    saveAccQCDone(accQCDone);
+  }
   renderOverview();
   renderPriorityBtn();
   if (activeWC === 'PRIORITY') renderJobs();
@@ -4378,6 +4435,7 @@ function applyStateToOvBadges() {
     day.reps.forEach(rep => {
       const digits = rep.id.replace(/\D/g, '');
       if (digits.length === 7 && (qcCompletedReps.has(digits) || mechQCDone.has(digits))) rep.s.qc = 1;
+      if (isAccDelivery(rep.id) && accQCDone.has(accJobBase(rep.id))) rep.s.qc = 1;
     });
   });
 
@@ -4471,6 +4529,16 @@ function saveMechQCDone(set) {
   localStorage.setItem(MECH_QC_KEY, JSON.stringify([...set]));
 }
 let mechQCDone = loadMechQCDone();
+
+// Persisted accessory QC completions — keyed by job number string (e.g. "261312")
+const ACC_QC_KEY = 'accQCDone';
+function loadAccQCDone() {
+  try { return new Set(JSON.parse(localStorage.getItem(ACC_QC_KEY) || '[]')); } catch { return new Set(); }
+}
+function saveAccQCDone(set) {
+  localStorage.setItem(ACC_QC_KEY, JSON.stringify([...set]));
+}
+let accQCDone = loadAccQCDone();
 
 const STATS_NO_PER_PERSON = ['Woodmill', 'QC'];
 
@@ -5588,31 +5656,39 @@ function renderLoadSheet() {
     const label    = lsDayLabel(col.date);
     const cls      = lsDayCls(col.date);
     const dateStr  = col.date.toLocaleDateString('en-GB', { day:'2-digit', month:'2-digit', year:'numeric' });
-    const repCount  = col.items.filter(i => i.rep7).length;
-    const doneCount = col.items.filter(i => i.rep7 && (qcCompletedReps.has(i.rep7) || mechQCDone.has(i.rep7))).length;
+    const repCount  = col.items.filter(i => i.rep7 || i.isAcc).length;
+    const doneCount = col.items.filter(i => {
+      if (i.rep7)   return qcCompletedReps.has(i.rep7) || mechQCDone.has(i.rep7);
+      if (i.isAcc)  return accQCDone.has(i.accJobNum);
+      return false;
+    }).length;
     const allDone   = repCount > 0 && doneCount === repCount;
 
     const itemsHtml = col.items.length ? col.items.map(item => {
+      const changedAt  = LS_CHANGES.get(item.text);
+      const isChanged  = !!changedAt && (Date.now() - changedAt < 3600000);
+      const delayStyle = isChanged ? `animation-delay:-${Math.floor((Date.now()-changedAt)/1000)}s` : '';
+
       if (item.rep7) {
         const isDone     = qcCompletedReps.has(item.rep7) || mechQCDone.has(item.rep7);
         const mechTag    = item.isMech ? ' <span class="ls-mech-tag">MECH</span>' : '';
         const extra      = item.text.replace(/\bREP\b/gi,'').replace(/\bmech\b/gi,'').replace(item.rep7,'').replace(/^[\s\-–]+|[\s\-–]+$/g,'').trim();
-        const changedAt  = LS_CHANGES.get(item.text);
-        const isChanged  = !!changedAt && (Date.now() - changedAt < 3600000);
-        const changeAttr = isChanged
-          ? ` class="ls-item-rep${isDone?' qc-done':''} ls-changed" style="animation-delay:-${Math.floor((Date.now()-changedAt)/1000)}s"`
-          : ` class="ls-item-rep${isDone?' qc-done':''}"`;
-        return `<div${changeAttr} onclick="lsQCToggle('${item.rep7}')" title="Tap to mark QC done">
+        const cls        = `ls-item-rep${isDone?' qc-done':''}${isChanged?' ls-changed':''}`;
+        return `<div class="${cls}"${isChanged?` style="${delayStyle}"`:''}  onclick="lsQCToggle('${item.rep7}')" title="Tap to mark QC done">
           <div class="ls-rep-num">${item.rep7}${mechTag}</div>
           ${extra ? `<div class="ls-rep-desc">${extra}</div>` : ''}
         </div>`;
+      } else if (item.isAcc) {
+        const isDone  = accQCDone.has(item.accJobNum);
+        const extra   = item.text.replace(/\bJob\s*A\b/gi,'').replace(item.accJobNum,'').replace(/^[\s\-–]+|[\s\-–]+$/g,'').trim();
+        const cls     = `ls-item-rep${isDone?' qc-done':''}${isChanged?' ls-changed':''}`;
+        return `<div class="${cls}"${isChanged?` style="${delayStyle}"`:''}  onclick="lsAccQCToggle('${item.accJobNum}')" title="Tap to mark QC done">
+          <div class="ls-rep-num">Job A ${item.accJobNum} <span class="ls-acc-tag">ACC</span></div>
+          ${extra ? `<div class="ls-rep-desc">${extra}</div>` : ''}
+        </div>`;
       } else {
-        const changedAt  = LS_CHANGES.get(item.text);
-        const isChanged  = !!changedAt && (Date.now() - changedAt < 3600000);
-        const changeAttr = isChanged
-          ? ` class="ls-item-text ls-changed" style="animation-delay:-${Math.floor((Date.now()-changedAt)/1000)}s"`
-          : ` class="ls-item-text"`;
-        return `<div${changeAttr}>${item.text}</div>`;
+        const cls = `ls-item-text${isChanged?' ls-changed':''}`;
+        return `<div class="${cls}"${isChanged?` style="${delayStyle}"`:''}>${item.text}</div>`;
       }
     }).join('') : '<div class="ls-empty">—</div>';
 
@@ -5661,6 +5737,69 @@ async function logLSQCCompletion(rep7) {
   } catch(e) {
     console.warn('logLSQCCompletion:', e.message);
     toast('QC saved locally — SharePoint sync failed', 'u');
+  }
+}
+
+function lsAccQCToggle(jobNum) {
+  if (accQCDone.has(jobNum)) return;
+  accQCDone.add(jobNum);
+  saveAccQCDone(accQCDone);
+  applyStateToOvBadges();
+  renderLoadSheet();
+  logLSAccQCCompletion(jobNum).catch(console.warn);
+}
+
+async function logLSAccQCCompletion(jobNum) {
+  try {
+    const siteId = await getSpSiteId();
+    const listId = await getListIdByName('ProductionCompletions');
+    const token  = await getGraphToken();
+    const now    = new Date();
+    const res = await fetch(
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fields: {
+          Team:          'QC',
+          REP:           `Job A ${jobNum}`,
+          CompletedTime: now.toTimeString().slice(0, 5),
+          CompletedDate: now.toISOString().slice(0, 10),
+          IsComplete:    true,
+        }})
+      }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    toast(`QC complete: Job A ${jobNum}`, 's');
+  } catch(e) {
+    console.warn('logLSAccQCCompletion:', e.message);
+    toast('QC saved locally — SharePoint sync failed', 'u');
+  }
+}
+
+async function logAccQCCompletion(repId) {
+  try {
+    const token  = await getGraphToken();
+    const siteId = await getSpSiteId();
+    const listId = await getListIdByName('ProductionCompletions');
+    const now    = new Date();
+    await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields: {
+        Team:          'QC',
+        SubTeam:       '',
+        REP:           repId,
+        Initials:      'QC',
+        CompletedTime: now.toTimeString().slice(0,5),
+        CompletedDate: now.toLocaleDateString('en-GB'),
+        IsComplete:    true,
+      }}),
+    });
+    toast(`${repId} QC logged`, 's');
+  } catch(e) {
+    console.warn('logAccQCCompletion:', e.message);
+    toast('QC marked but could not sync to SharePoint', 'u');
   }
 }
 
