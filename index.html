@@ -1061,13 +1061,15 @@ body {
 .msk-btn.dash { font-size: 22px; }
 .msk-btn.del  { font-size: 16px; background: var(--rbg); border-color: var(--rborder); color: var(--red); }
 .msk-btn.del:hover { background: #fde8e8; }
-.mserial-btn {
-  padding: 6px 13px; border-radius: 8px; border: 1.5px solid var(--green);
-  background: var(--gbg); color: var(--green); font-size: 12px;
-  font-weight: 600; font-family: inherit; cursor: pointer; transition: .12s;
-  white-space: nowrap;
+.serial-card-btn {
+  flex-shrink: 0; margin: 8px 4px; padding: 5px 8px;
+  border: 1.5px solid var(--border2); border-radius: 7px;
+  background: var(--bg3); color: var(--text3); font-size: 11px;
+  font-weight: 600; font-family: inherit; cursor: pointer;
+  transition: .12s; white-space: nowrap; line-height: 1.2;
 }
-.mserial-btn:hover { background: #d1fae5; }
+.serial-card-btn:hover { border-color: var(--blue); color: var(--blue); background: var(--bbg); }
+.serial-card-btn.saved { border-color: var(--green); color: var(--green); background: var(--gbg); }
 
 /* ── Tablet team mode: compact sidebar ── */
 .tablet-mode .team-sidebar { width: 130px; }
@@ -1340,7 +1342,6 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="jh-title" id="jh-title">Select a week and prep</div>
             <div class="jh-sub" id="jh-sub">Choose from the panel on the left</div>
           </div>
-          <button id="mserial-open-btn" class="mserial-btn" onclick="openMechSerialModal()" style="display:none">⌨ Mech Serial</button>
           <button style="margin-left:auto;padding:6px 12px;border-radius:8px;border:1.5px solid var(--border2);background:var(--bg3);font-size:12px;cursor:pointer;font-family:inherit;color:var(--text2)" onclick="showView('team-select')">← Teams</button>
         </div>
         <div class="jh-stats" id="jh-stats" style="display:none">
@@ -1892,9 +1893,6 @@ function openTeam(name, hasSubs) {
   renderWeekList();
   renderPriorityBtn();
   renderJobs();
-  // Show Mech Serial button only for Assembly team
-  const msBtn = document.getElementById('mserial-open-btn');
-  if (msBtn) msBtn.style.display = name === 'Assembly' ? '' : 'none';
 }
 
 // ═══════════════════════════════════════════════
@@ -1957,8 +1955,6 @@ function switchTeam(name, hasSubs) {
   renderPriorityBtn();
   renderQCSyncBar();
   renderJobs();
-  const msBtn = document.getElementById('mserial-open-btn');
-  if (msBtn) msBtn.style.display = name === 'Assembly' ? '' : 'none';
 }
 
 function switchSub(sub) {
@@ -2244,6 +2240,7 @@ function renderJobs() {
             ${!isQcAuto ? `<button class="card-undo-btn" onclick="event.stopPropagation();undoJob('${activeTeam}','${sk2}','${activeWC}','${activePrep}',${ji})">↩ Undo</button>` : ''}
           </div>` : `<span class="jc-qty">Qty: ${job.qty||'—'}</span>`}
         </div>
+        ${activeTeam === 'Assembly' ? `<button class="serial-card-btn" onclick="event.stopPropagation();openMechSerialModal('${activeWC}','${activePrep}',${ji},'${job.rep}')">⊞<br>Serial</button>` : ''}
         <button class="tick-btn ${s.done?'ticked':''}" onclick="tickJob(${ji})">
           <span class="tb-icon">${s.done?'✓':'○'}</span>
           <span class="tb-label">${s.done?'DONE':'MARK'}</span>
@@ -5421,10 +5418,15 @@ async function deleteScrapEntry(item, rowEl) {
 // MECHANISM SERIAL CODE (Assembly only)
 // ═══════════════════════════════════════════════
 let _mechSerialVal = '';
+let _mechSerialCtx = null; // { wk, prep, ji, rep }
 
-function openMechSerialModal() {
+function openMechSerialModal(wk, prep, ji, rep) {
+  _mechSerialCtx = { wk, prep, ji, rep };
   _mechSerialVal = '';
   updateMechSerialDisplay();
+  // Show the REP in the modal subtitle
+  const sub = document.querySelector('#mserial-modal .modal-sub');
+  if (sub) sub.textContent = `REP ${rep} — enter the mechanism serial number`;
   document.getElementById('mserial-modal').style.display = 'flex';
 }
 
@@ -5449,6 +5451,7 @@ function mechSerialKey(k) {
 async function saveMechSerial() {
   const code = _mechSerialVal.trim();
   if (!code) { toast('Enter a serial code first', 'u'); return; }
+  const ctx = _mechSerialCtx || {};
   closeMechSerialModal();
   try {
     const siteId = await getSpSiteId();
@@ -5463,8 +5466,10 @@ async function saveMechSerial() {
         body: JSON.stringify({ fields: {
           Team:          'Assembly',
           SubTeam:       'MechSerial',
+          Week:          ctx.wk   || '',
+          Prep:          ctx.prep != null ? String(ctx.prep) : '',
           JobNo:         code,
-          REP:           '',
+          REP:           ctx.rep  || '',
           CompletedTime: now.toTimeString().slice(0, 5),
           CompletedDate: now.toISOString().slice(0, 10),
           IsComplete:    true,
@@ -5472,7 +5477,7 @@ async function saveMechSerial() {
       }
     );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    toast(`Serial ${code} saved`, 's');
+    toast(`Serial ${code} saved for ${ctx.rep || 'job'}`, 's');
   } catch(e) {
     console.warn('saveMechSerial:', e.message);
     toast('Could not save serial — check connection', 'u');
