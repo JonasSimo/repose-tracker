@@ -428,6 +428,21 @@ body {
 .leg-sq-grp { display: flex; gap: 1px; }
 .leg-sq-grp .ls { width: 8px; height: 10px; border-radius: 2px; border: 1.5px solid var(--border2); background: transparent; }
 .ov-area { flex: 1; overflow: auto; padding: 16px 20px; }
+
+/* ── Customer filter ── */
+.cust-select { width:100%; padding:5px 9px; border:1px solid var(--border2); border-radius:6px; font-family:inherit; font-size:12px; background:var(--bg2); color:var(--text); cursor:pointer; }
+.ov-customer-panel { flex:1; overflow-y:auto; padding:14px 20px; background:var(--bg); }
+.cust-header { font-size:13px; font-weight:700; color:var(--text); margin-bottom:10px; display:flex; align-items:center; justify-content:space-between; }
+.cust-job-card { background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:10px 12px; margin-bottom:8px; cursor:pointer; transition:border-color .12s; }
+.cust-job-card:hover { border-color:var(--repose-blue); }
+.cust-job-top { display:flex; align-items:baseline; gap:10px; margin-bottom:2px; flex-wrap:wrap; }
+.cust-job-rep { font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:700; color:var(--text); }
+.cust-job-meta { font-size:11px; color:var(--text2); }
+.cust-job-detail { font-size:11px; color:var(--text3); margin-bottom:7px; }
+.cust-chips { display:flex; gap:4px; flex-wrap:wrap; }
+.cust-chip { font-size:9px; font-weight:700; padding:2px 6px; border-radius:3px; background:var(--bg4); color:var(--text3); border:1px solid var(--border); letter-spacing:.04em; }
+.cust-chip.done { background:var(--gbg); color:var(--green); border-color:var(--gborder); }
+.cust-chip.part { background:var(--abg); color:var(--amber); border-color:var(--aborder); }
 .ov-grid { display: flex; gap: 10px; align-items: flex-start; min-width: 820px; }
 .day-col { flex: 1; min-width: 155px; display: flex; flex-direction: column; }
 
@@ -1451,10 +1466,14 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
     </div>
     <div class="ov-tab-row" id="ovTabRow"></div>
-    <div style="padding:8px 16px 0;max-width:320px">
+    <div style="padding:8px 16px 0;display:flex;gap:8px;align-items:center;max-width:640px">
       <input id="ov-search" class="search-input" type="text" placeholder="Search REP number…"
-        oninput="onOvSearch(this.value)" autocomplete="off" style="width:100%;box-sizing:border-box">
+        oninput="onOvSearch(this.value)" autocomplete="off" style="flex:1;min-width:0">
+      <select id="ov-customer-filter" class="cust-select" style="flex:1;min-width:0" onchange="onOvCustomerFilter(this.value)">
+        <option value="">— Filter by customer —</option>
+      </select>
     </div>
+    <div id="ov-customer-panel" class="ov-customer-panel" style="display:none"></div>
     <div class="ov-area" id="ovArea">
       <div class="ov-locked">
         <div class="ov-locked-icon">🔒</div>
@@ -1942,7 +1961,7 @@ function showView(name) {
     b.classList.toggle('active', tabMap[name] === i);
   });
   document.getElementById('view-' + name).classList.add('active');
-  if (name === 'overview')    { if (!ovActiveTab) ovActiveTab = 'live'; buildOvSlots(ovActiveTab==='wk1'?5:ovActiveTab==='wk2'?10:0); applyStateToOvBadges(); renderOverviewTabs(); renderOverview(); }
+  if (name === 'overview')    { if (!ovActiveTab) ovActiveTab = 'live'; buildOvSlots(ovActiveTab==='wk1'?5:ovActiveTab==='wk2'?10:0); applyStateToOvBadges(); renderOverviewTabs(); renderOverview(); populateCustomerDropdown(); }
   if (name === 'loadsheet')   { renderLoadSheet(); }
   if (name === 'production')  { renderProductionPlan(); }
   if (name === 'stats')       { openStatsView(); }
@@ -2671,6 +2690,117 @@ function renderSearchResults() {
 function onOvSearch(val) {
   ovSearchQuery = val.trim().replace(/\s/g,'').toUpperCase();
   renderOverview();
+}
+
+let ovCustomerFilter = '';
+
+function populateCustomerDropdown() {
+  const sel = document.getElementById('ov-customer-filter');
+  if (!sel) return;
+  const prev = sel.value;
+  const names = new Set();
+  for (const wk of WEEKS) {
+    for (const p of [1,2,3,4,5,'express']) {
+      (PROD[wk]?.[p] || []).forEach(job => {
+        const c = (job.spec?.customer || '').trim();
+        if (c) names.add(c);
+      });
+    }
+  }
+  sel.innerHTML = '<option value="">— Filter by customer —</option>' +
+    [...names].sort().map(n => `<option value="${escHtml(n)}"${n===prev?' selected':''}>${escHtml(n)}</option>`).join('');
+}
+
+function onOvCustomerFilter(val) {
+  ovCustomerFilter = val;
+  const panel = document.getElementById('ov-customer-panel');
+  const area  = document.getElementById('ovArea');
+  if (val) {
+    if (panel) panel.style.display = 'block';
+    if (area)  area.style.display  = 'none';
+    renderCustomerPanel();
+  } else {
+    if (panel) panel.style.display = 'none';
+    if (area)  area.style.display  = '';
+  }
+}
+
+function renderCustomerPanel() {
+  const panel = document.getElementById('ov-customer-panel');
+  if (!panel || !ovCustomerFilter) return;
+
+  const matches = [];
+  for (const wk of WEEKS) {
+    for (const p of [1,2,3,4,5,'express']) {
+      (PROD[wk]?.[p] || []).forEach((job, ji) => {
+        const c = (job.spec?.customer || '').trim();
+        if (c.toLowerCase() === ovCustomerFilter.toLowerCase()) {
+          matches.push({ job, wk, prep: p, ji, wc: PROD[wk]?.wc || '' });
+        }
+      });
+    }
+  }
+
+  if (!matches.length) {
+    panel.innerHTML = `<div class="cust-header"><span>${escHtml(ovCustomerFilter)}</span></div>
+      <div style="color:var(--text3);font-size:12px">No jobs in the current 4-week window.</div>`;
+    return;
+  }
+
+  const cards = matches.map(({ job, wk, prep, ji, wc }) => {
+    const sp        = job.spec || {};
+    const model     = (sp.model    || '').trim();
+    const cover     = (sp.coverCode|| '').trim();
+    const fabric    = (sp.fabric   || '').trim();
+    const prepLabel = prep === 'express' ? 'Express' : `Prep ${prep}`;
+    const detail    = [model, cover, fabric].filter(Boolean).map(escHtml).join(' · ');
+
+    const chips = TEAMS_CFG.map(t => {
+      const ovKey = TEAM_OV_MAP[t.name];
+      if (!ovKey) return '';
+      const lbl = ovKey.key.toUpperCase();
+      let cls = '';
+      if (t.hasSubs) {
+        const done = SUBS.filter(k => STATE[t.name]?.[k]?.[wk]?.[prep]?.[ji]?.done).length;
+        cls = done === 3 ? 'done' : done > 0 ? 'part' : '';
+      } else if (t.name === 'QC') {
+        const d = job.rep.replace(/\D/g, '');
+        cls = (qcCompletedReps.has(d) || mechQCDone.has(d)) ? 'done' : '';
+      } else {
+        cls = STATE[t.name]?.['all']?.[wk]?.[prep]?.[ji]?.done ? 'done' : '';
+      }
+      return `<span class="cust-chip ${cls}">${lbl}</span>`;
+    }).join('');
+
+    return `<div class="cust-job-card" onclick="openSpecModal('${wk}','${prep}',${ji})">
+      <div class="cust-job-top">
+        <span class="cust-job-rep">${escHtml(job.rep)}</span>
+        <span class="cust-job-meta">Job ${job.itemNo} &nbsp;·&nbsp; ${wk} w/c ${wc} &nbsp;·&nbsp; ${prepLabel}</span>
+      </div>
+      ${detail ? `<div class="cust-job-detail">${detail}</div>` : ''}
+      <div class="cust-chips">${chips}</div>
+    </div>`;
+  }).join('');
+
+  const total = matches.length;
+  const allDone = matches.filter(({ job, wk, prep, ji }) => {
+    const d = job.rep.replace(/\D/g, '');
+    if (qcCompletedReps.has(d) || mechQCDone.has(d)) return true;
+    return TEAMS_CFG.filter(t => t.name !== 'QC').every(t => {
+      if (t.hasSubs) return SUBS.every(k => STATE[t.name]?.[k]?.[wk]?.[prep]?.[ji]?.done);
+      return !!STATE[t.name]?.['all']?.[wk]?.[prep]?.[ji]?.done;
+    });
+  }).length;
+
+  panel.innerHTML = `
+    <div class="cust-header">
+      <span>${escHtml(ovCustomerFilter)}
+        <span style="font-weight:400;font-size:11px;color:var(--text2);margin-left:6px">${total} job${total!==1?'s':''} &nbsp;·&nbsp; ${allDone} complete</span>
+      </span>
+      <button onclick="onOvCustomerFilter('');document.getElementById('ov-customer-filter').value=''"
+        style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text3);line-height:1;padding:0 2px">✕</button>
+    </div>
+    ${cards}`;
 }
 
 function goToJob(wk, prep) {
@@ -4068,6 +4198,7 @@ async function loadProductionFromSharePoint() {
     const now2 = new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
     if (pill) { pill.className = 'sync-pill synced'; lbl.textContent = `Live · synced ${now2}`; }
     toast('Production data loaded from SharePoint', 's');
+    populateCustomerDropdown();
     // Await fetch so SPEC_ALERTS is populated before change detection runs (needed for dedup)
     console.log('[SpecAlert] production sync complete — running spec check');
     await fetchSpecAlerts().catch(e => console.warn('fetchSpecAlerts:', e.message));
