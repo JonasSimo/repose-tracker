@@ -2287,6 +2287,16 @@ function tickJob(ji) {
     return;
   }
 
+  // Assembly — require serial code before completion
+  if (snapTeam === 'Assembly') {
+    const serialKey = `${job.rep}__${snapWC}__${snapPrep}`;
+    if (!MECH_SERIALS.has(serialKey)) {
+      toast('Enter mechanism serial code first', 'u');
+      openMechSerialModal(snapWC, snapPrep, ji, job.rep);
+      return;
+    }
+  }
+
   // All other teams — show initials modal
   pendingTick = { ji, team: snapTeam, sub: snapSub, wc: snapWC, prep: snapPrep };
   document.getElementById('modal-rep-label').textContent = job.rep;
@@ -3269,6 +3279,7 @@ async function saveCompletionToList(team, sub, wk, prep, ji) {
           CompletedTime: s.doneAt,
           CompletedDate: s.doneDate,
           IsComplete:    true,
+          ...(team === 'Assembly' ? { MechSerial: MECH_SERIALS.get(`${job.rep}__${wk}__${prep}`) || '' } : {}),
         }})
       }
     );
@@ -5429,16 +5440,17 @@ async function loadMechSerials() {
     const listId = await getListIdByName('ProductionCompletions');
     const items  = await graphGetAll(
       `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items` +
-      `?$expand=fields&$filter=fields/SubTeam eq 'MechSerial'&$top=999`
+      `?$expand=fields&$filter=fields/Team eq 'Assembly'&$top=999`
     );
     MECH_SERIALS.clear();
     items.forEach(item => {
       const f   = item.fields || {};
+      const ser = String(f.MechSerial ?? '').trim();
+      if (!ser) return;
       const rep = String(f.REP  ?? '').trim();
       const wk  = String(f.Week ?? '').trim();
       const pr  = String(f.Prep ?? '').trim();
-      const ser = String(f.MechSerial ?? '').trim();
-      if (rep && ser) MECH_SERIALS.set(`${rep}__${wk}__${pr}`, ser);
+      if (rep) MECH_SERIALS.set(`${rep}__${wk}__${pr}`, ser);
     });
     renderJobs();
   } catch(e) {
@@ -5477,44 +5489,16 @@ function mechSerialKey(k) {
   updateMechSerialDisplay();
 }
 
-async function saveMechSerial() {
+function saveMechSerial() {
   const code = _mechSerialVal.trim();
   if (!code) { toast('Enter a serial code first', 'u'); return; }
   const ctx = _mechSerialCtx || {};
   closeMechSerialModal();
-  try {
-    const siteId = await getSpSiteId();
-    const listId = await getListIdByName('ProductionCompletions');
-    const token  = await getGraphToken();
-    const now    = new Date();
-    const res = await fetch(
-      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`,
-      {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fields: {
-          Team:          'Assembly',
-          SubTeam:       'MechSerial',
-          Week:          ctx.wk   || '',
-          Prep:          ctx.prep != null ? String(ctx.prep) : '',
-          MechSerial:    code,
-          REP:           ctx.rep  || '',
-          CompletedTime: now.toTimeString().slice(0, 5),
-          CompletedDate: now.toISOString().slice(0, 10),
-          IsComplete:    true,
-        }})
-      }
-    );
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    // Update local map so all cards refresh immediately
-    const key = `${ctx.rep}__${ctx.wk}__${ctx.prep}`;
-    MECH_SERIALS.set(key, code);
-    renderJobs();
-    toast(`Serial ${code} saved for ${ctx.rep || 'job'}`, 's');
-  } catch(e) {
-    console.warn('saveMechSerial:', e.message);
-    toast('Could not save serial — check connection', 'u');
-  }
+  // Store locally — saved to SharePoint as part of the job completion record
+  const key = `${ctx.rep}__${ctx.wk}__${ctx.prep}`;
+  MECH_SERIALS.set(key, code);
+  renderJobs();
+  toast(`Serial ${code} ready — now mark the job complete`, 's');
 }
 </script>
 
