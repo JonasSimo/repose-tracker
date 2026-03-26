@@ -1219,53 +1219,76 @@ body {
 .btn-cancel  { padding:6px 10px; border-radius:7px; font-size:12px; font-weight:600; cursor:pointer; background:var(--bg3); color:var(--repose-grey); border:1.5px solid var(--border); font-family:inherit; }
 
 /* ── Delivery Schedule view ── */
-.ls-wrap { display:flex; flex-direction:column; height:100%; overflow:hidden; }
-.ls-topbar {
-  padding:10px 16px; border-bottom:1px solid var(--border);
-  background:var(--bg2); flex-shrink:0;
-  display:flex; align-items:center; justify-content:space-between; gap:12px;
-}
+.ls-wrap         { display:flex; flex-direction:column; height:100%; overflow:hidden; }
+.ls-topbar       { padding:10px 16px; border-bottom:1px solid var(--border); background:var(--bg2); flex-shrink:0; display:flex; align-items:center; justify-content:space-between; gap:12px; }
 .ls-topbar-title { font-size:15px; font-weight:700; color:var(--text); }
 .ls-topbar-sub   { font-size:11px; color:var(--text2); margin-top:1px; }
-.ls-cols-scroll  { flex:1; overflow-x:auto; overflow-y:hidden; display:flex; padding:12px; gap:10px; }
+.ls-cols-scroll  { flex:1; overflow-x:auto; overflow-y:hidden; display:flex; padding:14px 14px 14px; gap:12px; align-items:flex-start; }
+
 .ls-col {
-  flex-shrink:0; width:240px; display:flex; flex-direction:column;
-  background:var(--bg2); border:1.5px solid var(--border);
-  border-radius:12px; overflow:hidden; max-height:100%;
+  flex-shrink:0; width:260px; display:flex; flex-direction:column;
+  border-radius:14px; overflow:hidden;
+  border:2px solid var(--border); background:var(--bg2);
+  box-shadow:0 2px 8px rgba(0,0,0,.06); max-height:calc(100vh - 120px);
 }
-.ls-col.ls-today  { border-color:var(--repose-blue); }
-.ls-col.ls-yesterday { opacity:.75; }
+.ls-col.ls-today     { border-color:var(--repose-blue); box-shadow:0 4px 16px rgba(20,161,233,.15); }
+.ls-col.ls-yesterday { opacity:.65; }
+.ls-col.ls-all-done  { border-color:var(--green); }
+
 .ls-col-hd {
-  padding:10px 12px; background:var(--bg3);
-  border-bottom:1px solid var(--border); flex-shrink:0;
+  padding:12px 14px 10px; flex-shrink:0;
+  background:var(--repose-navy); color:#fff;
 }
-.ls-col-label { font-size:13px; font-weight:700; color:var(--text); }
-.ls-col.ls-today .ls-col-label { color:var(--repose-blue); }
-.ls-col-date  { font-size:10px; color:var(--text2); margin-top:1px; }
-.ls-col-tally { font-size:10px; color:var(--text3); margin-top:3px; }
-.ls-col-body  { flex:1; overflow-y:auto; padding:6px; }
+.ls-col.ls-today     .ls-col-hd { background:var(--repose-blue); }
+.ls-col.ls-yesterday .ls-col-hd { background:var(--repose-grey); }
+.ls-col.ls-all-done  .ls-col-hd { background:var(--green); }
+
+.ls-col-day  { font-size:16px; font-weight:800; letter-spacing:-.01em; color:#fff; }
+.ls-col-date { font-size:11px; color:rgba(255,255,255,.75); margin-top:2px; }
+.ls-col-tally { font-size:11px; font-weight:600; color:rgba(255,255,255,.85); margin-top:6px; background:rgba(0,0,0,.15); border-radius:6px; padding:3px 8px; display:inline-block; }
+.ls-tally-done { background:rgba(255,255,255,.25) !important; }
+
+.ls-col-body { flex:1; overflow-y:auto; padding:8px; }
+
 .ls-item-rep {
+  border:1.5px solid var(--border); border-radius:10px;
+  background:var(--bg2); margin-bottom:7px; overflow:hidden;
+  transition:border-color .12s;
+}
+.ls-item-rep:hover { border-color:var(--border2); }
+.ls-item-rep.qc-done { background:var(--gbg); border-color:var(--gborder); opacity:.55; }
+.ls-item-top {
   display:flex; align-items:center; gap:8px;
-  border:1.5px solid var(--border); border-radius:8px;
-  background:var(--bg2); padding:7px 10px; margin-bottom:5px;
-  transition:.1s;
+  padding:9px 10px 7px;
 }
-.ls-item-rep.qc-done { opacity:.45; border-color:var(--gborder); background:var(--gbg); }
-.ls-rep-label { font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:600; color:var(--text); flex:1; }
-.ls-rep-extra { font-size:10px; color:var(--text2); margin-top:2px; }
+.ls-rep-num {
+  font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:700;
+  color:var(--repose-navy); flex:1; letter-spacing:.01em;
+}
+.ls-mech-tag {
+  font-size:9px; font-weight:700; background:var(--tbg); color:var(--teal);
+  border:1px solid var(--tborder); border-radius:4px; padding:1px 5px;
+  vertical-align:middle; margin-left:4px;
+}
+.ls-rep-desc {
+  font-size:11px; color:var(--text2); padding:0 10px 8px;
+  border-top:1px solid var(--border); padding-top:5px; margin-top:0;
+  font-weight:500;
+}
 .ls-qc-btn {
-  flex-shrink:0; padding:4px 8px; border-radius:6px;
+  flex-shrink:0; padding:5px 11px; border-radius:7px;
   border:1.5px solid var(--tborder); background:var(--tbg); color:var(--teal);
-  font-size:11px; font-weight:600; font-family:inherit; cursor:pointer; transition:.12s;
+  font-size:12px; font-weight:700; font-family:inherit; cursor:pointer; transition:.12s;
 }
-.ls-qc-btn:hover { background:#cff4fc; }
+.ls-qc-btn:hover:not(:disabled) { background:#b2eef8; border-color:var(--teal); }
 .ls-qc-btn.done { background:var(--gbg); border-color:var(--gborder); color:var(--green); cursor:default; }
 .ls-item-text {
-  padding:5px 9px; margin-bottom:4px; border-radius:7px;
-  background:var(--bg3); font-size:11px; color:var(--text2); font-weight:500;
-  border-left:3px solid var(--border2);
+  padding:6px 10px; margin-bottom:5px; border-radius:8px;
+  background:var(--bg4); font-size:11px; color:var(--text2); font-weight:600;
+  border-left:3px solid var(--repose-blue);
+  text-transform:uppercase; letter-spacing:.04em;
 }
-.ls-empty { text-align:center; color:var(--text3); font-size:12px; padding:24px 8px; }
+.ls-empty { text-align:center; color:var(--text3); font-size:12px; padding:30px 8px; }
 </style>
 <script src="/msal-browser.min.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -2727,7 +2750,7 @@ const OV_SUBS_SHORT = ['A','B','S'];
 // Displayed as "REP 2607038" — each column in the sheet = one load, row 4 = delivery date
 let OV_DAYS = [];
 let OV_RAW  = {}; // { 'YYYY-MM-DD': ['REP 1234567', ...] } — all parsed from SharePoint
-let LS_RAW  = {}; // { 'YYYY-MM-DD': [{ text, rep7, isMech }] } — full cell content for Delivery view
+let LS_RAW  = []; // [{ key, date, items:[{text,rep7,isMech}] }] — one entry per Excel column
 
 function addWorkdays(d, n) {
   const r = new Date(d);
@@ -3600,8 +3623,7 @@ async function loadLoadPlanFromSharePoint() {
     const dateRow = values[2] || [];
     const numCols = Math.max(...values.map(r => r.length));
     const newRaw = {};
-    const newLS  = {};
-    const lsSeenPerDate = {}; // dedup REPs within same date
+    const newLS  = [];
 
     for (let col = 1; col < numCols; col++) {
       const rawDate = dateRow[col];
@@ -3613,8 +3635,8 @@ async function loadLoadPlanFromSharePoint() {
       if (!delivDate || isNaN(delivDate)) continue;
       delivDate.setHours(0,0,0,0);
       const key = delivDate.toISOString().slice(0,10);
-      if (!lsSeenPerDate[key]) lsSeenPerDate[key] = new Set();
 
+      const colItems = [];
       for (let row = 3; row < values.length; row++) {
         const cell = String(values[row]?.[col] ?? '').trim();
         if (!cell) continue;
@@ -3622,25 +3644,21 @@ async function loadLoadPlanFromSharePoint() {
         const isMech = /\bmech\b/i.test(cell);
 
         if (m) {
-          // OV_RAW — REPs only
+          // OV_RAW — REPs only (dedup per date)
           const repId = isMech ? `REP ${m[1]} Mech` : `REP ${m[1]}`;
           if (!newRaw[key]) newRaw[key] = [];
           if (!newRaw[key].includes(repId)) newRaw[key].push(repId);
-          // LS_RAW — dedup REPs per date
-          if (!lsSeenPerDate[key].has(m[1])) {
-            lsSeenPerDate[key].add(m[1]);
-            if (!newLS[key]) newLS[key] = [];
-            newLS[key].push({ text: cell, rep7: m[1], isMech });
-          }
+          colItems.push({ text: cell, rep7: m[1], isMech });
         } else {
-          // LS_RAW — non-REP text (customer names, descriptions)
-          if (!newLS[key]) newLS[key] = [];
-          newLS[key].push({ text: cell, rep7: null, isMech: false });
+          colItems.push({ text: cell, rep7: null, isMech: false });
         }
       }
+
+      // Each Excel column with a valid date becomes its own LS column
+      if (colItems.length) newLS.push({ key, date: delivDate, items: colItems });
     }
 
-    // Atomic swap — old data stays visible until new data is fully parsed
+    // Atomic swap
     OV_RAW = newRaw;
     LS_RAW  = newLS;
 
@@ -5517,60 +5535,70 @@ async function deleteScrapEntry(item, rowEl) {
 // ═══════════════════════════════════════════════
 // DELIVERY SCHEDULE VIEW
 // ═══════════════════════════════════════════════
-function buildLSCols() {
+function lsDayLabel(date) {
   const today = new Date(); today.setHours(0,0,0,0);
-  const dayLabels = ['Yesterday','Today','Tomorrow','+2','+3'];
-  const dayCls    = ['ls-yesterday','ls-today','ls-tomorrow','ls-future','ls-future'];
-  const cols = [];
-  for (let i = -1; i <= 3; i++) {
-    const d = new Date(today); d.setDate(d.getDate() + i);
-    const key  = d.toISOString().slice(0,10);
-    const idx  = i + 1;
-    cols.push({
-      label:   dayLabels[idx],
-      cls:     dayCls[idx],
-      dateStr: d.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' }),
-      key,
-      items:   LS_RAW[key] || [],
-    });
-  }
-  return cols;
+  const diff = Math.round((date - today) / 86400000);
+  if (diff === -1) return 'Yesterday';
+  if (diff ===  0) return 'Today';
+  if (diff ===  1) return 'Tomorrow';
+  return date.toLocaleDateString('en-GB', { weekday: 'short' });
+}
+function lsDayCls(date) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const diff = Math.round((date - today) / 86400000);
+  if (diff < 0)  return 'ls-yesterday';
+  if (diff === 0) return 'ls-today';
+  return 'ls-future';
 }
 
 function renderLoadSheet() {
   const wrap = document.getElementById('ls-cols');
   if (!wrap) return;
-  const cols = buildLSCols();
+
+  if (!LS_RAW.length) {
+    wrap.innerHTML = '<div style="padding:40px;color:var(--text3);font-size:13px">Sign in and sync to load the delivery schedule.</div>';
+    return;
+  }
+
+  // Filter to yesterday → +3 only
+  const today = new Date(); today.setHours(0,0,0,0);
+  const cols = LS_RAW.filter(c => {
+    const diff = Math.round((c.date - today) / 86400000);
+    return diff >= -1 && diff <= 3;
+  });
+
   wrap.innerHTML = cols.map(col => {
+    const label    = lsDayLabel(col.date);
+    const cls      = lsDayCls(col.date);
+    const dateStr  = col.date.toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'short' });
     const repCount  = col.items.filter(i => i.rep7).length;
     const doneCount = col.items.filter(i => i.rep7 && (qcCompletedReps.has(i.rep7) || mechQCDone.has(i.rep7))).length;
-    const itemsHtml = col.items.length
-      ? col.items.map(item => {
-          if (item.rep7) {
-            const isDone  = qcCompletedReps.has(item.rep7) || mechQCDone.has(item.rep7);
-            const repLabel = item.isMech ? `REP ${item.rep7} Mech` : `REP ${item.rep7}`;
-            // Extra text = everything in the cell besides the 7-digit number and "REP"/"Mech" keywords
-            const extra = item.text.replace(/\bREP\b/gi,'').replace(/\bmech\b/gi,'').replace(item.rep7,'').replace(/[-–]/g,'').trim();
-            return `<div class="ls-item-rep${isDone?' qc-done':''}">
-              <div style="flex:1;min-width:0">
-                <div class="ls-rep-label">${repLabel}</div>
-                ${extra ? `<div class="ls-rep-extra">${extra}</div>` : ''}
-              </div>
-              <button class="ls-qc-btn${isDone?' done':''}" onclick="lsQCToggle('${item.rep7}')" ${isDone?'disabled':''}>
-                ${isDone ? '✓ QC' : 'QC'}
-              </button>
-            </div>`;
-          } else {
-            return `<div class="ls-item-text">${item.text}</div>`;
-          }
-        }).join('')
-      : '<div class="ls-empty">No deliveries</div>';
+    const allDone   = repCount > 0 && doneCount === repCount;
 
-    return `<div class="ls-col ${col.cls}">
+    const itemsHtml = col.items.map(item => {
+      if (item.rep7) {
+        const isDone   = qcCompletedReps.has(item.rep7) || mechQCDone.has(item.rep7);
+        const repLabel = item.isMech ? `REP ${item.rep7} <span class="ls-mech-tag">Mech</span>` : `REP ${item.rep7}`;
+        const extra    = item.text.replace(/\bREP\b/gi,'').replace(/\bmech\b/gi,'').replace(item.rep7,'').replace(/^[\s\-–]+|[\s\-–]+$/g,'').trim();
+        return `<div class="ls-item-rep${isDone?' qc-done':''}">
+          <div class="ls-item-top">
+            <span class="ls-rep-num">${repLabel}</span>
+            <button class="ls-qc-btn${isDone?' done':''}" onclick="lsQCToggle('${item.rep7}')" ${isDone?'disabled':''}>
+              ${isDone ? '✓&nbsp;QC' : 'QC'}
+            </button>
+          </div>
+          ${extra ? `<div class="ls-rep-desc">${extra}</div>` : ''}
+        </div>`;
+      } else {
+        return `<div class="ls-item-text">${item.text}</div>`;
+      }
+    }).join('');
+
+    return `<div class="ls-col ${cls}${allDone?' ls-all-done':''}">
       <div class="ls-col-hd">
-        <div class="ls-col-label">${col.label}</div>
-        <div class="ls-col-date">${col.dateStr}</div>
-        <div class="ls-col-tally">${repCount ? `${doneCount}/${repCount} QC done` : 'No REPs'}</div>
+        <div class="ls-col-day">${label}</div>
+        <div class="ls-col-date">${dateStr}</div>
+        <div class="ls-col-tally ${allDone?'ls-tally-done':''}">${repCount ? (allDone ? `✓ All ${repCount} QC done` : `${doneCount} / ${repCount} QC done`) : 'No REPs'}</div>
       </div>
       <div class="ls-col-body">${itemsHtml}</div>
     </div>`;
