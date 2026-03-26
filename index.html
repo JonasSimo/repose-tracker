@@ -3034,6 +3034,14 @@ async function getSpListId() {
   return _spListId;
 }
 
+// Returns an ISO datetime string N days ago — used for server-side date filters
+// createdDateTime is always indexed in SharePoint so this never causes a threshold error
+function spAfterDate(daysBack) {
+  const d = new Date();
+  d.setDate(d.getDate() - daysBack);
+  return d.toISOString().slice(0, 19) + 'Z';
+}
+
 async function getListIdByName(name) {
   if (_spListIdCache[name]) return _spListIdCache[name];
   const siteId = await getSpSiteId();
@@ -3238,8 +3246,9 @@ async function loadCompletionsFromList() {
     const siteId = await getSpSiteId();
     const listId = await getSpListId();
 
-    // Fetch all items (filter client-side — IsComplete column is not indexed)
-    let url = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999`;
+    // Filter server-side by createdDateTime (always indexed) — only last 120 days
+    // This covers all weeks visible in the app while excluding old archived data
+    let url = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$filter=createdDateTime ge '${spAfterDate(120)}'&$top=999`;
     const allItems = [];
     while (url) {
       const res = await graphGet(url);
@@ -3639,7 +3648,7 @@ async function loadMechQCFromSharePoint() {
     const listId = await getListIdByName('ProductionCompletions');
     const items  = await graphGetAll(
       `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items` +
-      `?$expand=fields&$filter=fields/Team eq 'QC'&$top=999`
+      `?$expand=fields&$filter=fields/Team eq 'QC' and createdDateTime ge '${spAfterDate(120)}'&$top=999`
     );
     items.forEach(item => {
       const rep = String(item.fields?.REP ?? '').trim();
@@ -4593,11 +4602,14 @@ async function loadStatsData() {
       getListIdByName('SpecAlerts'),
       getListIdByName('ScrapLog'),
     ]);
+    // Filter to last 400 days (~13 months) — covers full year view + sparklines
+    // createdDateTime is always indexed so this is fast regardless of list size
+    const statsAfter = spAfterDate(400);
     const base = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists`;
     const [comp, alerts, scrap] = await Promise.all([
-      graphGetAll(`${base}/${compId}/items?$expand=fields&$top=999`),
-      graphGetAll(`${base}/${alertId}/items?$expand=fields&$top=999`),
-      graphGetAll(`${base}/${scrapId}/items?$expand=fields&$top=999`),
+      graphGetAll(`${base}/${compId}/items?$expand=fields&$filter=createdDateTime ge '${statsAfter}'&$top=999`),
+      graphGetAll(`${base}/${alertId}/items?$expand=fields&$filter=createdDateTime ge '${statsAfter}'&$top=999`),
+      graphGetAll(`${base}/${scrapId}/items?$expand=fields&$filter=createdDateTime ge '${statsAfter}'&$top=999`),
     ]);
     STATS_COMPLETIONS = comp;
     STATS_ALERTS      = alerts;
@@ -5603,7 +5615,7 @@ async function loadMechSerials() {
     const listId = await getListIdByName('ProductionCompletions');
     const items  = await graphGetAll(
       `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items` +
-      `?$expand=fields&$filter=fields/Team eq 'Assembly'&$top=999`
+      `?$expand=fields&$filter=fields/Team eq 'Assembly' and createdDateTime ge '${spAfterDate(120)}'&$top=999`
     );
     MECH_SERIALS.clear();
     items.forEach(item => {
