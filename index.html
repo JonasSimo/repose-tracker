@@ -1242,6 +1242,11 @@ body {
 .ls-rep-num .ls-mech-tag { font-size:8px; font-weight:700; background:#cffafe; color:#0e7490; border:1px solid #a5f3fc; border-radius:3px; padding:0 3px; vertical-align:middle; margin-left:3px; }
 .ls-rep-desc    { font-size:9px; color:#555; line-height:1.3; padding-bottom:1px; }
 .ls-item-text   { padding:2px 5px; border-bottom:1px solid #b8c4d8; background:#dce6f5; font-size:9px; font-weight:700; color:#0e023a; text-transform:uppercase; letter-spacing:.03em; line-height:1.5; }
+@keyframes ls-change-fade {
+  0%, 8%  { box-shadow: inset 3px 0 0 #f59e0b, 0 0 6px rgba(245,158,11,.35); }
+  100%    { box-shadow: none; }
+}
+.ls-changed { animation: ls-change-fade 3600s linear forwards; }
 .ls-empty       { padding:12px 6px; font-size:10px; color:#aaa; text-align:center; }
 </style>
 <script src="/msal-browser.min.js" defer></script>
@@ -2702,7 +2707,8 @@ const OV_SUBS_SHORT = ['A','B','S'];
 // Displayed as "REP 2607038" — each column in the sheet = one load, row 4 = delivery date
 let OV_DAYS = [];
 let OV_RAW  = {}; // { 'YYYY-MM-DD': ['REP 1234567', ...] } — all parsed from SharePoint
-let LS_RAW  = []; // [{ key, date, items:[{text,rep7,isMech}] }] — one entry per Excel column
+let LS_RAW     = []; // [{ key, lsKey, date, items:[{text,rep7,isMech}] }] — one entry per Excel column
+const LS_CHANGES = new Map(); // item.text → ms timestamp — new/changed items (last 1 hour)
 
 function addWorkdays(d, n) {
   const r = new Date(d);
@@ -3616,12 +3622,34 @@ async function loadLoadPlanFromSharePoint() {
       }
 
       // Each Excel column with a valid date becomes its own LS column
-      if (colItems.length) newLS.push({ key, date: delivDate, items: colItems });
+      const lsKey = `${key}:c${col}`;
+      if (colItems.length) newLS.push({ key, lsKey, date: delivDate, items: colItems });
     }
+
+    // Snapshot current LS content per date-column before the swap (for change detection)
+    const prevByDate = new Map();
+    LS_RAW.forEach(col => {
+      if (!prevByDate.has(col.key)) prevByDate.set(col.key, new Set());
+      col.items.forEach(i => prevByDate.get(col.key).add(i.text));
+    });
 
     // Atomic swap
     OV_RAW = newRaw;
     LS_RAW  = newLS;
+
+    // Flag items that are new in this load (skip on first load when prevByDate is empty)
+    const changeNow = Date.now();
+    LS_CHANGES.forEach((ts, k) => { if (changeNow - ts > 3600000) LS_CHANGES.delete(k); });
+    if (prevByDate.size) {
+      LS_RAW.forEach(col => {
+        const prev = prevByDate.get(col.key) || new Set();
+        col.items.forEach(item => {
+          if (!prev.has(item.text) && !LS_CHANGES.has(item.text)) {
+            LS_CHANGES.set(item.text, changeNow);
+          }
+        });
+      });
+    }
 
     // Build OV_DAYS for current tab and re-apply badges
     refreshOvDays();
@@ -5548,15 +5576,25 @@ function renderLoadSheet() {
 
     const itemsHtml = col.items.length ? col.items.map(item => {
       if (item.rep7) {
-        const isDone   = qcCompletedReps.has(item.rep7) || mechQCDone.has(item.rep7);
-        const mechTag  = item.isMech ? ' <span class="ls-mech-tag">MECH</span>' : '';
-        const extra    = item.text.replace(/\bREP\b/gi,'').replace(/\bmech\b/gi,'').replace(item.rep7,'').replace(/^[\s\-–]+|[\s\-–]+$/g,'').trim();
-        return `<div class="ls-item-rep${isDone?' qc-done':''}" onclick="lsQCToggle('${item.rep7}')" title="Tap to mark QC done">
+        const isDone     = qcCompletedReps.has(item.rep7) || mechQCDone.has(item.rep7);
+        const mechTag    = item.isMech ? ' <span class="ls-mech-tag">MECH</span>' : '';
+        const extra      = item.text.replace(/\bREP\b/gi,'').replace(/\bmech\b/gi,'').replace(item.rep7,'').replace(/^[\s\-–]+|[\s\-–]+$/g,'').trim();
+        const changedAt  = LS_CHANGES.get(item.text);
+        const isChanged  = !!changedAt && (Date.now() - changedAt < 3600000);
+        const changeAttr = isChanged
+          ? ` class="ls-item-rep${isDone?' qc-done':''} ls-changed" style="animation-delay:-${Math.floor((Date.now()-changedAt)/1000)}s"`
+          : ` class="ls-item-rep${isDone?' qc-done':''}"`;
+        return `<div${changeAttr} onclick="lsQCToggle('${item.rep7}')" title="Tap to mark QC done">
           <div class="ls-rep-num">${item.rep7}${mechTag}</div>
           ${extra ? `<div class="ls-rep-desc">${extra}</div>` : ''}
         </div>`;
       } else {
-        return `<div class="ls-item-text">${item.text}</div>`;
+        const changedAt  = LS_CHANGES.get(item.text);
+        const isChanged  = !!changedAt && (Date.now() - changedAt < 3600000);
+        const changeAttr = isChanged
+          ? ` class="ls-item-text ls-changed" style="animation-delay:-${Math.floor((Date.now()-changedAt)/1000)}s"`
+          : ` class="ls-item-text"`;
+        return `<div${changeAttr}>${item.text}</div>`;
       }
     }).join('') : '<div class="ls-empty">—</div>';
 
