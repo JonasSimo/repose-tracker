@@ -2723,19 +2723,19 @@ function renderOverviewAll() {
       : day.reps;
 
     repsOrdered.forEach((rep, ri) => {
-      const allDone = OV_DEPTS.every(d => teamTileState(d, rep) === 'done');
-      const repDigits = rep.id.replace(/\D/g,'');
-      const ovMatch = ovSearchQuery && repDigits.includes(ovSearchQuery);
-      const ovRowCls = ovSearchQuery ? (ovMatch ? 'ov-highlight' : 'ov-dim') : '';
-      // Use original index for toggle callbacks
-      const origRi = day.reps.indexOf(rep);
       const isMech    = isMechDelivery(rep.id);
-      const mechLabel = isMech ? ` <span class="mech-tag">Mech</span>` : '';
+      const allDone   = isMech ? !!rep.s.qc : OV_DEPTS.every(d => teamTileState(d, rep) === 'done');
+      const repDigits = rep.id.replace(/\D/g,'');
+      const ovMatch   = ovSearchQuery && repDigits.includes(ovSearchQuery);
+      const ovRowCls  = ovSearchQuery ? (ovMatch ? 'ov-highlight' : 'ov-dim') : '';
+      const origRi    = day.reps.indexOf(rep);
+      const mechLabel  = isMech ? ` <span class="mech-tag">Mech</span>` : '';
       const repDisplay = isMech ? mechBaseRep(rep.id) : rep.id;
-      gridHtml += `<div class="rep-row ${allDone?'all-done':''} ${ovRowCls}${isMech?' mech-row':''}" >
+      gridHtml += `<div class="rep-row ${allDone?'all-done':''} ${ovRowCls}${isMech?' mech-row':''}">
         <span class="rep-num" onclick="openSpecModalByRep('${rep.id}')">${repDisplay}${mechLabel}</span>
         <div class="badge-strip">`;
-      OV_DEPTS.forEach((d, di) => {
+      const deptsToRender = isMech ? OV_DEPTS.filter(d => d.k === 'qc') : OV_DEPTS;
+      deptsToRender.forEach((d, di) => {
         if (di > 0) gridHtml += `<div class="bdiv"></div>`;
         const state = teamTileState(d, rep);
         const isQC  = d.k === 'qc';
@@ -3850,10 +3850,42 @@ async function initGraph() {
 
 function ovToggle(dayLabel, ri, dept) {
   const day = OV_DAYS.find(d=>d.label===dayLabel);
-  day.reps[ri].s[dept] = day.reps[ri].s[dept] ? 0 : 1;
+  const rep = day.reps[ri];
+  const nowDone = !rep.s[dept];
+  rep.s[dept] = nowDone ? 1 : 0;
+  // Log mech QC completion to ProductionCompletions
+  if (dept === 'qc' && nowDone && isMechDelivery(rep.id)) {
+    logMechQCCompletion(rep.id).catch(console.warn);
+  }
   renderOverview();
   renderPriorityBtn();
   if (activeWC === 'PRIORITY') renderJobs();
+}
+
+async function logMechQCCompletion(repId) {
+  try {
+    const token  = await getGraphToken();
+    const siteId = await getSpSiteId();
+    const listId = await getListIdByName('ProductionCompletions');
+    const now    = new Date();
+    await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields: {
+        Team:          'QC',
+        SubTeam:       '',
+        REP:           mechBaseRep(repId),
+        Initials:      'QC',
+        CompletedTime: now.toTimeString().slice(0,5),
+        CompletedDate: now.toLocaleDateString('en-GB'),
+        IsComplete:    true,
+      }}),
+    });
+    toast(`${mechBaseRep(repId)} QC logged`, 's');
+  } catch(e) {
+    console.warn('logMechQCCompletion:', e.message);
+    toast('QC marked but could not sync to SharePoint', 'u');
+  }
 }
 function ovToggleSub(dayLabel, ri, dept, sub) {
   const day = OV_DAYS.find(d=>d.label===dayLabel);
