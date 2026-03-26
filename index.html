@@ -2240,7 +2240,7 @@ function renderJobs() {
             ${!isQcAuto ? `<button class="card-undo-btn" onclick="event.stopPropagation();undoJob('${activeTeam}','${sk2}','${activeWC}','${activePrep}',${ji})">↩ Undo</button>` : ''}
           </div>` : `<span class="jc-qty">Qty: ${job.qty||'—'}</span>`}
         </div>
-        ${activeTeam === 'Assembly' ? `<button class="serial-card-btn" onclick="event.stopPropagation();openMechSerialModal('${activeWC}','${activePrep}',${ji},'${job.rep}')">⊞<br>Serial</button>` : ''}
+        ${activeTeam === 'Assembly' ? (() => { const _s = MECH_SERIALS.get(`${job.rep}__${activeWC}__${activePrep}`); return `<button class="serial-card-btn${_s?' saved':''}" onclick="event.stopPropagation();openMechSerialModal('${activeWC}','${activePrep}',${ji},'${job.rep}')">${_s ? `✓<br><span style="font-size:9px;letter-spacing:.02em">${_s}</span>` : '⊞<br>Serial'}</button>`; })() : ''}
         <button class="tick-btn ${s.done?'ticked':''}" onclick="tickJob(${ji})">
           <span class="tb-icon">${s.done?'✓':'○'}</span>
           <span class="tb-label">${s.done?'DONE':'MARK'}</span>
@@ -3647,6 +3647,7 @@ async function graphSignIn() {
     await loadProductionFromSharePoint();
     await loadLoadPlanFromSharePoint();
     await loadCompletionsFromList();
+    loadMechSerials().catch(console.warn);
     startQCAutoSync();
     fetchSpecAlerts().catch(console.warn);
     if (!_refreshInterval)     _refreshInterval     = setInterval(refreshCompletions, 60 * 1000);
@@ -3943,6 +3944,7 @@ async function initGraph() {
     await loadProductionFromSharePoint();
     await loadLoadPlanFromSharePoint();
     await loadCompletionsFromList();
+    loadMechSerials().catch(console.warn);
     startQCAutoSync();
     fetchSpecAlerts().catch(console.warn);
     if (!_refreshInterval)     _refreshInterval     = setInterval(refreshCompletions, 60 * 1000);
@@ -5417,6 +5419,33 @@ async function deleteScrapEntry(item, rowEl) {
 // ═══════════════════════════════════════════════
 // MECHANISM SERIAL CODE (Assembly only)
 // ═══════════════════════════════════════════════
+// Keyed by `${rep}__${wk}__${prep}` → serial code string
+const MECH_SERIALS = new Map();
+
+async function loadMechSerials() {
+  try {
+    const token  = await getGraphToken();
+    const siteId = await getSpSiteId();
+    const listId = await getListIdByName('ProductionCompletions');
+    const items  = await graphGetAll(
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items` +
+      `?$expand=fields&$filter=fields/SubTeam eq 'MechSerial'&$top=999`
+    );
+    MECH_SERIALS.clear();
+    items.forEach(item => {
+      const f   = item.fields || {};
+      const rep = String(f.REP  ?? '').trim();
+      const wk  = String(f.Week ?? '').trim();
+      const pr  = String(f.Prep ?? '').trim();
+      const ser = String(f.MechSerial ?? '').trim();
+      if (rep && ser) MECH_SERIALS.set(`${rep}__${wk}__${pr}`, ser);
+    });
+    renderJobs();
+  } catch(e) {
+    console.warn('loadMechSerials:', e.message);
+  }
+}
+
 let _mechSerialVal = '';
 let _mechSerialCtx = null; // { wk, prep, ji, rep }
 
@@ -5468,7 +5497,7 @@ async function saveMechSerial() {
           SubTeam:       'MechSerial',
           Week:          ctx.wk   || '',
           Prep:          ctx.prep != null ? String(ctx.prep) : '',
-          JobNo:         code,
+          MechSerial:    code,
           REP:           ctx.rep  || '',
           CompletedTime: now.toTimeString().slice(0, 5),
           CompletedDate: now.toISOString().slice(0, 10),
@@ -5477,6 +5506,10 @@ async function saveMechSerial() {
       }
     );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    // Update local map so all cards refresh immediately
+    const key = `${ctx.rep}__${ctx.wk}__${ctx.prep}`;
+    MECH_SERIALS.set(key, code);
+    renderJobs();
     toast(`Serial ${code} saved for ${ctx.rep || 'job'}`, 's');
   } catch(e) {
     console.warn('saveMechSerial:', e.message);
