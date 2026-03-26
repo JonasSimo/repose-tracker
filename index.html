@@ -468,6 +468,8 @@ body {
 .rep-num:hover { color: var(--repose-blue); text-decoration: underline; }
 .rep-row.all-done .rep-num { color: var(--green); }
 .rep-row.all-done .rep-num:hover { color: var(--repose-blue); }
+.rep-row.mech-row { background: #f0fdf8; }
+.mech-tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; background: var(--tbg); color: var(--teal); border: 1px solid var(--tborder); border-radius: 4px; padding: 1px 5px; margin-left: 5px; vertical-align: middle; }
 
 /* Badge strip — one badge per dept */
 .badge-strip { display: flex; gap: 2px; flex-shrink: 0; align-items: center; }
@@ -2359,7 +2361,35 @@ function openSpecModal(wc, prep, ji) {
   document.getElementById('specModal').style.display = 'flex';
 }
 
+// Returns true if the raw REP string is a mechanism-only delivery
+function isMechDelivery(repId) {
+  return /\bmech\b/i.test(repId);
+}
+
+// Strips "Mech" suffix to get the bare REP number for PROD lookups
+function mechBaseRep(repId) {
+  return repId.replace(/\s*\bmech\b\s*/i, '').trim();
+}
+
 function openSpecModalByRep(repId) {
+  // Mechanism-only deliveries — show dedicated modal, no spec
+  if (isMechDelivery(repId)) {
+    const card = document.getElementById('specCard');
+    const baseRep = mechBaseRep(repId);
+    card.innerHTML = `
+      <div class="spec-head">
+        <div>
+          <div class="spec-head-rep">${escHtml(baseRep)}</div>
+          <div class="spec-head-model" style="color:var(--teal)">⚙ Mechanism delivery only</div>
+        </div>
+        <button class="spec-close" onclick="closeSpecModal()">✕</button>
+      </div>
+      <div class="spec-body" style="color:var(--text2);font-size:13px;padding:20px">
+        This REP is scheduled for a <strong>mechanism delivery only</strong>.<br>No full job specification is associated with this entry.
+      </div>`;
+    document.getElementById('specModal').style.display = 'flex';
+    return;
+  }
   // Search PROD for the job matching this REP number
   for (const wk of Object.keys(PROD)) {
     for (const p of [1,2,3,4,5,'express']) {
@@ -2699,8 +2729,11 @@ function renderOverviewAll() {
       const ovRowCls = ovSearchQuery ? (ovMatch ? 'ov-highlight' : 'ov-dim') : '';
       // Use original index for toggle callbacks
       const origRi = day.reps.indexOf(rep);
-      gridHtml += `<div class="rep-row ${allDone?'all-done':''} ${ovRowCls}">
-        <span class="rep-num" onclick="openSpecModalByRep('${rep.id}')">${rep.id}</span>
+      const isMech    = isMechDelivery(rep.id);
+      const mechLabel = isMech ? ` <span class="mech-tag">Mech</span>` : '';
+      const repDisplay = isMech ? mechBaseRep(rep.id) : rep.id;
+      gridHtml += `<div class="rep-row ${allDone?'all-done':''} ${ovRowCls}${isMech?' mech-row':''}" >
+        <span class="rep-num" onclick="openSpecModalByRep('${rep.id}')">${repDisplay}${mechLabel}</span>
         <div class="badge-strip">`;
       OV_DEPTS.forEach((d, di) => {
         if (di > 0) gridHtml += `<div class="bdiv"></div>`;
@@ -2819,8 +2852,10 @@ function renderOverviewTeam(teamName) {
       const repDigits2 = rep.id.replace(/\D/g,'');
       const ovMatch2   = ovSearchQuery && repDigits2.includes(ovSearchQuery);
       const ovRowCls2  = ovSearchQuery ? (ovMatch2 ? 'ov-highlight' : 'ov-dim') : '';
-      html += `<div class="rep-row ${teamDone ? 'all-done' : ''} ${ovRowCls2}">
-        <span class="rep-num" onclick="openSpecModalByRep('${rep.id}')">${repLabel}</span>
+      const isMech2    = isMechDelivery(rep.id);
+      const mechLabel2 = isMech2 ? ` <span class="mech-tag">Mech</span>` : '';
+      html += `<div class="rep-row ${teamDone ? 'all-done' : ''} ${ovRowCls2}${isMech2?' mech-row':''}">
+        <span class="rep-num" onclick="openSpecModalByRep('${rep.id}')">${repLabel}${mechLabel2}</span>
         <div class="badge-strip">`;
 
       if (map.hasSubs) {
