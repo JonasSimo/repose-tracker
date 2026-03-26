@@ -3680,6 +3680,10 @@ const GRAPH_SCOPES     = ['Files.Read.All', 'User.Read', 'Sites.ReadWrite.All'];
 // Live SharePoint link — Production 2026 Dec-Nov.xlsx
 const PROD_SHARING_URL = 'https://reposefurniturelimited.sharepoint.com/:x:/s/ReposeFurniture-PlanningRepose/IQBLf67iYnbQSq2O8UU_zQihARfBedzZcW-CmO0q3v5zC3o?e=nfze02';
 
+// Cached once resolved so serial write-back doesn't need a second share-link resolve
+let PROD_DRIVE_ID = null;
+let PROD_ITEM_ID  = null;
+
 const GRAPH_READY = AZURE_CLIENT_ID !== 'YOUR_CLIENT_ID_HERE';
 
 // Tablet team lock — add ?team=Woodmill (or any team name) to the URL
@@ -3913,6 +3917,8 @@ async function loadProductionFromSharePoint() {
     const driveItem = await graphGet(`https://graph.microsoft.com/v1.0/shares/${encoded}/driveItem`);
     const driveId  = driveItem.parentReference.driveId;
     const itemId   = driveItem.id;
+    PROD_DRIVE_ID  = driveId;
+    PROD_ITEM_ID   = itemId;
 
     // 2. Determine 4-week window
     const now = currentISOWeek();
@@ -5669,11 +5675,66 @@ function saveMechSerial() {
   if (!code) { toast('Enter a serial code first', 'u'); return; }
   const ctx = _mechSerialCtx || {};
   closeMechSerialModal();
-  // Store locally — saved to SharePoint as part of the job completion record
+  // Store locally — saved to SharePoint list as part of the job completion record
   const key = `${ctx.rep}__${ctx.wk}__${ctx.prep}`;
   MECH_SERIALS.set(key, code);
   renderJobs();
   toast(`Serial ${code} ready — now mark the job complete`, 's');
+  // Also write the serial back into the production plan Excel (column BJ for that REP row)
+  writeMechSerialToExcel(ctx.rep, ctx.wk, code).catch(e => console.warn('Excel serial write-back:', e.message));
+}
+
+// Write the mechanism serial into column BJ of the matching REP row in the production plan
+async function writeMechSerialToExcel(rep, wk, serial) {
+  try {
+    const token = await getGraphToken();
+    if (!token) return;
+
+    // Lazy-resolve drive/item IDs if not yet cached from loadProductionFromSharePoint
+    if (!PROD_DRIVE_ID || !PROD_ITEM_ID) {
+      const encoded   = encodeSharingUrl(PROD_SHARING_URL);
+      const driveItem = await graphGet(`https://graph.microsoft.com/v1.0/shares/${encoded}/driveItem`);
+      PROD_DRIVE_ID   = driveItem.parentReference.driveId;
+      PROD_ITEM_ID    = driveItem.id;
+    }
+
+    const base = `https://graph.microsoft.com/v1.0/drives/${PROD_DRIVE_ID}/items/${PROD_ITEM_ID}` +
+                 `/workbook/worksheets('${encodeURIComponent(wk)}')`;
+
+    // Fetch column L (REP numbers) to find the matching row — 300 rows covers any weekly sheet
+    const colData = await graphGet(`${base}/range(address='L1:L300')?$select=values`);
+    const colVals = (colData.values || []);
+
+    // Sheet stores "REP1234567"; job.rep is "REP 1234567" — normalise both sides
+    const repNorm = rep.replace(/\s+/g, '');
+    let targetRow = -1;
+    for (let i = 0; i < colVals.length; i++) {
+      if (String(colVals[i][0] || '').replace(/\s+/g, '') === repNorm) {
+        targetRow = i + 1; // Excel rows are 1-indexed
+        break;
+      }
+    }
+
+    if (targetRow < 0) {
+      console.warn('writeMechSerialToExcel: REP not found in', wk, rep);
+      return;
+    }
+
+    // Write to column BJ (one column after the Prep column BI)
+    const r = await fetch(`${base}/range(address='BJ${targetRow}')`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ values: [[serial]] })
+    });
+    if (!r.ok) {
+      const msg = await r.text();
+      console.warn('writeMechSerialToExcel PATCH failed:', r.status, msg);
+    } else {
+      console.log(`Serial ${serial} written to ${wk}!BJ${targetRow}`);
+    }
+  } catch(e) {
+    console.warn('writeMechSerialToExcel:', e.message);
+  }
 }
 </script>
 
