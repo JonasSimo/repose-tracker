@@ -2694,6 +2694,11 @@ function onOvSearch(val) {
 
 let ovCustomerFilter = '';
 
+// Strip trailing numbers so "Charterhouse Mobility 1" and "2" group under "Charterhouse Mobility"
+function normCustomer(name) {
+  return name.replace(/\s+\d+\s*$/, '').trim();
+}
+
 function populateCustomerDropdown() {
   const sel = document.getElementById('ov-customer-filter');
   if (!sel) return;
@@ -2702,7 +2707,7 @@ function populateCustomerDropdown() {
   for (const wk of WEEKS) {
     for (const p of [1,2,3,4,5,'express']) {
       (PROD[wk]?.[p] || []).forEach(job => {
-        const c = (job.spec?.customer || '').trim();
+        const c = normCustomer((job.spec?.customer || '').trim());
         if (c) names.add(c);
       });
     }
@@ -2733,7 +2738,7 @@ function renderCustomerPanel() {
   for (const wk of WEEKS) {
     for (const p of [1,2,3,4,5,'express']) {
       (PROD[wk]?.[p] || []).forEach((job, ji) => {
-        const c = (job.spec?.customer || '').trim();
+        const c = normCustomer((job.spec?.customer || '').trim());
         if (c.toLowerCase() === ovCustomerFilter.toLowerCase()) {
           matches.push({ job, wk, prep: p, ji, wc: PROD[wk]?.wc || '' });
         }
