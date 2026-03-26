@@ -4168,7 +4168,7 @@ function applyStateToOvBadges() {
   OV_DAYS.forEach(day => {
     day.reps.forEach(rep => {
       const digits = rep.id.replace(/\D/g, '');
-      if (qcCompletedReps.has(digits) || mechQCDone.has(digits)) rep.s.qc = 1;
+      if (digits.length === 7 && (qcCompletedReps.has(digits) || mechQCDone.has(digits))) rep.s.qc = 1;
     });
   });
 
@@ -4482,7 +4482,7 @@ async function loadStatsData() {
         const d = tsCell ? new Date(tsCell) : null;
         const date = d && !isNaN(d) ? d : null;
         // Deduplicate: same REP + same calendar date = one entry
-        const dateKey = date ? `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}` : 'nodate';
+        const dateKey = date ? date.toISOString().slice(0, 10) : 'nodate';
         const uniqKey = `${m[1]}__${dateKey}`;
         if (seen.has(uniqKey)) return;
         seen.add(uniqKey);
@@ -4595,20 +4595,22 @@ function buildSparkData(comp, alerts, scrap) {
     }
   } else if (statsPeriod === 'month') {
     labels = ['Wk1','Wk2','Wk3','Wk4'];
+    const refMon = ref.getMonth(), refYr = ref.getFullYear();
     for (let w = 0; w < 4; w++) {
       const s = w * 7 + 1, e = w === 3 ? 31 : (w + 1) * 7;
-      complete.push(comp.filter(c => { const dd = parseDdmmyyyy(c.fields.CompletedDate); return dd && dd.getDate() >= s && dd.getDate() <= e; }).length);
-      qc.push(qcSrc.filter(q => q.date && q.date.getDate() >= s && q.date.getDate() <= e).length);
-      changes.push(alerts.filter(a => { const dd = parseDdmmyyyy(a.fields.DetectedAt); return dd && dd.getDate() >= s && dd.getDate() <= e; }).length);
-      scrapB.push(scrap.filter(s2 => { const dd = parseDdmmyyyy(s2.fields.LoggedAt); return dd && dd.getDate() >= s && dd.getDate() <= e; }).length);
+      complete.push(comp.filter(c => { const dd = parseDdmmyyyy(c.fields.CompletedDate); return dd && dd.getFullYear() === refYr && dd.getMonth() === refMon && dd.getDate() >= s && dd.getDate() <= e; }).length);
+      qc.push(qcSrc.filter(q => q.date && q.date.getFullYear() === refYr && q.date.getMonth() === refMon && q.date.getDate() >= s && q.date.getDate() <= e).length);
+      changes.push(alerts.filter(a => { const dd = parseDdmmyyyy(a.fields.DetectedAt); return dd && dd.getFullYear() === refYr && dd.getMonth() === refMon && dd.getDate() >= s && dd.getDate() <= e; }).length);
+      scrapB.push(scrap.filter(s2 => { const dd = parseDdmmyyyy(s2.fields.LoggedAt); return dd && dd.getFullYear() === refYr && dd.getMonth() === refMon && dd.getDate() >= s && dd.getDate() <= e; }).length);
     }
   } else {
     labels = MONTHS_SHORT;
+    const refYr = ref.getFullYear();
     for (let m = 0; m < 12; m++) {
-      complete.push(comp.filter(c => { const dd = parseDdmmyyyy(c.fields.CompletedDate); return dd && dd.getMonth() === m; }).length);
-      qc.push(qcSrc.filter(q => q.date && q.date.getMonth() === m).length);
-      changes.push(alerts.filter(a => { const dd = parseDdmmyyyy(a.fields.DetectedAt); return dd && dd.getMonth() === m; }).length);
-      scrapB.push(scrap.filter(s => { const dd = parseDdmmyyyy(s.fields.LoggedAt); return dd && dd.getMonth() === m; }).length);
+      complete.push(comp.filter(c => { const dd = parseDdmmyyyy(c.fields.CompletedDate); return dd && dd.getFullYear() === refYr && dd.getMonth() === m; }).length);
+      qc.push(qcSrc.filter(q => q.date && q.date.getFullYear() === refYr && q.date.getMonth() === m).length);
+      changes.push(alerts.filter(a => { const dd = parseDdmmyyyy(a.fields.DetectedAt); return dd && dd.getFullYear() === refYr && dd.getMonth() === m; }).length);
+      scrapB.push(scrap.filter(s => { const dd = parseDdmmyyyy(s.fields.LoggedAt); return dd && dd.getFullYear() === refYr && dd.getMonth() === m; }).length);
     }
   }
   return { labels, complete, qc, changes, scrap: scrapB };
@@ -4835,9 +4837,6 @@ function renderDetailCompletions() {
       <div class="sub-rows" id="sub-${tid}">${personRows}</div>`;
   }).join('');
 
-  // planned data — estimate from spark (use QC spark as secondary, complete as primary)
-  const plannedEst = spark.complete.map(v => Math.round(v * 1.35) || 0);
-
   const teamAbbr    = ['WM','Foam','Cut','Sew','Uph','Ass'];
   const teamCounts  = teamOrder.map(t => byTeam[t] || 0);
   const teamColors  = ['#0e023a', '#14a1e9',
@@ -4856,8 +4855,8 @@ function renderDetailCompletions() {
       </div>
     </div>
     <div class="chart-panel" style="margin-bottom:14px">
-      <div class="chart-panel-title">Planned vs Completed — by day</div>
-      <div class="chart-wrap" style="height:180px"><canvas id="ch-planned-vs-complete"></canvas></div>
+      <div class="chart-panel-title">Completions vs QC Verified — by day</div>
+      <div class="chart-wrap" style="height:180px"><canvas id="ch-comp-vs-qc"></canvas></div>
     </div>
     <div class="detail-card">
       <div class="detail-section-head">Individual team completions — tap to expand per person</div>
@@ -4903,31 +4902,24 @@ function renderDetailCompletions() {
         },
       });
     }
-    // Planned vs Completed
-    const ctx3 = document.getElementById('ch-planned-vs-complete');
+    // Completions vs QC Verified — full period breakdown
+    const ctx3 = document.getElementById('ch-comp-vs-qc');
     if (ctx3 && typeof Chart !== 'undefined') {
-      statsCharts['ch-planned-vs-complete'] = new Chart(ctx3.getContext('2d'), {
+      statsCharts['ch-comp-vs-qc'] = new Chart(ctx3.getContext('2d'), {
         type: 'bar',
         data: {
           labels,
           datasets: [
-            { label: 'Planned',   data: plannedEst,     backgroundColor: alpha('#706f6f', 0.25), borderRadius: 4 },
-            { label: 'Completed', data: spark.complete, backgroundColor: alpha('#14a1e9', 0.85), borderRadius: 4 },
+            { label: 'Fully Complete', data: spark.complete, backgroundColor: alpha('#14a1e9', 0.85), borderRadius: 4 },
+            { label: 'QC Verified',    data: spark.qc,       backgroundColor: alpha('#0e7490', 0.7),  borderRadius: 4 },
           ],
         },
         options: {
           responsive: true, maintainAspectRatio: false,
-          plugins: {
-            legend: { position: 'bottom', labels: { boxWidth: 12, padding: 14 } },
-            tooltip: { callbacks: { afterBody: items => {
-              const planned = items[0]?.chart.data.datasets[0].data[items[0].dataIndex];
-              const done    = items[0]?.chart.data.datasets[1]?.data[items[0].dataIndex];
-              if (planned && done) return [`Completion rate: ${Math.round(done / planned * 100)}%`];
-            }}},
-          },
+          plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 14 } } },
           scales: {
             x: { grid: { display: false } },
-            y: { grid: { color: '#f3f4f6' }, ticks: { stepSize: 5 }, suggestedMax: 20 },
+            y: { grid: { color: '#f3f4f6' }, ticks: { stepSize: 5 } },
           },
         },
       });
