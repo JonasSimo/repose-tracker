@@ -1217,6 +1217,55 @@ body {
 .confirm-actions { display:flex; gap:6px; }
 .btn-confirm { padding:6px 10px; border-radius:7px; font-size:12px; font-weight:600; cursor:pointer; background:#dc2626; color:#fff; border:none; font-family:inherit; }
 .btn-cancel  { padding:6px 10px; border-radius:7px; font-size:12px; font-weight:600; cursor:pointer; background:var(--bg3); color:var(--repose-grey); border:1.5px solid var(--border); font-family:inherit; }
+
+/* ── Delivery Schedule view ── */
+.ls-wrap { display:flex; flex-direction:column; height:100%; overflow:hidden; }
+.ls-topbar {
+  padding:10px 16px; border-bottom:1px solid var(--border);
+  background:var(--bg2); flex-shrink:0;
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+}
+.ls-topbar-title { font-size:15px; font-weight:700; color:var(--text); }
+.ls-topbar-sub   { font-size:11px; color:var(--text2); margin-top:1px; }
+.ls-cols-scroll  { flex:1; overflow-x:auto; overflow-y:hidden; display:flex; padding:12px; gap:10px; }
+.ls-col {
+  flex-shrink:0; width:240px; display:flex; flex-direction:column;
+  background:var(--bg2); border:1.5px solid var(--border);
+  border-radius:12px; overflow:hidden; max-height:100%;
+}
+.ls-col.ls-today  { border-color:var(--repose-blue); }
+.ls-col.ls-yesterday { opacity:.75; }
+.ls-col-hd {
+  padding:10px 12px; background:var(--bg3);
+  border-bottom:1px solid var(--border); flex-shrink:0;
+}
+.ls-col-label { font-size:13px; font-weight:700; color:var(--text); }
+.ls-col.ls-today .ls-col-label { color:var(--repose-blue); }
+.ls-col-date  { font-size:10px; color:var(--text2); margin-top:1px; }
+.ls-col-tally { font-size:10px; color:var(--text3); margin-top:3px; }
+.ls-col-body  { flex:1; overflow-y:auto; padding:6px; }
+.ls-item-rep {
+  display:flex; align-items:center; gap:8px;
+  border:1.5px solid var(--border); border-radius:8px;
+  background:var(--bg2); padding:7px 10px; margin-bottom:5px;
+  transition:.1s;
+}
+.ls-item-rep.qc-done { opacity:.45; border-color:var(--gborder); background:var(--gbg); }
+.ls-rep-label { font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:600; color:var(--text); flex:1; }
+.ls-rep-extra { font-size:10px; color:var(--text2); margin-top:2px; }
+.ls-qc-btn {
+  flex-shrink:0; padding:4px 8px; border-radius:6px;
+  border:1.5px solid var(--tborder); background:var(--tbg); color:var(--teal);
+  font-size:11px; font-weight:600; font-family:inherit; cursor:pointer; transition:.12s;
+}
+.ls-qc-btn:hover { background:#cff4fc; }
+.ls-qc-btn.done { background:var(--gbg); border-color:var(--gborder); color:var(--green); cursor:default; }
+.ls-item-text {
+  padding:5px 9px; margin-bottom:4px; border-radius:7px;
+  background:var(--bg3); font-size:11px; color:var(--text2); font-weight:500;
+  border-left:3px solid var(--border2);
+}
+.ls-empty { text-align:center; color:var(--text3); font-size:12px; padding:24px 8px; }
 </style>
 <script src="/msal-browser.min.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -1256,6 +1305,7 @@ document.addEventListener('DOMContentLoaded', () => {
     <div class="tab-bar">
       <button class="tab-btn active" onclick="showView('team-select')">Team View</button>
       <button class="tab-btn" onclick="showView('overview')">Load Plan</button>
+      <button class="tab-btn" onclick="showView('loadsheet')">Delivery</button>
       <button class="tab-btn" onclick="showView('production')">Production Plan</button>
       <button class="tab-btn" onclick="showView('stats')">Stats</button>
     </div>
@@ -1409,6 +1459,20 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="ov-locked-sub">Choose Live, Week +1 or Week +2 to get started</div>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- Delivery Schedule view -->
+<div class="view" id="view-loadsheet">
+  <div class="ls-wrap">
+    <div class="ls-topbar">
+      <div>
+        <div class="ls-topbar-title">Delivery Schedule</div>
+        <div class="ls-topbar-sub" id="ls-sync-lbl">Sign in to load live data</div>
+      </div>
+      <button style="padding:6px 12px;border-radius:8px;border:1.5px solid var(--border2);background:var(--bg3);font-size:12px;cursor:pointer;font-family:inherit;color:var(--text2)" onclick="loadLoadPlanFromSharePoint()">↻ Sync</button>
+    </div>
+    <div class="ls-cols-scroll" id="ls-cols"></div>
   </div>
 </div>
 
@@ -1872,12 +1936,13 @@ let activeProdTeam = null; // team key being highlighted (e.g. 'wm')
 // ═══════════════════════════════════════════════
 function showView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-  const tabMap = { 'team-select':0, 'tracker':0, 'overview':1, 'production':2, 'stats':3 };
+  const tabMap = { 'team-select':0, 'tracker':0, 'overview':1, 'loadsheet':2, 'production':3, 'stats':4 };
   document.querySelectorAll('.tab-btn').forEach((b, i) => {
     b.classList.toggle('active', tabMap[name] === i);
   });
   document.getElementById('view-' + name).classList.add('active');
   if (name === 'overview')    { if (!ovActiveTab) ovActiveTab = 'live'; buildOvSlots(ovActiveTab==='wk1'?5:ovActiveTab==='wk2'?10:0); applyStateToOvBadges(); renderOverviewTabs(); renderOverview(); }
+  if (name === 'loadsheet')   { renderLoadSheet(); }
   if (name === 'production')  { renderProductionPlan(); }
   if (name === 'stats')       { openStatsView(); }
 }
@@ -2662,6 +2727,7 @@ const OV_SUBS_SHORT = ['A','B','S'];
 // Displayed as "REP 2607038" — each column in the sheet = one load, row 4 = delivery date
 let OV_DAYS = [];
 let OV_RAW  = {}; // { 'YYYY-MM-DD': ['REP 1234567', ...] } — all parsed from SharePoint
+let LS_RAW  = {}; // { 'YYYY-MM-DD': [{ text, rep7, isMech }] } — full cell content for Delivery view
 
 function addWorkdays(d, n) {
   const r = new Date(d);
@@ -3534,6 +3600,8 @@ async function loadLoadPlanFromSharePoint() {
     const dateRow = values[2] || [];
     const numCols = Math.max(...values.map(r => r.length));
     const newRaw = {};
+    const newLS  = {};
+    const lsSeenPerDate = {}; // dedup REPs within same date
 
     for (let col = 1; col < numCols; col++) {
       const rawDate = dateRow[col];
@@ -3545,20 +3613,36 @@ async function loadLoadPlanFromSharePoint() {
       if (!delivDate || isNaN(delivDate)) continue;
       delivDate.setHours(0,0,0,0);
       const key = delivDate.toISOString().slice(0,10);
+      if (!lsSeenPerDate[key]) lsSeenPerDate[key] = new Set();
 
       for (let row = 3; row < values.length; row++) {
         const cell = String(values[row]?.[col] ?? '').trim();
+        if (!cell) continue;
         const m = cell.match(/(?<!\d)(\d{7})(?!\d)/);
-        if (!m) continue;
         const isMech = /\bmech\b/i.test(cell);
-        const repId = isMech ? `REP ${m[1]} Mech` : `REP ${m[1]}`;
-        if (!newRaw[key]) newRaw[key] = [];
-        if (!newRaw[key].includes(repId)) newRaw[key].push(repId);
+
+        if (m) {
+          // OV_RAW — REPs only
+          const repId = isMech ? `REP ${m[1]} Mech` : `REP ${m[1]}`;
+          if (!newRaw[key]) newRaw[key] = [];
+          if (!newRaw[key].includes(repId)) newRaw[key].push(repId);
+          // LS_RAW — dedup REPs per date
+          if (!lsSeenPerDate[key].has(m[1])) {
+            lsSeenPerDate[key].add(m[1]);
+            if (!newLS[key]) newLS[key] = [];
+            newLS[key].push({ text: cell, rep7: m[1], isMech });
+          }
+        } else {
+          // LS_RAW — non-REP text (customer names, descriptions)
+          if (!newLS[key]) newLS[key] = [];
+          newLS[key].push({ text: cell, rep7: null, isMech: false });
+        }
       }
     }
 
     // Atomic swap — old data stays visible until new data is fully parsed
     OV_RAW = newRaw;
+    LS_RAW  = newLS;
 
     // Build OV_DAYS for current tab and re-apply badges
     refreshOvDays();
@@ -3568,6 +3652,9 @@ async function loadLoadPlanFromSharePoint() {
 
     const syncTime = new Date().toTimeString().slice(0, 5);
     if (pill) { pill.className = 'sync-pill synced'; lbl.textContent = `Live · synced ${syncTime}`; }
+    const lsLbl = document.getElementById('ls-sync-lbl');
+    if (lsLbl) lsLbl.textContent = `Live · synced ${syncTime}`;
+    if (document.getElementById('view-loadsheet')?.classList.contains('active')) renderLoadSheet();
 
   } catch(e) {
     console.error('loadLoadPlanFromSharePoint failed:', e.message);
@@ -5424,6 +5511,106 @@ async function deleteScrapEntry(item, rowEl) {
   } catch(e) {
     console.warn('deleteScrapEntry:', e.message);
     toast('Could not delete — check connection', 'u');
+  }
+}
+
+// ═══════════════════════════════════════════════
+// DELIVERY SCHEDULE VIEW
+// ═══════════════════════════════════════════════
+function buildLSCols() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const dayLabels = ['Yesterday','Today','Tomorrow','+2','+3'];
+  const dayCls    = ['ls-yesterday','ls-today','ls-tomorrow','ls-future','ls-future'];
+  const cols = [];
+  for (let i = -1; i <= 3; i++) {
+    const d = new Date(today); d.setDate(d.getDate() + i);
+    const key  = d.toISOString().slice(0,10);
+    const idx  = i + 1;
+    cols.push({
+      label:   dayLabels[idx],
+      cls:     dayCls[idx],
+      dateStr: d.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' }),
+      key,
+      items:   LS_RAW[key] || [],
+    });
+  }
+  return cols;
+}
+
+function renderLoadSheet() {
+  const wrap = document.getElementById('ls-cols');
+  if (!wrap) return;
+  const cols = buildLSCols();
+  wrap.innerHTML = cols.map(col => {
+    const repCount  = col.items.filter(i => i.rep7).length;
+    const doneCount = col.items.filter(i => i.rep7 && (qcCompletedReps.has(i.rep7) || mechQCDone.has(i.rep7))).length;
+    const itemsHtml = col.items.length
+      ? col.items.map(item => {
+          if (item.rep7) {
+            const isDone  = qcCompletedReps.has(item.rep7) || mechQCDone.has(item.rep7);
+            const repLabel = item.isMech ? `REP ${item.rep7} Mech` : `REP ${item.rep7}`;
+            // Extra text = everything in the cell besides the 7-digit number and "REP"/"Mech" keywords
+            const extra = item.text.replace(/\bREP\b/gi,'').replace(/\bmech\b/gi,'').replace(item.rep7,'').replace(/[-–]/g,'').trim();
+            return `<div class="ls-item-rep${isDone?' qc-done':''}">
+              <div style="flex:1;min-width:0">
+                <div class="ls-rep-label">${repLabel}</div>
+                ${extra ? `<div class="ls-rep-extra">${extra}</div>` : ''}
+              </div>
+              <button class="ls-qc-btn${isDone?' done':''}" onclick="lsQCToggle('${item.rep7}')" ${isDone?'disabled':''}>
+                ${isDone ? '✓ QC' : 'QC'}
+              </button>
+            </div>`;
+          } else {
+            return `<div class="ls-item-text">${item.text}</div>`;
+          }
+        }).join('')
+      : '<div class="ls-empty">No deliveries</div>';
+
+    return `<div class="ls-col ${col.cls}">
+      <div class="ls-col-hd">
+        <div class="ls-col-label">${col.label}</div>
+        <div class="ls-col-date">${col.dateStr}</div>
+        <div class="ls-col-tally">${repCount ? `${doneCount}/${repCount} QC done` : 'No REPs'}</div>
+      </div>
+      <div class="ls-col-body">${itemsHtml}</div>
+    </div>`;
+  }).join('');
+}
+
+function lsQCToggle(rep7) {
+  if (qcCompletedReps.has(rep7) || mechQCDone.has(rep7)) return;
+  mechQCDone.add(rep7);
+  saveMechQCDone(mechQCDone);
+  applyStateToOvBadges();
+  renderLoadSheet();
+  logLSQCCompletion(rep7).catch(console.warn);
+}
+
+async function logLSQCCompletion(rep7) {
+  try {
+    const siteId = await getSpSiteId();
+    const listId = await getListIdByName('ProductionCompletions');
+    const token  = await getGraphToken();
+    const now    = new Date();
+    const res = await fetch(
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fields: {
+          Team:          'QC',
+          REP:           `REP ${rep7}`,
+          CompletedTime: now.toTimeString().slice(0, 5),
+          CompletedDate: now.toISOString().slice(0, 10),
+          IsComplete:    true,
+        }})
+      }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    toast(`QC complete: REP ${rep7}`, 's');
+  } catch(e) {
+    console.warn('logLSQCCompletion:', e.message);
+    toast('QC saved locally — SharePoint sync failed', 'u');
   }
 }
 
