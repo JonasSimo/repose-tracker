@@ -3489,12 +3489,36 @@ async function loadLoadPlanFromSharePoint() {
     // Build OV_DAYS for current tab and re-apply badges
     refreshOvDays();
 
+    // Load mech QC completions from ProductionCompletions in background
+    loadMechQCFromSharePoint().catch(console.warn);
+
     const syncTime = new Date().toTimeString().slice(0, 5);
     if (pill) { pill.className = 'sync-pill synced'; lbl.textContent = `Live · synced ${syncTime}`; }
 
   } catch(e) {
     console.error('loadLoadPlanFromSharePoint failed:', e.message);
     if (pill) { pill.className = 'sync-pill error'; lbl.textContent = 'Load plan sync failed'; }
+  }
+}
+
+async function loadMechQCFromSharePoint() {
+  try {
+    const token  = await getGraphToken();
+    const siteId = await getSpSiteId();
+    const listId = await getListIdByName('ProductionCompletions');
+    const items  = await graphGetAll(
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items` +
+      `?$expand=fields&$filter=fields/Team eq 'QC'&$top=999`
+    );
+    items.forEach(item => {
+      const rep = String(item.fields?.REP ?? '').trim();
+      const m   = rep.match(/(?<!\d)(\d{7})(?!\d)/);
+      if (m) mechQCDone.add(m[1]);
+    });
+    saveMechQCDone(mechQCDone);
+    applyStateToOvBadges();
+  } catch(e) {
+    console.warn('loadMechQCFromSharePoint:', e.message);
   }
 }
 
