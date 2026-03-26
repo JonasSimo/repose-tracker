@@ -3853,9 +3853,16 @@ function ovToggle(dayLabel, ri, dept) {
   const rep = day.reps[ri];
   const nowDone = !rep.s[dept];
   rep.s[dept] = nowDone ? 1 : 0;
-  // Log mech QC completion to ProductionCompletions
-  if (dept === 'qc' && nowDone && isMechDelivery(rep.id)) {
-    logMechQCCompletion(rep.id).catch(console.warn);
+  // Persist mech QC completions across reloads
+  if (dept === 'qc' && isMechDelivery(rep.id)) {
+    const rep7 = mechBaseRep(rep.id).replace(/\D/g, '');
+    if (nowDone) {
+      mechQCDone.add(rep7);
+      logMechQCCompletion(rep.id).catch(console.warn);
+    } else {
+      mechQCDone.delete(rep7);
+    }
+    saveMechQCDone(mechQCDone);
   }
   renderOverview();
   renderPriorityBtn();
@@ -4134,14 +4141,12 @@ function applyStateToOvBadges() {
 
   // Apply QC sheet completions directly to load plan
   // (covers REPs on the load plan that aren't in the current production window)
-  if (qcCompletedReps.size > 0) {
-    OV_DAYS.forEach(day => {
-      day.reps.forEach(rep => {
-        const digits = rep.id.replace(/\D/g, '');
-        if (qcCompletedReps.has(digits)) rep.s.qc = 1;
-      });
+  OV_DAYS.forEach(day => {
+    day.reps.forEach(rep => {
+      const digits = rep.id.replace(/\D/g, '');
+      if (qcCompletedReps.has(digits) || mechQCDone.has(digits)) rep.s.qc = 1;
     });
-  }
+  });
 
   // QC done = everything done — QC is the final check so all badges go green
   // Track which badges were QC-forced (not genuinely marked by that team)
@@ -4215,6 +4220,16 @@ let STATS_COMPLETIONS = [];
 let STATS_ALERTS      = [];
 let STATS_SCRAP       = [];
 let STATS_QC          = []; // [{ rep7: '2613044', date: Date }, ...]
+
+// Persisted mech QC completions (manual ticks in overview) — keyed by 7-digit rep
+const MECH_QC_KEY = 'mechQCDone';
+function loadMechQCDone() {
+  try { return new Set(JSON.parse(localStorage.getItem(MECH_QC_KEY) || '[]')); } catch { return new Set(); }
+}
+function saveMechQCDone(set) {
+  localStorage.setItem(MECH_QC_KEY, JSON.stringify([...set]));
+}
+let mechQCDone = loadMechQCDone();
 
 const STATS_NO_PER_PERSON = ['Woodmill', 'QC'];
 
