@@ -1243,10 +1243,28 @@ body {
 .ls-rep-desc    { font-size:9px; color:#555; line-height:1.3; padding-bottom:1px; }
 .ls-item-text   { padding:2px 5px; border-bottom:1px solid #b8c4d8; background:#dce6f5; font-size:9px; font-weight:700; color:#0e023a; text-transform:uppercase; letter-spacing:.03em; line-height:1.5; }
 @keyframes ls-change-fade {
-  0%, 8%  { box-shadow: inset 3px 0 0 #f59e0b, 0 0 6px rgba(245,158,11,.35); }
-  100%    { box-shadow: none; }
+  0%    { box-shadow: inset 4px 0 0 #f59e0b, 0 0 0 2px rgba(245,158,11,.6); background-color: rgba(254,243,199,.85); }
+  5%    { box-shadow: inset 4px 0 0 #f59e0b, 0 0 0 2px rgba(245,158,11,.6); background-color: rgba(254,243,199,.85); }
+  15%   { box-shadow: inset 4px 0 0 #f59e0b, 0 0 0 2px rgba(245,158,11,.5); background-color: rgba(254,243,199,.7); }
+  100%  { box-shadow: none; background-color: transparent; }
 }
-.ls-changed { animation: ls-change-fade 3600s linear forwards; }
+@keyframes ls-change-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: .55; }
+}
+.ls-changed {
+  animation: ls-change-fade 3600s linear forwards;
+  position: relative;
+}
+.ls-changed::before {
+  content: '▶ NEW';
+  position: absolute; right: 3px; top: 50%; transform: translateY(-50%);
+  font-size: 7px; font-weight: 800; letter-spacing: .06em;
+  color: #b45309; background: #fef3c7; border: 1px solid #f59e0b;
+  border-radius: 3px; padding: 1px 3px; line-height: 1.4;
+  animation: ls-change-pulse 1.4s ease-in-out 3, ls-change-fade 3600s linear forwards;
+  pointer-events: none;
+}
 .ls-empty       { padding:12px 6px; font-size:10px; color:#aaa; text-align:center; }
 </style>
 <script src="/msal-browser.min.js" defer></script>
