@@ -5720,8 +5720,8 @@ async function writeMechSerialToExcel(rep, wk, serial) {
       return;
     }
 
-    // Write to column BJ (one column after the Prep column BI)
-    const r = await fetch(`${base}/range(address='BJ${targetRow}')`, {
+    // Write to column AS
+    const r = await fetch(`${base}/range(address='AS${targetRow}')`, {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ values: [[serial]] })
@@ -5730,7 +5730,7 @@ async function writeMechSerialToExcel(rep, wk, serial) {
       const msg = await r.text();
       console.warn('writeMechSerialToExcel PATCH failed:', r.status, msg);
     } else {
-      console.log(`Serial ${serial} written to ${wk}!BJ${targetRow}`);
+      console.log(`Serial ${serial} written to ${wk}!AS${targetRow}`);
     }
   } catch(e) {
     console.warn('writeMechSerialToExcel:', e.message);
