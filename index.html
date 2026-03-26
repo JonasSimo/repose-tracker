@@ -4,7 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
 <title>Repose Production Tracker</title>
-<link rel="manifest" href="/manifest.json">
+<link rel="manifest" id="manifest-link" href="/manifest.json">
+<script>
+(function(){
+  var tp = new URLSearchParams(location.search).get('team');
+  if (tp) document.getElementById('manifest-link').href = '/manifest-' + tp.toLowerCase() + '.json';
+})();
+</script>
 <meta name="theme-color" content="#0e023a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3567,7 +3573,10 @@ const GRAPH_READY = AZURE_CLIENT_ID !== 'YOUR_CLIENT_ID_HERE';
 
 // Tablet team lock — add ?team=Woodmill (or any team name) to the URL
 // to lock the tablet to that team only, hiding all others
-const TABLET_TEAM = new URLSearchParams(window.location.search).get('team') || '';
+// Preserve team across MSAL redirect (sessionStorage cleared when tab closes)
+const _paramTeam = new URLSearchParams(window.location.search).get('team') || '';
+if (_paramTeam) sessionStorage.setItem('tabletTeam', _paramTeam);
+const TABLET_TEAM = _paramTeam || sessionStorage.getItem('tabletTeam') || '';
 
 let msalInstance = null;
 let graphAccount  = null;
@@ -3592,6 +3601,11 @@ async function graphSignIn() {
     return;
   }
   if (!msalInstance) initMSAL();
+  // iOS standalone PWA blocks popups — use redirect flow for tablet mode
+  if (TABLET_TEAM) {
+    msalInstance.loginRedirect({ scopes: GRAPH_SCOPES });
+    return;
+  }
   try {
     const res = await msalInstance.loginPopup({ scopes: GRAPH_SCOPES });
     graphAccount = res.account;
@@ -3618,6 +3632,10 @@ async function getGraphToken() {
     graphAccount = res.account;
     return res.accessToken;
   } catch {
+    if (TABLET_TEAM) {
+      msalInstance.acquireTokenRedirect({ scopes: GRAPH_SCOPES });
+      return null;
+    }
     const res = await msalInstance.acquireTokenPopup({ scopes: GRAPH_SCOPES });
     graphAccount = res.account;
     return res.accessToken;
@@ -3880,7 +3898,10 @@ async function initGraph() {
   updateAuthBadge(); // show initial state
   if (!GRAPH_READY || typeof msal === 'undefined') return;
   initMSAL();
-  try { await msalInstance.handleRedirectPromise(); } catch {}
+  try {
+    const redirectResult = await msalInstance.handleRedirectPromise();
+    if (redirectResult) graphAccount = redirectResult.account;
+  } catch {}
   const accounts = msalInstance.getAllAccounts();
   if (accounts.length) {
     graphAccount = accounts[0];

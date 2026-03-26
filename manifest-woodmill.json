@@ -1,0 +1,25 @@
+{
+  "name": "Woodmill — Repose Tracker",
+  "short_name": "Woodmill",
+  "description": "Woodmill team production tracker",
+  "start_url": "/?team=Woodmill",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0e023a",
+  "theme_color": "#0e023a",
+  "orientation": "landscape",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
