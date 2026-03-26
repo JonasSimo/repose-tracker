@@ -4364,6 +4364,7 @@ async function loadStatsData() {
         `/workbook/worksheets('${encodeURIComponent(QC_SHEET_NAME)}')/range(address='A${r}:B${end}')?$select=values`
       )
     ));
+    const seen = new Set();
     const qcRows = [];
     chunks.forEach(chunk => {
       (chunk.values || []).forEach(row => {
@@ -4372,7 +4373,13 @@ async function loadStatsData() {
         const m = repCell.match(/(?<!\d)(\d{7})(?!\d)/);
         if (!m) return;
         const d = tsCell ? new Date(tsCell) : null;
-        qcRows.push({ rep7: m[1], date: d && !isNaN(d) ? d : null });
+        const date = d && !isNaN(d) ? d : null;
+        // Deduplicate: same REP + same calendar date = one entry
+        const dateKey = date ? `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}` : 'nodate';
+        const uniqKey = `${m[1]}__${dateKey}`;
+        if (seen.has(uniqKey)) return;
+        seen.add(uniqKey);
+        qcRows.push({ rep7: m[1], date });
       });
     });
     STATS_QC = qcRows;
