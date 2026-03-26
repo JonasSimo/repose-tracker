@@ -3660,23 +3660,24 @@ async function loadLoadPlanFromSharePoint() {
       for (let row = 3; row < values.length; row++) {
         const cell = String(values[row]?.[col] ?? '').trim();
         if (!cell) continue;
-        const m      = cell.match(/(?<!\d)(\d{7})(?!\d)/);
         const isMech = /\bmech\b/i.test(cell);
-        const mAcc   = !m && cell.match(/\bJob\s*A\s*(\d+)/i);
+        // Acc check runs first — "Job A" takes priority over any 7-digit number in the same cell
+        const mAcc   = cell.match(/\bJob\s*A\s*(\d+)/i);
         const isAcc  = !!mAcc;
+        const m      = !isAcc && cell.match(/(?<!\d)(\d{7})(?!\d)/);
 
-        if (m) {
+        if (isAcc) {
+          // Accessory job item ("Job A XXXXXX") — QC only
+          const accId = `Job A ${mAcc[1]}`;
+          if (!newRaw[key]) newRaw[key] = [];
+          if (!newRaw[key].includes(accId)) newRaw[key].push(accId);
+          colItems.push({ text: cell, rep7: null, isMech: false, isAcc: true, accJobNum: mAcc[1] });
+        } else if (m) {
           // REP item (7-digit)
           const repId = isMech ? `REP ${m[1]} Mech` : `REP ${m[1]}`;
           if (!newRaw[key]) newRaw[key] = [];
           if (!newRaw[key].includes(repId)) newRaw[key].push(repId);
           colItems.push({ text: cell, rep7: m[1], isMech, isAcc: false, accJobNum: null });
-        } else if (isAcc) {
-          // Accessory job item ("Job A XXXXXX")
-          const accId = `Job A ${mAcc[1]}`;
-          if (!newRaw[key]) newRaw[key] = [];
-          if (!newRaw[key].includes(accId)) newRaw[key].push(accId);
-          colItems.push({ text: cell, rep7: null, isMech: false, isAcc: true, accJobNum: mAcc[1] });
         } else {
           colItems.push({ text: cell, rep7: null, isMech: false, isAcc: false, accJobNum: null });
         }
