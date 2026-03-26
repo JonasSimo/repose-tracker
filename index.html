@@ -3476,7 +3476,8 @@ async function loadLoadPlanFromSharePoint() {
         const cell = String(values[row]?.[col] ?? '').trim();
         const m = cell.match(/(?<!\d)(\d{7})(?!\d)/);
         if (!m) continue;
-        const repId = `REP ${m[1]}`;
+        const isMech = /\bmech\b/i.test(cell);
+        const repId = isMech ? `REP ${m[1]} Mech` : `REP ${m[1]}`;
         if (!newRaw[key]) newRaw[key] = [];
         if (!newRaw[key].includes(repId)) newRaw[key].push(repId);
       }
