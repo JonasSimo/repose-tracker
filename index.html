@@ -1038,6 +1038,37 @@ body {
 .dash-bottom { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
 @media (max-width: 600px) { .dash-top, .dash-bottom { grid-template-columns: 1fr; } }
 
+/* ── Mech Serial modal ── */
+.mserial-display {
+  font-family: 'JetBrains Mono', monospace; font-size: 28px; font-weight: 700;
+  letter-spacing: .08em; color: var(--text); background: var(--bg3);
+  border: 1.5px solid var(--border2); border-radius: 10px;
+  padding: 12px 16px; text-align: center; min-height: 56px;
+  word-break: break-all;
+}
+.mserial-display.has-val { border-color: var(--blue); color: var(--blue); }
+.mserial-keypad {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
+  margin-top: 4px;
+}
+.msk-btn {
+  padding: 14px 8px; border-radius: 9px; border: 1.5px solid var(--border2);
+  background: var(--bg3); font-size: 18px; font-weight: 600;
+  font-family: 'JetBrains Mono', monospace; color: var(--text);
+  cursor: pointer; transition: .1s; user-select: none;
+}
+.msk-btn:active, .msk-btn:hover { background: var(--bg4); border-color: var(--border2); }
+.msk-btn.dash { font-size: 22px; }
+.msk-btn.del  { font-size: 16px; background: var(--rbg); border-color: var(--rborder); color: var(--red); }
+.msk-btn.del:hover { background: #fde8e8; }
+.mserial-btn {
+  padding: 6px 13px; border-radius: 8px; border: 1.5px solid var(--green);
+  background: var(--gbg); color: var(--green); font-size: 12px;
+  font-weight: 600; font-family: inherit; cursor: pointer; transition: .12s;
+  white-space: nowrap;
+}
+.mserial-btn:hover { background: #d1fae5; }
+
 /* ── Tablet team mode: compact sidebar ── */
 .tablet-mode .team-sidebar { width: 130px; }
 .tablet-mode .week-panel   { width: 148px; }
@@ -1309,6 +1340,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="jh-title" id="jh-title">Select a week and prep</div>
             <div class="jh-sub" id="jh-sub">Choose from the panel on the left</div>
           </div>
+          <button id="mserial-open-btn" class="mserial-btn" onclick="openMechSerialModal()" style="display:none">⌨ Mech Serial</button>
           <button style="margin-left:auto;padding:6px 12px;border-radius:8px;border:1.5px solid var(--border2);background:var(--bg3);font-size:12px;cursor:pointer;font-family:inherit;color:var(--text2)" onclick="showView('team-select')">← Teams</button>
         </div>
         <div class="jh-stats" id="jh-stats" style="display:none">
@@ -1860,6 +1892,9 @@ function openTeam(name, hasSubs) {
   renderWeekList();
   renderPriorityBtn();
   renderJobs();
+  // Show Mech Serial button only for Assembly team
+  const msBtn = document.getElementById('mserial-open-btn');
+  if (msBtn) msBtn.style.display = name === 'Assembly' ? '' : 'none';
 }
 
 // ═══════════════════════════════════════════════
@@ -1922,6 +1957,8 @@ function switchTeam(name, hasSubs) {
   renderPriorityBtn();
   renderQCSyncBar();
   renderJobs();
+  const msBtn = document.getElementById('mserial-open-btn');
+  if (msBtn) msBtn.style.display = name === 'Assembly' ? '' : 'none';
 }
 
 function switchSub(sub) {
@@ -5379,11 +5416,100 @@ async function deleteScrapEntry(item, rowEl) {
     toast('Could not delete — check connection', 'u');
   }
 }
+
+// ═══════════════════════════════════════════════
+// MECHANISM SERIAL CODE (Assembly only)
+// ═══════════════════════════════════════════════
+let _mechSerialVal = '';
+
+function openMechSerialModal() {
+  _mechSerialVal = '';
+  updateMechSerialDisplay();
+  document.getElementById('mserial-modal').style.display = 'flex';
+}
+
+function closeMechSerialModal() {
+  document.getElementById('mserial-modal').style.display = 'none';
+}
+
+function updateMechSerialDisplay() {
+  const el = document.getElementById('mserial-display');
+  if (!el) return;
+  el.textContent = _mechSerialVal || '—';
+  el.classList.toggle('has-val', !!_mechSerialVal);
+}
+
+function mechSerialKey(k) {
+  if (k === 'del')   { _mechSerialVal = _mechSerialVal.slice(0, -1); }
+  else if (k === 'clear') { _mechSerialVal = ''; }
+  else               { _mechSerialVal += k; }
+  updateMechSerialDisplay();
+}
+
+async function saveMechSerial() {
+  const code = _mechSerialVal.trim();
+  if (!code) { toast('Enter a serial code first', 'u'); return; }
+  closeMechSerialModal();
+  try {
+    const siteId = await getSpSiteId();
+    const listId = await getListIdByName('ProductionCompletions');
+    const token  = await getGraphToken();
+    const now    = new Date();
+    const res = await fetch(
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fields: {
+          Team:          'Assembly',
+          SubTeam:       'MechSerial',
+          JobNo:         code,
+          REP:           '',
+          CompletedTime: now.toTimeString().slice(0, 5),
+          CompletedDate: now.toISOString().slice(0, 10),
+          IsComplete:    true,
+        }})
+      }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    toast(`Serial ${code} saved`, 's');
+  } catch(e) {
+    console.warn('saveMechSerial:', e.message);
+    toast('Could not save serial — check connection', 'u');
+  }
+}
 </script>
 
 <!-- Job spec modal -->
 <div id="specModal" class="spec-modal" style="display:none" onclick="if(event.target===this)closeSpecModal()">
   <div class="spec-card" id="specCard"></div>
+</div>
+
+<!-- Mechanism Serial Code modal -->
+<div id="mserial-modal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeMechSerialModal()">
+  <div class="modal-box" style="width:min(320px,92vw)">
+    <div class="modal-title">Mechanism Serial Code</div>
+    <div class="modal-sub">Enter the serial number from the mechanism label</div>
+    <div class="mserial-display" id="mserial-display">—</div>
+    <div class="mserial-keypad">
+      <button class="msk-btn" onclick="mechSerialKey('1')">1</button>
+      <button class="msk-btn" onclick="mechSerialKey('2')">2</button>
+      <button class="msk-btn" onclick="mechSerialKey('3')">3</button>
+      <button class="msk-btn" onclick="mechSerialKey('4')">4</button>
+      <button class="msk-btn" onclick="mechSerialKey('5')">5</button>
+      <button class="msk-btn" onclick="mechSerialKey('6')">6</button>
+      <button class="msk-btn" onclick="mechSerialKey('7')">7</button>
+      <button class="msk-btn" onclick="mechSerialKey('8')">8</button>
+      <button class="msk-btn" onclick="mechSerialKey('9')">9</button>
+      <button class="msk-btn dash" onclick="mechSerialKey('-')">–</button>
+      <button class="msk-btn" onclick="mechSerialKey('0')">0</button>
+      <button class="msk-btn del" onclick="mechSerialKey('del')">⌫</button>
+    </div>
+    <div class="modal-actions" style="margin-top:8px">
+      <button class="modal-cancel" onclick="mechSerialKey('clear')">Clear</button>
+      <button class="modal-confirm" onclick="saveMechSerial()">Save</button>
+    </div>
+  </div>
 </div>
 </body>
 </html>
