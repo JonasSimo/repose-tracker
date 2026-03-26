@@ -1218,77 +1218,31 @@ body {
 .btn-confirm { padding:6px 10px; border-radius:7px; font-size:12px; font-weight:600; cursor:pointer; background:#dc2626; color:#fff; border:none; font-family:inherit; }
 .btn-cancel  { padding:6px 10px; border-radius:7px; font-size:12px; font-weight:600; cursor:pointer; background:var(--bg3); color:var(--repose-grey); border:1.5px solid var(--border); font-family:inherit; }
 
-/* ── Delivery Schedule view ── */
-.ls-wrap         { display:flex; flex-direction:column; height:100%; overflow:hidden; }
-.ls-topbar       { padding:10px 16px; border-bottom:1px solid var(--border); background:var(--bg2); flex-shrink:0; display:flex; align-items:center; justify-content:space-between; gap:12px; }
-.ls-topbar-title { font-size:15px; font-weight:700; color:var(--text); }
-.ls-topbar-sub   { font-size:11px; color:var(--text2); margin-top:1px; }
-.ls-cols-scroll  { flex:1; overflow-x:auto; overflow-y:hidden; display:flex; padding:14px 14px 14px; gap:12px; align-items:flex-start; }
+/* ── Delivery Schedule — TV display ── */
+.ls-wrap        { display:flex; flex-direction:column; height:100%; overflow:hidden; background:#f0f2f5; }
+.ls-titlebar    { background:var(--repose-navy); color:#fff; text-align:center; padding:5px 16px; font-size:13px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; flex-shrink:0; display:flex; align-items:center; justify-content:space-between; }
+.ls-cols-scroll { flex:1; display:flex; overflow-x:auto; overflow-y:hidden; gap:0; border-top:2px solid var(--repose-blue); }
+.ls-col         { flex:1; min-width:90px; display:flex; flex-direction:column; border-right:1px solid #c0c8d4; overflow:hidden; }
+.ls-col:last-child { border-right:none; }
 
-.ls-col {
-  flex-shrink:0; width:260px; display:flex; flex-direction:column;
-  border-radius:14px; overflow:hidden;
-  border:2px solid var(--border); background:var(--bg2);
-  box-shadow:0 2px 8px rgba(0,0,0,.06); max-height:calc(100vh - 120px);
-}
-.ls-col.ls-today     { border-color:var(--repose-blue); box-shadow:0 4px 16px rgba(20,161,233,.15); }
-.ls-col.ls-yesterday { opacity:.65; }
-.ls-col.ls-all-done  { border-color:var(--green); }
+.ls-col-hd      { flex-shrink:0; text-align:center; padding:4px 4px 3px; border-bottom:2px solid rgba(0,0,0,.15); }
+.ls-col.ls-yesterday .ls-col-hd { background:#706f6f; color:#fff; }
+.ls-col.ls-today     .ls-col-hd { background:var(--repose-blue); color:#fff; }
+.ls-col.ls-future    .ls-col-hd { background:var(--repose-navy); color:#fff; }
+.ls-col.ls-all-done  .ls-col-hd { background:#16a34a; color:#fff; }
+.ls-col-day     { font-size:11px; font-weight:800; line-height:1.2; }
+.ls-col-date    { font-size:9px; opacity:.85; }
+.ls-col-tally   { font-size:8px; margin-top:2px; background:rgba(0,0,0,.18); border-radius:3px; padding:1px 5px; display:inline-block; }
 
-.ls-col-hd {
-  padding:12px 14px 10px; flex-shrink:0;
-  background:var(--repose-navy); color:#fff;
-}
-.ls-col.ls-today     .ls-col-hd { background:var(--repose-blue); }
-.ls-col.ls-yesterday .ls-col-hd { background:var(--repose-grey); }
-.ls-col.ls-all-done  .ls-col-hd { background:var(--green); }
-
-.ls-col-day  { font-size:16px; font-weight:800; letter-spacing:-.01em; color:#fff; }
-.ls-col-date { font-size:11px; color:rgba(255,255,255,.75); margin-top:2px; }
-.ls-col-tally { font-size:11px; font-weight:600; color:rgba(255,255,255,.85); margin-top:6px; background:rgba(0,0,0,.15); border-radius:6px; padding:3px 8px; display:inline-block; }
-.ls-tally-done { background:rgba(255,255,255,.25) !important; }
-
-.ls-col-body { flex:1; overflow-y:auto; padding:8px; }
-
-.ls-item-rep {
-  border:1.5px solid var(--border); border-radius:10px;
-  background:var(--bg2); margin-bottom:7px; overflow:hidden;
-  transition:border-color .12s;
-}
-.ls-item-rep:hover { border-color:var(--border2); }
-.ls-item-rep.qc-done { background:var(--gbg); border-color:var(--gborder); opacity:.55; }
-.ls-item-top {
-  display:flex; align-items:center; gap:8px;
-  padding:9px 10px 7px;
-}
-.ls-rep-num {
-  font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:700;
-  color:var(--repose-navy); flex:1; letter-spacing:.01em;
-}
-.ls-mech-tag {
-  font-size:9px; font-weight:700; background:var(--tbg); color:var(--teal);
-  border:1px solid var(--tborder); border-radius:4px; padding:1px 5px;
-  vertical-align:middle; margin-left:4px;
-}
-.ls-rep-desc {
-  font-size:11px; color:var(--text2); padding:0 10px 8px;
-  border-top:1px solid var(--border); padding-top:5px; margin-top:0;
-  font-weight:500;
-}
-.ls-qc-btn {
-  flex-shrink:0; padding:5px 11px; border-radius:7px;
-  border:1.5px solid var(--tborder); background:var(--tbg); color:var(--teal);
-  font-size:12px; font-weight:700; font-family:inherit; cursor:pointer; transition:.12s;
-}
-.ls-qc-btn:hover:not(:disabled) { background:#b2eef8; border-color:var(--teal); }
-.ls-qc-btn.done { background:var(--gbg); border-color:var(--gborder); color:var(--green); cursor:default; }
-.ls-item-text {
-  padding:6px 10px; margin-bottom:5px; border-radius:8px;
-  background:var(--bg4); font-size:11px; color:var(--text2); font-weight:600;
-  border-left:3px solid var(--repose-blue);
-  text-transform:uppercase; letter-spacing:.04em;
-}
-.ls-empty { text-align:center; color:var(--text3); font-size:12px; padding:30px 8px; }
+.ls-col-body    { flex:1; overflow-y:auto; overflow-x:hidden; }
+.ls-item-rep    { padding:2px 5px 2px; border-bottom:1px solid #dde2ea; cursor:pointer; transition:background .1s; background:#fff; }
+.ls-item-rep:hover { background:#e8f4fd; }
+.ls-item-rep.qc-done { background:#bbf7d0 !important; }
+.ls-rep-num     { font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:700; color:#0e023a; line-height:1.4; }
+.ls-rep-num .ls-mech-tag { font-size:8px; font-weight:700; background:#cffafe; color:#0e7490; border:1px solid #a5f3fc; border-radius:3px; padding:0 3px; vertical-align:middle; margin-left:3px; }
+.ls-rep-desc    { font-size:9px; color:#555; line-height:1.3; padding-bottom:1px; }
+.ls-item-text   { padding:2px 5px; border-bottom:1px solid #b8c4d8; background:#dce6f5; font-size:9px; font-weight:700; color:#0e023a; text-transform:uppercase; letter-spacing:.03em; line-height:1.5; }
+.ls-empty       { padding:12px 6px; font-size:10px; color:#aaa; text-align:center; }
 </style>
 <script src="/msal-browser.min.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -1488,12 +1442,10 @@ document.addEventListener('DOMContentLoaded', () => {
 <!-- Delivery Schedule view -->
 <div class="view" id="view-loadsheet">
   <div class="ls-wrap">
-    <div class="ls-topbar">
-      <div>
-        <div class="ls-topbar-title">Delivery Schedule</div>
-        <div class="ls-topbar-sub" id="ls-sync-lbl">Sign in to load live data</div>
-      </div>
-      <button style="padding:6px 12px;border-radius:8px;border:1.5px solid var(--border2);background:var(--bg3);font-size:12px;cursor:pointer;font-family:inherit;color:var(--text2)" onclick="loadLoadPlanFromSharePoint()">↻ Sync</button>
+    <div class="ls-titlebar">
+      <span>Weekly Factory Load Sheet</span>
+      <span id="ls-sync-lbl" style="font-size:10px;font-weight:400;opacity:.7;letter-spacing:.02em">Sign in to load</span>
+      <button style="padding:3px 10px;border-radius:6px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.1);color:#fff;font-size:11px;cursor:pointer;font-family:inherit" onclick="loadLoadPlanFromSharePoint()">↻ Sync</button>
     </div>
     <div class="ls-cols-scroll" id="ls-cols"></div>
   </div>
@@ -5538,15 +5490,15 @@ async function deleteScrapEntry(item, rowEl) {
 function lsDayLabel(date) {
   const today = new Date(); today.setHours(0,0,0,0);
   const diff = Math.round((date - today) / 86400000);
-  if (diff === -1) return 'Yesterday';
-  if (diff ===  0) return 'Today';
-  if (diff ===  1) return 'Tomorrow';
-  return date.toLocaleDateString('en-GB', { weekday: 'short' });
+  if (diff === -1) return 'YESTERDAY';
+  if (diff ===  0) return 'TODAY';
+  if (diff ===  1) return 'TOMORROW';
+  return date.toLocaleDateString('en-GB', { weekday:'short' }).toUpperCase();
 }
 function lsDayCls(date) {
   const today = new Date(); today.setHours(0,0,0,0);
   const diff = Math.round((date - today) / 86400000);
-  if (diff < 0)  return 'ls-yesterday';
+  if (diff < 0)   return 'ls-yesterday';
   if (diff === 0) return 'ls-today';
   return 'ls-future';
 }
@@ -5556,49 +5508,44 @@ function renderLoadSheet() {
   if (!wrap) return;
 
   if (!LS_RAW.length) {
-    wrap.innerHTML = '<div style="padding:40px;color:var(--text3);font-size:13px">Sign in and sync to load the delivery schedule.</div>';
+    wrap.innerHTML = '<div style="padding:30px;color:#aaa;font-size:12px">Sign in and sync to load the delivery schedule.</div>';
     return;
   }
 
-  // Filter to yesterday → +3 only
+  // Show yesterday through next 4 days
   const today = new Date(); today.setHours(0,0,0,0);
   const cols = LS_RAW.filter(c => {
     const diff = Math.round((c.date - today) / 86400000);
-    return diff >= -1 && diff <= 3;
+    return diff >= -1 && diff <= 4;
   });
 
   wrap.innerHTML = cols.map(col => {
     const label    = lsDayLabel(col.date);
     const cls      = lsDayCls(col.date);
-    const dateStr  = col.date.toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'short' });
+    const dateStr  = col.date.toLocaleDateString('en-GB', { day:'2-digit', month:'2-digit', year:'numeric' });
     const repCount  = col.items.filter(i => i.rep7).length;
     const doneCount = col.items.filter(i => i.rep7 && (qcCompletedReps.has(i.rep7) || mechQCDone.has(i.rep7))).length;
     const allDone   = repCount > 0 && doneCount === repCount;
 
-    const itemsHtml = col.items.map(item => {
+    const itemsHtml = col.items.length ? col.items.map(item => {
       if (item.rep7) {
         const isDone   = qcCompletedReps.has(item.rep7) || mechQCDone.has(item.rep7);
-        const repLabel = item.isMech ? `REP ${item.rep7} <span class="ls-mech-tag">Mech</span>` : `REP ${item.rep7}`;
+        const mechTag  = item.isMech ? ' <span class="ls-mech-tag">MECH</span>' : '';
         const extra    = item.text.replace(/\bREP\b/gi,'').replace(/\bmech\b/gi,'').replace(item.rep7,'').replace(/^[\s\-–]+|[\s\-–]+$/g,'').trim();
-        return `<div class="ls-item-rep${isDone?' qc-done':''}">
-          <div class="ls-item-top">
-            <span class="ls-rep-num">${repLabel}</span>
-            <button class="ls-qc-btn${isDone?' done':''}" onclick="lsQCToggle('${item.rep7}')" ${isDone?'disabled':''}>
-              ${isDone ? '✓&nbsp;QC' : 'QC'}
-            </button>
-          </div>
+        return `<div class="ls-item-rep${isDone?' qc-done':''}" onclick="lsQCToggle('${item.rep7}')" title="Tap to mark QC done">
+          <div class="ls-rep-num">${item.rep7}${mechTag}</div>
           ${extra ? `<div class="ls-rep-desc">${extra}</div>` : ''}
         </div>`;
       } else {
         return `<div class="ls-item-text">${item.text}</div>`;
       }
-    }).join('');
+    }).join('') : '<div class="ls-empty">—</div>';
 
     return `<div class="ls-col ${cls}${allDone?' ls-all-done':''}">
       <div class="ls-col-hd">
         <div class="ls-col-day">${label}</div>
         <div class="ls-col-date">${dateStr}</div>
-        <div class="ls-col-tally ${allDone?'ls-tally-done':''}">${repCount ? (allDone ? `✓ All ${repCount} QC done` : `${doneCount} / ${repCount} QC done`) : 'No REPs'}</div>
+        <div class="ls-col-tally">${repCount ? `${doneCount}/${repCount}` : '—'}</div>
       </div>
       <div class="ls-col-body">${itemsHtml}</div>
     </div>`;
