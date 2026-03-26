@@ -4146,6 +4146,7 @@ let statsCharts    = {};
 let STATS_COMPLETIONS = [];
 let STATS_ALERTS      = [];
 let STATS_SCRAP       = [];
+let STATS_QC          = []; // [{ rep7: '2613044', date: Date }, ...]
 
 const STATS_NO_PER_PERSON = ['Woodmill', 'QC'];
 
@@ -4339,11 +4340,47 @@ async function loadStatsData() {
     STATS_ALERTS      = alerts;
     STATS_SCRAP       = scrap;
   } catch(e) {
-    console.warn('loadStatsData:', e.message);
+    console.warn('loadStatsData (lists):', e.message);
     toast('Could not load stats — check connection', 'u');
-  } finally {
-    document.getElementById('stats-spinner').style.display = 'none';
   }
+
+  // Load QC completions from the QC sheet (col A = REP, col B = ISO timestamp)
+  try {
+    const encoded   = encodeSharingUrl(QC_SHEET_SHARING_URL);
+    const driveItem = await graphGet(`https://graph.microsoft.com/v1.0/shares/${encoded}/driveItem`);
+    const driveId   = driveItem.parentReference.driveId;
+    const itemId    = driveItem.id;
+    const dims = await graphGet(
+      `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}` +
+      `/workbook/worksheets('${encodeURIComponent(QC_SHEET_NAME)}')/usedRange?$select=rowCount`
+    );
+    const lastRow = dims.rowCount || 1;
+    const CHUNK = 5000;
+    const ranges = [];
+    for (let r = 1; r <= lastRow; r += CHUNK) ranges.push([r, Math.min(r + CHUNK - 1, lastRow)]);
+    const chunks = await Promise.all(ranges.map(([r, end]) =>
+      graphGet(
+        `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}` +
+        `/workbook/worksheets('${encodeURIComponent(QC_SHEET_NAME)}')/range(address='A${r}:B${end}')?$select=values`
+      )
+    ));
+    const qcRows = [];
+    chunks.forEach(chunk => {
+      (chunk.values || []).forEach(row => {
+        const repCell = String(row[0] ?? '').trim();
+        const tsCell  = String(row[1] ?? '').trim();
+        const m = repCell.match(/(?<!\d)(\d{7})(?!\d)/);
+        if (!m) return;
+        const d = tsCell ? new Date(tsCell) : null;
+        qcRows.push({ rep7: m[1], date: d && !isNaN(d) ? d : null });
+      });
+    });
+    STATS_QC = qcRows;
+  } catch(e) {
+    console.warn('loadStatsData (QC sheet):', e.message);
+  }
+
+  document.getElementById('stats-spinner').style.display = 'none';
   renderStatsDashboard();
 }
 
@@ -4351,6 +4388,7 @@ async function refreshStatsData() {
   STATS_COMPLETIONS = [];
   STATS_ALERTS      = [];
   STATS_SCRAP       = [];
+  STATS_QC          = [];
   await loadStatsData();
 }
 
@@ -4381,6 +4419,16 @@ function statsFilteredAlerts() {
 }
 function statsFilteredScrap() {
   return STATS_SCRAP.filter(s => statsInPeriod(s.fields.LoggedAt));
+}
+function statsFilteredQC() {
+  const ref = statsRefDate();
+  return STATS_QC.filter(q => {
+    const d = q.date;
+    if (!d) return false;
+    if (statsPeriod === 'week')  return isoWeekNumber(d) === isoWeekNumber(ref) && isoWeekYear(d) === isoWeekYear(ref);
+    if (statsPeriod === 'month') return d.getMonth() === ref.getMonth() && d.getFullYear() === ref.getFullYear();
+    return d.getFullYear() === ref.getFullYear();
+  });
 }
 
 function statsCountByTeam(completions) {
@@ -4413,7 +4461,8 @@ function statsFullyCompleteReps(completions) {
 // ── Spark / chart helpers ────────────────────────
 
 function buildSparkData(comp, alerts, scrap) {
-  const ref = statsRefDate();
+  const ref  = statsRefDate();
+  const qcSrc = STATS_QC;
   let labels = [], complete = [], qc = [], changes = [], scrapB = [];
 
   function dayKey(dd) { return `${dd.getFullYear()}-${dd.getMonth()}-${dd.getDate()}`; }
@@ -4425,8 +4474,8 @@ function buildSparkData(comp, alerts, scrap) {
     for (let i = 0; i < 5; i++) {
       const d = new Date(mon); d.setDate(mon.getDate() + i);
       const k = dayKey(d);
-      complete.push(comp.filter(c => { const dd = parseDdmmyyyy(c.fields.CompletedDate); return dd && dayKey(dd) === k && c.fields.Team !== 'QC'; }).length);
-      qc.push(comp.filter(c => { const dd = parseDdmmyyyy(c.fields.CompletedDate); return dd && dayKey(dd) === k && c.fields.Team === 'QC'; }).length);
+      complete.push(comp.filter(c => { const dd = parseDdmmyyyy(c.fields.CompletedDate); return dd && dayKey(dd) === k; }).length);
+      qc.push(qcSrc.filter(q => q.date && dayKey(q.date) === k).length);
       changes.push(alerts.filter(a => { const dd = parseDdmmyyyy(a.fields.DetectedAt); return dd && dayKey(dd) === k; }).length);
       scrapB.push(scrap.filter(s => { const dd = parseDdmmyyyy(s.fields.LoggedAt); return dd && dayKey(dd) === k; }).length);
     }
@@ -4434,16 +4483,16 @@ function buildSparkData(comp, alerts, scrap) {
     labels = ['Wk1','Wk2','Wk3','Wk4'];
     for (let w = 0; w < 4; w++) {
       const s = w * 7 + 1, e = w === 3 ? 31 : (w + 1) * 7;
-      complete.push(comp.filter(c => { const dd = parseDdmmyyyy(c.fields.CompletedDate); return dd && dd.getDate() >= s && dd.getDate() <= e && c.fields.Team !== 'QC'; }).length);
-      qc.push(comp.filter(c => { const dd = parseDdmmyyyy(c.fields.CompletedDate); return dd && dd.getDate() >= s && dd.getDate() <= e && c.fields.Team === 'QC'; }).length);
+      complete.push(comp.filter(c => { const dd = parseDdmmyyyy(c.fields.CompletedDate); return dd && dd.getDate() >= s && dd.getDate() <= e; }).length);
+      qc.push(qcSrc.filter(q => q.date && q.date.getDate() >= s && q.date.getDate() <= e).length);
       changes.push(alerts.filter(a => { const dd = parseDdmmyyyy(a.fields.DetectedAt); return dd && dd.getDate() >= s && dd.getDate() <= e; }).length);
       scrapB.push(scrap.filter(s2 => { const dd = parseDdmmyyyy(s2.fields.LoggedAt); return dd && dd.getDate() >= s && dd.getDate() <= e; }).length);
     }
   } else {
     labels = MONTHS_SHORT;
     for (let m = 0; m < 12; m++) {
-      complete.push(comp.filter(c => { const dd = parseDdmmyyyy(c.fields.CompletedDate); return dd && dd.getMonth() === m && c.fields.Team !== 'QC'; }).length);
-      qc.push(comp.filter(c => { const dd = parseDdmmyyyy(c.fields.CompletedDate); return dd && dd.getMonth() === m && c.fields.Team === 'QC'; }).length);
+      complete.push(comp.filter(c => { const dd = parseDdmmyyyy(c.fields.CompletedDate); return dd && dd.getMonth() === m; }).length);
+      qc.push(qcSrc.filter(q => q.date && q.date.getMonth() === m).length);
       changes.push(alerts.filter(a => { const dd = parseDdmmyyyy(a.fields.DetectedAt); return dd && dd.getMonth() === m; }).length);
       scrapB.push(scrap.filter(s => { const dd = parseDdmmyyyy(s.fields.LoggedAt); return dd && dd.getMonth() === m; }).length);
     }
@@ -4530,7 +4579,7 @@ function renderStatsDashboard() {
 
   const allReps  = [...new Set(comp.map(c => c.fields.REP))];
   const fullReps = statsFullyCompleteReps(comp);
-  const qcReps   = [...new Set(comp.filter(c => c.fields.Team === 'QC').map(c => c.fields.REP))];
+  const qcReps   = [...new Set(statsFilteredQC().map(q => q.rep7))];
   const persons  = statsCountByPerson(comp);
   const top3     = persons.slice(0, 3);
 
@@ -4777,7 +4826,7 @@ function renderDetailCompletions() {
 function renderDetailQC() {
   const comp      = statsFilteredCompletions();
   const fullRepsS = new Set(statsFullyCompleteReps(comp));
-  const qcReps    = [...new Set(comp.filter(c => c.fields.Team === 'QC').map(c => c.fields.REP))];
+  const qcReps    = [...new Set(statsFilteredQC().map(q => q.rep7))];
   const bothCount = qcReps.filter(r => fullRepsS.has(r)).length;
   const fastTrack = qcReps.length - bothCount;
   const body      = document.getElementById('stats-detail-body');
