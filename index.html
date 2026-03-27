@@ -3781,6 +3781,7 @@ async function loadLoadPlanFromSharePoint() {
     const values = range.values || [];
     // cellProps.value is a 2D array matching values rows/cols
     const cellColors = cellProps?.value || [];
+    console.log('[LS colours] getCellProperties result:', cellProps ? 'OK' : 'FAILED', '— sample cell [3][1]:', JSON.stringify(cellColors[3]?.[1]));
     if (values.length < 4) {
       console.warn('Load plan: sheet has fewer than 4 rows');
       return;
