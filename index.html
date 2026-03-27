@@ -3570,6 +3570,7 @@ async function deleteCompletionFromList(team, sub, wk, prep, ji) {
 // Completions refresh — runs every 1 minute
 async function refreshCompletions() {
   await loadCompletionsFromList();
+  await loadMechQCFromSharePoint().catch(console.warn);
 }
 
 // Full refresh — production data + load plan — runs every 10 minutes
