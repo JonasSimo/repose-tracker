@@ -1982,7 +1982,7 @@ function openTeam(name, hasSubs) {
   activeTeam = name;
   activeHasSubs = hasSubs;
   activeSub = hasSubs ? 'Arms' : 'all';
-  activeWC = WEEKS[0];
+  activeWC = WEEKS[2] || WEEKS[1] || WEEKS[0]; // default to current week (index 2 in 4-week window)
   activePrep = 1;
   showView('tracker');
   renderTeamSidebar();
@@ -2831,7 +2831,7 @@ function goToJob(wk, prep) {
 function tickFromSearch(wk, prep, ji) {
   // Set context so tickJob targets the right STATE slot
   activeWC   = wk;
-  activePrep = prep;
+  activePrep = prep === 'express' ? 'express' : Number(prep);
   tickJob(ji);
   // renderJobs() called by tickJob/modalConfirm will re-render search results
   // because renderJobs() now checks searchQuery first
@@ -3664,7 +3664,7 @@ async function autoSyncQCCompletions() {
       newlyDone++;
     });
 
-    qcCompletedReps = repNums; // store for applyStateToOvBadges
+    repNums.forEach(r => qcCompletedReps.add(r)); // merge, never replace — avoids badge flicker when sheet is trimmed
     qcLastSyncTime  = now;
     qcSyncError     = false;
     qcSyncing       = false;
@@ -3741,7 +3741,7 @@ function stopQCAutoSync() {
 function getJobInfoByRep(repId) {
   const digits = repId.replace(/\D/g, '');
   for (const wk of WEEKS) {
-    for (let p = 1; p <= 5; p++) {
+    for (const p of [1,2,3,4,5,'express']) {
       const jobs = PROD[wk]?.[p] || [];
       for (const job of jobs) {
         if (job.rep.replace(/\D/g, '') === digits) {
@@ -4105,7 +4105,7 @@ function parseSheetValues(values) {
     const itemNo = isExpressCode ? kRaw : Number(kRaw);
     if (!kRaw || (!isExpressCode && (!Number.isFinite(itemNo) || itemNo <= 0))) continue;
     const lCell = String(row[11]||'');
-    const m = lCell.match(/REP(\d{7})/);
+    const m = lCell.match(/REP\s*(\d{7})/);
     if (!m) continue;
     // Prep day from column BI (index 60): 1-5 or EXP/M-FT → 'express'
     const biRaw = String(row[60]||'').trim().toUpperCase();
@@ -4221,7 +4221,7 @@ async function loadProductionFromSharePoint() {
     Object.assign(PROD, newPROD);
     WEEKS.length = 0;
     newWEEKS.forEach(w => WEEKS.push(w));
-    activeWC = `WK ${now}`;
+    if (!activeWC || !newWEEKS.includes(activeWC)) activeWC = `WK ${now}`;
 
     // Build EXPRESS_TYPE_MAP: rep7 → 'EXP'|'MFT'
     EXPRESS_TYPE_MAP.clear();
@@ -5592,7 +5592,7 @@ function renderDetailChanges() {
 
     const alertChange = document.createElement('div');
     alertChange.className = 'alert-change';
-    alertChange.innerHTML = `Changed from <strong>${escHtml(f.OldVal || '—')}</strong> → <strong>${escHtml(f.NewVal || '—')}</strong>`;
+    alertChange.innerHTML = `Changed from <strong>${escHtml(f.OldValue || '—')}</strong> → <strong>${escHtml(f.NewValue || '—')}</strong>`;
     row.appendChild(alertChange);
 
     if (isUnread) {
@@ -5673,8 +5673,8 @@ async function statsLogScrapAndDismiss(alert, btn) {
         Prep:       f.Prep       || '',
         Team:       '',
         FieldLabel: f.FieldLabel || f.FieldKey || '',
-        OldVal:     f.OldVal     || '',
-        NewVal:     f.NewVal     || '',
+        OldValue:   f.OldValue   || '',
+        NewValue:   f.NewValue   || '',
         LoggedAt:   now,
       }}),
     });
