@@ -3838,7 +3838,7 @@ async function loadLoadPlanFromSharePoint() {
           const fontColor = (cellFmt?.font?.color  || '').replace('#','').toLowerCase();
           let itemType;
           if      (/\bLOAD\b/i.test(cell))                                      itemType = 'load';
-          else if (/\bREMOVE\b/i.test(cell))                                    itemType = 'remove';
+          else if (/\bREMOVE\b/i.test(cell) || /\bUNITS\b/i.test(cell))        itemType = 'remove';
           else if (fillColor === 'fde9d9' || /\bVAN\b/i.test(cell))             itemType = 'van';
           else if (fontColor === '00b0f0' || /\bservice\b/i.test(cell))         itemType = 'service';
           else if (fillColor === 'ffff00')                                       itemType = 'customer';
