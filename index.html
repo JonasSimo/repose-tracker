@@ -5861,7 +5861,7 @@ function renderLoadSheet() {
         const expType    = EXPRESS_TYPE_MAP.get(item.rep7);
         const expCls     = expType === 'MFT' ? ' mft-job' : expType === 'EXP' ? ' exp-job' : '';
         const cls        = `ls-item-rep${expCls}${isDone?' qc-done':''}${isChanged?' ls-changed':''}`;
-        return `<div class="${cls}"${isChanged?` style="${delayStyle}"`:''}  onclick="lsQCToggle('${item.rep7}')" title="Tap to mark QC done">
+        return `<div class="${cls}"${isChanged?` style="${delayStyle}"`:''}>
           <div class="ls-rep-num">${item.rep7}${mechTag}</div>
           ${extra ? `<div class="ls-rep-desc">${extra}</div>` : ''}
         </div>`;
@@ -5869,7 +5869,7 @@ function renderLoadSheet() {
         const isDone  = accQCDone.has(item.accJobNum);
         const extra   = item.text.replace(/\bJob\s*A\b/gi,'').replace(item.accJobNum,'').replace(/^[\s\-–]+|[\s\-–]+$/g,'').trim();
         const cls     = `ls-item-rep${isDone?' qc-done':''}${isChanged?' ls-changed':''}`;
-        return `<div class="${cls}"${isChanged?` style="${delayStyle}"`:''}  onclick="lsAccQCToggle('${item.accJobNum}')" title="Tap to mark QC done">
+        return `<div class="${cls}"${isChanged?` style="${delayStyle}"`:''}>
           <div class="ls-rep-num">Job A ${item.accJobNum} <span class="ls-acc-tag">ACC</span></div>
           ${extra ? `<div class="ls-rep-desc">${extra}</div>` : ''}
         </div>`;
