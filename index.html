@@ -3916,6 +3916,8 @@ async function loadMechQCFromSharePoint() {
     saveMechQCDone(mechQCDone);
     saveAccQCDone(accQCDone);
     applyStateToOvBadges();
+    if (document.getElementById('view-overview')?.classList.contains('active')) renderOverview();
+    if (document.getElementById('view-loadsheet')?.classList.contains('active')) renderLoadSheet();
   } catch(e) {
     console.warn('loadMechQCFromSharePoint:', e.message);
   }
@@ -4354,7 +4356,7 @@ async function logMechQCCompletion(repId) {
     const siteId = await getSpSiteId();
     const listId = await getListIdByName('ProductionCompletions');
     const now    = new Date();
-    await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`, {
+    const res = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ fields: {
@@ -4367,6 +4369,7 @@ async function logMechQCCompletion(repId) {
         IsComplete:    true,
       }}),
     });
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
     toast(`${mechBaseRep(repId)} QC logged`, 's');
   } catch(e) {
     console.warn('logMechQCCompletion:', e.message);
