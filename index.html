@@ -1237,29 +1237,29 @@ body {
 
 /* ── Delivery Schedule — TV display ── */
 .ls-wrap        { display:flex; flex-direction:column; height:100%; overflow:hidden; background:#f0f2f5; }
-.ls-titlebar    { background:var(--repose-navy); color:#fff; text-align:center; padding:5px 16px; font-size:13px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; flex-shrink:0; display:flex; align-items:center; justify-content:space-between; }
+.ls-titlebar    { background:var(--repose-navy); color:#fff; text-align:center; padding:3px 16px; font-size:13px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; flex-shrink:0; display:flex; align-items:center; justify-content:space-between; }
 .ls-cols-scroll { flex:1; display:flex; overflow-x:auto; overflow-y:hidden; gap:0; border-top:2px solid var(--repose-blue); }
 .ls-col         { flex:1; min-width:90px; display:flex; flex-direction:column; border-right:1px solid #c0c8d4; overflow:hidden; }
 .ls-col:last-child { border-right:none; }
 
-.ls-col-hd      { flex-shrink:0; text-align:center; padding:4px 4px 3px; border-bottom:2px solid rgba(0,0,0,.15); }
+.ls-col-hd      { flex-shrink:0; text-align:center; padding:2px 4px 2px; border-bottom:2px solid rgba(0,0,0,.15); }
 .ls-col.ls-yesterday .ls-col-hd { background:#706f6f; color:#fff; }
 .ls-col.ls-today     .ls-col-hd { background:var(--repose-blue); color:#fff; }
 .ls-col.ls-future    .ls-col-hd { background:var(--repose-navy); color:#fff; }
 .ls-col.ls-all-done  .ls-col-hd { background:#16a34a; color:#fff; }
-.ls-col-day     { font-size:11px; font-weight:800; line-height:1.2; }
-.ls-col-date    { font-size:9px; opacity:.85; }
-.ls-col-tally   { font-size:8px; margin-top:2px; background:rgba(0,0,0,.18); border-radius:3px; padding:1px 5px; display:inline-block; }
+.ls-col-day     { font-size:11px; font-weight:800; line-height:1.15; }
+.ls-col-date    { font-size:9px; opacity:.85; line-height:1.1; }
+.ls-col-tally   { font-size:8px; margin-top:1px; background:rgba(0,0,0,.18); border-radius:3px; padding:0 5px; display:inline-block; }
 
 .ls-col-body    { flex:1; overflow-y:auto; overflow-x:hidden; }
-.ls-item-rep    { padding:2px 5px 2px; border-bottom:1px solid #dde2ea; cursor:pointer; transition:background .1s; background:#fff; }
+.ls-item-rep    { padding:1px 4px; border-bottom:1px solid #dde2ea; cursor:pointer; transition:background .1s; background:#fff; }
 .ls-item-rep:hover { background:#e8f4fd; }
 .ls-item-rep.qc-done { background:#bbf7d0 !important; }
-.ls-rep-num     { font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:700; color:#0e023a; line-height:1.4; }
+.ls-rep-num     { font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; color:#0e023a; line-height:1.25; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .ls-rep-num .ls-mech-tag { font-size:8px; font-weight:700; background:#cffafe; color:#0e7490; border:1px solid #a5f3fc; border-radius:3px; padding:0 3px; vertical-align:middle; margin-left:3px; }
 .ls-rep-num .ls-acc-tag  { font-size:8px; font-weight:700; background:#f3e8ff; color:#7c3aed; border:1px solid #c4b5fd; border-radius:3px; padding:0 3px; vertical-align:middle; margin-left:3px; }
-.ls-rep-desc    { font-size:9px; color:#555; line-height:1.3; padding-bottom:1px; }
-.ls-item-text   { padding:2px 5px; border-bottom:1px solid #b8c4d8; background:#dce6f5; font-size:9px; font-weight:700; color:#0e023a; text-transform:uppercase; letter-spacing:.03em; line-height:1.5; }
+.ls-rep-desc    { font-size:9px; color:#555; line-height:1.15; padding-bottom:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ls-item-text   { padding:1px 4px; border-bottom:1px solid #b8c4d8; background:#dce6f5; font-size:9px; font-weight:700; color:#0e023a; text-transform:uppercase; letter-spacing:.03em; line-height:1.3; }
 @keyframes ls-change-fade {
   0%    { box-shadow: inset 4px 0 0 #f59e0b, 0 0 0 2px rgba(245,158,11,.6); background-color: rgba(254,243,199,.85); }
   5%    { box-shadow: inset 4px 0 0 #f59e0b, 0 0 0 2px rgba(245,158,11,.6); background-color: rgba(254,243,199,.85); }
