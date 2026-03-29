@@ -1101,16 +1101,16 @@ body {
 /* ═══ ISSUES VIEW ═══ */
 .issues-wrap { display:flex; flex-direction:column; height:100%; overflow:hidden; }
 .issues-header { background:var(--bg2); border-bottom:1px solid var(--border); padding:10px 14px; display:flex; flex-direction:column; gap:8px; flex-shrink:0; }
-.issues-filter-row { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
-.issues-chip { padding:4px 12px; border-radius:20px; border:1.5px solid var(--border2); background:var(--bg3); font-size:11px; font-weight:600; cursor:pointer; color:var(--text2); font-family:inherit; transition:.1s; }
+.issues-filter-row { display:flex; gap:6px; align-items:center; }
+.issues-team-row { display:flex; gap:5px; overflow-x:auto; padding-bottom:2px; scrollbar-width:none; }
+.issues-team-row::-webkit-scrollbar { display:none; }
+.issues-chip { padding:6px 14px; border-radius:20px; border:1.5px solid var(--border2); background:var(--bg3); font-size:12px; font-weight:600; cursor:pointer; color:var(--text2); font-family:inherit; transition:.1s; white-space:nowrap; flex-shrink:0; }
 .issues-chip.active { background:var(--repose-navy); color:#fff; border-color:var(--repose-navy); }
 .issues-chip.amber.active { background:var(--amber); border-color:var(--amber); color:#fff; }
 .issues-chip.red.active { background:var(--red); border-color:var(--red); color:#fff; }
 .issues-chip.green.active { background:var(--green); border-color:var(--green); color:#fff; }
-.issues-search-row { display:flex; gap:8px; align-items:center; }
-.issues-search-input { flex:1; padding:7px 10px; border-radius:7px; border:1.5px solid var(--border); font-size:12px; font-family:inherit; background:var(--bg); color:var(--text); }
-.issues-search-input:focus { outline:none; border-color:var(--blue); }
-.issues-team-select { padding:7px 10px; border-radius:7px; border:1.5px solid var(--border); font-size:12px; font-family:inherit; background:var(--bg); color:var(--text); cursor:pointer; }
+.issues-team-chip { padding:6px 14px; border-radius:20px; border:1.5px solid var(--border2); background:var(--bg3); font-size:12px; font-weight:600; cursor:pointer; color:var(--text2); font-family:inherit; transition:.1s; white-space:nowrap; flex-shrink:0; }
+.issues-team-chip.active { background:var(--repose-navy); color:#fff; border-color:var(--repose-navy); }
 .issues-list-wrap { flex:1; overflow-y:auto; padding:10px 14px; }
 .issues-empty { text-align:center; padding:40px 20px; color:var(--text3); font-size:13px; }
 .issues-loading { text-align:center; padding:40px 20px; color:var(--text2); font-size:13px; }
@@ -1684,26 +1684,23 @@ document.addEventListener('DOMContentLoaded', () => {
   <div class="issues-wrap">
     <div class="issues-header">
       <div class="issues-filter-row">
-        <button class="issues-chip active" data-f="all" onclick="setIssueFilter('all')">All</button>
-        <button class="issues-chip" data-f="open" onclick="setIssueFilter('open')">Open</button>
-        <button class="issues-chip amber" data-f="amber" onclick="setIssueFilter('amber')">⚠ 48h+</button>
-        <button class="issues-chip red" data-f="red" onclick="setIssueFilter('red')">🔴 4 days+</button>
-        <button class="issues-chip green" data-f="closed" onclick="setIssueFilter('closed')">✓ Closed</button>
-        <button onclick="fetchCPARs()" style="margin-left:auto;padding:5px 12px;border-radius:7px;border:1.5px solid var(--border2);background:var(--bg3);font-size:11px;cursor:pointer;font-family:inherit;color:var(--text2)">↻ Refresh</button>
+        <button class="issues-chip active" data-f="open" onclick="setIssueFilter('open')">Open</button>
+        <button class="issues-chip amber" data-f="amber" onclick="setIssueFilter('amber')">48h+</button>
+        <button class="issues-chip red" data-f="red" onclick="setIssueFilter('red')">4 days+</button>
+        <button class="issues-chip green" data-f="closed" onclick="setIssueFilter('closed')">Closed</button>
+        <button class="issues-chip" data-f="all" onclick="setIssueFilter('all')">All</button>
+        <button onclick="fetchCPARs()" style="margin-left:auto;padding:5px 10px;border-radius:7px;border:1.5px solid var(--border2);background:var(--bg3);font-size:13px;cursor:pointer;font-family:inherit;color:var(--text2)" title="Refresh">↻</button>
       </div>
-      <div class="issues-search-row">
-        <input class="issues-search-input" id="issues-search" placeholder="Search REP, REF, model, description…" oninput="renderIssuesList()" autocomplete="off">
-        <select class="issues-team-select" id="issues-team-filter" onchange="renderIssuesList()">
-          <option value="">All Teams</option>
-          <option>Woodmill</option>
-          <option>Cutting</option>
-          <option>Sewing</option>
-          <option>Upholstery</option>
-          <option>Assembly</option>
-          <option>Foam</option>
-          <option>Stores</option>
-          <option>QC</option>
-        </select>
+      <div class="issues-team-row">
+        <button class="issues-team-chip active" data-team="" onclick="setIssueTeam(this,'')">All Teams</button>
+        <button class="issues-team-chip" data-team="Woodmill" onclick="setIssueTeam(this,'Woodmill')">Woodmill</button>
+        <button class="issues-team-chip" data-team="Cutting" onclick="setIssueTeam(this,'Cutting')">Cutting</button>
+        <button class="issues-team-chip" data-team="Sewing" onclick="setIssueTeam(this,'Sewing')">Sewing</button>
+        <button class="issues-team-chip" data-team="Upholstery" onclick="setIssueTeam(this,'Upholstery')">Upholstery</button>
+        <button class="issues-team-chip" data-team="Assembly" onclick="setIssueTeam(this,'Assembly')">Assembly</button>
+        <button class="issues-team-chip" data-team="Foam" onclick="setIssueTeam(this,'Foam')">Foam</button>
+        <button class="issues-team-chip" data-team="Stores" onclick="setIssueTeam(this,'Stores')">Stores</button>
+        <button class="issues-team-chip" data-team="QC" onclick="setIssueTeam(this,'QC')">QC</button>
       </div>
     </div>
     <div class="issues-list-wrap" id="issues-list"></div>
@@ -6380,7 +6377,8 @@ const CPAR_CAUSE_CODES = [
 
 // In-memory store
 let CPAR_ITEMS = [];
-let cparFilterStatus = 'all';
+let cparFilterStatus = 'open';
+let cparFilterTeam = '';
 let cparListLoaded = false;
 
 // Form state — persists while modal is open
@@ -6605,18 +6603,26 @@ async function submitCPAR() {
 }
 
 async function getNextCPARRef(siteId, listId) {
+  const stored = parseInt(localStorage.getItem('cpar_max_ref') || '3678');
   try {
     const data = await graphGet(
-      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields($select=Title)&$orderby=fields%2FTitle%20desc&$top=5`
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields($select=Title)&$orderby=id%20desc&$top=500`
     );
-    let maxNum = 3600;
+    let maxNum = stored;
     for (const item of (data.value||[])) {
-      const m = (item.fields?.Title||'').match(/RP-(\d+)/);
-      if (m) maxNum = Math.max(maxNum, parseInt(m[1]));
+      const m = (item.fields?.Title||'').match(/^RP-(\d{5})$/);
+      if (m) {
+        const n = parseInt(m[1]);
+        if (n < 50000) maxNum = Math.max(maxNum, n); // ignore timestamp-based fallback refs
+      }
     }
-    return `RP-${String(maxNum+1).padStart(5,'0')}`;
+    const next = maxNum + 1;
+    localStorage.setItem('cpar_max_ref', String(next));
+    return `RP-${String(next).padStart(5,'0')}`;
   } catch(e) {
-    return `RP-${String(Date.now()).slice(-5)}`;
+    const next = stored + 1;
+    localStorage.setItem('cpar_max_ref', String(next));
+    return `RP-${String(next).padStart(5,'0')}`;
   }
 }
 
@@ -6685,6 +6691,12 @@ function setIssueFilter(f) {
   renderIssuesList();
 }
 
+function setIssueTeam(btn, team) {
+  cparFilterTeam = team;
+  document.querySelectorAll('.issues-team-chip').forEach(c => c.classList.toggle('active', c.dataset.team === team));
+  renderIssuesList();
+}
+
 function updateIssuesTabBadge() {
   const openCount = CPAR_ITEMS.filter(i => getCPARStatus(i) !== 'closed').length;
   const btn = document.getElementById('issues-tab-btn');
@@ -6692,8 +6704,6 @@ function updateIssuesTabBadge() {
 }
 
 function renderIssuesList() {
-  const q = (document.getElementById('issues-search')?.value||'').toLowerCase();
-  const teamF = document.getElementById('issues-team-filter')?.value||'';
   const listEl = document.getElementById('issues-list');
   if (!listEl) return;
 
@@ -6706,15 +6716,7 @@ function renderIssuesList() {
       return st === cparFilterStatus;
     });
   }
-  if (teamF) items = items.filter(i => (i.fields?.RaisedByTeam||'') === teamF);
-  if (q) items = items.filter(i => {
-    const f = i.fields||{};
-    return (f.Title||'').toLowerCase().includes(q) ||
-           (f.PrimaryREP||'').toLowerCase().includes(q) ||
-           (f.PrimaryModel||'').toLowerCase().includes(q) ||
-           (f.Description||'').toLowerCase().includes(q) ||
-           (f.SourceDept||'').toLowerCase().includes(q);
-  });
+  if (cparFilterTeam) items = items.filter(i => (i.fields?.RaisedByTeam||'') === cparFilterTeam);
 
   if (!items.length) {
     listEl.innerHTML = '<div class="issues-empty">No issues found</div>';
