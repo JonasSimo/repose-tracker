@@ -2549,7 +2549,13 @@ function tickJob(ji) {
     recentDone.unshift({ team:snapTeam, sub:sk, wc:snapWC, prep:snapPrep, ji, label:job.rep });
     if (recentDone.length > 20) recentDone.pop();
     toast(`${job.rep} · marked complete`, 's');
-    saveCompletionToList(snapTeam, sk, snapWC, snapPrep, ji).catch(console.warn);
+    saveCompletionToList(snapTeam, sk, snapWC, snapPrep, ji).catch(err => {
+      console.warn('saveCompletionToList:', err);
+      s.done = false; s.doneAt = ''; s.doneDate = ''; s.initials = '';
+      recentDone.shift();
+      applyStateToOvBadges(); renderJobs(); renderTeamSidebar();
+      toast('Save failed — marked incomplete. Try again.', 'u');
+    });
     applyStateToOvBadges();
     renderJobs();
     renderTeamSidebar();
@@ -2624,7 +2630,13 @@ function modalConfirm() {
   if (recentDone.length > 20) recentDone.pop();
   toast(`${job.rep} · ${initials} · marked complete`, 's');
   // Save to SharePoint List in background (don't await — keep UI fast)
-  saveCompletionToList(snapTeam, sk, snapWC, snapPrep, ji).catch(console.warn);
+  saveCompletionToList(snapTeam, sk, snapWC, snapPrep, ji).catch(err => {
+    console.warn('saveCompletionToList:', err);
+    s.done = false; s.doneAt = ''; s.doneDate = ''; s.initials = '';
+    recentDone.shift();
+    applyStateToOvBadges(); renderJobs(); renderTeamSidebar();
+    toast('Save failed — marked incomplete. Try again.', 'u');
+  });
   applyStateToOvBadges();
   renderJobs();
   renderTeamSidebar();
@@ -3221,7 +3233,7 @@ function renderOverviewAll() {
       const repDisplay = isMech ? mechBaseRep(rep.id) : isAcc ? `Job A ${accJobBase(rep.id)}` : rep.id;
       const rowCls     = isMech ? ' mech-row' : isAcc ? ' acc-row' : '';
       gridHtml += `<div class="rep-row ${allDone?'all-done':''} ${ovRowCls}${rowCls}">
-        <span class="rep-num" onclick="openSpecModalByRep('${rep.id}')">${repDisplay}${mechLabel}${accLabel}</span>
+        <span class="rep-num" onclick="openSpecModalByRep(this.dataset.repid)" data-repid="${escHtml(rep.id)}">${repDisplay}${mechLabel}${accLabel}</span>
         <div class="badge-strip">`;
       const deptsToRender = (isMech || isAcc) ? OV_DEPTS.filter(d => d.k === 'qc') : OV_DEPTS;
       deptsToRender.forEach((d, di) => {
@@ -3347,7 +3359,7 @@ function renderOverviewTeam(teamName) {
       const accLabel2  = isAcc2  ? ` <span class="acc-tag">Acc</span>`   : '';
       const rowCls2    = isMech2 ? ' mech-row' : isAcc2 ? ' acc-row' : '';
       html += `<div class="rep-row ${teamDone ? 'all-done' : ''} ${ovRowCls2}${rowCls2}">
-        <span class="rep-num" onclick="openSpecModalByRep('${rep.id}')">${repLabel}${mechLabel2}${accLabel2}</span>
+        <span class="rep-num" onclick="openSpecModalByRep(this.dataset.repid)" data-repid="${escHtml(rep.id)}">${repLabel}${mechLabel2}${accLabel2}</span>
         <div class="badge-strip">`;
 
       if (map.hasSubs) {
@@ -3497,7 +3509,10 @@ async function checkForSpecChanges() {
 
 async function writeSpecAlert(a) {
   // Dedup: skip if already in the in-memory list (populated by fetchSpecAlerts before this runs)
-  if (SPEC_ALERTS.some(x => x.rep === a.rep && x.fieldKey === a.fieldKey)) return;
+  // Still mark SPEC_ALERT_SENT so the snapshot can advance without re-raising the same alert
+  if (SPEC_ALERTS.some(x => x.rep === a.rep && x.fieldKey === a.fieldKey)) {
+    SPEC_ALERT_SENT.add(a.cacheKey); saveSpecAlertCache(); return;
+  }
   const siteId = await getSpSiteId();
   const listId = await getListIdByName(SP_SPEC_ALERTS_LIST);
   const token  = await getGraphToken();
@@ -4556,6 +4571,7 @@ async function logMechQCCompletion(repId) {
 }
 function ovToggleSub(dayLabel, ri, dept, sub) {
   const day = OV_DAYS.find(d=>d.label===dayLabel);
+  if (!day || !day.reps[ri]) return;
   const rep = day.reps[ri];
   if (!Array.isArray(rep.s[dept])) rep.s[dept]=[];
   const idx = rep.s[dept].indexOf(sub);
@@ -5450,8 +5466,8 @@ function renderStatsDashboard() {
   // CPAR issues card
   const cparOpen   = cpars.filter(c => (c.fields?.Status||'') !== 'Closed');
   const cparClosed = cpars.filter(c => (c.fields?.Status||'') === 'Closed');
-  const cparAmber  = cparOpen.filter(c => { const hrs = (Date.now() - parseCPARDate(c.fields?.LoggedAt).getTime()) / 3600000; return hrs >= 48 && hrs < 96; });
-  const cparRed    = cparOpen.filter(c => (Date.now() - parseCPARDate(c.fields?.LoggedAt).getTime()) / 3600000 >= 96);
+  const cparAmber  = cparOpen.filter(c => { const dt = parseCPARDate(c.fields?.LoggedAt); if (!dt.getTime()) return false; const hrs = (Date.now() - dt.getTime()) / 3600000; return hrs >= 48 && hrs < 96; });
+  const cparRed    = cparOpen.filter(c => { const dt = parseCPARDate(c.fields?.LoggedAt); if (!dt.getTime()) return false; return (Date.now() - dt.getTime()) / 3600000 >= 96; });
   document.getElementById('stats-dash-issues').innerHTML = `
     <div class="stat-card" style="cursor:pointer;border-top:3px solid #7c3aed" onclick="renderStatsDetail('cpar')">
       <div class="card-label">Issues (CPARs)</div>
@@ -6068,7 +6084,7 @@ function renderDetailCPAR() {
     const ms = parseCPARDate(c.fields?.ClosedAt) - parseCPARDate(c.fields?.LoggedAt);
     return ms >= 96 * 3600000;
   });
-  const openOverdue = open.filter(c => (now - parseCPARDate(c.fields?.LoggedAt).getTime()) >= 96 * 3600000);
+  const openOverdue = open.filter(c => { const dt = parseCPARDate(c.fields?.LoggedAt); if (!dt.getTime()) return false; return (now - dt.getTime()) >= 96 * 3600000; });
 
   // MTTR — mean days to close (closed CPARs only)
   const mttrDays = closed.length ? (() => {
@@ -6385,7 +6401,7 @@ async function logLSQCCompletion(rep7) {
           Team:          'QC',
           REP:           `REP ${rep7}`,
           CompletedTime: now.toTimeString().slice(0, 5),
-          CompletedDate: now.toISOString().slice(0, 10),
+          CompletedDate: now.toLocaleDateString('en-GB'),
           IsComplete:    true,
         }})
       }
@@ -6422,7 +6438,7 @@ async function logLSAccQCCompletion(jobNum) {
           Team:          'QC',
           REP:           `Job A ${jobNum}`,
           CompletedTime: now.toTimeString().slice(0, 5),
-          CompletedDate: now.toISOString().slice(0, 10),
+          CompletedDate: now.toLocaleDateString('en-GB'),
           IsComplete:    true,
         }})
       }
