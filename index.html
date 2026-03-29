@@ -2328,7 +2328,7 @@ function renderPriorityJobsList() {
       </div>`;
     group.items.forEach(j => {
       html += `<div class="pj-job-row">
-        <span class="pj-rep">${j.repId}</span>
+        <span class="pj-rep">${escHtml(j.repId)}</span>
         <button class="pj-mark-btn" onclick="markPriorityJobDone(${j.dayIdx},${j.repIdx})">✓ Mark Done</button>
       </div>`;
     });
@@ -2499,7 +2499,7 @@ function renderJobs() {
         <div class="jc-bar" style="background:${barColor}"></div>
         <div class="jc-body" onclick="openSpecModal('${activeWC}','${activePrep}',${ji})">
           <span class="jc-item">Job ${job.itemNo}</span>
-          <span class="jc-rep">${job.rep}</span>
+          <span class="jc-rep">${escHtml(job.rep)}</span>
           ${s.done ? `<div class="card-undo">
             ${isQcAuto ? `<span class="jc-qc-badge">QC ✓</span>` :
               isAuto ? `<span class="jc-auto-badge">📋 AUTO</span>` :
@@ -2552,7 +2552,8 @@ function tickJob(ji) {
     saveCompletionToList(snapTeam, sk, snapWC, snapPrep, ji).catch(err => {
       console.warn('saveCompletionToList:', err);
       s.done = false; s.doneAt = ''; s.doneDate = ''; s.initials = '';
-      recentDone.shift();
+      const rdIdx = recentDone.findIndex(r => r.team===snapTeam && r.sub===sk && r.wc===snapWC && r.prep===snapPrep && r.ji===ji);
+      if (rdIdx >= 0) recentDone.splice(rdIdx, 1);
       applyStateToOvBadges(); renderJobs(); renderTeamSidebar();
       toast('Save failed — marked incomplete. Try again.', 'u');
     });
@@ -2633,7 +2634,8 @@ function modalConfirm() {
   saveCompletionToList(snapTeam, sk, snapWC, snapPrep, ji).catch(err => {
     console.warn('saveCompletionToList:', err);
     s.done = false; s.doneAt = ''; s.doneDate = ''; s.initials = '';
-    recentDone.shift();
+    const rdIdx = recentDone.findIndex(r => r.team===snapTeam && r.sub===sk && r.wc===snapWC && r.prep===snapPrep && r.ji===ji);
+    if (rdIdx >= 0) recentDone.splice(rdIdx, 1);
     applyStateToOvBadges(); renderJobs(); renderTeamSidebar();
     toast('Save failed — marked incomplete. Try again.', 'u');
   });
@@ -2858,7 +2860,7 @@ function renderSearchResults() {
   });
 
   if (!results.length) {
-    area.innerHTML = `<div class="search-no-results">No REP numbers found matching "<strong>${q}</strong>"</div>`;
+    area.innerHTML = `<div class="search-no-results">No REP numbers found matching "<strong>${escHtml(q)}</strong>"</div>`;
     return;
   }
 
@@ -3182,7 +3184,7 @@ function renderOverviewAll() {
     if (todayOut.length > 0) {
       alertHtml = `<div class="ov-alert">
         <div class="ov-alert-title">&#9888; Today's outstanding loads &mdash; ${todayOut.length} remaining</div>
-        <div class="ov-alert-reps">${todayOut.map(r => `<span class="ov-alert-rep">${r.id}</span>`).join('')}</div>
+        <div class="ov-alert-reps">${todayOut.map(r => `<span class="ov-alert-rep">${escHtml(r.id)}</span>`).join('')}</div>
       </div>`;
     }
   }
@@ -3230,7 +3232,7 @@ function renderOverviewAll() {
       const origRi    = day.reps.indexOf(rep);
       const mechLabel  = isMech ? ` <span class="mech-tag">Mech</span>` : '';
       const accLabel   = isAcc  ? ` <span class="acc-tag">Acc</span>`   : '';
-      const repDisplay = isMech ? mechBaseRep(rep.id) : isAcc ? `Job A ${accJobBase(rep.id)}` : rep.id;
+      const repDisplay = isMech ? escHtml(mechBaseRep(rep.id)) : isAcc ? `Job A ${escHtml(accJobBase(rep.id))}` : escHtml(rep.id);
       const rowCls     = isMech ? ' mech-row' : isAcc ? ' acc-row' : '';
       gridHtml += `<div class="rep-row ${allDone?'all-done':''} ${ovRowCls}${rowCls}">
         <span class="rep-num" onclick="openSpecModalByRep(this.dataset.repid)" data-repid="${escHtml(rep.id)}">${repDisplay}${mechLabel}${accLabel}</span>
@@ -3342,12 +3344,12 @@ function renderOverviewTeam(teamName) {
 
       let repLabel;
       if (teamName === 'QC') {
-        repLabel = rep.id;
+        repLabel = escHtml(rep.id);
       } else {
         const info = getJobInfoByRep(rep.id);
         repLabel = info
-          ? `Job ${info.jobNo} · w/c ${info.wc}`
-          : rep.id;
+          ? `Job ${escHtml(String(info.jobNo))} · w/c ${escHtml(String(info.wc))}`
+          : escHtml(rep.id);
       }
 
       const repDigits2 = rep.id.replace(/\D/g,'');
@@ -4733,7 +4735,7 @@ function renderProductionPlan() {
           return `<div class="pp-job">
             <div class="pp-job-top">
               <span class="pp-job-code">${codeLabel}</span>
-              <span class="pp-job-rep">${j.rep}</span>
+              <span class="pp-job-rep">${escHtml(j.rep)}</span>
             </div>
             ${badgeHtml}
           </div>`;
@@ -4901,6 +4903,7 @@ let statsUnlocked  = false;
 let statsPeriod    = 'week';   // 'week' | 'month' | 'year'
 let statsNavOffset = 0;        // 0 = current period, -1 = previous, etc.
 let statsCharts    = {};
+let statsSparkTimer = null;
 
 let STATS_COMPLETIONS = [];
 let STATS_ALERTS      = [];
@@ -4980,6 +4983,7 @@ function alpha(hex, a) {
 }
 
 function statsDestroyCharts() {
+  if (statsSparkTimer !== null) { clearTimeout(statsSparkTimer); statsSparkTimer = null; }
   Object.values(statsCharts).forEach(c => { try { c.destroy(); } catch(e){} });
   statsCharts = {};
 }
@@ -5490,7 +5494,8 @@ function renderStatsDashboard() {
     </div>`;
 
   // sparklines drawn after DOM paint
-  setTimeout(() => {
+  statsSparkTimer = setTimeout(() => {
+    statsSparkTimer = null;
     drawSparkline('spark-complete', spark.complete, '#14a1e9');
     drawSparkline('spark-qc',      spark.qc,       '#0e7490');
     drawSparkBar('spark-changes',  spark.changes,   '#d97706');
