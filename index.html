@@ -1062,8 +1062,9 @@ body {
 .cpar-stat-pill.overdue{ background: var(--rbg); color: var(--red); border: 1px solid #fca5a5; }
 .cpar-stat-pill.closed { background: var(--gbg); color: #059669; }
 /* Quality dashboard */
-.q-kpi-row       { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 16px; }
-@media(max-width:600px){ .q-kpi-row { grid-template-columns: repeat(2,1fr); } }
+.q-kpi-row       { display: grid; grid-template-columns: repeat(5,1fr); gap: 10px; margin-bottom: 16px; }
+@media(max-width:700px){ .q-kpi-row { grid-template-columns: repeat(3,1fr); } }
+@media(max-width:480px){ .q-kpi-row { grid-template-columns: repeat(2,1fr); } }
 .q-kpi           { background:#fff; border-radius:12px; border:1.5px solid var(--border); padding:14px 16px; text-align:center; }
 .q-kpi-value     { font-size:26px; font-weight:700; line-height:1; margin-bottom:4px; }
 .q-kpi-label     { font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:var(--repose-grey); }
@@ -1692,6 +1693,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <button class="stats-period-btn" onclick="setStatsPeriod('year',this)">Year</button>
         </div>
         <button class="stats-refresh-btn" id="stats-refresh-btn" onclick="refreshStatsData()">↻ Refresh</button>
+        <button class="stats-refresh-btn" id="stats-digest-btn" onclick="sendDailyDigest(this)" style="background:var(--repose-navy);color:#fff;border-color:var(--repose-navy)">✉ Send Digest</button>
       </div>
       <div class="stats-date-nav">
         <button class="stats-nav-arrow" id="stats-nav-prev" onclick="statsNavPeriod(-1)">‹</button>
@@ -4148,7 +4150,7 @@ async function loadMechQCFromSharePoint() {
 //     5. Copy the Application (client) ID below
 const AZURE_CLIENT_ID  = '2f8cdb1e-93da-4815-942b-c7c8d1a29ca5';
 const AZURE_TENANT_ID  = 'reposefurniturelimited.onmicrosoft.com';
-const GRAPH_SCOPES     = ['Files.Read.All', 'User.Read', 'Sites.ReadWrite.All'];
+const GRAPH_SCOPES     = ['Files.Read.All', 'User.Read', 'Sites.ReadWrite.All', 'Mail.Send'];
 
 // Live SharePoint link — Production 2026 Dec-Nov.xlsx
 const PROD_SHARING_URL = 'https://reposefurniturelimited.sharepoint.com/:x:/s/ReposeFurniture-PlanningRepose/IQBLf67iYnbQSq2O8UU_zQihARfBedzZcW-CmO0q3v5zC3o?e=nfze02';
@@ -6131,6 +6133,20 @@ function renderDetailCPAR() {
 
   const closureRate = cpars.length ? Math.round(closed.length / cpars.length * 100) : 0;
 
+  // ── Right First Time ──────────────────────────────────────────────────────
+  // QC-identified defects = CPARs raised BY QC team where the source dept matches the current filter
+  const allPeriodQCCPARs = allPeriodCPARs.filter(c => normaliseTeam(c.fields?.RaisedByTeam||'') === 'QC');
+  const rftQCCPARs = cparStatTeam
+    ? allPeriodQCCPARs.filter(c => normaliseTeam(c.fields?.SourceDept||'') === cparStatTeam)
+    : allPeriodQCCPARs;
+  const rftDefects  = rftQCCPARs.reduce((s, c) => s + (parseInt(c.fields?.QTY)||1), 0);
+  const allComp     = statsFilteredCompletions();
+  const rftComp     = cparStatTeam ? allComp.filter(c => (c.fields?.Team||'') === cparStatTeam) : allComp;
+  const rftTotal    = rftComp.length;
+  const rftPct      = rftTotal ? Math.max(0, Math.round((rftTotal - rftDefects) / rftTotal * 100)) : null;
+  const rftColor    = rftPct === null ? 'var(--repose-grey)' : rftPct >= 95 ? '#059669' : rftPct >= 85 ? '#d97706' : 'var(--red)';
+  const rftLabel    = rftPct === null ? '—' : rftPct + '%';
+
   // ── Team filter ───────────────────────────────────────────────────────────
   body.innerHTML = `
     ${allTeams.length ? `<div class="q-controls-bar">
@@ -6145,6 +6161,7 @@ function renderDetailCPAR() {
       <div class="q-kpi"><div class="q-kpi-value" style="color:${openOverdue.length ? 'var(--red)' : open.length ? 'var(--blue)' : '#059669'}">${open.length}</div><div class="q-kpi-label">Open</div><div class="q-kpi-sub">${openOverdue.length ? openOverdue.length+' overdue' : 'all within SLA'}</div></div>
       <div class="q-kpi"><div class="q-kpi-value" style="color:${closureRate >= 80 ? '#059669' : closureRate >= 50 ? '#d97706' : 'var(--red)'}">${closureRate}%</div><div class="q-kpi-label">Closure Rate</div><div class="q-kpi-sub">${closed.length} of ${cpars.length} closed</div></div>
       <div class="q-kpi"><div class="q-kpi-value" style="color:${mttrDays === '—' || parseFloat(mttrDays) < 2 ? '#059669' : parseFloat(mttrDays) < 4 ? '#d97706' : 'var(--red)'}">${mttrDays}</div><div class="q-kpi-label">Avg MTTR</div><div class="q-kpi-sub">days to close</div></div>
+      <div class="q-kpi"><div class="q-kpi-value" style="color:${rftColor}">${rftLabel}</div><div class="q-kpi-label">Right First Time</div><div class="q-kpi-sub">${rftTotal ? rftDefects+' QC defect'+(rftDefects!==1?'s':'')+' / '+rftTotal+' jobs' : 'no completions'}</div></div>
     </div>
 
     <!-- Pareto: Issues by Category -->
@@ -6654,6 +6671,21 @@ async function writeMechSerialToExcel(rep, wk, serial) {
 // ═══════════════════════════════════════════════════════════
 
 const SP_CPAR_LIST = 'CPARLog';
+
+// Team manager email routing (from qms-source/team-managers.md)
+const TEAM_MANAGERS = {
+  'Cutting':     'Mark@reposefurniture.co.uk',
+  'Sewing':      'sewing@reposefurniture.co.uk',
+  'Woodmill':    'paul.jenkins@reposefurniture.co.uk',
+  'Upholstery':  'daniel.seymour@reposefurniture.co.uk',
+  'Assembly':    'daniel.seymour@reposefurniture.co.uk',
+  'Foam':        'foam@reposefurniture.co.uk',
+  'Stores':      'stores@reposefurniture.co.uk',
+  'Development': 'ryan.evans@reposefurniture.co.uk',
+  'QC':          'weronika.hathaway@reposefurniture.co.uk',
+};
+// Always receive full digest (all teams)
+const DIGEST_MANAGEMENT = ['mitch@reposefurniture.co.uk', 'richard.semmens@reposefurniture.co.uk'];
 
 const CPAR_SOURCES = [
   { key:'woodmill',    label:'Woodmill',            color:'#7c3aed' },
@@ -7193,6 +7225,162 @@ function toggleCPARCloseout(id) {
   if (btn) {
     btn.classList.toggle('active', isOpen);
     btn.textContent = isOpen ? 'Close Out Issue ▲' : 'Close Out Issue ▼';
+  }
+}
+
+// ── Daily Digest Email ───────────────────────────────────────────────────────
+
+function buildDigestHtml(dateLabel, cparsArr, teamName) {
+  const navy = '#1e3a5f', light = '#f0f4f8', border = '#e2e8f0';
+  const statusBadge = s => {
+    const map = { Open:'#3b82f6', Closed:'#059669', 'In Progress':'#d97706' };
+    const col = map[s] || '#6b7280';
+    return `<span style="background:${col};color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600">${escHtml(s||'Open')}</span>`;
+  };
+  const rows = cparsArr.map(c => {
+    const f = c.fields||{};
+    const age = formatCPARAge(parseCPARDate(f.LoggedAt));
+    return `<tr style="border-bottom:1px solid ${border}">
+      <td style="padding:10px 8px;font-family:monospace;font-size:12px;font-weight:700;color:${navy};white-space:nowrap">${escHtml(f.Title||'—')}</td>
+      <td style="padding:10px 8px;font-size:12px;color:#374151">${escHtml(normaliseTeam(f.SourceDept||f.RaisedByTeam||'—'))}</td>
+      <td style="padding:10px 8px;font-size:12px;color:#374151">${escHtml(f.IssueCategory||'—')}</td>
+      <td style="padding:10px 8px;font-size:12px;color:#374151">${escHtml(f.Description||'—')}</td>
+      <td style="padding:10px 8px;text-align:center;font-size:12px">${escHtml(String(f.QTY||1))}</td>
+      <td style="padding:10px 8px">${statusBadge(f.Status)}</td>
+      <td style="padding:10px 8px;font-size:11px;color:#6b7280;white-space:nowrap">${age}</td>
+    </tr>`;
+  }).join('');
+
+  const noIssues = `<tr><td colspan="7" style="padding:24px;text-align:center;color:#059669;font-size:14px;font-weight:600">✓ No issues raised yesterday — great work!</td></tr>`;
+
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f0f4f8;font-family:Arial,Helvetica,sans-serif">
+  <div style="max-width:680px;margin:24px auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
+    <div style="background:${navy};padding:22px 28px">
+      <div style="color:#fff;font-size:20px;font-weight:700;letter-spacing:-.3px">RepNet — Daily Issues Digest</div>
+      <div style="color:rgba(255,255,255,.7);font-size:13px;margin-top:5px">${escHtml(dateLabel)}${teamName ? ' · ' + escHtml(teamName) + ' Team' : ' · All Teams'}</div>
+    </div>
+    <div style="padding:20px 28px">
+      <p style="margin:0 0 16px;font-size:14px;color:#374151">
+        ${cparsArr.length
+          ? `<strong>${cparsArr.length} issue${cparsArr.length!==1?'s':''}</strong> ${cparsArr.length===1?'was':'were'} raised ${teamName ? 'against the '+escHtml(teamName)+' team ' : ''}yesterday.`
+          : 'No issues were raised yesterday.'}
+      </p>
+      <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid ${border};border-radius:8px;overflow:hidden">
+        <thead>
+          <tr style="background:${light}">
+            <th style="padding:9px 8px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#6b7280;border-bottom:1px solid ${border}">Ref</th>
+            <th style="padding:9px 8px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#6b7280;border-bottom:1px solid ${border}">Source</th>
+            <th style="padding:9px 8px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#6b7280;border-bottom:1px solid ${border}">Category</th>
+            <th style="padding:9px 8px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#6b7280;border-bottom:1px solid ${border}">Description</th>
+            <th style="padding:9px 8px;text-align:center;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#6b7280;border-bottom:1px solid ${border}">Qty</th>
+            <th style="padding:9px 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#6b7280;border-bottom:1px solid ${border}">Status</th>
+            <th style="padding:9px 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#6b7280;border-bottom:1px solid ${border}">Age</th>
+          </tr>
+        </thead>
+        <tbody>${rows || noIssues}</tbody>
+      </table>
+    </div>
+    <div style="background:${light};padding:14px 28px;font-size:11px;color:#9ca3af;border-top:1px solid ${border}">
+      RepNet · Repose Furniture Production Tracker · This is an automated digest. Do not reply to this email.
+    </div>
+  </div>
+</body></html>`;
+}
+
+async function sendDailyDigest(btn) {
+  btn.disabled = true; btn.textContent = '⏳ Sending…';
+  try {
+    const token = await getGraphToken();
+
+    // Yesterday's date range in ISO for Graph filter
+    const yest = new Date(); yest.setDate(yest.getDate() - 1);
+    const yestLabel = yest.toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+    const yestISO   = yest.toISOString().slice(0,10); // YYYY-MM-DD
+
+    // Fetch yesterday's CPARs from SharePoint
+    const siteId = await getSpSiteId();
+    const listId = await getListIdByName(SP_CPAR_LIST);
+    const allYest = await graphGetAll(
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$filter=fields/LoggedAt ge '${yestISO}' and fields/LoggedAt lt '${new Date(yest.getTime()+86400000).toISOString().slice(0,10)}'&$top=999`
+    ).catch(() => {
+      // Fallback: use CPAR_ITEMS already in memory filtered by date
+      const dd = yest.toLocaleDateString('en-GB').slice(0,10); // DD/MM/YYYY start
+      return CPAR_ITEMS.filter(c => (c.fields?.LoggedAt||'').startsWith(dd.slice(0,2)+'/'+dd.slice(3,5)+'/'+dd.slice(6)));
+    });
+
+    // Group by SourceDept for per-manager emails
+    const byTeam = {};
+    allYest.forEach(c => {
+      const t = normaliseTeam(c.fields?.SourceDept||c.fields?.RaisedByTeam||'');
+      if (t) { if (!byTeam[t]) byTeam[t] = []; byTeam[t].push(c); }
+    });
+
+    const signedInEmail = graphAccount?.username || '';
+    const sent = [];
+    const failed = [];
+
+    // Send per-team emails to each manager
+    for (const [team, mgEmail] of Object.entries(TEAM_MANAGERS)) {
+      const teamCPARs = byTeam[team] || [];
+      if (!teamCPARs.length) continue; // no issues for this team yesterday — skip
+      const subject = `RepNet Issues Digest — ${team} · ${yestLabel}`;
+      const html    = buildDigestHtml(yestLabel, teamCPARs, team);
+      const to = [mgEmail];
+      // Jonas (signed-in user) always gets a copy
+      if (signedInEmail && signedInEmail !== mgEmail) to.push(signedInEmail);
+
+      const body = {
+        message: {
+          subject,
+          body: { contentType: 'HTML', content: html },
+          toRecipients: [{ emailAddress: { address: mgEmail } }],
+          ccRecipients: [
+            ...DIGEST_MANAGEMENT.map(a => ({ emailAddress: { address: a } })),
+            ...(signedInEmail && signedInEmail !== mgEmail ? [{ emailAddress: { address: signedInEmail } }] : []),
+          ],
+        },
+        saveToSentItems: true,
+      };
+      const res = await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) sent.push(team); else failed.push(team);
+    }
+
+    // If no per-team emails were sent (no issues yesterday) OR as a summary:
+    // Send a full digest to management
+    const summarySubject = `RepNet Daily Digest — ${yestLabel}${allYest.length ? ' · '+allYest.length+' issue'+(allYest.length!==1?'s':'') : ' · No issues'}`;
+    const summaryHtml    = buildDigestHtml(yestLabel, allYest, '');
+    const summaryRecips  = [...DIGEST_MANAGEMENT];
+    if (signedInEmail && !summaryRecips.includes(signedInEmail)) summaryRecips.push(signedInEmail);
+
+    const summaryRes = await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: {
+          subject: summarySubject,
+          body: { contentType: 'HTML', content: summaryHtml },
+          toRecipients: summaryRecips.map(a => ({ emailAddress: { address: a } })),
+        },
+        saveToSentItems: true,
+      }),
+    });
+
+    if (failed.length) {
+      toast(`Digest sent${sent.length ? ' to '+sent.join(', ') : ''} — failed: ${failed.join(', ')}`, 'u');
+    } else {
+      const teamCount = sent.length;
+      toast(`Digest sent — ${teamCount ? teamCount+' team manager'+(teamCount!==1?'s':'')+' + ' : ''}management summary ✓`, 's');
+    }
+  } catch(e) {
+    console.warn('sendDailyDigest:', e.message);
+    toast('Could not send digest — check connection', 'u');
+  } finally {
+    btn.disabled = false; btn.textContent = '✉ Send Digest';
   }
 }
 
