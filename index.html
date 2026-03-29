@@ -1053,7 +1053,14 @@ body {
 /* Dashboard grids */
 .dash-top    { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
 .dash-bottom { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+.dash-issues { margin-top: 14px; }
 @media (max-width: 600px) { .dash-top, .dash-bottom { grid-template-columns: 1fr; } }
+.cpar-stat-pills { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.cpar-stat-pill  { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 10px; }
+.cpar-stat-pill.open   { background: var(--bbg); color: var(--blue); }
+.cpar-stat-pill.amber  { background: #fff8e6; color: #d97706; border: 1px solid #fde68a; }
+.cpar-stat-pill.overdue{ background: var(--rbg); color: var(--red); border: 1px solid #fca5a5; }
+.cpar-stat-pill.closed { background: var(--gbg); color: #059669; }
 
 /* ── Mech Serial modal ── */
 .mserial-display {
@@ -1662,6 +1669,7 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
       <div class="dash-top" id="stats-dash-top"></div>
       <div class="dash-bottom" id="stats-dash-bottom"></div>
+      <div class="dash-issues" id="stats-dash-issues"></div>
     </div>
 
     <!-- Detail view -->
@@ -4848,6 +4856,7 @@ let STATS_COMPLETIONS = [];
 let STATS_ALERTS      = [];
 let STATS_SCRAP       = [];
 let STATS_QC          = []; // [{ rep7: '2613044', date: Date }, ...]
+let STATS_CPARS       = [];
 
 // Persisted mech QC completions (manual ticks in overview) — keyed by 7-digit rep
 const MECH_QC_KEY = 'mechQCDone';
@@ -5046,23 +5055,26 @@ async function loadStatsData() {
 
   try {
     const siteId = await getSpSiteId();
-    const [compId, alertId, scrapId] = await Promise.all([
+    const [compId, alertId, scrapId, cparId] = await Promise.all([
       getListIdByName('ProductionCompletions'),
       getListIdByName('SpecAlerts'),
       getListIdByName('ScrapLog'),
+      getListIdByName('CPARLog'),
     ]);
     // Filter to last 400 days (~13 months) — covers full year view + sparklines
     // createdDateTime is always indexed so this is fast regardless of list size
     const statsAfter = spAfterDate(400);
     const base = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists`;
-    const [comp, alerts, scrap] = await Promise.all([
+    const [comp, alerts, scrap, cpars] = await Promise.all([
       graphGetAll(`${base}/${compId}/items?$expand=fields&$filter=createdDateTime ge ${statsAfter}&$top=999`),
       graphGetAll(`${base}/${alertId}/items?$expand=fields&$filter=createdDateTime ge ${statsAfter}&$top=999`),
       graphGetAll(`${base}/${scrapId}/items?$expand=fields&$filter=createdDateTime ge ${statsAfter}&$top=999`),
+      graphGetAll(`${base}/${cparId}/items?$expand=fields($select=Title,RaisedByTeam,IssueCategory,CauseCode,Status,LoggedAt,ClosedAt,Description,SourceDept)&$filter=createdDateTime ge ${statsAfter}&$top=999`),
     ]);
     STATS_COMPLETIONS = comp;
     STATS_ALERTS      = alerts;
     STATS_SCRAP       = scrap;
+    STATS_CPARS       = cpars;
   } catch(e) {
     console.warn('loadStatsData (lists):', e.message);
     toast('Could not load stats — check connection', 'u');
@@ -5120,6 +5132,7 @@ async function refreshStatsData() {
   STATS_ALERTS      = [];
   STATS_SCRAP       = [];
   STATS_QC          = [];
+  STATS_CPARS       = [];
   await loadStatsData();
 }
 
@@ -5150,6 +5163,9 @@ function statsFilteredAlerts() {
 }
 function statsFilteredScrap() {
   return STATS_SCRAP.filter(s => statsInPeriod(s.fields.LoggedAt));
+}
+function statsFilteredCPARs() {
+  return STATS_CPARS.filter(c => statsInPeriod(c.fields?.LoggedAt));
 }
 function statsFilteredQC() {
   const ref = statsRefDate();
@@ -5191,10 +5207,10 @@ function statsFullyCompleteReps(completions) {
 
 // ── Spark / chart helpers ────────────────────────
 
-function buildSparkData(comp, alerts, scrap) {
+function buildSparkData(comp, alerts, scrap, cpars) {
   const ref  = statsRefDate();
   const qcSrc = STATS_QC;
-  let labels = [], complete = [], qc = [], changes = [], scrapB = [];
+  let labels = [], complete = [], qc = [], changes = [], scrapB = [], cparB = [];
 
   function dayKey(dd) { return `${dd.getFullYear()}-${dd.getMonth()}-${dd.getDate()}`; }
 
@@ -5209,6 +5225,7 @@ function buildSparkData(comp, alerts, scrap) {
       qc.push(qcSrc.filter(q => q.date && dayKey(q.date) === k).length);
       changes.push(alerts.filter(a => { const dd = parseDdmmyyyy(a.fields.DetectedAt); return dd && dayKey(dd) === k; }).length);
       scrapB.push(scrap.filter(s => { const dd = parseDdmmyyyy(s.fields.LoggedAt); return dd && dayKey(dd) === k; }).length);
+      cparB.push(cpars.filter(c => { const dd = parseDdmmyyyy(c.fields?.LoggedAt); return dd && dayKey(dd) === k; }).length);
     }
   } else if (statsPeriod === 'month') {
     labels = ['Wk1','Wk2','Wk3','Wk4'];
@@ -5219,6 +5236,7 @@ function buildSparkData(comp, alerts, scrap) {
       qc.push(qcSrc.filter(q => q.date && q.date.getFullYear() === refYr && q.date.getMonth() === refMon && q.date.getDate() >= s && q.date.getDate() <= e).length);
       changes.push(alerts.filter(a => { const dd = parseDdmmyyyy(a.fields.DetectedAt); return dd && dd.getFullYear() === refYr && dd.getMonth() === refMon && dd.getDate() >= s && dd.getDate() <= e; }).length);
       scrapB.push(scrap.filter(s2 => { const dd = parseDdmmyyyy(s2.fields.LoggedAt); return dd && dd.getFullYear() === refYr && dd.getMonth() === refMon && dd.getDate() >= s && dd.getDate() <= e; }).length);
+      cparB.push(cpars.filter(c => { const dd = parseDdmmyyyy(c.fields?.LoggedAt); return dd && dd.getFullYear() === refYr && dd.getMonth() === refMon && dd.getDate() >= s && dd.getDate() <= e; }).length);
     }
   } else {
     labels = MONTHS_SHORT;
@@ -5228,9 +5246,10 @@ function buildSparkData(comp, alerts, scrap) {
       qc.push(qcSrc.filter(q => q.date && q.date.getFullYear() === refYr && q.date.getMonth() === m).length);
       changes.push(alerts.filter(a => { const dd = parseDdmmyyyy(a.fields.DetectedAt); return dd && dd.getFullYear() === refYr && dd.getMonth() === m; }).length);
       scrapB.push(scrap.filter(s => { const dd = parseDdmmyyyy(s.fields.LoggedAt); return dd && dd.getFullYear() === refYr && dd.getMonth() === m; }).length);
+      cparB.push(cpars.filter(c => { const dd = parseDdmmyyyy(c.fields?.LoggedAt); return dd && dd.getFullYear() === refYr && dd.getMonth() === m; }).length);
     }
   }
-  return { labels, complete, qc, changes, scrap: scrapB };
+  return { labels, complete, qc, changes, scrap: scrapB, cpars: cparB };
 }
 
 function drawSparkline(id, data, color) {
@@ -5309,6 +5328,7 @@ function renderStatsDashboard() {
   const comp   = statsFilteredCompletions();
   const alerts = statsFilteredAlerts();
   const scrap  = statsFilteredScrap();
+  const cpars  = statsFilteredCPARs();
 
   const allReps  = [...new Set(comp.map(c => c.fields.REP))];
   const fullReps = statsFullyCompleteReps(comp);
@@ -5318,7 +5338,7 @@ function renderStatsDashboard() {
 
   const fullyPct = allReps.length  ? Math.round(fullReps.length / allReps.length * 100)  : 0;
   const qcPct    = fullReps.length ? Math.round(qcReps.length   / fullReps.length * 100) : 0;
-  const spark    = buildSparkData(comp, alerts, scrap);
+  const spark    = buildSparkData(comp, alerts, scrap, cpars);
 
   const top3Html = top3.map(p =>
     `<div class="top3-row"><span class="top3-name">${escHtml(p.name)}</span><span class="top3-count">${p.count}</span></div>`
@@ -5381,12 +5401,38 @@ function renderStatsDashboard() {
       <div class="card-arrow">›</div>
     </div>`;
 
+  // CPAR issues card
+  const cparOpen   = cpars.filter(c => (c.fields?.Status||'') !== 'Closed');
+  const cparClosed = cpars.filter(c => (c.fields?.Status||'') === 'Closed');
+  const cparAmber  = cparOpen.filter(c => { const hrs = (Date.now() - parseCPARDate(c.fields?.LoggedAt).getTime()) / 3600000; return hrs >= 48 && hrs < 96; });
+  const cparRed    = cparOpen.filter(c => (Date.now() - parseCPARDate(c.fields?.LoggedAt).getTime()) / 3600000 >= 96);
+  document.getElementById('stats-dash-issues').innerHTML = `
+    <div class="stat-card" style="cursor:pointer;border-top:3px solid #7c3aed" onclick="renderStatsDetail('cpar')">
+      <div class="card-label">Issues (CPARs)</div>
+      <div class="card-row">
+        <div>
+          <div class="card-number sm">${cpars.length}</div>
+          <div class="card-sub">raised this period</div>
+        </div>
+        <div class="card-chart"><canvas id="spark-cpars"></canvas></div>
+      </div>
+      <div class="cpar-stat-pills">
+        ${cparOpen.length  ? `<span class="cpar-stat-pill open">${cparOpen.length} open</span>` : ''}
+        ${cparAmber.length ? `<span class="cpar-stat-pill amber">${cparAmber.length} 48h+</span>` : ''}
+        ${cparRed.length   ? `<span class="cpar-stat-pill overdue">${cparRed.length} overdue</span>` : ''}
+        ${cparClosed.length ? `<span class="cpar-stat-pill closed">${cparClosed.length} closed</span>` : ''}
+        ${!cpars.length    ? '<span style="font-size:12px;color:var(--repose-grey)">No issues this period</span>' : ''}
+      </div>
+      <div class="card-arrow">›</div>
+    </div>`;
+
   // sparklines drawn after DOM paint
   setTimeout(() => {
     drawSparkline('spark-complete', spark.complete, '#14a1e9');
     drawSparkline('spark-qc',      spark.qc,       '#0e7490');
     drawSparkBar('spark-changes',  spark.changes,   '#d97706');
     drawSparkBar('spark-scrap',    spark.scrap,     '#dc2626');
+    drawSparkBar('spark-cpars',    spark.cpars,     '#7c3aed');
   }, 0);
 }
 
@@ -5399,7 +5445,7 @@ function renderStatsDetail(view) {
   detailEl.style.display = '';
   detailEl.dataset.view  = view;
 
-  const titles = { completions:'Fully Complete Jobs', qc:'QC Verified', perperson:'Per Person', changes:'Spec Changes', scrap:'Scrap Log' };
+  const titles = { completions:'Fully Complete Jobs', qc:'QC Verified', perperson:'Per Person', changes:'Spec Changes', scrap:'Scrap Log', cpar:'Issues (CPARs)' };
   document.getElementById('stats-detail-title').textContent  = titles[view] || view;
   document.getElementById('stats-detail-period').textContent = statsNavLabel();
   document.getElementById('stats-detail-body').innerHTML     = '';
@@ -5409,6 +5455,7 @@ function renderStatsDetail(view) {
   else if (view === 'perperson')   renderDetailPerPerson();
   else if (view === 'changes')     renderDetailChanges();
   else if (view === 'scrap')       renderDetailScrap();
+  else if (view === 'cpar')        renderDetailCPAR();
 }
 
 // ── Completions detail ──────────────────────────
@@ -5944,6 +5991,110 @@ async function deleteScrapEntry(item, rowEl) {
     console.warn('deleteScrapEntry:', e.message);
     toast('Could not delete — check connection', 'u');
   }
+}
+
+// ── CPAR detail ─────────────────────────────────
+
+function renderDetailCPAR() {
+  const cpars = statsFilteredCPARs();
+  const body  = document.getElementById('stats-detail-body');
+
+  // Summary row
+  const open   = cpars.filter(c => (c.fields?.Status||'') !== 'Closed');
+  const closed = cpars.filter(c => (c.fields?.Status||'') === 'Closed');
+  const amber  = open.filter(c => { const hrs = (Date.now() - parseCPARDate(c.fields?.LoggedAt).getTime()) / 3600000; return hrs >= 48 && hrs < 96; });
+  const red    = open.filter(c => (Date.now() - parseCPARDate(c.fields?.LoggedAt).getTime()) / 3600000 >= 96);
+
+  const summaryDiv = document.createElement('div');
+  summaryDiv.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px';
+  summaryDiv.innerHTML = [
+    ['Total', cpars.length, '#7c3aed'],
+    ['Open', open.length, 'var(--blue)'],
+    ['Overdue', red.length, 'var(--red)'],
+    ['Closed', closed.length, '#059669'],
+  ].map(([label, n, color]) => `
+    <div style="background:#fff;border-radius:10px;border:1.5px solid var(--border);padding:12px;text-align:center">
+      <div style="font-size:22px;font-weight:700;color:${color}">${n}</div>
+      <div style="font-size:11px;color:var(--repose-grey);text-transform:uppercase;letter-spacing:.5px;margin-top:2px">${label}</div>
+    </div>`).join('');
+  body.appendChild(summaryDiv);
+
+  // By team chart
+  const byTeam = {};
+  cpars.forEach(c => { const t = normaliseTeam(c.fields?.RaisedByTeam||'Unknown'); byTeam[t] = (byTeam[t]||0)+1; });
+  const teamLabels = Object.keys(byTeam).sort((a,b) => byTeam[b]-byTeam[a]);
+  const teamValues = teamLabels.map(t => byTeam[t]);
+
+  const teamPanel = document.createElement('div');
+  teamPanel.className = 'chart-panel';
+  teamPanel.style.marginBottom = '14px';
+  teamPanel.innerHTML = `<div class="chart-panel-title">Raised by team</div><div class="chart-wrap" style="height:${Math.max(120, teamLabels.length*32)}px"><canvas id="ch-cpar-team"></canvas></div>`;
+  body.appendChild(teamPanel);
+
+  // By category chart
+  const byCat = {};
+  cpars.forEach(c => { const cat = c.fields?.IssueCategory||'Unknown'; byCat[cat] = (byCat[cat]||0)+1; });
+  const catEntries = Object.entries(byCat).sort((a,b) => b[1]-a[1]).slice(0,8);
+  const catLabels  = catEntries.map(e => e[0]);
+  const catValues  = catEntries.map(e => e[1]);
+
+  const catPanel = document.createElement('div');
+  catPanel.className = 'chart-panel';
+  catPanel.style.marginBottom = '14px';
+  catPanel.innerHTML = `<div class="chart-panel-title">By issue category</div><div class="chart-wrap" style="height:${Math.max(120, catLabels.length*32)}px"><canvas id="ch-cpar-cat"></canvas></div>`;
+  body.appendChild(catPanel);
+
+  // Individual list
+  const listDiv = document.createElement('div');
+  listDiv.className = 'detail-card';
+  if (!cpars.length) {
+    listDiv.innerHTML = '<div style="padding:20px;text-align:center;color:var(--repose-grey);font-size:13px">No CPARs this period</div>';
+  } else {
+    const sorted = [...cpars].sort((a,b) => parseCPARDate(b.fields?.LoggedAt) - parseCPARDate(a.fields?.LoggedAt));
+    sorted.forEach(item => {
+      const f   = item.fields||{};
+      const isClosed = (f.Status||'') === 'Closed';
+      const hrs = (Date.now() - parseCPARDate(f.LoggedAt).getTime()) / 3600000;
+      const statusColor = isClosed ? '#059669' : hrs >= 96 ? 'var(--red)' : hrs >= 48 ? '#d97706' : 'var(--blue)';
+      const statusLabel = isClosed ? 'Closed' : hrs >= 96 ? 'Overdue' : hrs >= 48 ? '48h+' : 'Open';
+      const row = document.createElement('div');
+      row.className = 'scrap-row';
+      row.innerHTML = `
+        <div class="scrap-info">
+          <div class="scrap-rep" style="display:flex;align-items:center;gap:8px">
+            <span style="font-family:'JetBrains Mono',monospace">${escHtml(f.Title||'?')}</span>
+            <span style="font-size:10px;font-weight:700;color:${statusColor}">${statusLabel}</span>
+          </div>
+          <div class="scrap-meta">${escHtml(normaliseTeam(f.RaisedByTeam||'?'))} · ${escHtml(f.IssueCategory||'—')} · ${escHtml((f.LoggedAt||'').split(' ')[0])}</div>
+          ${f.Description ? `<div style="font-size:12px;color:var(--text2);margin-top:2px">${escHtml(f.Description)}</div>` : ''}
+        </div>`;
+      listDiv.appendChild(row);
+    });
+  }
+  body.appendChild(listDiv);
+
+  // Draw charts
+  setTimeout(() => {
+    if (typeof Chart === 'undefined') return;
+    if (teamLabels.length) {
+      statsCharts['ch-cpar-team'] = new Chart(document.getElementById('ch-cpar-team').getContext('2d'), {
+        type: 'bar',
+        data: { labels: teamLabels, datasets: [{ data: teamValues, backgroundColor: alpha('#7c3aed', 0.7), borderRadius: 4, borderSkipped: false }] },
+        options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: false,
+          plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` ${ctx.raw} CPARs` } } },
+          scales: { x: { beginAtZero: true, ticks: { precision: 0 } }, y: { ticks: { font: { size: 11 } } } } },
+      });
+    }
+    if (catLabels.length) {
+      statsCharts['ch-cpar-cat'] = new Chart(document.getElementById('ch-cpar-cat').getContext('2d'), {
+        type: 'bar',
+        data: { labels: catLabels, datasets: [{ data: catValues, backgroundColor: alpha('#d97706', 0.7), borderRadius: 4, borderSkipped: false }] },
+        options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: false,
+          plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` ${ctx.raw} CPARs` } } },
+          scales: { x: { beginAtZero: true, ticks: { precision: 0 } }, y: { ticks: { font: { size: 11 } } } } },
+      });
+    }
+  }, 0);
 }
 
 // ═══════════════════════════════════════════════
