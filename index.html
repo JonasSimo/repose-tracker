@@ -3523,8 +3523,8 @@ async function fetchSpecAlerts() {
     const siteId = await getSpSiteId();
     const listId = await getListIdByName(SP_SPEC_ALERTS_LIST);
     // Fetch all items without $filter (Status not indexed) and filter client-side
-    const data = await graphGet(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999`);
-    SPEC_ALERTS = (data.value || [])
+    const items = await graphGetAll(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999`);
+    SPEC_ALERTS = items
       .filter(item => (item.fields.Status || '') === 'unread')
       .sort((a, b) => (b.fields.DetectedAt || '').localeCompare(a.fields.DetectedAt || ''))
       .map(item => ({
@@ -3778,10 +3778,9 @@ function findJobByRep(rep7) {
 
 async function autoSyncQCCompletions() {
   if (!QC_SHEET_SHARING_URL) return;
+  qcSyncing = true; // set before any await to prevent concurrent invocations
   const token = await getGraphToken().catch(() => null);
-  if (!token) return;
-
-  qcSyncing = true;
+  if (!token) { qcSyncing = false; return; }
   if (activeTeam === 'QC') renderQCSyncBar();
 
   try {
@@ -3973,7 +3972,7 @@ async function loadLoadPlanFromSharePoint() {
     // Row 3 (index 2) contains Excel serial dates per column
     // Rows 4+ (index 3+) contain REP numbers (any 7-digit number)
     const dateRow = values[2] || [];
-    const numCols = Math.max(...values.map(r => r.length));
+    const numCols = Math.max(0, ...values.map(r => r?.length ?? 0));
     const newRaw = {};
     const newLS  = [];
 
@@ -4178,9 +4177,9 @@ async function graphSignIn() {
 }
 
 async function getGraphToken() {
-  if (!msalInstance) return null;
+  if (!msalInstance) throw new Error('Not authenticated');
   const accounts = msalInstance.getAllAccounts();
-  if (!accounts.length) return null;
+  if (!accounts.length) throw new Error('Not authenticated');
   try {
     const res = await msalInstance.acquireTokenSilent({ scopes: GRAPH_SCOPES, account: accounts[0] });
     graphAccount = res.account;
@@ -4188,7 +4187,7 @@ async function getGraphToken() {
   } catch {
     if (TABLET_TEAM) {
       msalInstance.acquireTokenRedirect({ scopes: GRAPH_SCOPES });
-      return null;
+      throw new Error('Redirecting for authentication');
     }
     const res = await msalInstance.acquireTokenPopup({ scopes: GRAPH_SCOPES });
     graphAccount = res.account;
@@ -4219,7 +4218,8 @@ async function graphPost(url, body) {
 async function graphGetAll(url) {
   let items = [];
   let nextUrl = url;
-  while (nextUrl) {
+  let guard = 0;
+  while (nextUrl && guard++ < 500) {
     const page = await graphGet(nextUrl);
     items = items.concat(page.value || []);
     nextUrl = page['@odata.nextLink'] || null;
@@ -6262,7 +6262,7 @@ function renderDetailCPAR() {
         labels: weekBuckets.map(b => b.label),
         datasets:[
           { label:'Issues raised', data: runData, borderColor:'#7c3aed', backgroundColor: alpha('#7c3aed',0.1), borderWidth:2, pointRadius:4, tension:0.2, fill:true },
-          { label:'12-wk avg', data: weekBuckets.map(() => parseFloat(runAvg.toFixed(1))), borderColor:'#d97706', borderWidth:1.5, borderDash:[4,3], pointRadius:0, tension:0 },
+          { label:'12-wk avg', data: weekBuckets.map(() => parseFloat(runAvg.toFixed(1))), borderColor:'rgba(217,119,6,0.5)', borderWidth:1.5, pointRadius:0, tension:0, segment:{ borderDash: () => [4,3] } },
         ],
       },
       options:{ responsive:true, maintainAspectRatio:false, animation:false,
@@ -6346,7 +6346,7 @@ function renderLoadSheet() {
       } else {
         const typeCls = item.itemType ? ` ls-type-${item.itemType}` : '';
         const cls = `ls-item-text${typeCls}${isChanged?' ls-changed':''}`;
-        return `<div class="${cls}"${isChanged?` style="${delayStyle}"`:''}>${item.text}</div>`;
+        return `<div class="${cls}"${isChanged?` style="${delayStyle}"`:''}>${escHtml(item.text)}</div>`;
       }
     }).join('') : '<div class="ls-empty">—</div>';
 
@@ -6948,11 +6948,11 @@ async function submitCPAR() {
 async function getNextCPARRef(siteId, listId) {
   const stored = parseInt(localStorage.getItem('cpar_max_ref') || '3678');
   try {
-    const data = await graphGet(
-      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields($select=Title)&$orderby=id%20desc&$top=500`
+    const items = await graphGetAll(
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields($select=Title)&$top=999`
     );
     let maxNum = stored;
-    for (const item of (data.value||[])) {
+    for (const item of items) {
       const m = (item.fields?.Title||'').match(/^RP-(\d{5})$/);
       if (m) {
         const n = parseInt(m[1]);
