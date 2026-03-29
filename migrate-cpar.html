@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CPAR Migration Tool</title>
+<script src="/msal-browser.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',sans-serif;background:#f4f6f8;color:#0e023a;font-size:14px;padding:24px;max-width:720px;margin:0 auto}
+h1{font-size:20px;font-weight:700;color:#0e023a;margin-bottom:4px}
+.sub{color:#706f6f;font-size:13px;margin-bottom:24px}
+.card{background:#fff;border:1.5px solid #e1e6eb;border-radius:12px;padding:20px;margin-bottom:16px}
+.card-title{font-size:13px;font-weight:700;color:#706f6f;text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px}
+button{padding:9px 18px;border-radius:8px;border:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;transition:.1s}
+.btn-primary{background:#14a1e9;color:#fff}
+.btn-primary:hover{background:#0d8fd4}
+.btn-primary:disabled{opacity:.4;cursor:default}
+.btn-secondary{background:#f4f6f8;color:#0e023a;border:1.5px solid #e1e6eb}
+.btn-secondary:hover{background:#eef2f5}
+.file-drop{border:2px dashed #e1e6eb;border-radius:10px;padding:32px;text-align:center;cursor:pointer;transition:.1s;position:relative}
+.file-drop:hover{border-color:#14a1e9;background:#f0f9ff}
+.file-drop input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.file-drop-icon{font-size:32px;margin-bottom:8px}
+.file-drop-label{font-size:13px;color:#706f6f}
+.file-drop.has-file{border-color:#059669;background:#f0fdf4}
+.file-drop.has-file .file-drop-label{color:#059669;font-weight:600}
+.progress-wrap{background:#e1e6eb;border-radius:6px;height:10px;overflow:hidden;margin:10px 0}
+.progress-bar{height:100%;background:#14a1e9;transition:width .3s;border-radius:6px}
+.log{background:#f4f6f8;border:1px solid #e1e6eb;border-radius:8px;padding:12px;font-family:'JetBrains Mono',monospace;font-size:11px;max-height:260px;overflow-y:auto;color:#0e023a;line-height:1.6}
+.log .ok{color:#059669}
+.log .warn{color:#d97706}
+.log .err{color:#dc2626}
+.stat-row{display:flex;gap:16px;flex-wrap:wrap}
+.stat{background:#f4f6f8;border:1px solid #e1e6eb;border-radius:8px;padding:12px 16px;flex:1;min-width:120px}
+.stat-num{font-size:24px;font-weight:700;color:#0e023a;font-family:'JetBrains Mono',monospace}
+.stat-label{font-size:11px;color:#706f6f;margin-top:2px}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
+.badge.green{background:#ecfdf5;color:#059669}
+.badge.blue{background:#e6f5fd;color:#14a1e9}
+.step{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f4f6f8;font-size:13px}
+.step:last-child{border:none}
+.step-num{width:22px;height:22px;border-radius:50%;background:#0e023a;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.step-num.done{background:#059669}
+.step-num.active{background:#14a1e9}
+</style>
+</head>
+<body>
+
+<h1>CPAR Migration Tool</h1>
+<p class="sub">Imports historical CPAR records from your Excel file into the CPARLog SharePoint list</p>
+
+<!-- Steps -->
+<div class="card">
+  <div class="card-title">Steps</div>
+  <div class="step"><div class="step-num" id="s1">1</div><span>Sign in with your Repose M365 account</span></div>
+  <div class="step"><div class="step-num" id="s2">2</div><span>Select your <strong>Digital CPAR Form 1.xlsx</strong> file</span></div>
+  <div class="step"><div class="step-num" id="s3">3</div><span>Review the preview and click Import</span></div>
+</div>
+
+<!-- Step 1: Sign in -->
+<div class="card" id="card-signin">
+  <div class="card-title">Step 1 — Sign In</div>
+  <div id="signin-state" style="margin-bottom:12px;font-size:13px;color:#706f6f">Not signed in</div>
+  <button class="btn-primary" id="signin-btn" onclick="doSignIn()">Sign in with Microsoft</button>
+</div>
+
+<!-- Step 2: File -->
+<div class="card" id="card-file" style="display:none">
+  <div class="card-title">Step 2 — Select Excel File</div>
+  <div class="file-drop" id="file-drop">
+    <input type="file" accept=".xlsx,.xlsm,.xls" onchange="fileSelected(this)">
+    <div class="file-drop-icon">📂</div>
+    <div class="file-drop-label" id="file-label">Tap to select Digital CPAR Form 1.xlsx</div>
+  </div>
+</div>
+
+<!-- Step 3: Preview + Import -->
+<div class="card" id="card-preview" style="display:none">
+  <div class="card-title">Step 3 — Preview</div>
+  <div class="stat-row" id="preview-stats"></div>
+  <div style="margin-top:12px;font-size:12px;color:#706f6f">All records will be imported as <span class="badge green">Closed</span> — historical data, already actioned. New issues raised in RepNet will start from the next REF number.</div>
+  <div style="margin-top:12px;display:flex;gap:8px">
+    <button class="btn-primary" id="import-btn" onclick="startImport()">Import All Records</button>
+    <button class="btn-secondary" onclick="location.reload()">Start Over</button>
+  </div>
+</div>
+
+<!-- Progress -->
+<div class="card" id="card-progress" style="display:none">
+  <div class="card-title">Importing…</div>
+  <div id="progress-label" style="font-size:13px;margin-bottom:8px;color:#706f6f">Starting…</div>
+  <div class="progress-wrap"><div class="progress-bar" id="progress-bar" style="width:0%"></div></div>
+  <div class="stat-row" style="margin-top:12px">
+    <div class="stat"><div class="stat-num" id="stat-done">0</div><div class="stat-label">Imported</div></div>
+    <div class="stat"><div class="stat-num" id="stat-skip">0</div><div class="stat-label">Skipped (no REF)</div></div>
+    <div class="stat"><div class="stat-num" id="stat-err">0</div><div class="stat-label">Errors</div></div>
+  </div>
+  <div class="log" id="log"></div>
+</div>
+
+<!-- Done -->
+<div class="card" id="card-done" style="display:none">
+  <div class="card-title">✓ Import Complete</div>
+  <div id="done-summary" style="font-size:13px;color:#706f6f;margin-bottom:12px"></div>
+  <a href="/" class="btn-primary" style="display:inline-block;text-decoration:none;padding:9px 18px">← Back to RepNet</a>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+// ── Config (same as RepNet) ────────────────────────────
+const AZURE_CLIENT_ID = '2f8cdb1e-93da-4815-942b-c7c8d1a29ca5';
+const AZURE_TENANT_ID = 'reposefurniturelimited.onmicrosoft.com';
+const SP_HOST      = 'reposefurniturelimited.sharepoint.com';
+const SP_SITE_PATH = '/sites/ReposeFurniture-PlanningRepose';
+const SP_CPAR_LIST = 'CPARLog';
+const GRAPH_SCOPES = ['Files.Read','User.Read','Sites.ReadWrite.All'];
+
+let msalInstance = null;
+let graphToken   = null;
+let spSiteId     = null;
+let spListId     = null;
+let parsedRows   = [];
+
+// ── MSAL ──────────────────────────────────────────────
+async function initMsal() {
+  msalInstance = new msal.PublicClientApplication({
+    auth: { clientId: AZURE_CLIENT_ID, authority: `https://login.microsoftonline.com/${AZURE_TENANT_ID}`, redirectUri: location.origin + '/migrate-cpar.html' },
+    cache: { cacheLocation: 'localStorage' },
+  });
+  await msalInstance.initialize();
+  const accounts = msalInstance.getAllAccounts();
+  if (accounts.length) {
+    try {
+      const res = await msalInstance.acquireTokenSilent({ scopes: GRAPH_SCOPES, account: accounts[0] });
+      graphToken = res.accessToken;
+      setSignedIn(accounts[0].name || accounts[0].username);
+    } catch(e) { /* silent fail */ }
+  }
+}
+
+async function doSignIn() {
+  try {
+    const res = await msalInstance.acquireTokenPopup({ scopes: GRAPH_SCOPES });
+    graphToken = res.accessToken;
+    setSignedIn(res.account.name || res.account.username);
+  } catch(e) { alert('Sign-in failed: ' + e.message); }
+}
+
+function setSignedIn(name) {
+  document.getElementById('signin-state').innerHTML = `Signed in as <strong>${name}</strong> <span class="badge green">✓</span>`;
+  document.getElementById('signin-btn').style.display = 'none';
+  document.getElementById('card-file').style.display = 'block';
+  document.getElementById('s1').classList.add('done');
+  document.getElementById('s2').classList.add('active');
+}
+
+// ── Graph helpers ─────────────────────────────────────
+async function graphGet(url) {
+  const r = await fetch(url, { headers: { Authorization: `Bearer ${graphToken}` } });
+  if (!r.ok) throw new Error(`GET ${r.status}: ${await r.text()}`);
+  return r.json();
+}
+
+async function getIds() {
+  if (spSiteId && spListId) return;
+  const site = await graphGet(`https://graph.microsoft.com/v1.0/sites/${SP_HOST}:${SP_SITE_PATH}`);
+  spSiteId = site.id;
+  const list = await graphGet(`https://graph.microsoft.com/v1.0/sites/${spSiteId}/lists/${SP_CPAR_LIST}`);
+  spListId = list.id;
+}
+
+// ── Excel parsing ─────────────────────────────────────
+function fileSelected(input) {
+  const file = input.files[0];
+  if (!file) return;
+  document.getElementById('file-label').textContent = file.name;
+  document.getElementById('file-drop').classList.add('has-file');
+  document.getElementById('s2').classList.add('done');
+  document.getElementById('s3').classList.add('active');
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type:'array', cellDates:true });
+      // Use Sheet1 — the raw submissions
+      const ws = wb.Sheets['Sheet1'];
+      if (!ws) { alert('Could not find Sheet1 in this file'); return; }
+      const data = XLSX.utils.sheet_to_json(ws, { header:1, raw:false, dateNF:'dd/mm/yyyy' });
+      parsedRows = transformRows(data);
+      showPreview(data.length - 1, parsedRows.length);
+    } catch(err) {
+      alert('Could not read file: ' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function pick(...vals) {
+  for (const v of vals) {
+    const s = (v||'').toString().trim();
+    if (s && s !== 'undefined') return s;
+  }
+  return '';
+}
+
+function parseDate(val) {
+  if (!val) return '';
+  if (typeof val === 'string') {
+    // try dd/mm/yyyy or yyyy-mm-dd
+    const m1 = val.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (m1) return `${m1[1].padStart(2,'0')}/${m1[2].padStart(2,'0')}/${m1[3]}`;
+    const m2 = val.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m2) return `${m2[3]}/${m2[2]}/${m2[1]}`;
+    // MM/DD/YYYY (US Excel format)
+    const m3 = val.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s*(.*)/);
+    if (m3) return `${m3[2].padStart(2,'0')}/${m3[1].padStart(2,'0')}/${m3[3]}${m3[4]?' '+m3[4].slice(0,5):''}`;
+  }
+  return String(val).slice(0,10);
+}
+
+function transformRows(data) {
+  if (data.length < 2) return [];
+  // Row 0 = headers, rows 1+ = data
+  const rows = [];
+  for (let i = 1; i < data.length; i++) {
+    const r = data[i];
+    // C1=r[0] Id, C2=r[1] Start time, C3=r[2] Completion time
+    // C4=r[3] Email, C5=r[4] Name
+    // C6=r[5] Job Number, C7=r[6] Job Week Commencing
+    // C8=r[7] How many chairs affected, C9=r[8] Model name
+    // C10=r[9] Which team, C11=r[10] Upholstery Source Dept
+    // C12=r[11] Which option (upholstery), C13=r[12] Back options
+    // C14=r[13] Seat options, C15=r[14] Arm options
+    // C16=r[15] Sewing Source Dept, C17=r[16] Which option (sewing)
+    // C18=r[17] Describe issue (missing part), C19=r[18] Detailed description
+    // C20=r[19] Missing bit section, C21=r[20] Incorrectly cut section
+    // C22=r[21] Incorrectly made section
+    // C23=r[22] Category, C24=r[23] Describe issue, C25=r[24] Category1
+    // C26=r[25] Describe issue1, C27=r[26] Describe issue2
+    // C28=r[27] Cause of the issue, C29=r[28] Counter Measure
+    // C30=r[29] Sources, C31=r[30] REF, C32=r[31] Week, C33=r[32] Year
+
+    const ref = pick(r[30]);
+    if (!ref || !ref.startsWith('RP-')) continue; // skip rows without valid REF
+
+    const raisedByTeam = pick(r[9]);
+    const sourceDept   = pick(r[29]);
+
+    // Best description: pick first non-empty detailed description
+    const description  = pick(r[18], r[17], r[23], r[25], r[26], r[24]);
+
+    // Issue category: pick first meaningful category field
+    const issueCategory = pick(r[11], r[12], r[13], r[14], r[16], r[22], r[24], r[19], r[20], r[21]);
+
+    const causeCode       = pick(r[27]);
+    const correctiveAction = pick(r[28]);
+    const isClosed        = !!(causeCode || correctiveAction);
+
+    const loggedAt = parseDate(pick(r[1]));
+    const closedAt = parseDate(pick(r[2]));
+
+    let qtyRaw = parseInt(r[7])||1;
+    if (qtyRaw < 1 || qtyRaw > 500) qtyRaw = 1;
+
+    // Format week: if r[31] is a number like "8", prefix "WK "
+    let week = pick(r[31]);
+    if (week && /^\d+$/.test(week)) week = `WK ${week}`;
+    else if (!week) week = pick(r[6]);
+
+    rows.push({
+      Title:           ref,
+      RaisedByTeam:    raisedByTeam,
+      PrimaryREP:      '',
+      PrimaryJobNo:    parseInt(r[5])||0,
+      PrimaryModel:    pick(r[8]),
+      PrimaryWeek:     week,
+      PrimaryPrep:     0,
+      AffectedJobs:    '[]',
+      TotalAffected:   1,
+      QTY:             qtyRaw,
+      SourceDept:      sourceDept,
+      IssueCategory:   issueCategory.length > 255 ? issueCategory.slice(0,255) : issueCategory,
+      Description:     description.length > 1000 ? description.slice(0,1000) : description,
+      CauseCode:       causeCode.length > 255 ? causeCode.slice(0,255) : causeCode,
+      CorrectiveAction:correctiveAction.length > 2000 ? correctiveAction.slice(0,2000) : correctiveAction,
+      Status:          'Closed',  // all historical data = closed
+      ClosedBy:        pick(r[4]),
+      ClosedAt:        closedAt,
+      LoggedAt:        loggedAt,
+      HasPhoto:        false,
+    });
+  }
+  return rows;
+}
+
+function showPreview(totalRows, validRows) {
+  const skipped = totalRows - validRows;
+  document.getElementById('preview-stats').innerHTML = `
+    <div class="stat"><div class="stat-num">${validRows.toLocaleString()}</div><div class="stat-label">Records to import</div></div>
+    <div class="stat"><div class="stat-num">${skipped}</div><div class="stat-label">Skipped (no REF)</div></div>
+    <div class="stat"><div class="stat-num">${Math.ceil(validRows/20)}</div><div class="stat-label">Batch requests</div></div>
+  `;
+  document.getElementById('card-preview').style.display = 'block';
+}
+
+// ── Import ────────────────────────────────────────────
+let importDone = 0, importSkip = 0, importErr = 0;
+
+function log(msg, cls='') {
+  const el = document.getElementById('log');
+  el.innerHTML += `<div class="${cls}">${msg}</div>`;
+  el.scrollTop = el.scrollHeight;
+}
+
+async function startImport() {
+  document.getElementById('import-btn').disabled = true;
+  document.getElementById('card-progress').style.display = 'block';
+  document.getElementById('card-preview').style.display = 'none';
+
+  try {
+    await getIds();
+    log(`Connected to SharePoint — site ready`, 'ok');
+  } catch(e) {
+    log(`Could not connect to SharePoint: ${e.message}`, 'err');
+    document.getElementById('import-btn').disabled = false;
+    return;
+  }
+
+  const total = parsedRows.length;
+  const BATCH = 20;
+  importDone = importSkip = importErr = 0;
+
+  for (let i = 0; i < total; i += BATCH) {
+    const chunk = parsedRows.slice(i, i + BATCH);
+    const requests = chunk.map((row, idx) => ({
+      id: String(idx + 1),
+      method: 'POST',
+      url: `/sites/${spSiteId}/lists/${spListId}/items`,
+      headers: { 'Content-Type': 'application/json' },
+      body: { fields: row },
+    }));
+
+    try {
+      const r = await fetch('https://graph.microsoft.com/v1.0/$batch', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${graphToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requests }),
+      });
+      const data = await r.json();
+      for (const resp of (data.responses||[])) {
+        if (resp.status >= 200 && resp.status < 300) {
+          importDone++;
+        } else {
+          importErr++;
+          const idx2 = parseInt(resp.id) - 1;
+          const ref = chunk[idx2]?.Title || '?';
+          log(`Error ${ref}: ${resp.status} — ${JSON.stringify(resp.body?.error?.message||'').slice(0,80)}`, 'err');
+        }
+      }
+    } catch(e) {
+      importErr += chunk.length;
+      log(`Batch ${Math.floor(i/BATCH)+1} failed: ${e.message}`, 'err');
+    }
+
+    // Update progress
+    const pct = Math.round(((i + chunk.length) / total) * 100);
+    document.getElementById('progress-bar').style.width = pct + '%';
+    document.getElementById('progress-label').textContent = `${i + chunk.length} / ${total} records — ${pct}%`;
+    document.getElementById('stat-done').textContent = importDone;
+    document.getElementById('stat-skip').textContent = importSkip;
+    document.getElementById('stat-err').textContent = importErr;
+
+    if (importDone % 200 === 0 && importDone > 0) log(`${importDone} records imported…`, 'ok');
+
+    // Small pause between batches to avoid throttling
+    await new Promise(r => setTimeout(r, 120));
+  }
+
+  log(`\nDone — ${importDone} imported, ${importErr} errors`, importErr > 0 ? 'warn' : 'ok');
+  document.getElementById('card-progress').querySelector('.card-title').textContent = '✓ Import Complete';
+  document.getElementById('done-summary').textContent =
+    `${importDone.toLocaleString()} records imported successfully.${importErr > 0 ? ` ${importErr} errors — see log above.` : ''} Your CPARLog list is ready.`;
+  document.getElementById('card-done').style.display = 'block';
+}
+
+// ── Init ──────────────────────────────────────────────
+initMsal().catch(e => console.warn('MSAL init:', e));
+</script>
+</body>
+</html>
