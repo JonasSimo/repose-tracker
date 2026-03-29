@@ -1682,16 +1682,16 @@ document.addEventListener('DOMContentLoaded', () => {
   <!-- Stats content (shown after unlock) -->
   <div id="stats-content" class="stats-content" style="display:none">
 
-    <!-- Dashboard -->
-    <div id="stats-dashboard" class="stats-scroll">
+    <!-- Always-visible top bar: period toggle + date navigator -->
+    <div style="padding:16px 16px 0;max-width:960px;width:100%;margin:0 auto;box-sizing:border-box">
       <div class="stats-header">
-        <div class="stats-title">Production Statistics</div>
+        <div class="stats-title" id="stats-main-title">Production Statistics</div>
         <div class="stats-period-toggle">
-          <button class="stats-period-btn active" onclick="setStatsPeriod('week',this)">This Week</button>
-          <button class="stats-period-btn" onclick="setStatsPeriod('month',this)">This Month</button>
-          <button class="stats-period-btn" onclick="setStatsPeriod('year',this)">This Year</button>
+          <button class="stats-period-btn active" onclick="setStatsPeriod('week',this)">Week</button>
+          <button class="stats-period-btn" onclick="setStatsPeriod('month',this)">Month</button>
+          <button class="stats-period-btn" onclick="setStatsPeriod('year',this)">Year</button>
         </div>
-        <button class="stats-refresh-btn" onclick="refreshStatsData()">↻ Refresh</button>
+        <button class="stats-refresh-btn" id="stats-refresh-btn" onclick="refreshStatsData()">↻ Refresh</button>
       </div>
       <div class="stats-date-nav">
         <button class="stats-nav-arrow" id="stats-nav-prev" onclick="statsNavPeriod(-1)">‹</button>
@@ -1703,6 +1703,10 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="stats-spinner-ring"></div>
         <div class="stats-spinner-txt">Loading…</div>
       </div>
+    </div>
+
+    <!-- Dashboard -->
+    <div id="stats-dashboard" class="stats-scroll">
       <div class="dash-top" id="stats-dash-top"></div>
       <div class="dash-bottom" id="stats-dash-bottom"></div>
       <div class="dash-issues" id="stats-dash-issues"></div>
@@ -1713,7 +1717,6 @@ document.addEventListener('DOMContentLoaded', () => {
       <div class="stats-detail-header">
         <button class="stats-back-btn" onclick="showStatsDashboard()">← Back</button>
         <div id="stats-detail-title" class="stats-detail-title"></div>
-        <div id="stats-detail-period" class="stats-detail-period"></div>
       </div>
       <div id="stats-detail-body"></div>
     </div>
@@ -5534,9 +5537,8 @@ function renderStatsDetail(view) {
   detailEl.dataset.view  = view;
 
   const titles = { completions:'Fully Complete Jobs', qc:'QC Verified', perperson:'Per Person', changes:'Spec Changes', scrap:'Scrap Log', cpar:'Issues (CPARs)' };
-  document.getElementById('stats-detail-title').textContent  = titles[view] || view;
-  document.getElementById('stats-detail-period').textContent = statsNavLabel();
-  document.getElementById('stats-detail-body').innerHTML     = '';
+  document.getElementById('stats-detail-title').textContent = titles[view] || view;
+  document.getElementById('stats-detail-body').innerHTML    = '';
 
   if (view !== 'cpar') cparStatTeam = '';
   if      (view === 'completions') renderDetailCompletions();
@@ -6129,19 +6131,14 @@ function renderDetailCPAR() {
 
   const closureRate = cpars.length ? Math.round(closed.length / cpars.length * 100) : 0;
 
-  // ── Controls bar ──────────────────────────────────────────────────────────
+  // ── Team filter ───────────────────────────────────────────────────────────
   body.innerHTML = `
-    <div class="q-controls-bar">
-      <div class="q-period-toggle">
-        <button class="q-period-btn stats-period-btn${statsPeriod==='week'?' active':''}" onclick="setStatsPeriod('week',this)">Week</button>
-        <button class="q-period-btn stats-period-btn${statsPeriod==='month'?' active':''}" onclick="setStatsPeriod('month',this)">Month</button>
-        <button class="q-period-btn stats-period-btn${statsPeriod==='year'?' active':''}" onclick="setStatsPeriod('year',this)">Year</button>
-      </div>
-      ${allTeams.length ? `<div class="q-team-filter">
+    ${allTeams.length ? `<div class="q-controls-bar">
+      <div class="q-team-filter">
         <button class="q-team-chip${cparStatTeam===''?' active':''}" onclick="setCPARStatTeam('')">All Teams</button>
         ${allTeams.map(t => `<button class="q-team-chip${cparStatTeam===t?' active':''}" onclick="setCPARStatTeam('${escHtml(t)}')">${escHtml(t)}</button>`).join('')}
-      </div>` : ''}
-    </div>
+      </div>
+    </div>` : ''}
 
     <div class="q-kpi-row">
       <div class="q-kpi"><div class="q-kpi-value" style="color:#7c3aed">${cpars.length}</div><div class="q-kpi-label">Total Issues</div><div class="q-kpi-sub">this period</div></div>
