@@ -359,27 +359,32 @@ function transformRows(data) {
 
     const jobNo = parseInt(r[5]);
 
+    // All SharePoint columns are text type except HasPhoto (boolean)
+    // — send numbers as strings to avoid 500 errors
     const fields = {
-      [f('Title')]:            san(ref, 20),
-      [f('RaisedByTeam')]:     san(raisedByTeam, 100),
-      [f('PrimaryREP')]:       '',
-      [f('PrimaryModel')]:     san(pick(r[8]), 200),
-      [f('PrimaryWeek')]:      san(week, 20),
-      [f('AffectedJobs')]:     '[]',
-      [f('QTY')]:              qtyRaw,
-      [f('SourceDept')]:       san(sourceDept, 200),
-      [f('IssueCategory')]:    san(issueCategory, 255),
-      [f('Description')]:      san(description, 1000),
-      [f('CauseCode')]:        san(causeCode, 255),
-      [f('CorrectiveAction')]: san(correctiveAction, 2000),
-      [f('Status')]:           'Closed',
-      [f('ClosedBy')]:         san(pick(r[4]), 100),
+      [f('Title')]:        san(ref, 20),
+      [f('RaisedByTeam')]: san(raisedByTeam, 100),
+      [f('AffectedJobs')]: '[]',
+      [f('QTY')]:          String(qtyRaw),
+      [f('SourceDept')]:   san(sourceDept, 200),
+      [f('Status')]:       'Closed',
+      [f('HasPhoto')]:     false,
     };
 
-    if (!isNaN(jobNo) && jobNo > 0) fields[f('PrimaryJobNo')] = jobNo;
-    if (loggedAt) fields[f('LoggedAt')] = loggedAt;
-    if (closedAt) fields[f('ClosedAt')] = closedAt;
-    if (qtyRaw > 1) fields[f('TotalAffected')] = qtyRaw;
+    // Only include optional fields when they have a value
+    const model    = san(pick(r[8]), 200);
+    const closedBy = san(pick(r[4]), 100);
+    if (week)           fields[f('PrimaryWeek')]      = san(week, 20);
+    if (model)          fields[f('PrimaryModel')]     = model;
+    if (issueCategory)  fields[f('IssueCategory')]   = san(issueCategory, 255);
+    if (description)    fields[f('Description')]      = san(description, 1000);
+    if (causeCode)      fields[f('CauseCode')]        = san(causeCode, 255);
+    if (correctiveAction) fields[f('CorrectiveAction')] = san(correctiveAction, 2000);
+    if (closedBy)       fields[f('ClosedBy')]         = closedBy;
+    if (!isNaN(jobNo) && jobNo > 0) fields[f('PrimaryJobNo')] = String(jobNo);
+    if (qtyRaw > 1)     fields[f('TotalAffected')]   = String(qtyRaw);
+    if (loggedAt)       fields[f('LoggedAt')]         = loggedAt;
+    if (closedAt)       fields[f('ClosedAt')]         = closedAt;
 
     rows.push(fields);
   }
