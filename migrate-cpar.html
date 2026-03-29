@@ -167,8 +167,14 @@ function setSignedIn(name) {
 }
 
 // ── Graph helpers ─────────────────────────────────────
-async function graphGet(url) {
+async function graphGet(url, attempt=0) {
   const r = await fetch(url, { headers: { Authorization: `Bearer ${graphToken}` } });
+  if (r.status === 429 && attempt < 4) {
+    const wait = parseInt(r.headers.get('Retry-After') || '30') * 1000;
+    colLog(`Rate limited — waiting ${wait/1000}s before retry…`, 'warn');
+    await new Promise(res => setTimeout(res, wait));
+    return graphGet(url, attempt + 1);
+  }
   if (!r.ok) throw new Error(`GET ${r.status}: ${await r.text()}`);
   return r.json();
 }
