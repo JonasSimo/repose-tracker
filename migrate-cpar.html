@@ -81,8 +81,16 @@ button{padding:9px 18px;border-radius:8px;border:none;cursor:pointer;font-family
   <div class="card-title">Step 3 — Preview</div>
   <div class="stat-row" id="preview-stats"></div>
   <div style="margin-top:12px;font-size:12px;color:#706f6f">All records will be imported as <span class="badge green">Closed</span> — historical data, already actioned. New issues raised in RepNet will start from the next REF number.</div>
+
+  <!-- Column check result shown before import -->
+  <div id="col-check-wrap" style="margin-top:14px;display:none">
+    <div style="font-size:12px;font-weight:700;color:#706f6f;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">SharePoint Column Check</div>
+    <div class="log" id="col-check-log" style="max-height:160px"></div>
+  </div>
+  <div id="col-check-loading" style="margin-top:10px;font-size:13px;color:#706f6f;display:none">Checking SharePoint columns…</div>
+
   <div style="margin-top:12px;display:flex;gap:8px">
-    <button class="btn-primary" id="import-btn" onclick="startImport()">Import All Records</button>
+    <button class="btn-primary" id="import-btn" onclick="startImport()" disabled>Import All Records</button>
     <button class="btn-secondary" onclick="location.reload()">Start Over</button>
   </div>
 </div>
@@ -183,10 +191,10 @@ async function getIds() {
   }
 
   const colArray = cols.value || [];
-  log(`SharePoint returned ${colArray.length} column definitions`, colArray.length > 0 ? 'ok' : 'warn');
+  colLog(`SharePoint returned ${colArray.length} column definitions`, colArray.length > 0 ? 'ok' : 'warn');
 
   if (colArray.length === 0) {
-    log('⚠ No columns returned — check Sites.ReadWrite.All permission', 'warn');
+    colLog('⚠ No columns returned — check Sites.ReadWrite.All permission', 'warn');
     return;
   }
 
@@ -196,7 +204,7 @@ async function getIds() {
     spColumnMap[col.displayName] = col.name;
     if (!SYSTEM_COLS.includes(col.displayName) && !col.readOnly) {
       const match = col.displayName === col.name ? `✓ ${col.displayName}` : `⚠ "${col.displayName}" → "${col.name}"`;
-      log(`  ${match}`, col.displayName === col.name ? 'ok' : 'warn');
+      colLog(`  ${match}`, col.displayName === col.name ? 'ok' : 'warn');
     }
   }
 }
@@ -362,7 +370,13 @@ function transformRows(data) {
   return rows;
 }
 
-function showPreview(totalRows, validRows) {
+function colLog(msg, cls='') {
+  const el = document.getElementById('col-check-log');
+  el.innerHTML += `<div class="${cls}">${msg}</div>`;
+  el.scrollTop = el.scrollHeight;
+}
+
+async function showPreview(totalRows, validRows) {
   const skipped = totalRows - validRows;
   document.getElementById('preview-stats').innerHTML = `
     <div class="stat"><div class="stat-num">${validRows.toLocaleString()}</div><div class="stat-label">Records to import</div></div>
@@ -370,6 +384,18 @@ function showPreview(totalRows, validRows) {
     <div class="stat"><div class="stat-num">${Math.ceil(validRows/20)}</div><div class="stat-label">Batch requests</div></div>
   `;
   document.getElementById('card-preview').style.display = 'block';
+
+  // Fetch column names now so user can see mapping before importing
+  document.getElementById('col-check-loading').style.display = 'block';
+  document.getElementById('col-check-wrap').style.display = 'none';
+  try {
+    await getIds();
+    document.getElementById('col-check-loading').style.display = 'none';
+    document.getElementById('col-check-wrap').style.display = 'block';
+    document.getElementById('import-btn').disabled = false;
+  } catch(e) {
+    document.getElementById('col-check-loading').textContent = `Could not connect to SharePoint: ${e.message}`;
+  }
 }
 
 // ── Import ────────────────────────────────────────────
@@ -386,30 +412,9 @@ async function startImport() {
   document.getElementById('card-progress').style.display = 'block';
   document.getElementById('card-preview').style.display = 'none';
 
-  try {
-    await getIds();
-    log(`Connected to SharePoint — site ready`, 'ok');
-  } catch(e) {
-    log(`Could not connect to SharePoint: ${e.message}`, 'err');
-    document.getElementById('import-btn').disabled = false;
-    return;
-  }
-
-  // Transform rows NOW — after spColumnMap is populated so f() maps correctly
+  // getIds() + column mapping already done during preview — just transform rows now
   parsedRows = transformRows(rawExcelData);
-  log(`Transformed ${parsedRows.length} records with correct SharePoint column names`, 'ok');
-
-  // Show sample of first record so we can verify field extraction
-  if (parsedRows.length > 0) {
-    const sample = parsedRows[0];
-    log('── Sample record (first row) ──', 'ok');
-    for (const [k, v] of Object.entries(sample)) {
-      if (v !== '' && v !== '[]' && v !== null && v !== undefined) {
-        log(`  ${k}: ${JSON.stringify(v)}`);
-      }
-    }
-    log('── End sample ──', 'ok');
-  }
+  log(`Starting import of ${parsedRows.length} records…`, 'ok');
 
   const total = parsedRows.length;
   const BATCH = 20;
