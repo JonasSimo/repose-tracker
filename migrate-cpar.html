@@ -174,16 +174,29 @@ async function getIds() {
   spListId = list.id;
 
   // Fetch actual internal column names from SharePoint
-  const cols = await graphGet(`https://graph.microsoft.com/v1.0/sites/${spSiteId}/lists/${spListId}/columns`);
-  spColumnMap = {};
-  for (const col of (cols.value||[])) {
-    spColumnMap[col.displayName] = col.name; // e.g. "PrimaryJobNo" → "PrimaryJobNo0"
+  let cols;
+  try {
+    cols = await graphGet(`https://graph.microsoft.com/v1.0/sites/${spSiteId}/lists/${spListId}/columns`);
+  } catch(e) {
+    log(`⚠ Could not fetch column names: ${e.message} — using display names as-is`, 'warn');
+    return;
   }
-  log('SharePoint columns found:', 'ok');
-  for (const [display, internal] of Object.entries(spColumnMap)) {
-    if (!['ID','Created','Modified','Author','Editor','_UIVersionString','Attachments','Edit','LinkTitleNoMenu','LinkTitle','DocIcon','ItemChildCount','FolderChildCount','AppAuthor','AppEditor'].includes(display)) {
-      const match = display === internal ? '✓' : `⚠ display="${display}" internal="${internal}"`;
-      log(`  ${match}`, display === internal ? 'ok' : 'warn');
+
+  const colArray = cols.value || [];
+  log(`SharePoint returned ${colArray.length} column definitions`, colArray.length > 0 ? 'ok' : 'warn');
+
+  if (colArray.length === 0) {
+    log('⚠ No columns returned — check Sites.ReadWrite.All permission', 'warn');
+    return;
+  }
+
+  spColumnMap = {};
+  const SYSTEM_COLS = ['ID','Created','Modified','Author','Editor','_UIVersionString','Attachments','Edit','LinkTitleNoMenu','LinkTitle','DocIcon','ItemChildCount','FolderChildCount','AppAuthor','AppEditor','ContentType','_ModerationStatus','_ModerationComments','FileLeafRef','FileDirRef','_IsCurrentVersion','owshiddenversion','UniqueId'];
+  for (const col of colArray) {
+    spColumnMap[col.displayName] = col.name;
+    if (!SYSTEM_COLS.includes(col.displayName) && !col.readOnly) {
+      const match = col.displayName === col.name ? `✓ ${col.displayName}` : `⚠ "${col.displayName}" → "${col.name}"`;
+      log(`  ${match}`, col.displayName === col.name ? 'ok' : 'warn');
     }
   }
 }
@@ -385,6 +398,18 @@ async function startImport() {
   // Transform rows NOW — after spColumnMap is populated so f() maps correctly
   parsedRows = transformRows(rawExcelData);
   log(`Transformed ${parsedRows.length} records with correct SharePoint column names`, 'ok');
+
+  // Show sample of first record so we can verify field extraction
+  if (parsedRows.length > 0) {
+    const sample = parsedRows[0];
+    log('── Sample record (first row) ──', 'ok');
+    for (const [k, v] of Object.entries(sample)) {
+      if (v !== '' && v !== '[]' && v !== null && v !== undefined) {
+        log(`  ${k}: ${JSON.stringify(v)}`);
+      }
+    }
+    log('── End sample ──', 'ok');
+  }
 
   const total = parsedRows.length;
   const BATCH = 20;
