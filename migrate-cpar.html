@@ -481,31 +481,33 @@ async function startImport() {
         headers: { Authorization: `Bearer ${graphToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ requests }),
       });
+
+      // Log batch HTTP status on first batch so we can see if the whole batch is rejected
+      if (i === 0) log(`Batch HTTP status: ${r.status}`, r.ok ? 'ok' : 'err');
+
       const data = await r.json();
+
+      // If batch itself returned an error (not individual items), log it and stop
+      if (!r.ok) {
+        const errMsg = data?.error?.message || data?.error?.code || JSON.stringify(data).slice(0,200);
+        log(`Batch rejected: ${r.status} — ${errMsg}`, 'err');
+        importErr += chunk.length;
+        break; // stop — all batches will fail the same way
+      }
+
       for (const resp of (data.responses||[])) {
         if (resp.status >= 200 && resp.status < 300) {
           importDone++;
         } else {
-          // Retry individually to isolate the problem field
           const idx2 = parseInt(resp.id) - 1;
           const row  = chunk[idx2];
-          const ref  = row?.Title || '?';
-          try {
-            const coreFields = {};
-          coreFields[f('Title')]        = row[f('Title')] || '?';
-          coreFields[f('Status')]       = 'Closed';
-          coreFields[f('Description')]  = row[f('Description')]  || '';
-          coreFields[f('SourceDept')]   = row[f('SourceDept')]   || '';
-          coreFields[f('RaisedByTeam')] = row[f('RaisedByTeam')] || '';
-          coreFields[f('LoggedAt')]     = row[f('LoggedAt')]     || '';
-          const r2 = await fetch(`https://graph.microsoft.com/v1.0/sites/${spSiteId}/lists/${spListId}/items`, {
-              method: 'POST',
-              headers: { Authorization: `Bearer ${graphToken}`, 'Content-Type': 'application/json' },
-              body: JSON.stringify({ fields: coreFields }),
-            });
-            if (r2.ok) { importDone++; }
-            else { importErr++; log(`Skipped ${ref}: ${resp.status}`, 'warn'); }
-          } catch(e2) { importErr++; log(`Failed ${ref}: ${e2.message}`, 'err'); }
+          const ref  = row?.[f('Title')] || '?';
+          // Log full error detail for first few failures
+          if (importErr < 3) {
+            const errDetail = resp.body?.error?.message || resp.body?.error?.code || JSON.stringify(resp.body||'').slice(0,150);
+            log(`Error on ${ref}: ${resp.status} — ${errDetail}`, 'err');
+          }
+          importErr++;
         }
       }
     } catch(e) {
