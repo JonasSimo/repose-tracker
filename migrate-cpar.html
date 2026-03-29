@@ -200,10 +200,11 @@ async function getIds() {
   }
 
   spColumnMap = {};
-  const SYSTEM_COLS = ['ID','Created','Modified','Author','Editor','_UIVersionString','Attachments','Edit','LinkTitleNoMenu','LinkTitle','DocIcon','ItemChildCount','FolderChildCount','AppAuthor','AppEditor','ContentType','_ModerationStatus','_ModerationComments','FileLeafRef','FileDirRef','_IsCurrentVersion','owshiddenversion','UniqueId'];
   for (const col of colArray) {
-    spColumnMap[col.displayName] = col.name;
-    if (!SYSTEM_COLS.includes(col.displayName) && !col.readOnly) {
+    // Only map writable columns — read-only system columns like LinkTitleNoMenu
+    // share displayName "Title" with the real Title column and would overwrite it
+    if (!col.readOnly) {
+      spColumnMap[col.displayName] = col.name;
       const match = col.displayName === col.name ? `✓ ${col.displayName}` : `⚠ "${col.displayName}" → "${col.name}"`;
       colLog(`  ${match}`, col.displayName === col.name ? 'ok' : 'warn');
     }
