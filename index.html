@@ -6466,6 +6466,9 @@ function filterCPARJobsList() {
 
 function renderCPARJobsItems(query) {
   const q = (query||'').toLowerCase();
+  const primaryWk = cparFormState.wc;
+  const primaryItemNo = parseInt(cparFormState.jobNo) || 0;
+
   const allJobs = [];
   for (const [wk, weekData] of Object.entries(PROD)) {
     for (const [prep, prepJobs] of Object.entries(weekData)) {
@@ -6475,9 +6478,17 @@ function renderCPARJobsItems(query) {
       });
     }
   }
-  const filtered = q
-    ? allJobs.filter(j => j.rep.toLowerCase().includes(q) || j.model.toLowerCase().includes(q) || String(j.itemNo).includes(q))
-    : allJobs;
+
+  let filtered;
+  if (q) {
+    // Search all weeks
+    filtered = allJobs.filter(j => j.rep.toLowerCase().includes(q) || j.model.toLowerCase().includes(q) || String(j.itemNo).includes(q));
+  } else {
+    // Default: same week only, closest job numbers first
+    filtered = allJobs.filter(j => j.wk === primaryWk);
+    filtered.sort((a, b) => Math.abs(parseInt(a.itemNo)||0 - primaryItemNo) - Math.abs(parseInt(b.itemNo)||0 - primaryItemNo));
+  }
+
   const container = document.getElementById('cpar-jobs-items');
   if (!filtered.length) {
     container.innerHTML = '<div style="padding:10px 12px;font-size:11px;color:var(--text3)">No jobs found</div>';
@@ -6549,13 +6560,13 @@ async function submitCPAR() {
         Title:         ref,
         RaisedByTeam:  activeTeam,
         PrimaryREP:    s.rep,
-        PrimaryJobNo:  s.jobNo,
+        PrimaryJobNo:  String(s.jobNo||''),
         PrimaryModel:  s.model,
         PrimaryWeek:   s.week,
-        PrimaryPrep:   parseInt(s.prep)||0,
+        PrimaryPrep:   String(parseInt(s.prep)||0),
         AffectedJobs:  JSON.stringify(s.extraJobs),
-        TotalAffected: 1 + s.extraJobs.length,
-        QTY:           s.qty,
+        TotalAffected: String(1 + s.extraJobs.length),
+        QTY:           String(s.qty||1),
         SourceDept:    sourceLabel,
         IssueCategory: s.category||'',
         Description:   s.desc.trim(),
@@ -6852,7 +6863,7 @@ async function confirmCloseCPAR(id) {
         </div>
       </div>
       <div>
-        <div class="cpar-field-label">Other affected jobs <span style="font-weight:400;text-transform:none;color:var(--text3)">(optional — select from all weeks)</span></div>
+        <div class="cpar-field-label">Other affected jobs <span style="font-weight:400;text-transform:none;color:var(--text3)">(optional — same week by default, search for others)</span></div>
         <button class="cpar-jobs-toggle" onclick="toggleCPARJobsList()">
           <span id="cpar-jobs-toggle-label">Add more jobs from production plan ▼</span>
         </button>
