@@ -6375,6 +6375,22 @@ const CPAR_CAUSE_CODES = [
   'Material Defect',
 ];
 
+// Team name normalisation — maps raw Excel/form values to canonical chip names
+const TEAM_NAME_MAP = {
+  'woodmill': 'Woodmill', 'wood mill': 'Woodmill',
+  'cutting': 'Cutting', 'cutting room': 'Cutting',
+  'sewing': 'Sewing', 'sewing room': 'Sewing',
+  'upholstery': 'Upholstery', 'upholstery room': 'Upholstery',
+  'assembly': 'Assembly', 'assembly room': 'Assembly',
+  'foam': 'Foam', 'foam room': 'Foam',
+  'stores': 'Stores', 'stores room': 'Stores',
+  'qc': 'QC', 'quality control': 'QC',
+  'development': 'Development',
+};
+function normaliseTeam(raw) {
+  return TEAM_NAME_MAP[(raw||'').toLowerCase().trim()] || (raw||'').trim();
+}
+
 // In-memory store
 let CPAR_ITEMS = [];
 let cparFilterStatus = 'open';
@@ -6717,7 +6733,7 @@ function renderIssuesList() {
       return st === cparFilterStatus;
     });
   }
-  if (cparFilterTeam) items = items.filter(i => (i.fields?.RaisedByTeam||'') === cparFilterTeam);
+  if (cparFilterTeam) items = items.filter(i => normaliseTeam(i.fields?.RaisedByTeam) === cparFilterTeam);
 
   if (!items.length) {
     listEl.innerHTML = '<div class="issues-empty">No issues found</div>';
@@ -6793,7 +6809,7 @@ function updateTeamCounts() {
   const openItems = CPAR_ITEMS.filter(i => getCPARStatus(i) !== 'closed');
   const counts = {};
   for (const item of openItems) {
-    const t = item.fields?.RaisedByTeam || '';
+    const t = normaliseTeam(item.fields?.RaisedByTeam || '');
     counts[t] = (counts[t] || 0) + 1;
   }
   document.querySelectorAll('.issues-team-chip').forEach(chip => {
