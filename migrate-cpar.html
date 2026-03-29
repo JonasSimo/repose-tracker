@@ -462,6 +462,15 @@ async function startImport() {
   parsedRows = transformRows(rawExcelData);
   log(`Starting import of ${parsedRows.length} records…`, 'ok');
 
+  // Log first record fields so we can verify what's being sent
+  if (parsedRows.length > 0) {
+    log('── First record fields ──', 'ok');
+    for (const [k, v] of Object.entries(parsedRows[0])) {
+      log(`  ${k} (${typeof v}): ${JSON.stringify(v).slice(0,80)}`);
+    }
+    log('── End ──', 'ok');
+  }
+
   const total = parsedRows.length;
   const BATCH = 20;
   importDone = importSkip = importErr = 0;
