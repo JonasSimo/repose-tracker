@@ -6607,7 +6607,7 @@ async function submitCPAR() {
 async function getNextCPARRef(siteId, listId) {
   try {
     const data = await graphGet(
-      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields($select=Title)&$orderby=id%20desc&$top=10`
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields($select=Title)&$orderby=fields%2FTitle%20desc&$top=5`
     );
     let maxNum = 3600;
     for (const item of (data.value||[])) {
