@@ -1061,6 +1061,34 @@ body {
 .cpar-stat-pill.amber  { background: #fff8e6; color: #d97706; border: 1px solid #fde68a; }
 .cpar-stat-pill.overdue{ background: var(--rbg); color: var(--red); border: 1px solid #fca5a5; }
 .cpar-stat-pill.closed { background: var(--gbg); color: #059669; }
+/* Quality dashboard */
+.q-kpi-row       { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 16px; }
+@media(max-width:600px){ .q-kpi-row { grid-template-columns: repeat(2,1fr); } }
+.q-kpi           { background:#fff; border-radius:12px; border:1.5px solid var(--border); padding:14px 16px; text-align:center; }
+.q-kpi-value     { font-size:26px; font-weight:700; line-height:1; margin-bottom:4px; }
+.q-kpi-label     { font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:var(--repose-grey); }
+.q-kpi-sub       { font-size:11px; color:var(--repose-grey); margin-top:2px; }
+.q-section       { background:#fff; border-radius:12px; border:1.5px solid var(--border); padding:16px; margin-bottom:14px; }
+.q-section-title { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--repose-grey); margin-bottom:12px; }
+.q-two-col       { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px; }
+@media(max-width:600px){ .q-two-col { grid-template-columns:1fr; } }
+.q-chart-wrap    { position:relative; }
+.q-80-line       { position:absolute; right:0; font-size:10px; color:#dc2626; font-weight:600; white-space:nowrap; }
+.q-sla-legend    { display:flex; flex-direction:column; gap:6px; margin-top:10px; }
+.q-sla-row       { display:flex; align-items:center; gap:8px; font-size:12px; }
+.q-sla-dot       { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+.q-sla-label     { flex:1; color:var(--text2); }
+.q-sla-pct       { font-weight:700; }
+.q-issue-row     { display:flex; align-items:flex-start; gap:10px; padding:10px 0; border-bottom:1px solid var(--border); }
+.q-issue-row:last-child { border-bottom:none; }
+.q-issue-ref     { font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; color:var(--text); flex-shrink:0; width:76px; }
+.q-issue-info    { flex:1; min-width:0; }
+.q-issue-desc    { font-size:12px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.q-issue-meta    { font-size:11px; color:var(--text3); margin-top:2px; }
+.q-issue-badge   { font-size:10px; font-weight:700; padding:2px 8px; border-radius:8px; flex-shrink:0; }
+.q-sigma-bar     { display:flex; height:10px; border-radius:5px; overflow:hidden; margin:8px 0 4px; }
+.q-sigma-seg     { transition:width .3s; }
+.q-sigma-legend  { display:flex; gap:12px; flex-wrap:wrap; font-size:11px; color:var(--text3); }
 
 /* ── Mech Serial modal ── */
 .mserial-display {
@@ -5069,7 +5097,7 @@ async function loadStatsData() {
       graphGetAll(`${base}/${compId}/items?$expand=fields&$filter=createdDateTime ge ${statsAfter}&$top=999`),
       graphGetAll(`${base}/${alertId}/items?$expand=fields&$filter=createdDateTime ge ${statsAfter}&$top=999`),
       graphGetAll(`${base}/${scrapId}/items?$expand=fields&$filter=createdDateTime ge ${statsAfter}&$top=999`),
-      graphGetAll(`${base}/${cparId}/items?$expand=fields($select=Title,RaisedByTeam,IssueCategory,CauseCode,Status,LoggedAt,ClosedAt,Description,SourceDept)&$filter=createdDateTime ge ${statsAfter}&$top=999`),
+      graphGetAll(`${base}/${cparId}/items?$expand=fields&$filter=createdDateTime ge ${statsAfter}&$top=999`),
     ]);
     STATS_COMPLETIONS = comp;
     STATS_ALERTS      = alerts;
@@ -5164,8 +5192,16 @@ function statsFilteredAlerts() {
 function statsFilteredScrap() {
   return STATS_SCRAP.filter(s => statsInPeriod(s.fields.LoggedAt));
 }
+function statsInPeriodCPAR(dateStr) {
+  const d = parseCPARDate(dateStr);
+  if (!d || d.getTime() === 0) return false;
+  const ref = statsRefDate();
+  if (statsPeriod === 'week')  return isoWeekNumber(d) === isoWeekNumber(ref) && isoWeekYear(d) === isoWeekYear(ref);
+  if (statsPeriod === 'month') return d.getMonth() === ref.getMonth() && d.getFullYear() === ref.getFullYear();
+  return d.getFullYear() === ref.getFullYear();
+}
 function statsFilteredCPARs() {
-  return STATS_CPARS.filter(c => statsInPeriod(c.fields?.LoggedAt));
+  return STATS_CPARS.filter(c => statsInPeriodCPAR(c.fields?.LoggedAt));
 }
 function statsFilteredQC() {
   const ref = statsRefDate();
@@ -5225,7 +5261,7 @@ function buildSparkData(comp, alerts, scrap, cpars) {
       qc.push(qcSrc.filter(q => q.date && dayKey(q.date) === k).length);
       changes.push(alerts.filter(a => { const dd = parseDdmmyyyy(a.fields.DetectedAt); return dd && dayKey(dd) === k; }).length);
       scrapB.push(scrap.filter(s => { const dd = parseDdmmyyyy(s.fields.LoggedAt); return dd && dayKey(dd) === k; }).length);
-      cparB.push(cpars.filter(c => { const dd = parseDdmmyyyy(c.fields?.LoggedAt); return dd && dayKey(dd) === k; }).length);
+      cparB.push(cpars.filter(c => { const dd = parseCPARDate(c.fields?.LoggedAt); return dd && dd.getTime() && dayKey(dd) === k; }).length);
     }
   } else if (statsPeriod === 'month') {
     labels = ['Wk1','Wk2','Wk3','Wk4'];
@@ -5236,7 +5272,7 @@ function buildSparkData(comp, alerts, scrap, cpars) {
       qc.push(qcSrc.filter(q => q.date && q.date.getFullYear() === refYr && q.date.getMonth() === refMon && q.date.getDate() >= s && q.date.getDate() <= e).length);
       changes.push(alerts.filter(a => { const dd = parseDdmmyyyy(a.fields.DetectedAt); return dd && dd.getFullYear() === refYr && dd.getMonth() === refMon && dd.getDate() >= s && dd.getDate() <= e; }).length);
       scrapB.push(scrap.filter(s2 => { const dd = parseDdmmyyyy(s2.fields.LoggedAt); return dd && dd.getFullYear() === refYr && dd.getMonth() === refMon && dd.getDate() >= s && dd.getDate() <= e; }).length);
-      cparB.push(cpars.filter(c => { const dd = parseDdmmyyyy(c.fields?.LoggedAt); return dd && dd.getFullYear() === refYr && dd.getMonth() === refMon && dd.getDate() >= s && dd.getDate() <= e; }).length);
+      cparB.push(cpars.filter(c => { const dd = parseCPARDate(c.fields?.LoggedAt); return dd && dd.getTime() && dd.getFullYear() === refYr && dd.getMonth() === refMon && dd.getDate() >= s && dd.getDate() <= e; }).length);
     }
   } else {
     labels = MONTHS_SHORT;
@@ -5246,7 +5282,7 @@ function buildSparkData(comp, alerts, scrap, cpars) {
       qc.push(qcSrc.filter(q => q.date && q.date.getFullYear() === refYr && q.date.getMonth() === m).length);
       changes.push(alerts.filter(a => { const dd = parseDdmmyyyy(a.fields.DetectedAt); return dd && dd.getFullYear() === refYr && dd.getMonth() === m; }).length);
       scrapB.push(scrap.filter(s => { const dd = parseDdmmyyyy(s.fields.LoggedAt); return dd && dd.getFullYear() === refYr && dd.getMonth() === m; }).length);
-      cparB.push(cpars.filter(c => { const dd = parseDdmmyyyy(c.fields?.LoggedAt); return dd && dd.getFullYear() === refYr && dd.getMonth() === m; }).length);
+      cparB.push(cpars.filter(c => { const dd = parseCPARDate(c.fields?.LoggedAt); return dd && dd.getTime() && dd.getFullYear() === refYr && dd.getMonth() === m; }).length);
     }
   }
   return { labels, complete, qc, changes, scrap: scrapB, cpars: cparB };
@@ -5996,104 +6032,232 @@ async function deleteScrapEntry(item, rowEl) {
 // ── CPAR detail ─────────────────────────────────
 
 function renderDetailCPAR() {
-  const cpars = statsFilteredCPARs();
-  const body  = document.getElementById('stats-detail-body');
-
-  // Summary row
-  const open   = cpars.filter(c => (c.fields?.Status||'') !== 'Closed');
-  const closed = cpars.filter(c => (c.fields?.Status||'') === 'Closed');
-  const amber  = open.filter(c => { const hrs = (Date.now() - parseCPARDate(c.fields?.LoggedAt).getTime()) / 3600000; return hrs >= 48 && hrs < 96; });
-  const red    = open.filter(c => (Date.now() - parseCPARDate(c.fields?.LoggedAt).getTime()) / 3600000 >= 96);
-
-  const summaryDiv = document.createElement('div');
-  summaryDiv.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px';
-  summaryDiv.innerHTML = [
-    ['Total', cpars.length, '#7c3aed'],
-    ['Open', open.length, 'var(--blue)'],
-    ['Overdue', red.length, 'var(--red)'],
-    ['Closed', closed.length, '#059669'],
-  ].map(([label, n, color]) => `
-    <div style="background:#fff;border-radius:10px;border:1.5px solid var(--border);padding:12px;text-align:center">
-      <div style="font-size:22px;font-weight:700;color:${color}">${n}</div>
-      <div style="font-size:11px;color:var(--repose-grey);text-transform:uppercase;letter-spacing:.5px;margin-top:2px">${label}</div>
-    </div>`).join('');
-  body.appendChild(summaryDiv);
-
-  // By team chart
-  const byTeam = {};
-  cpars.forEach(c => { const t = normaliseTeam(c.fields?.RaisedByTeam||'Unknown'); byTeam[t] = (byTeam[t]||0)+1; });
-  const teamLabels = Object.keys(byTeam).sort((a,b) => byTeam[b]-byTeam[a]);
-  const teamValues = teamLabels.map(t => byTeam[t]);
-
-  const teamPanel = document.createElement('div');
-  teamPanel.className = 'chart-panel';
-  teamPanel.style.marginBottom = '14px';
-  teamPanel.innerHTML = `<div class="chart-panel-title">Raised by team</div><div class="chart-wrap" style="height:${Math.max(120, teamLabels.length*32)}px"><canvas id="ch-cpar-team"></canvas></div>`;
-  body.appendChild(teamPanel);
-
-  // By category chart
-  const byCat = {};
-  cpars.forEach(c => { const cat = c.fields?.IssueCategory||'Unknown'; byCat[cat] = (byCat[cat]||0)+1; });
-  const catEntries = Object.entries(byCat).sort((a,b) => b[1]-a[1]).slice(0,8);
-  const catLabels  = catEntries.map(e => e[0]);
-  const catValues  = catEntries.map(e => e[1]);
-
-  const catPanel = document.createElement('div');
-  catPanel.className = 'chart-panel';
-  catPanel.style.marginBottom = '14px';
-  catPanel.innerHTML = `<div class="chart-panel-title">By issue category</div><div class="chart-wrap" style="height:${Math.max(120, catLabels.length*32)}px"><canvas id="ch-cpar-cat"></canvas></div>`;
-  body.appendChild(catPanel);
-
-  // Individual list
-  const listDiv = document.createElement('div');
-  listDiv.className = 'detail-card';
-  if (!cpars.length) {
-    listDiv.innerHTML = '<div style="padding:20px;text-align:center;color:var(--repose-grey);font-size:13px">No CPARs this period</div>';
-  } else {
-    const sorted = [...cpars].sort((a,b) => parseCPARDate(b.fields?.LoggedAt) - parseCPARDate(a.fields?.LoggedAt));
-    sorted.forEach(item => {
-      const f   = item.fields||{};
-      const isClosed = (f.Status||'') === 'Closed';
-      const hrs = (Date.now() - parseCPARDate(f.LoggedAt).getTime()) / 3600000;
-      const statusColor = isClosed ? '#059669' : hrs >= 96 ? 'var(--red)' : hrs >= 48 ? '#d97706' : 'var(--blue)';
-      const statusLabel = isClosed ? 'Closed' : hrs >= 96 ? 'Overdue' : hrs >= 48 ? '48h+' : 'Open';
-      const row = document.createElement('div');
-      row.className = 'scrap-row';
-      row.innerHTML = `
-        <div class="scrap-info">
-          <div class="scrap-rep" style="display:flex;align-items:center;gap:8px">
-            <span style="font-family:'JetBrains Mono',monospace">${escHtml(f.Title||'?')}</span>
-            <span style="font-size:10px;font-weight:700;color:${statusColor}">${statusLabel}</span>
-          </div>
-          <div class="scrap-meta">${escHtml(normaliseTeam(f.RaisedByTeam||'?'))} · ${escHtml(f.IssueCategory||'—')} · ${escHtml((f.LoggedAt||'').split(' ')[0])}</div>
-          ${f.Description ? `<div style="font-size:12px;color:var(--text2);margin-top:2px">${escHtml(f.Description)}</div>` : ''}
-        </div>`;
-      listDiv.appendChild(row);
-    });
+  const cpars  = statsFilteredCPARs();
+  const body   = document.getElementById('stats-detail-body');
+  if (typeof Chart === 'undefined') {
+    body.innerHTML = '<div style="padding:30px;text-align:center;color:var(--repose-grey)">Chart.js not loaded</div>';
+    return;
   }
-  body.appendChild(listDiv);
 
-  // Draw charts
+  // ── Classify ──────────────────────────────────────────────────────────────
+  const now     = Date.now();
+  const closed  = cpars.filter(c => (c.fields?.Status||'') === 'Closed');
+  const open    = cpars.filter(c => (c.fields?.Status||'') !== 'Closed');
+  const withinSLA  = closed.filter(c => {
+    const ms = parseCPARDate(c.fields?.ClosedAt) - parseCPARDate(c.fields?.LoggedAt);
+    return ms > 0 && ms < 48 * 3600000;
+  });
+  const slaAmber   = closed.filter(c => {
+    const ms = parseCPARDate(c.fields?.ClosedAt) - parseCPARDate(c.fields?.LoggedAt);
+    return ms >= 48 * 3600000 && ms < 96 * 3600000;
+  });
+  const slaBreached= closed.filter(c => {
+    const ms = parseCPARDate(c.fields?.ClosedAt) - parseCPARDate(c.fields?.LoggedAt);
+    return ms >= 96 * 3600000;
+  });
+  const openOverdue = open.filter(c => (now - parseCPARDate(c.fields?.LoggedAt).getTime()) >= 96 * 3600000);
+
+  // MTTR — mean days to close (closed CPARs only)
+  const mttrDays = closed.length ? (() => {
+    const total = closed.reduce((sum, c) => {
+      const ms = parseCPARDate(c.fields?.ClosedAt) - parseCPARDate(c.fields?.LoggedAt);
+      return ms > 0 ? sum + ms : sum;
+    }, 0);
+    return (total / closed.length / 86400000).toFixed(1);
+  })() : '—';
+
+  const closureRate = cpars.length ? Math.round(closed.length / cpars.length * 100) : 0;
+
+  // ── KPI Row ───────────────────────────────────────────────────────────────
+  body.innerHTML = `
+    <div class="q-kpi-row">
+      <div class="q-kpi"><div class="q-kpi-value" style="color:#7c3aed">${cpars.length}</div><div class="q-kpi-label">Total Issues</div><div class="q-kpi-sub">this period</div></div>
+      <div class="q-kpi"><div class="q-kpi-value" style="color:${openOverdue.length ? 'var(--red)' : open.length ? 'var(--blue)' : '#059669'}">${open.length}</div><div class="q-kpi-label">Open</div><div class="q-kpi-sub">${openOverdue.length ? openOverdue.length+' overdue' : 'all within SLA'}</div></div>
+      <div class="q-kpi"><div class="q-kpi-value" style="color:${closureRate >= 80 ? '#059669' : closureRate >= 50 ? '#d97706' : 'var(--red)'}">${closureRate}%</div><div class="q-kpi-label">Closure Rate</div><div class="q-kpi-sub">${closed.length} of ${cpars.length} closed</div></div>
+      <div class="q-kpi"><div class="q-kpi-value" style="color:${mttrDays === '—' || parseFloat(mttrDays) < 2 ? '#059669' : parseFloat(mttrDays) < 4 ? '#d97706' : 'var(--red)'}">${mttrDays}</div><div class="q-kpi-label">Avg MTTR</div><div class="q-kpi-sub">days to close</div></div>
+    </div>
+
+    <!-- Pareto: Issues by Category -->
+    <div class="q-section">
+      <div class="q-section-title">Pareto Analysis — Issue Category (80/20)</div>
+      <div class="q-chart-wrap" style="height:${Math.max(160, Object.keys((() => { const m={}; cpars.forEach(c=>{const k=c.fields?.IssueCategory||'Unknown'; m[k]=(m[k]||0)+1;}); return m; })()).length * 28 + 40)}px">
+        <canvas id="ch-q-pareto"></canvas>
+      </div>
+    </div>
+
+    <!-- Team | SLA -->
+    <div class="q-two-col">
+      <div class="q-section" style="margin-bottom:0">
+        <div class="q-section-title">Issues by Team</div>
+        <div style="height:${Math.max(140, Object.keys((() => { const m={}; cpars.forEach(c=>{const k=normaliseTeam(c.fields?.RaisedByTeam||'Unknown'); m[k]=(m[k]||0)+1;}); return m; })()).length * 30 + 20)}px"><canvas id="ch-q-team"></canvas></div>
+      </div>
+      <div class="q-section" style="margin-bottom:0">
+        <div class="q-section-title">SLA Compliance (closed issues)</div>
+        ${closed.length ? `<div style="height:140px"><canvas id="ch-q-sla"></canvas></div>
+        <div class="q-sla-legend">
+          <div class="q-sla-row"><div class="q-sla-dot" style="background:#059669"></div><span class="q-sla-label">Within 48h</span><span class="q-sla-pct" style="color:#059669">${withinSLA.length} (${closed.length ? Math.round(withinSLA.length/closed.length*100) : 0}%)</span></div>
+          <div class="q-sla-row"><div class="q-sla-dot" style="background:#d97706"></div><span class="q-sla-label">48h – 4 days</span><span class="q-sla-pct" style="color:#d97706">${slaAmber.length} (${closed.length ? Math.round(slaAmber.length/closed.length*100) : 0}%)</span></div>
+          <div class="q-sla-row"><div class="q-sla-dot" style="background:var(--red)"></div><span class="q-sla-label">Breached 4-day target</span><span class="q-sla-pct" style="color:var(--red)">${slaBreached.length} (${closed.length ? Math.round(slaBreached.length/closed.length*100) : 0}%)</span></div>
+        </div>` : '<div style="padding:20px;text-align:center;color:var(--repose-grey);font-size:12px">No closed issues this period</div>'}
+      </div>
+    </div>
+
+    <!-- Root Cause -->
+    <div class="q-section" style="margin-top:14px">
+      <div class="q-section-title">Root Cause Analysis — Cause Code</div>
+      <div style="height:${Math.max(120, Object.keys((() => { const m={}; cpars.forEach(c=>{if(c.fields?.CauseCode){const k=c.fields.CauseCode; m[k]=(m[k]||0)+1;}}); return m; })()).length * 28 + 20)}px"><canvas id="ch-q-cause"></canvas></div>
+    </div>
+
+    <!-- 12-week run chart -->
+    <div class="q-section">
+      <div class="q-section-title">Run Chart — Weekly Issues Raised (last 12 weeks)</div>
+      <div style="height:140px"><canvas id="ch-q-trend"></canvas></div>
+    </div>
+
+    <!-- Open Issues List (overdue first) -->
+    <div class="q-section">
+      <div class="q-section-title">Open Issues — ${open.length} total${openOverdue.length ? ', '+openOverdue.length+' overdue' : ''}</div>
+      ${open.length === 0
+        ? '<div style="padding:16px;text-align:center;color:#059669;font-size:13px;font-weight:600">All issues closed</div>'
+        : [...open].sort((a,b) => parseCPARDate(a.fields?.LoggedAt) - parseCPARDate(b.fields?.LoggedAt)).map(item => {
+            const f   = item.fields||{};
+            const hrs = (now - parseCPARDate(f.LoggedAt).getTime()) / 3600000;
+            const [bcol, blbl] = hrs >= 96 ? ['var(--red)','OVERDUE'] : hrs >= 48 ? ['#d97706','48H+'] : ['var(--blue)','OPEN'];
+            const ageDays = Math.floor(hrs / 24);
+            return `<div class="q-issue-row">
+              <div class="q-issue-ref">${escHtml(f.Title||'?')}</div>
+              <div class="q-issue-info">
+                <div class="q-issue-desc">${escHtml(f.Description||f.IssueCategory||'—')}</div>
+                <div class="q-issue-meta">${escHtml(normaliseTeam(f.RaisedByTeam||'?'))} · ${escHtml(f.IssueCategory||'—')} · ${ageDays === 0 ? 'today' : ageDays+'d ago'}</div>
+              </div>
+              <div class="q-issue-badge" style="background:${hrs>=96?'var(--rbg)':hrs>=48?'#fff8e6':'var(--bbg)'};color:${bcol}">${blbl}</div>
+            </div>`;
+          }).join('')
+      }
+    </div>`;
+
+  // ── Build chart data ──────────────────────────────────────────────────────
+
+  // Pareto
+  const catMap = {};
+  cpars.forEach(c => { const k = c.fields?.IssueCategory||'Unknown'; catMap[k] = (catMap[k]||0)+1; });
+  const catEntries = Object.entries(catMap).sort((a,b) => b[1]-a[1]);
+  const catTotal   = catEntries.reduce((s,e) => s+e[1], 0);
+  let cumPct = 0;
+  const paretoLabels = catEntries.map(e => e[0]);
+  const paretoValues = catEntries.map(e => e[1]);
+  const paretoCum    = catEntries.map(e => { cumPct += (e[1]/catTotal*100); return Math.round(cumPct); });
+
+  // Team
+  const teamMap = {};
+  cpars.forEach(c => { const k = normaliseTeam(c.fields?.RaisedByTeam||'Unknown'); teamMap[k] = (teamMap[k]||0)+1; });
+  const teamEntries = Object.entries(teamMap).sort((a,b) => b[1]-a[1]);
+
+  // Root cause
+  const causeMap = {};
+  cpars.forEach(c => { if (c.fields?.CauseCode) { const k = c.fields.CauseCode; causeMap[k] = (causeMap[k]||0)+1; } });
+  const causeEntries = Object.entries(causeMap).sort((a,b) => b[1]-a[1]);
+
+  // Run chart — last 12 ISO weeks
+  const weekBuckets = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i * 7);
+    weekBuckets.push({ yr: isoWeekYear(d), wk: isoWeekNumber(d), label: `Wk${isoWeekNumber(d)}` });
+  }
+  const runData = weekBuckets.map(b => STATS_CPARS.filter(c => {
+    const d = parseCPARDate(c.fields?.LoggedAt);
+    return d && d.getTime() && isoWeekYear(d) === b.yr && isoWeekNumber(d) === b.wk;
+  }).length);
+  const runAvg = runData.length ? (runData.reduce((s,v)=>s+v,0) / runData.length) : 0;
+
   setTimeout(() => {
-    if (typeof Chart === 'undefined') return;
-    if (teamLabels.length) {
-      statsCharts['ch-cpar-team'] = new Chart(document.getElementById('ch-cpar-team').getContext('2d'), {
+    // Pareto
+    if (paretoLabels.length) {
+      statsCharts['ch-q-pareto'] = new Chart(document.getElementById('ch-q-pareto').getContext('2d'), {
         type: 'bar',
-        data: { labels: teamLabels, datasets: [{ data: teamValues, backgroundColor: alpha('#7c3aed', 0.7), borderRadius: 4, borderSkipped: false }] },
-        options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: false,
-          plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` ${ctx.raw} CPARs` } } },
-          scales: { x: { beginAtZero: true, ticks: { precision: 0 } }, y: { ticks: { font: { size: 11 } } } } },
+        data: {
+          labels: paretoLabels,
+          datasets: [
+            { type:'bar',  label:'Count', data: paretoValues, backgroundColor: alpha('#7c3aed', 0.7), borderRadius:3, yAxisID:'y', order:2 },
+            { type:'line', label:'Cumulative %', data: paretoCum, borderColor:'#dc2626', borderWidth:2, pointRadius:3, tension:0, fill:false, yAxisID:'y1', order:1 },
+          ],
+        },
+        options: { responsive:true, maintainAspectRatio:false, animation:false,
+          plugins: { legend:{display:false}, tooltip:{ callbacks:{ label: ctx => ctx.datasetIndex===0 ? ` ${ctx.raw} issues` : ` ${ctx.raw}% cumulative` } } },
+          scales: {
+            x: { ticks:{ font:{size:10}, maxRotation:40 } },
+            y:  { beginAtZero:true, ticks:{ precision:0 }, grid:{ color:'rgba(0,0,0,.05)' } },
+            y1: { position:'right', min:0, max:100, grid:{display:false}, ticks:{ callback: v => v+'%', font:{size:10} },
+              afterDataLimits: axis => { axis.max = 100; } },
+          },
+        },
+      });
+      // 80% annotation line (drawn manually after chart render)
+      const ch = statsCharts['ch-q-pareto'];
+      if (ch) {
+        const plugin = {
+          id:'line80',
+          afterDraw(chart) {
+            const y1 = chart.scales.y1; if (!y1) return;
+            const yPx = y1.getPixelForValue(80);
+            const ctx2 = chart.ctx;
+            ctx2.save(); ctx2.strokeStyle='#dc2626'; ctx2.lineWidth=1; ctx2.setLineDash([4,3]);
+            ctx2.beginPath(); ctx2.moveTo(chart.chartArea.left, yPx); ctx2.lineTo(chart.chartArea.right, yPx); ctx2.stroke();
+            ctx2.fillStyle='#dc2626'; ctx2.font='bold 9px sans-serif';
+            ctx2.fillText('80%', chart.chartArea.right-26, yPx-3);
+            ctx2.restore();
+          }
+        };
+        Chart.register(plugin);
+        ch.update();
+      }
+    }
+
+    // Team
+    if (teamEntries.length) {
+      statsCharts['ch-q-team'] = new Chart(document.getElementById('ch-q-team').getContext('2d'), {
+        type:'bar',
+        data:{ labels: teamEntries.map(e=>e[0]), datasets:[{ data: teamEntries.map(e=>e[1]), backgroundColor: alpha('#7c3aed',0.65), borderRadius:4, borderSkipped:false }] },
+        options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false, animation:false,
+          plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: ctx => ` ${ctx.raw} issues` } } },
+          scales:{ x:{ beginAtZero:true, ticks:{precision:0} }, y:{ ticks:{ font:{size:11} } } } },
       });
     }
-    if (catLabels.length) {
-      statsCharts['ch-cpar-cat'] = new Chart(document.getElementById('ch-cpar-cat').getContext('2d'), {
-        type: 'bar',
-        data: { labels: catLabels, datasets: [{ data: catValues, backgroundColor: alpha('#d97706', 0.7), borderRadius: 4, borderSkipped: false }] },
-        options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: false,
-          plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` ${ctx.raw} CPARs` } } },
-          scales: { x: { beginAtZero: true, ticks: { precision: 0 } }, y: { ticks: { font: { size: 11 } } } } },
+
+    // SLA doughnut
+    if (closed.length && document.getElementById('ch-q-sla')) {
+      statsCharts['ch-q-sla'] = new Chart(document.getElementById('ch-q-sla').getContext('2d'), {
+        type:'doughnut',
+        data:{ labels:['Within 48h','48h – 4 days','Breached'], datasets:[{ data:[withinSLA.length, slaAmber.length, slaBreached.length], backgroundColor:['#059669','#d97706','#dc2626'], borderWidth:0 }] },
+        options:{ responsive:true, maintainAspectRatio:false, animation:false, cutout:'65%', plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: ctx => ` ${ctx.raw} issues (${closed.length ? Math.round(ctx.raw/closed.length*100) : 0}%)` } } } },
       });
     }
+
+    // Root cause
+    if (causeEntries.length) {
+      statsCharts['ch-q-cause'] = new Chart(document.getElementById('ch-q-cause').getContext('2d'), {
+        type:'bar',
+        data:{ labels: causeEntries.map(e=>e[0]), datasets:[{ data: causeEntries.map(e=>e[1]), backgroundColor: alpha('#d97706',0.7), borderRadius:4, borderSkipped:false }] },
+        options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false, animation:false,
+          plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: ctx => ` ${ctx.raw} occurrences` } } },
+          scales:{ x:{ beginAtZero:true, ticks:{precision:0} }, y:{ ticks:{ font:{size:11} } } } },
+      });
+    }
+
+    // Run chart
+    statsCharts['ch-q-trend'] = new Chart(document.getElementById('ch-q-trend').getContext('2d'), {
+      type:'line',
+      data:{
+        labels: weekBuckets.map(b => b.label),
+        datasets:[
+          { label:'Issues raised', data: runData, borderColor:'#7c3aed', backgroundColor: alpha('#7c3aed',0.1), borderWidth:2, pointRadius:4, tension:0.2, fill:true },
+          { label:'12-wk avg', data: weekBuckets.map(() => parseFloat(runAvg.toFixed(1))), borderColor:'#d97706', borderWidth:1.5, borderDash:[4,3], pointRadius:0, tension:0 },
+        ],
+      },
+      options:{ responsive:true, maintainAspectRatio:false, animation:false,
+        plugins:{ legend:{ display:true, labels:{ font:{size:10}, boxWidth:12 } }, tooltip:{ callbacks:{ label: ctx => ` ${ctx.dataset.label}: ${ctx.raw}` } } },
+        scales:{ x:{ ticks:{font:{size:10}} }, y:{ beginAtZero:true, ticks:{precision:0}, grid:{color:'rgba(0,0,0,.05)'} } } },
+    });
   }, 0);
 }
 
@@ -6834,6 +6998,9 @@ async function fetchCPARs() {
 
 function parseCPARDate(str) {
   if (!str) return new Date(0);
+  // ISO format from migration: 2024-01-15T00:00:00Z or 2024-01-15
+  if (/^\d{4}-\d{2}-\d{2}/.test(str)) { const d = new Date(str); return isNaN(d) ? new Date(0) : d; }
+  // App format: DD/MM/YYYY HH:MM
   const [datePart, timePart='00:00'] = str.split(' ');
   const [d,m,y] = datePart.split('/');
   if (!y) return new Date(0);
