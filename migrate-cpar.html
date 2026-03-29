@@ -151,14 +151,15 @@ async function initMsal() {
 
 async function doSignIn() {
   try {
-    const res = await msalInstance.acquireTokenPopup({ scopes: GRAPH_SCOPES });
+    // Always use popup to ensure fresh token with correct scopes
+    const res = await msalInstance.acquireTokenPopup({ scopes: GRAPH_SCOPES, prompt: 'select_account' });
     graphToken = res.accessToken;
     setSignedIn(res.account.name || res.account.username);
   } catch(e) { alert('Sign-in failed: ' + e.message); }
 }
 
 function setSignedIn(name) {
-  document.getElementById('signin-state').innerHTML = `Signed in as <strong>${name}</strong> <span class="badge green">✓</span>`;
+  document.getElementById('signin-state').innerHTML = `Signed in as <strong>${name}</strong> <span class="badge green">✓</span> <button class="btn-secondary" style="padding:3px 10px;font-size:11px;margin-left:8px" onclick="doSignIn()">Re-authenticate</button>`;
   document.getElementById('signin-btn').style.display = 'none';
   document.getElementById('card-file').style.display = 'block';
   document.getElementById('s1').classList.add('done');
@@ -443,6 +444,18 @@ async function startImport() {
   document.getElementById('import-btn').disabled = true;
   document.getElementById('card-progress').style.display = 'block';
   document.getElementById('card-preview').style.display = 'none';
+
+  // Verify we still have a valid token (refresh if needed)
+  try {
+    const accounts = msalInstance.getAllAccounts();
+    if (accounts.length) {
+      const res = await msalInstance.acquireTokenSilent({ scopes: GRAPH_SCOPES, account: accounts[0], forceRefresh: true });
+      graphToken = res.accessToken;
+      log('Token refreshed OK', 'ok');
+    }
+  } catch(e) {
+    log(`⚠ Could not refresh token: ${e.message} — trying to continue`, 'warn');
+  }
 
   // getIds() + column mapping already done during preview — just transform rows now
   parsedRows = transformRows(rawExcelData);
