@@ -2503,12 +2503,12 @@ function renderJobs() {
           ${s.done ? `<div class="card-undo">
             ${isQcAuto ? `<span class="jc-qc-badge">QC ✓</span>` :
               isAuto ? `<span class="jc-auto-badge">📋 AUTO</span>` :
-              (s.initials?`<span class="jc-initials">${s.initials}</span>`:'')}
-            ${s.doneAt?`<span class="jc-time-sm">${s.doneAt}</span>`:''}
+              (s.initials?`<span class="jc-initials">${escHtml(s.initials)}</span>`:'')}
+            ${s.doneAt?`<span class="jc-time-sm">${escHtml(s.doneAt)}</span>`:''}
             ${!isQcAuto ? `<button class="card-undo-btn" onclick="event.stopPropagation();undoJob('${activeTeam}','${sk2}','${activeWC}','${activePrep}',${ji})">↩ Undo</button>` : ''}
           </div>` : `<span class="jc-qty">Qty: ${job.qty||'—'}</span>`}
         </div>
-        ${activeTeam === 'Assembly' ? (() => { const _s = MECH_SERIALS.get(`${job.rep}__${activeWC}__${activePrep}`); return `<button class="serial-card-btn${_s?' saved':''}" onclick="event.stopPropagation();openMechSerialModal('${activeWC}','${activePrep}',${ji},'${job.rep}')">${_s ? `✓<br><span style="font-size:9px;letter-spacing:.02em">${_s}</span>` : '⊞<br>Serial'}</button>`; })() : ''}
+        ${activeTeam === 'Assembly' ? (() => { const _s = MECH_SERIALS.get(`${job.rep}__${activeWC}__${activePrep}`); return `<button class="serial-card-btn${_s?' saved':''}" onclick="event.stopPropagation();openMechSerialModal('${activeWC}','${activePrep}',${ji},'${job.rep}')">${_s ? `✓<br><span style="font-size:9px;letter-spacing:.02em">${escHtml(_s)}</span>` : '⊞<br>Serial'}</button>`; })() : ''}
         <button class="cpar-btn" onclick="event.stopPropagation();openCPARForm('${activeWC}','${activePrep}',${ji})" title="Raise CPAR for this job">⚠<br>CPAR</button>
         <button class="tick-btn ${s.done?'ticked':''}" onclick="tickJob(${ji})">
           <span class="tb-icon">${s.done?'✓':'○'}</span>
@@ -2873,7 +2873,7 @@ function renderSearchResults() {
         <div style="display:flex;align-items:center;gap:8px">
           <span class="sr-job">Job ${job.itemNo}</span>
           <span class="sr-rep">${job.rep}</span>
-          <span class="sr-badge ${isDone?'':'pending'}">${isDone?'✓ Done · '+(s.initials||'?')+' · '+s.doneAt:'Pending'}</span>
+          <span class="sr-badge ${isDone?'':'pending'}">${isDone?'✓ Done · '+escHtml(s.initials||'?')+' · '+escHtml(s.doneAt):'Pending'}</span>
         </div>
         <div class="sr-ctx">${ctx}</div>
       </div>
@@ -3734,7 +3734,7 @@ async function saveCompletionToList(team, sub, wk, prep, ji) {
     s.listItemId = data.id;
   } catch(e) {
     console.warn('saveCompletionToList failed:', e.message);
-    toast('Warning: completion saved locally but not synced to SharePoint', 'u');
+    throw e;
   }
 }
 
@@ -5911,7 +5911,7 @@ async function statsLogScrapAndDismiss(alert, btn) {
     const scrapListId = await getListIdByName('ScrapLog');
     const alertListId = await getListIdByName('SpecAlerts');
     const f           = alert.fields;
-    const now         = new Date().toISOString();
+    const now         = new Date().toLocaleDateString('en-GB') + ' ' + new Date().toTimeString().slice(0,5);
 
     const scrapRes = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${scrapListId}/items`, {
       method: 'POST',
@@ -6149,15 +6149,16 @@ function renderDetailCPAR() {
       ${open.length === 0
         ? '<div style="padding:16px;text-align:center;color:#059669;font-size:13px;font-weight:600">All issues closed</div>'
         : [...open].sort((a,b) => parseCPARDate(a.fields?.LoggedAt) - parseCPARDate(b.fields?.LoggedAt)).map(item => {
-            const f   = item.fields||{};
-            const hrs = (now - parseCPARDate(f.LoggedAt).getTime()) / 3600000;
+            const f    = item.fields||{};
+            const logDt = parseCPARDate(f.LoggedAt);
+            const hrs  = logDt.getTime() ? (now - logDt.getTime()) / 3600000 : -1;
             const [bcol, blbl] = hrs >= 96 ? ['var(--red)','OVERDUE'] : hrs >= 48 ? ['#d97706','48H+'] : ['var(--blue)','OPEN'];
-            const ageDays = Math.floor(hrs / 24);
+            const ageDays = hrs >= 0 ? Math.floor(hrs / 24) : -1;
             return `<div class="q-issue-row">
               <div class="q-issue-ref">${escHtml(f.Title||'?')}</div>
               <div class="q-issue-info">
                 <div class="q-issue-desc">${escHtml(f.Description||f.IssueCategory||'—')}</div>
-                <div class="q-issue-meta">${escHtml(normaliseTeam(f.RaisedByTeam||'?'))} · ${escHtml(f.IssueCategory||'—')} · ${ageDays === 0 ? 'today' : ageDays+'d ago'}</div>
+                <div class="q-issue-meta">${escHtml(normaliseTeam(f.RaisedByTeam||'?'))} · ${escHtml(f.IssueCategory||'—')} · ${ageDays < 0 ? 'date unknown' : ageDays === 0 ? 'today' : ageDays+'d ago'}</div>
               </div>
               <div class="q-issue-badge" style="background:${hrs>=96?'var(--rbg)':hrs>=48?'#fff8e6':'var(--bbg)'};color:${bcol}">${blbl}</div>
             </div>`;
@@ -6349,7 +6350,7 @@ function renderLoadSheet() {
         const cls        = `ls-item-rep${expCls}${isDone?' qc-done':''}${isChanged?' ls-changed':''}`;
         return `<div class="${cls}"${isChanged?` style="${delayStyle}"`:''}>
           <div class="ls-rep-num">${item.rep7}${mechTag}</div>
-          ${extra ? `<div class="ls-rep-desc">${extra}</div>` : ''}
+          ${extra ? `<div class="ls-rep-desc">${escHtml(extra)}</div>` : ''}
         </div>`;
       } else if (item.isAcc) {
         const isDone  = accQCDone.has(item.accJobNum);
@@ -6357,7 +6358,7 @@ function renderLoadSheet() {
         const cls     = `ls-item-rep${isDone?' qc-done':''}${isChanged?' ls-changed':''}`;
         return `<div class="${cls}"${isChanged?` style="${delayStyle}"`:''}>
           <div class="ls-rep-num">Job A ${item.accJobNum} <span class="ls-acc-tag">ACC</span></div>
-          ${extra ? `<div class="ls-rep-desc">${extra}</div>` : ''}
+          ${extra ? `<div class="ls-rep-desc">${escHtml(extra)}</div>` : ''}
         </div>`;
       } else {
         const typeCls = item.itemType ? ` ls-type-${item.itemType}` : '';
@@ -7038,7 +7039,9 @@ function parseCPARDate(str) {
 function getCPARStatus(item) {
   const f = item.fields||{};
   if (f.Status === 'Closed') return 'closed';
-  const hrs = (Date.now() - parseCPARDate(f.LoggedAt).getTime()) / 3600000;
+  const dt = parseCPARDate(f.LoggedAt);
+  if (!dt.getTime()) return 'open';
+  const hrs = (Date.now() - dt.getTime()) / 3600000;
   if (hrs >= 96) return 'red';
   if (hrs >= 48) return 'amber';
   return 'open';
