@@ -200,12 +200,17 @@ async function getIds() {
   }
 
   spColumnMap = {};
+  const spColumnTypes = {}; // displayName → type
   for (const col of colArray) {
     // Only map writable columns — read-only system columns like LinkTitleNoMenu
     // share displayName "Title" with the real Title column and would overwrite it
     if (!col.readOnly) {
       spColumnMap[col.displayName] = col.name;
-      const match = col.displayName === col.name ? `✓ ${col.displayName}` : `⚠ "${col.displayName}" → "${col.name}"`;
+      // Detect column type from Graph API shape
+      const colType = col.dateTime ? 'dateTime' : col.number ? 'number' : col.boolean ? 'boolean' : col.choice ? 'choice' : col.personOrGroup ? 'person' : 'text';
+      spColumnTypes[col.displayName] = colType;
+      const typeTag = colType !== 'text' ? ` [${colType}]` : '';
+      const match = col.displayName === col.name ? `✓ ${col.displayName}${typeTag}` : `⚠ "${col.displayName}" → "${col.name}"${typeTag}`;
       colLog(`  ${match}`, col.displayName === col.name ? 'ok' : 'warn');
     }
   }
@@ -268,17 +273,19 @@ function san(val, maxLen) {
 
 function parseDate(val) {
   if (!val) return '';
-  if (typeof val === 'string') {
-    // try dd/mm/yyyy or yyyy-mm-dd
-    const m1 = val.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-    if (m1) return `${m1[1].padStart(2,'0')}/${m1[2].padStart(2,'0')}/${m1[3]}`;
-    const m2 = val.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (m2) return `${m2[3]}/${m2[2]}/${m2[1]}`;
-    // MM/DD/YYYY (US Excel format)
-    const m3 = val.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s*(.*)/);
-    if (m3) return `${m3[2].padStart(2,'0')}/${m3[1].padStart(2,'0')}/${m3[3]}${m3[4]?' '+m3[4].slice(0,5):''}`;
+  const s = String(val).trim();
+  // yyyy-mm-dd
+  const m1 = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m1) return `${m1[1]}-${m1[2]}-${m1[3]}T00:00:00Z`;
+  // d/m/yy or d/m/yyyy (Excel UK short date — day first)
+  const m2 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+  if (m2) {
+    const day = m2[1].padStart(2,'0');
+    const mon = m2[2].padStart(2,'0');
+    const yr  = m2[3].length === 2 ? '20' + m2[3] : m2[3];
+    return `${yr}-${mon}-${day}T00:00:00Z`;
   }
-  return String(val).slice(0,10);
+  return ''; // can't parse — omit rather than send bad value
 }
 
 function transformRows(data) {
@@ -361,11 +368,11 @@ function transformRows(data) {
       [f('CorrectiveAction')]: san(correctiveAction, 2000),
       [f('Status')]:           'Closed',
       [f('ClosedBy')]:         san(pick(r[4]), 100),
-      [f('ClosedAt')]:         san(closedAt, 30),
-      [f('LoggedAt')]:         san(loggedAt, 30),
     };
 
     if (!isNaN(jobNo) && jobNo > 0) fields[f('PrimaryJobNo')] = jobNo;
+    if (loggedAt) fields[f('LoggedAt')] = loggedAt;
+    if (closedAt) fields[f('ClosedAt')] = closedAt;
     if (qtyRaw > 1) fields[f('TotalAffected')] = qtyRaw;
 
     rows.push(fields);
