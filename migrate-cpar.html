@@ -251,8 +251,22 @@ function transformRows(data) {
     // Best description: pick first non-empty detailed description
     const description  = pick(r[18], r[17], r[23], r[25], r[26], r[24]);
 
-    // Issue category: pick first meaningful category field
-    const issueCategory = pick(r[11], r[12], r[13], r[14], r[16], r[22], r[24], r[19], r[20], r[21]);
+    // Issue category: build from the multi-level structure
+    // Col 12 = Back/Seat/Arm Error, Col 13/14/15 = specific sub-issue
+    const section = pick(r[11]); // e.g. "Back Error"
+    const backSub = pick(r[12]);
+    const seatSub = pick(r[13]);
+    const armSub  = pick(r[14]);
+    const sewingSub = pick(r[16]);
+    const cutSection = pick(r[19], r[20]);
+    // Build combined category label
+    let issueCategory = '';
+    if (section.toLowerCase().includes('back') && backSub) issueCategory = `Back — ${backSub}`;
+    else if (section.toLowerCase().includes('seat') && seatSub) issueCategory = `Seat — ${seatSub}`;
+    else if (section.toLowerCase().includes('arm') && armSub) issueCategory = `Arms — ${armSub}`;
+    else if (sewingSub) issueCategory = sewingSub;
+    else if (cutSection) issueCategory = cutSection;
+    else issueCategory = pick(r[11], r[12], r[13], r[14], r[16], r[22], r[24], r[19], r[20], r[21]);
 
     const causeCode       = pick(r[27]);
     const correctiveAction = pick(r[28]);
