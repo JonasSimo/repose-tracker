@@ -490,57 +490,99 @@ async function startImport() {
   }
 
   const total = parsedRows.length;
-  const BATCH = 20;
+  const BATCH = 10; // smaller batches to stay under rate limits
+  const BATCH_DELAY = 800; // ms between batches
   importDone = importSkip = importErr = 0;
+
+  // Log batch HTTP status only on first batch
+  let firstBatch = true;
 
   for (let i = 0; i < total; i += BATCH) {
     const chunk = parsedRows.slice(i, i + BATCH);
-    const requests = chunk.map((row, idx) => ({
-      id: String(idx + 1),
-      method: 'POST',
-      url: `/sites/${spSiteId}/lists/${spListId}/items`,
-      headers: { 'Content-Type': 'application/json' },
-      body: { fields: row },
-    }));
 
-    try {
-      const r = await fetch('https://graph.microsoft.com/v1.0/$batch', {
+    // Send batch with retry on 429
+    let batchAttempt = 0;
+    let batchDone = false;
+    while (!batchDone && batchAttempt < 5) {
+      const requests = chunk.map((row, idx) => ({
+        id: String(idx + 1),
         method: 'POST',
-        headers: { Authorization: `Bearer ${graphToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ requests }),
-      });
+        url: `/sites/${spSiteId}/lists/${spListId}/items`,
+        headers: { 'Content-Type': 'application/json' },
+        body: { fields: row },
+      }));
 
-      // Log batch HTTP status on first batch so we can see if the whole batch is rejected
-      if (i === 0) log(`Batch HTTP status: ${r.status}`, r.ok ? 'ok' : 'err');
+      try {
+        const r = await fetch('https://graph.microsoft.com/v1.0/$batch', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${graphToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ requests }),
+        });
 
-      const data = await r.json();
+        if (firstBatch) { log(`Batch HTTP status: ${r.status}`, r.ok ? 'ok' : 'err'); firstBatch = false; }
 
-      // If batch itself returned an error (not individual items), log it and stop
-      if (!r.ok) {
-        const errMsg = data?.error?.message || data?.error?.code || JSON.stringify(data).slice(0,200);
-        log(`Batch rejected: ${r.status} — ${errMsg}`, 'err');
-        importErr += chunk.length;
-        break; // stop — all batches will fail the same way
-      }
+        // Whole batch throttled — wait and retry
+        if (r.status === 429) {
+          const wait = parseInt(r.headers.get('Retry-After') || '60') * 1000;
+          log(`Throttled — waiting ${wait/1000}s…`, 'warn');
+          await new Promise(res => setTimeout(res, wait));
+          batchAttempt++;
+          continue;
+        }
 
-      for (const resp of (data.responses||[])) {
-        if (resp.status >= 200 && resp.status < 300) {
-          importDone++;
-        } else {
+        const data = await r.json();
+        if (!r.ok) {
+          const errMsg = data?.error?.message || JSON.stringify(data).slice(0,150);
+          log(`Batch rejected: ${r.status} — ${errMsg}`, 'err');
+          importErr += chunk.length;
+          batchDone = true;
+          break;
+        }
+
+        // Collect any throttled items to retry
+        const throttled = [];
+        for (const resp of (data.responses||[])) {
           const idx2 = parseInt(resp.id) - 1;
           const row  = chunk[idx2];
           const ref  = row?.[f('Title')] || '?';
-          // Log full error detail for first few failures
-          if (importErr < 3) {
-            const errDetail = resp.body?.error?.message || resp.body?.error?.code || JSON.stringify(resp.body||'').slice(0,150);
-            log(`Error on ${ref}: ${resp.status} — ${errDetail}`, 'err');
+          if (resp.status >= 200 && resp.status < 300) {
+            importDone++;
+          } else if (resp.status === 429) {
+            throttled.push({ idx2, row });
+          } else {
+            if (importErr < 5) {
+              const errDetail = resp.body?.error?.message || resp.body?.error?.code || JSON.stringify(resp.body||'').slice(0,120);
+              log(`Error on ${ref}: ${resp.status} — ${errDetail}`, 'err');
+            }
+            importErr++;
           }
-          importErr++;
         }
+
+        // Retry throttled items individually after a pause
+        if (throttled.length > 0) {
+          const retryWait = parseInt((data.responses||[]).find(r=>r.status===429)?.headers?.['Retry-After'] || '30') * 1000;
+          log(`${throttled.length} items throttled — retrying in ${retryWait/1000}s…`, 'warn');
+          await new Promise(res => setTimeout(res, retryWait));
+          for (const { row, idx2 } of throttled) {
+            const ref = row?.[f('Title')] || '?';
+            try {
+              const r2 = await fetch(`https://graph.microsoft.com/v1.0/sites/${spSiteId}/lists/${spListId}/items`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${graphToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ fields: row }),
+              });
+              if (r2.ok) { importDone++; }
+              else { importErr++; if (importErr < 10) log(`Retry failed ${ref}: ${r2.status}`, 'warn'); }
+            } catch(e2) { importErr++; }
+          }
+        }
+
+        batchDone = true;
+      } catch(e) {
+        importErr += chunk.length;
+        log(`Batch error: ${e.message}`, 'err');
+        batchDone = true;
       }
-    } catch(e) {
-      importErr += chunk.length;
-      log(`Batch ${Math.floor(i/BATCH)+1} failed: ${e.message}`, 'err');
     }
 
     // Update progress
@@ -553,8 +595,7 @@ async function startImport() {
 
     if (importDone % 200 === 0 && importDone > 0) log(`${importDone} records imported…`, 'ok');
 
-    // Small pause between batches to avoid throttling
-    await new Promise(r => setTimeout(r, 120));
+    await new Promise(r => setTimeout(r, BATCH_DELAY));
   }
 
   log(`\nDone — ${importDone} imported, ${importErr} errors`, importErr > 0 ? 'warn' : 'ok');
