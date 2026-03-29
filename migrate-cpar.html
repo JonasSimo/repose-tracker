@@ -235,6 +235,7 @@ function fileSelected(input) {
       // Quick count of valid rows (those with an RP- REF) for the preview
       const validCount = data.slice(1).filter(r => String(r[30]||'').trim().startsWith('RP-')).length;
       showPreview(data.length - 1, validCount);
+      showRawPreview(data);
     } catch(err) {
       alert('Could not read file: ' + err.message);
     }
@@ -368,6 +369,37 @@ function transformRows(data) {
     rows.push(fields);
   }
   return rows;
+}
+
+function showRawPreview(data) {
+  // Find first row with an RP- REF to use as sample
+  let sample = null;
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][30]||'').trim().startsWith('RP-')) { sample = data[i]; break; }
+  }
+  if (!sample) return;
+
+  // Show headers row + sample row at key indices
+  const headers = data[0] || [];
+  const keyIndices = [5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32];
+  let html = '<div style="margin-top:14px"><div style="font-size:12px;font-weight:700;color:#706f6f;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Raw Excel Sample (first valid row)</div>';
+  html += '<div class="log" style="max-height:200px">';
+  html += `<div style="color:#14a1e9;font-weight:600">Col# | Header | Value</div>`;
+  for (const i of keyIndices) {
+    const h = String(headers[i]||'').slice(0,30);
+    const v = String(sample[i]||'').slice(0,60);
+    html += `<div>[${String(i).padStart(2)}] ${h.padEnd(30,' ')} = ${v}</div>`;
+  }
+  html += '</div></div>';
+
+  // Insert after preview-stats
+  const wrap = document.getElementById('card-preview');
+  const existing = document.getElementById('raw-preview');
+  if (existing) existing.remove();
+  const div = document.createElement('div');
+  div.id = 'raw-preview';
+  div.innerHTML = html;
+  wrap.insertBefore(div, document.getElementById('col-check-loading'));
 }
 
 function colLog(msg, cls='') {
