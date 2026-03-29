@@ -205,6 +205,19 @@ function pick(...vals) {
   return '';
 }
 
+// Strip control characters and sanitize text for SharePoint
+function san(val, maxLen) {
+  if (!val) return '';
+  let s = String(val)
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '') // remove control chars
+    .replace(/\r\n|\r|\n/g, ' ')                         // newlines → space
+    .replace(/\t/g, ' ')                                 // tabs → space
+    .replace(/\u00A0/g, ' ')                             // nbsp → space
+    .replace(/[^\x20-\x7E\u00A1-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF]/g, '') // strip unusual unicode
+    .trim();
+  return maxLen && s.length > maxLen ? s.slice(0, maxLen) : s;
+}
+
 function parseDate(val) {
   if (!val) return '';
   if (typeof val === 'string') {
@@ -283,28 +296,32 @@ function transformRows(data) {
     if (week && /^\d+$/.test(week)) week = `WK ${week}`;
     else if (!week) week = pick(r[6]);
 
-    rows.push({
-      Title:           ref,
-      RaisedByTeam:    raisedByTeam,
-      PrimaryREP:      '',
-      PrimaryJobNo:    parseInt(r[5])||0,
-      PrimaryModel:    pick(r[8]),
-      PrimaryWeek:     week,
-      PrimaryPrep:     0,
-      AffectedJobs:    '[]',
-      TotalAffected:   1,
-      QTY:             qtyRaw,
-      SourceDept:      sourceDept,
-      IssueCategory:   issueCategory.length > 255 ? issueCategory.slice(0,255) : issueCategory,
-      Description:     description.length > 1000 ? description.slice(0,1000) : description,
-      CauseCode:       causeCode.length > 255 ? causeCode.slice(0,255) : causeCode,
-      CorrectiveAction:correctiveAction.length > 2000 ? correctiveAction.slice(0,2000) : correctiveAction,
-      Status:          'Closed',  // all historical data = closed
-      ClosedBy:        pick(r[4]),
-      ClosedAt:        closedAt,
-      LoggedAt:        loggedAt,
-      HasPhoto:        false,
-    });
+    const jobNo = parseInt(r[5]);
+
+    const fields = {
+      Title:            san(ref, 20),
+      RaisedByTeam:     san(raisedByTeam, 100),
+      PrimaryREP:       '',
+      PrimaryModel:     san(pick(r[8]), 200),
+      PrimaryWeek:      san(week, 20),
+      AffectedJobs:     '[]',
+      QTY:              qtyRaw,
+      SourceDept:       san(sourceDept, 200),
+      IssueCategory:    san(issueCategory, 255),
+      Description:      san(description, 1000),
+      CauseCode:        san(causeCode, 255),
+      CorrectiveAction: san(correctiveAction, 2000),
+      Status:           'Closed',
+      ClosedBy:         san(pick(r[4]), 100),
+      ClosedAt:         san(closedAt, 30),
+      LoggedAt:         san(loggedAt, 30),
+    };
+
+    // Only include Number fields if they have valid values (avoid sending NaN/0 for optional fields)
+    if (!isNaN(jobNo) && jobNo > 0) fields.PrimaryJobNo = jobNo;
+    if (qtyRaw > 1) fields.TotalAffected = qtyRaw;
+
+    rows.push(fields);
   }
   return rows;
 }
@@ -367,10 +384,19 @@ async function startImport() {
         if (resp.status >= 200 && resp.status < 300) {
           importDone++;
         } else {
-          importErr++;
+          // Retry individually to isolate the problem field
           const idx2 = parseInt(resp.id) - 1;
-          const ref = chunk[idx2]?.Title || '?';
-          log(`Error ${ref}: ${resp.status} — ${JSON.stringify(resp.body?.error?.message||'').slice(0,80)}`, 'err');
+          const row  = chunk[idx2];
+          const ref  = row?.Title || '?';
+          try {
+            const r2 = await fetch(`https://graph.microsoft.com/v1.0/sites/${spSiteId}/lists/${spListId}/items`, {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${graphToken}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ fields: { Title: row.Title, Status: 'Closed', Description: row.Description||'', SourceDept: row.SourceDept||'', RaisedByTeam: row.RaisedByTeam||'', LoggedAt: row.LoggedAt||'' } }),
+            });
+            if (r2.ok) { importDone++; }
+            else { importErr++; log(`Skipped ${ref}: ${resp.status}`, 'warn'); }
+          } catch(e2) { importErr++; log(`Failed ${ref}: ${e2.message}`, 'err'); }
         }
       }
     } catch(e) {
