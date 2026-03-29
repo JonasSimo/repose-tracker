@@ -1089,6 +1089,14 @@ body {
 .q-sigma-bar     { display:flex; height:10px; border-radius:5px; overflow:hidden; margin:8px 0 4px; }
 .q-sigma-seg     { transition:width .3s; }
 .q-sigma-legend  { display:flex; gap:12px; flex-wrap:wrap; font-size:11px; color:var(--text3); }
+/* CPAR detail controls */
+.q-controls-bar  { display:flex; flex-direction:column; gap:10px; margin-bottom:16px; }
+.q-period-toggle { display:flex; background:#fff; border:1.5px solid var(--border); border-radius:8px; overflow:hidden; align-self:flex-start; }
+.q-period-btn    { background:none; border:none; padding:7px 16px; font-size:12px; font-weight:600; cursor:pointer; color:var(--repose-grey); font-family:inherit; transition:all .15s; }
+.q-period-btn.active { background:var(--repose-navy); color:#fff; }
+.q-team-filter   { display:flex; flex-wrap:wrap; gap:6px; }
+.q-team-chip     { background:#fff; border:1.5px solid var(--border); border-radius:20px; padding:5px 13px; font-size:12px; font-weight:500; cursor:pointer; color:var(--text2); font-family:inherit; transition:all .15s; }
+.q-team-chip.active { background:var(--repose-navy); border-color:var(--repose-navy); color:#fff; font-weight:600; }
 
 /* ── Mech Serial modal ── */
 .mserial-display {
@@ -4911,6 +4919,7 @@ let statsPeriod    = 'week';   // 'week' | 'month' | 'year'
 let statsNavOffset = 0;        // 0 = current period, -1 = previous, etc.
 let statsCharts    = {};
 let statsSparkTimer = null;
+let cparStatTeam   = '';       // '' = all teams; team name = filter to that team
 
 let STATS_COMPLETIONS = [];
 let STATS_ALERTS      = [];
@@ -5241,6 +5250,10 @@ function statsInPeriodCPAR(dateStr) {
 function statsFilteredCPARs() {
   return STATS_CPARS.filter(c => statsInPeriodCPAR(c.fields?.LoggedAt));
 }
+function setCPARStatTeam(team) {
+  cparStatTeam = team;
+  renderDetailCPAR();
+}
 function statsFilteredQC() {
   const ref = statsRefDate();
   return STATS_QC.filter(q => {
@@ -5525,6 +5538,7 @@ function renderStatsDetail(view) {
   document.getElementById('stats-detail-period').textContent = statsNavLabel();
   document.getElementById('stats-detail-body').innerHTML     = '';
 
+  if (view !== 'cpar') cparStatTeam = '';
   if      (view === 'completions') renderDetailCompletions();
   else if (view === 'qc')          renderDetailQC();
   else if (view === 'perperson')   renderDetailPerPerson();
@@ -6074,7 +6088,12 @@ async function deleteScrapEntry(item, rowEl) {
 // ── CPAR detail ─────────────────────────────────
 
 function renderDetailCPAR() {
-  const cpars  = statsFilteredCPARs();
+  const allPeriodCPARs = statsFilteredCPARs();
+  // derive unique teams from all data in this period for the filter chips
+  const allTeams = [...new Set(allPeriodCPARs.map(c => normaliseTeam(c.fields?.RaisedByTeam||'')).filter(Boolean))].sort();
+  // apply team filter on top of period filter
+  const cpars = cparStatTeam ? allPeriodCPARs.filter(c => normaliseTeam(c.fields?.RaisedByTeam||'') === cparStatTeam) : allPeriodCPARs;
+
   const body   = document.getElementById('stats-detail-body');
   if (typeof Chart === 'undefined') {
     body.innerHTML = '<div style="padding:30px;text-align:center;color:var(--repose-grey)">Chart.js not loaded</div>';
@@ -6110,8 +6129,20 @@ function renderDetailCPAR() {
 
   const closureRate = cpars.length ? Math.round(closed.length / cpars.length * 100) : 0;
 
-  // ── KPI Row ───────────────────────────────────────────────────────────────
+  // ── Controls bar ──────────────────────────────────────────────────────────
   body.innerHTML = `
+    <div class="q-controls-bar">
+      <div class="q-period-toggle">
+        <button class="q-period-btn stats-period-btn${statsPeriod==='week'?' active':''}" onclick="setStatsPeriod('week',this)">Week</button>
+        <button class="q-period-btn stats-period-btn${statsPeriod==='month'?' active':''}" onclick="setStatsPeriod('month',this)">Month</button>
+        <button class="q-period-btn stats-period-btn${statsPeriod==='year'?' active':''}" onclick="setStatsPeriod('year',this)">Year</button>
+      </div>
+      ${allTeams.length ? `<div class="q-team-filter">
+        <button class="q-team-chip${cparStatTeam===''?' active':''}" onclick="setCPARStatTeam('')">All Teams</button>
+        ${allTeams.map(t => `<button class="q-team-chip${cparStatTeam===t?' active':''}" onclick="setCPARStatTeam('${escHtml(t)}')">${escHtml(t)}</button>`).join('')}
+      </div>` : ''}
+    </div>
+
     <div class="q-kpi-row">
       <div class="q-kpi"><div class="q-kpi-value" style="color:#7c3aed">${cpars.length}</div><div class="q-kpi-label">Total Issues</div><div class="q-kpi-sub">this period</div></div>
       <div class="q-kpi"><div class="q-kpi-value" style="color:${openOverdue.length ? 'var(--red)' : open.length ? 'var(--blue)' : '#059669'}">${open.length}</div><div class="q-kpi-label">Open</div><div class="q-kpi-sub">${openOverdue.length ? openOverdue.length+' overdue' : 'all within SLA'}</div></div>
