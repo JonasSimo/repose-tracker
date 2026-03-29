@@ -5083,26 +5083,31 @@ async function loadStatsData() {
 
   try {
     const siteId = await getSpSiteId();
-    const [compId, alertId, scrapId, cparId] = await Promise.all([
+    const [compId, alertId, scrapId] = await Promise.all([
       getListIdByName('ProductionCompletions'),
       getListIdByName('SpecAlerts'),
       getListIdByName('ScrapLog'),
-      getListIdByName('CPARLog'),
     ]);
     // Filter to last 400 days (~13 months) — covers full year view + sparklines
     // createdDateTime is always indexed so this is fast regardless of list size
     const statsAfter = spAfterDate(400);
     const base = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists`;
-    const [comp, alerts, scrap, cpars] = await Promise.all([
+    const [comp, alerts, scrap] = await Promise.all([
       graphGetAll(`${base}/${compId}/items?$expand=fields&$filter=createdDateTime ge ${statsAfter}&$top=999`),
       graphGetAll(`${base}/${alertId}/items?$expand=fields&$filter=createdDateTime ge ${statsAfter}&$top=999`),
       graphGetAll(`${base}/${scrapId}/items?$expand=fields&$filter=createdDateTime ge ${statsAfter}&$top=999`),
-      graphGetAll(`${base}/${cparId}/items?$expand=fields&$filter=createdDateTime ge ${statsAfter}&$top=999`),
     ]);
     STATS_COMPLETIONS = comp;
     STATS_ALERTS      = alerts;
     STATS_SCRAP       = scrap;
-    STATS_CPARS       = cpars;
+
+    // CPARLog loaded separately — failure must not break production stats
+    try {
+      const cparId = await getListIdByName(SP_CPAR_LIST);
+      STATS_CPARS = await graphGetAll(`${base}/${cparId}/items?$expand=fields&$filter=createdDateTime ge ${statsAfter}&$top=999`);
+    } catch(e) {
+      console.warn('loadStatsData (CPARLog):', e.message);
+    }
   } catch(e) {
     console.warn('loadStatsData (lists):', e.message);
     toast('Could not load stats — check connection', 'u');
