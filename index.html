@@ -1088,6 +1088,110 @@ body {
 .serial-card-btn:hover { border-color: var(--blue); color: var(--blue); background: var(--bbg); }
 .serial-card-btn.saved { border-color: var(--green); color: var(--green); background: var(--gbg); }
 
+/* ── CPAR button on job card ── */
+.cpar-btn {
+  flex-shrink: 0; margin: 8px 4px; padding: 5px 8px;
+  border: 1.5px solid var(--aborder); border-radius: 7px;
+  background: var(--abg); color: var(--amber); font-size: 11px;
+  font-weight: 600; font-family: inherit; cursor: pointer;
+  transition: .12s; white-space: nowrap; line-height: 1.4; text-align: center;
+}
+.cpar-btn:hover { border-color: var(--amber); background: #fef3c7; }
+
+/* ═══ ISSUES VIEW ═══ */
+.issues-wrap { display:flex; flex-direction:column; height:100%; overflow:hidden; }
+.issues-header { background:var(--bg2); border-bottom:1px solid var(--border); padding:10px 14px; display:flex; flex-direction:column; gap:8px; flex-shrink:0; }
+.issues-filter-row { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+.issues-chip { padding:4px 12px; border-radius:20px; border:1.5px solid var(--border2); background:var(--bg3); font-size:11px; font-weight:600; cursor:pointer; color:var(--text2); font-family:inherit; transition:.1s; }
+.issues-chip.active { background:var(--repose-navy); color:#fff; border-color:var(--repose-navy); }
+.issues-chip.amber.active { background:var(--amber); border-color:var(--amber); color:#fff; }
+.issues-chip.red.active { background:var(--red); border-color:var(--red); color:#fff; }
+.issues-chip.green.active { background:var(--green); border-color:var(--green); color:#fff; }
+.issues-search-row { display:flex; gap:8px; align-items:center; }
+.issues-search-input { flex:1; padding:7px 10px; border-radius:7px; border:1.5px solid var(--border); font-size:12px; font-family:inherit; background:var(--bg); color:var(--text); }
+.issues-search-input:focus { outline:none; border-color:var(--blue); }
+.issues-team-select { padding:7px 10px; border-radius:7px; border:1.5px solid var(--border); font-size:12px; font-family:inherit; background:var(--bg); color:var(--text); cursor:pointer; }
+.issues-list-wrap { flex:1; overflow-y:auto; padding:10px 14px; }
+.issues-empty { text-align:center; padding:40px 20px; color:var(--text3); font-size:13px; }
+.issues-loading { text-align:center; padding:40px 20px; color:var(--text2); font-size:13px; }
+/* CPAR card */
+.cpar-card { border:1.5px solid var(--border); border-radius:10px; margin-bottom:9px; background:var(--bg2); overflow:hidden; transition:border-color .1s; }
+.cpar-card.status-open   { border-left:4px solid var(--blue); }
+.cpar-card.status-amber  { border-left:4px solid var(--amber); }
+.cpar-card.status-red    { border-left:4px solid var(--red); }
+.cpar-card.status-closed { border-left:4px solid var(--green); opacity:.7; }
+.cpar-card-header { display:flex; align-items:center; gap:10px; padding:10px 12px 6px; }
+.cpar-ref { font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:600; background:var(--bbg); color:var(--blue); border:1px solid var(--bborder); padding:2px 8px; border-radius:4px; flex-shrink:0; }
+.cpar-status-badge { font-size:10px; font-weight:700; padding:2px 8px; border-radius:10px; flex-shrink:0; }
+.cpar-status-badge.open    { background:var(--bbg); color:var(--blue); }
+.cpar-status-badge.amber   { background:var(--abg); color:var(--amber); }
+.cpar-status-badge.overdue { background:var(--rbg); color:var(--red); }
+.cpar-status-badge.closed  { background:var(--gbg); color:var(--green); }
+.cpar-age { font-size:10px; color:var(--text3); margin-left:auto; flex-shrink:0; }
+.cpar-card-body { padding:0 12px 10px; }
+.cpar-job-line { font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:600; color:var(--text); margin-bottom:3px; }
+.cpar-source-line { font-size:11px; color:var(--text2); margin-bottom:4px; }
+.cpar-source-badge { display:inline-block; font-size:10px; font-weight:700; padding:1px 7px; border-radius:4px; background:var(--bg4); border:1px solid var(--border2); color:var(--text2); margin-right:4px; }
+.cpar-desc { font-size:12px; color:var(--text2); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.cpar-meta { font-size:10px; color:var(--text3); margin-top:5px; display:flex; gap:10px; flex-wrap:wrap; }
+.cpar-card-footer { border-top:1px solid var(--border); padding:8px 12px; display:flex; gap:8px; align-items:center; justify-content:flex-end; }
+.cpar-expand-btn { padding:5px 14px; border-radius:7px; border:1.5px solid var(--border2); background:var(--bg3); color:var(--text2); font-size:11px; font-weight:600; cursor:pointer; font-family:inherit; transition:.1s; }
+.cpar-expand-btn:hover { border-color:var(--blue); color:var(--blue); background:var(--bbg); }
+.cpar-closeout-panel { border-top:1px solid var(--border); padding:12px; background:var(--bg3); display:none; }
+.cpar-closeout-panel.open { display:block; }
+.cpar-cause-label { font-size:11px; font-weight:600; color:var(--text2); margin-bottom:6px; }
+.cpar-cause-grid { display:grid; grid-template-columns:1fr 1fr; gap:5px; margin-bottom:10px; }
+.cpar-cause-option { padding:7px 10px; border-radius:7px; border:1.5px solid var(--border2); background:var(--bg2); font-size:11px; font-weight:500; cursor:pointer; font-family:inherit; text-align:left; transition:.1s; color:var(--text); }
+.cpar-cause-option:hover { border-color:var(--blue); background:var(--bbg); }
+.cpar-cause-option.selected { border-color:var(--blue); background:var(--bbg); color:var(--blue); font-weight:700; }
+.cpar-action-input { width:100%; padding:8px 10px; border-radius:7px; border:1.5px solid var(--border); font-size:12px; font-family:inherit; resize:vertical; min-height:60px; background:var(--bg2); color:var(--text); margin-bottom:8px; box-sizing:border-box; }
+.cpar-action-input:focus { outline:none; border-color:var(--blue); }
+.cpar-confirm-close-btn { width:100%; padding:9px; border-radius:8px; border:none; background:var(--green); color:#fff; font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; }
+.cpar-confirm-close-btn:hover { background:#047857; }
+.cpar-confirm-close-btn:disabled { opacity:.5; cursor:default; }
+/* CPAR form modal */
+.cpar-modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.55); display:flex; align-items:flex-end; z-index:800; }
+.cpar-modal-box { background:var(--bg2); border-radius:16px 16px 0 0; width:100%; max-height:92vh; overflow-y:auto; display:flex; flex-direction:column; }
+.cpar-modal-head { padding:16px 18px 12px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; flex-shrink:0; position:sticky; top:0; background:var(--bg2); z-index:1; }
+.cpar-modal-title { font-size:15px; font-weight:700; color:var(--text); flex:1; }
+.cpar-modal-sub { font-size:11px; color:var(--blue); font-family:'JetBrains Mono',monospace; margin-top:2px; }
+.cpar-modal-close { width:30px; height:30px; border-radius:50%; border:none; background:var(--bg4); font-size:15px; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; color:var(--text2); }
+.cpar-modal-body { padding:14px 18px; display:flex; flex-direction:column; gap:14px; }
+.cpar-field-label { font-size:10px; font-weight:700; color:var(--text3); letter-spacing:.06em; text-transform:uppercase; margin-bottom:7px; }
+.cpar-source-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; }
+.cpar-source-opt { padding:9px 6px; border-radius:8px; border:1.5px solid var(--border2); background:var(--bg3); font-size:10px; font-weight:600; cursor:pointer; font-family:inherit; text-align:center; transition:.1s; color:var(--text2); line-height:1.3; }
+.cpar-source-opt.selected { color:#fff; border-color:transparent; }
+.cpar-cat-select { width:100%; padding:9px 10px; border-radius:8px; border:1.5px solid var(--border); font-size:12px; font-family:inherit; background:var(--bg); color:var(--text); cursor:pointer; }
+.cpar-cat-select:focus { outline:none; border-color:var(--blue); }
+.cpar-desc-input { width:100%; padding:9px 10px; border-radius:8px; border:1.5px solid var(--border); font-size:12px; font-family:inherit; resize:vertical; min-height:70px; background:var(--bg); color:var(--text); box-sizing:border-box; }
+.cpar-desc-input:focus { outline:none; border-color:var(--blue); }
+.cpar-qty-row { display:flex; align-items:center; gap:10px; }
+.cpar-qty-input { width:70px; padding:9px 10px; border-radius:8px; border:1.5px solid var(--border); font-size:14px; font-weight:600; font-family:'JetBrains Mono',monospace; background:var(--bg); color:var(--text); text-align:center; }
+.cpar-qty-input:focus { outline:none; border-color:var(--blue); }
+.cpar-jobs-toggle { padding:8px 12px; border-radius:8px; border:1.5px solid var(--border2); background:var(--bg3); font-size:12px; font-weight:500; cursor:pointer; font-family:inherit; color:var(--text2); width:100%; text-align:left; display:flex; align-items:center; justify-content:space-between; }
+.cpar-jobs-toggle:hover { border-color:var(--blue); color:var(--blue); }
+.cpar-jobs-list { max-height:200px; overflow-y:auto; border:1.5px solid var(--border); border-radius:8px; background:var(--bg); display:none; margin-top:4px; }
+.cpar-jobs-list.open { display:block; }
+.cpar-jobs-search { padding:7px 10px; border-bottom:1px solid var(--border); }
+.cpar-jobs-search input { width:100%; border:none; background:transparent; font-size:12px; font-family:inherit; color:var(--text); outline:none; }
+.cpar-job-item { display:flex; align-items:center; gap:10px; padding:8px 12px; border-bottom:1px solid var(--border); cursor:pointer; }
+.cpar-job-item:last-child { border-bottom:none; }
+.cpar-job-item:hover { background:var(--bg3); }
+.cpar-job-item.locked { opacity:.6; cursor:default; pointer-events:none; }
+.cpar-job-check { width:16px; height:16px; border-radius:4px; border:1.5px solid var(--border2); flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:10px; }
+.cpar-job-check.checked { background:var(--blue); border-color:var(--blue); color:#fff; }
+.cpar-job-meta { font-size:10px; color:var(--text3); }
+.cpar-job-rep  { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text); }
+.cpar-photo-btn { display:flex; align-items:center; gap:8px; padding:10px 14px; border-radius:8px; border:1.5px dashed var(--border2); background:var(--bg3); font-size:12px; font-weight:500; cursor:pointer; color:var(--text2); font-family:inherit; transition:.1s; }
+.cpar-photo-btn:hover { border-color:var(--blue); color:var(--blue); }
+.cpar-photo-preview { width:100%; max-height:160px; object-fit:cover; border-radius:8px; border:1.5px solid var(--border); display:none; margin-top:6px; }
+.cpar-modal-footer { padding:12px 18px 16px; border-top:1px solid var(--border); display:flex; gap:8px; position:sticky; bottom:0; background:var(--bg2); z-index:1; }
+.cpar-modal-cancel { flex:1; padding:11px; border-radius:9px; border:1.5px solid var(--border2); background:var(--bg3); font-size:13px; font-family:inherit; color:var(--text2); cursor:pointer; }
+.cpar-modal-cancel:hover { background:var(--bg4); }
+.cpar-modal-submit { flex:2; padding:11px; border-radius:9px; border:none; background:var(--amber); color:#fff; font-size:13px; font-weight:700; font-family:inherit; cursor:pointer; }
+.cpar-modal-submit:hover { background:#b45309; }
+.cpar-modal-submit:disabled { opacity:.5; cursor:default; }
+
 /* ── Tablet team mode: compact sidebar ── */
 .tablet-mode .team-sidebar { width: 130px; }
 .tablet-mode .week-panel   { width: 148px; }
@@ -1336,6 +1440,7 @@ document.addEventListener('DOMContentLoaded', () => {
       <button class="tab-btn" onclick="showView('loadsheet')">Delivery</button>
       <button class="tab-btn" onclick="showView('production')">Production Plan</button>
       <button class="tab-btn" onclick="showView('stats')">Stats</button>
+      <button class="tab-btn" onclick="showView('issues')" id="issues-tab-btn">Issues</button>
     </div>
   </div>
 </div>
@@ -1569,6 +1674,39 @@ document.addEventListener('DOMContentLoaded', () => {
       <div id="stats-detail-body"></div>
     </div>
 
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     VIEW: ISSUES
+════════════════════════════════════════════════ -->
+<div class="view" id="view-issues">
+  <div class="issues-wrap">
+    <div class="issues-header">
+      <div class="issues-filter-row">
+        <button class="issues-chip active" data-f="all" onclick="setIssueFilter('all')">All</button>
+        <button class="issues-chip" data-f="open" onclick="setIssueFilter('open')">Open</button>
+        <button class="issues-chip amber" data-f="amber" onclick="setIssueFilter('amber')">⚠ 48h+</button>
+        <button class="issues-chip red" data-f="red" onclick="setIssueFilter('red')">🔴 4 days+</button>
+        <button class="issues-chip green" data-f="closed" onclick="setIssueFilter('closed')">✓ Closed</button>
+        <button onclick="fetchCPARs()" style="margin-left:auto;padding:5px 12px;border-radius:7px;border:1.5px solid var(--border2);background:var(--bg3);font-size:11px;cursor:pointer;font-family:inherit;color:var(--text2)">↻ Refresh</button>
+      </div>
+      <div class="issues-search-row">
+        <input class="issues-search-input" id="issues-search" placeholder="Search REP, REF, model, description…" oninput="renderIssuesList()" autocomplete="off">
+        <select class="issues-team-select" id="issues-team-filter" onchange="renderIssuesList()">
+          <option value="">All Teams</option>
+          <option>Woodmill</option>
+          <option>Cutting</option>
+          <option>Sewing</option>
+          <option>Upholstery</option>
+          <option>Assembly</option>
+          <option>Foam</option>
+          <option>Stores</option>
+          <option>QC</option>
+        </select>
+      </div>
+    </div>
+    <div class="issues-list-wrap" id="issues-list"></div>
   </div>
 </div>
 
@@ -1967,7 +2105,7 @@ let activeProdTeam = null; // team key being highlighted (e.g. 'wm')
 // ═══════════════════════════════════════════════
 function showView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-  const tabMap = { 'team-select':0, 'tracker':0, 'overview':1, 'loadsheet':2, 'production':3, 'stats':4 };
+  const tabMap = { 'team-select':0, 'tracker':0, 'overview':1, 'loadsheet':2, 'production':3, 'stats':4, 'issues':5 };
   document.querySelectorAll('.tab-btn').forEach((b, i) => {
     b.classList.toggle('active', tabMap[name] === i);
   });
@@ -1976,6 +2114,7 @@ function showView(name) {
   if (name === 'loadsheet')   { renderLoadSheet(); }
   if (name === 'production')  { renderProductionPlan(); }
   if (name === 'stats')       { openStatsView(); }
+  if (name === 'issues')      { openIssuesView(); }
 }
 
 function openTeam(name, hasSubs) {
@@ -2337,6 +2476,7 @@ function renderJobs() {
           </div>` : `<span class="jc-qty">Qty: ${job.qty||'—'}</span>`}
         </div>
         ${activeTeam === 'Assembly' ? (() => { const _s = MECH_SERIALS.get(`${job.rep}__${activeWC}__${activePrep}`); return `<button class="serial-card-btn${_s?' saved':''}" onclick="event.stopPropagation();openMechSerialModal('${activeWC}','${activePrep}',${ji},'${job.rep}')">${_s ? `✓<br><span style="font-size:9px;letter-spacing:.02em">${_s}</span>` : '⊞<br>Serial'}</button>`; })() : ''}
+        <button class="cpar-btn" onclick="event.stopPropagation();openCPARForm('${activeWC}','${activePrep}',${ji})" title="Raise CPAR for this job">⚠<br>CPAR</button>
         <button class="tick-btn ${s.done?'ticked':''}" onclick="tickJob(${ji})">
           <span class="tb-icon">${s.done?'✓':'○'}</span>
           <span class="tb-label">${s.done?'DONE':'MARK'}</span>
@@ -6126,11 +6266,546 @@ async function writeMechSerialToExcel(rep, wk, serial) {
     console.warn('writeMechSerialToExcel:', e.message);
   }
 }
+
+// ═══════════════════════════════════════════════════════════
+// CPAR — CORRECTIVE & PREVENTIVE ACTION REPORTS
+// ═══════════════════════════════════════════════════════════
+
+const SP_CPAR_LIST = 'CPARLog';
+
+const CPAR_SOURCES = [
+  { key:'woodmill',    label:'Woodmill',            color:'#7c3aed' },
+  { key:'cutting',     label:'Cutting',             color:'#0284c7' },
+  { key:'sewing',      label:'Sewing',              color:'#d97706' },
+  { key:'upholstery',  label:'Upholstery',          color:'#dc2626' },
+  { key:'foam',        label:'Foam',                color:'#0891b2' },
+  { key:'stores',      label:'Stores',              color:'#6b7280' },
+  { key:'admin',       label:'Admin',               color:'#9333ea' },
+  { key:'supplier',    label:'Material / Supplier', color:'#b45309' },
+  { key:'development', label:'Development',         color:'#059669' },
+  { key:'own',         label:'Own Team',            color:'#475569' },
+];
+
+const CPAR_CATEGORIES = {
+  woodmill:    ['Wrong D-nut holes','Post wrong size','Missing hole/port','Missing parts','T-nut wrong position','Port/hole error','Missing/error with packer','Other'],
+  cutting:     ['Missing bits','Cut wrong/uneven','Lining error','Fabric/leather defect','Parts over','Other'],
+  sewing:      ['Damaged/error post sewing','Sewing room error','Product damaged','Other'],
+  upholstery:  ['Back issue','Seat issue','Arm issue','Product damaged','Missing bits post sewing','Part not fitting','Other'],
+  foam:        ['Wrong size','Missing parts','Damaged','Other'],
+  stores:      ['Missing parts','Wrong parts delivered','Late delivery','Other'],
+  admin:       ['Wrong spec','Wrong model info','Scheduling error','Other'],
+  supplier:    ['Fabric defect','Part defect','Wrong spec/size','Damaged on delivery','Other'],
+  development: ['Design issue','Spec error','Template error','Other'],
+  own:         ['Process error','Human error','Equipment issue','Other'],
+};
+
+const CPAR_CAUSE_CODES = [
+  'Human Error',
+  'Design / Spec Error',
+  'Machine / Equipment Failure',
+  'Process / Procedure Issue',
+  'Measurement / Template Error',
+  'Material Defect',
+];
+
+// In-memory store
+let CPAR_ITEMS = [];
+let cparFilterStatus = 'all';
+let cparListLoaded = false;
+
+// Form state — persists while modal is open
+const cparFormState = {
+  wc:null, prep:null, ji:null,
+  rep:'', jobNo:0, model:'', week:'',
+  source:'', category:'', desc:'', qty:1,
+  extraJobs:[], photoFile:null, photoDataUrl:null,
+};
+
+// ── Open/close modal ─────────────────────────────────────
+
+function openCPARForm(wc, prep, ji) {
+  const job = PROD[wc]?.[prep]?.[ji];
+  if (!job) return;
+
+  Object.assign(cparFormState, {
+    wc, prep:String(prep), ji,
+    rep:job.rep, jobNo:job.itemNo, model:job.model||'',
+    week:wc, source:'', category:'', desc:'', qty:1,
+    extraJobs:[], photoFile:null, photoDataUrl:null,
+  });
+
+  document.getElementById('cpar-modal-sub').textContent =
+    `${job.rep} · Job ${job.itemNo}${job.model ? ' · '+job.model : ''}`;
+  document.getElementById('cpar-desc-input').value = '';
+  document.getElementById('cpar-qty-input').value = '1';
+  const prev = document.getElementById('cpar-photo-preview');
+  prev.style.display = 'none'; prev.src = '';
+  document.getElementById('cpar-photo-label').textContent = 'Take or upload photo';
+  document.getElementById('cpar-photo-input').value = '';
+  document.getElementById('cpar-jobs-list').classList.remove('open');
+  document.getElementById('cpar-jobs-toggle-label').textContent = 'Add more jobs from production plan ▼';
+  document.getElementById('cpar-cat-wrap').style.display = 'none';
+
+  renderCPARSourceGrid();
+  renderCPARJobsItems('');
+  document.getElementById('cpar-modal').style.display = 'flex';
+}
+
+function closeCPARModal() {
+  document.getElementById('cpar-modal').style.display = 'none';
+}
+
+// ── Source & category ────────────────────────────────────
+
+function renderCPARSourceGrid() {
+  const grid = document.getElementById('cpar-source-grid');
+  grid.innerHTML = CPAR_SOURCES.map(s => {
+    const sel = cparFormState.source === s.key;
+    return `<button class="cpar-source-opt${sel?' selected':''}"
+      style="${sel ? `background:${s.color}` : ''}"
+      onclick="selectCPARSource('${s.key}','${escHtml(s.color)}')">${escHtml(s.label)}</button>`;
+  }).join('');
+}
+
+function selectCPARSource(key, color) {
+  cparFormState.source = key;
+  cparFormState.category = '';
+  renderCPARSourceGrid();
+  const cats = CPAR_CATEGORIES[key] || [];
+  const sel = document.getElementById('cpar-cat-select');
+  sel.innerHTML = '<option value="">Select category…</option>' +
+    cats.map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('');
+  sel.value = '';
+  document.getElementById('cpar-cat-wrap').style.display = cats.length ? 'block' : 'none';
+}
+
+// ── Multi-job selector ───────────────────────────────────
+
+function toggleCPARJobsList() {
+  const list = document.getElementById('cpar-jobs-list');
+  const isOpen = list.classList.toggle('open');
+  if (isOpen) {
+    document.getElementById('cpar-jobs-search').value = '';
+    renderCPARJobsItems('');
+  }
+}
+
+function filterCPARJobsList() {
+  renderCPARJobsItems(document.getElementById('cpar-jobs-search').value);
+}
+
+function renderCPARJobsItems(query) {
+  const q = (query||'').toLowerCase();
+  const allJobs = [];
+  for (const [wk, weekData] of Object.entries(PROD)) {
+    for (const [prep, prepJobs] of Object.entries(weekData)) {
+      if (!Array.isArray(prepJobs)) continue;
+      prepJobs.forEach((job, ji) => {
+        allJobs.push({ wk, prep:String(prep), ji, rep:job.rep||'', model:job.model||'', itemNo:job.itemNo||'' });
+      });
+    }
+  }
+  const filtered = q
+    ? allJobs.filter(j => j.rep.toLowerCase().includes(q) || j.model.toLowerCase().includes(q) || String(j.itemNo).includes(q))
+    : allJobs;
+  const container = document.getElementById('cpar-jobs-items');
+  if (!filtered.length) {
+    container.innerHTML = '<div style="padding:10px 12px;font-size:11px;color:var(--text3)">No jobs found</div>';
+    return;
+  }
+  container.innerHTML = filtered.slice(0, 60).map(j => {
+    const isPrimary = j.rep === cparFormState.rep && j.wk === cparFormState.wc &&
+                      j.prep === cparFormState.prep && j.ji === cparFormState.ji;
+    const isChecked = isPrimary || cparFormState.extraJobs.some(e => e.rep===j.rep && e.wk===j.wk && e.prep===j.prep);
+    const clickAttr = isPrimary ? '' : `onclick="toggleCPARJobItem('${escHtml(j.rep)}','${j.wk}','${j.prep}',${j.ji},'${escHtml(j.model)}')"`;
+    return `<div class="cpar-job-item${isPrimary?' locked':''}" ${clickAttr}>
+      <div class="cpar-job-check${isChecked?' checked':''}">${isChecked?'✓':''}</div>
+      <div style="flex:1;min-width:0">
+        <div class="cpar-job-rep">${escHtml(j.rep)}${isPrimary?' <span style="font-size:9px;color:var(--text3)">(this job)</span>':''}</div>
+        <div class="cpar-job-meta">${j.wk} · Prep ${j.prep} · Job ${j.itemNo}${j.model?' · '+escHtml(j.model):''}</div>
+      </div></div>`;
+  }).join('');
+}
+
+function toggleCPARJobItem(rep, wk, prep, ji, model) {
+  const idx = cparFormState.extraJobs.findIndex(e => e.rep===rep && e.wk===wk && e.prep===prep);
+  if (idx >= 0) cparFormState.extraJobs.splice(idx, 1);
+  else cparFormState.extraJobs.push({ rep, wk, prep, ji, model });
+  renderCPARJobsItems(document.getElementById('cpar-jobs-search').value);
+  const count = cparFormState.extraJobs.length;
+  document.getElementById('cpar-jobs-toggle-label').textContent = count
+    ? `${count} additional job${count!==1?'s':''} selected ▲`
+    : 'Add more jobs from production plan ▼';
+}
+
+// ── Photo ────────────────────────────────────────────────
+
+function cparPhotoSelected(input) {
+  const file = input.files[0];
+  if (!file) return;
+  cparFormState.photoFile = file;
+  const reader = new FileReader();
+  reader.onload = e => {
+    cparFormState.photoDataUrl = e.target.result;
+    const prev = document.getElementById('cpar-photo-preview');
+    prev.src = e.target.result;
+    prev.style.display = 'block';
+    document.getElementById('cpar-photo-label').textContent = file.name;
+  };
+  reader.readAsDataURL(file);
+}
+
+// ── Submit ───────────────────────────────────────────────
+
+async function submitCPAR() {
+  const s = cparFormState;
+  if (!s.source) { toast('Select where the issue came from', 'u'); return; }
+  if (!(s.desc||'').trim()) { toast('Enter a description', 'u'); return; }
+
+  const btn = document.getElementById('cpar-submit-btn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+
+  try {
+    const siteId = await getSpSiteId();
+    const listId = await getListIdByName(SP_CPAR_LIST);
+    const ref = await getNextCPARRef(siteId, listId);
+    const sourceLabel = CPAR_SOURCES.find(x => x.key === s.source)?.label || s.source;
+    const now = new Date();
+    const loggedAt = `${now.toLocaleDateString('en-GB')} ${now.toTimeString().slice(0,5)}`;
+
+    const created = await graphPost(
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`,
+      { fields: {
+        Title:         ref,
+        RaisedByTeam:  activeTeam,
+        PrimaryREP:    s.rep,
+        PrimaryJobNo:  s.jobNo,
+        PrimaryModel:  s.model,
+        PrimaryWeek:   s.week,
+        PrimaryPrep:   parseInt(s.prep)||0,
+        AffectedJobs:  JSON.stringify(s.extraJobs),
+        TotalAffected: 1 + s.extraJobs.length,
+        QTY:           s.qty,
+        SourceDept:    sourceLabel,
+        IssueCategory: s.category||'',
+        Description:   s.desc.trim(),
+        Status:        'Open',
+        LoggedAt:      loggedAt,
+        HasPhoto:      s.photoFile ? true : false,
+      }}
+    );
+
+    if (s.photoFile && created.id) {
+      try { await uploadCPARPhoto(siteId, listId, created.id, s.photoFile); }
+      catch(e) { console.warn('Photo upload:', e.message); toast('CPAR saved — photo upload failed', 'u'); }
+    }
+
+    toast(`${ref} raised successfully`, 's');
+    closeCPARModal();
+
+    CPAR_ITEMS.unshift({ id:created.id, fields:{
+      Title:ref, RaisedByTeam:activeTeam, PrimaryREP:s.rep, PrimaryJobNo:s.jobNo,
+      PrimaryModel:s.model, PrimaryWeek:s.week, AffectedJobs:JSON.stringify(s.extraJobs),
+      TotalAffected:1+s.extraJobs.length, QTY:s.qty, SourceDept:sourceLabel,
+      IssueCategory:s.category||'', Description:s.desc.trim(), Status:'Open',
+      LoggedAt:loggedAt, HasPhoto:s.photoFile?true:false,
+    }});
+    if (document.getElementById('view-issues').classList.contains('active')) renderIssuesList();
+
+    // Update Issues tab button counter
+    updateIssuesTabBadge();
+
+  } catch(e) {
+    console.error('submitCPAR:', e);
+    toast('Could not save CPAR — check connection', 'u');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Submit CPAR';
+  }
+}
+
+async function getNextCPARRef(siteId, listId) {
+  try {
+    const data = await graphGet(
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields($select=Title)&$orderby=id%20desc&$top=10`
+    );
+    let maxNum = 3600;
+    for (const item of (data.value||[])) {
+      const m = (item.fields?.Title||'').match(/RP-(\d+)/);
+      if (m) maxNum = Math.max(maxNum, parseInt(m[1]));
+    }
+    return `RP-${String(maxNum+1).padStart(5,'0')}`;
+  } catch(e) {
+    return `RP-${String(Date.now()).slice(-5)}`;
+  }
+}
+
+async function uploadCPARPhoto(siteId, listId, itemId, file) {
+  const token = await getGraphToken();
+  if (!token) return;
+  const ext = (file.name.split('.').pop()||'jpg').toLowerCase();
+  const buf = await file.arrayBuffer();
+  const r = await fetch(
+    `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${itemId}/attachments/photo.${ext}`,
+    { method:'PUT', headers:{ Authorization:`Bearer ${token}`, 'Content-Type':file.type||'image/jpeg' }, body:buf }
+  );
+  if (!r.ok) throw new Error(`Photo ${r.status}`);
+}
+
+// ── Issues tab ───────────────────────────────────────────
+
+function openIssuesView() {
+  if (!cparListLoaded) fetchCPARs();
+  else renderIssuesList();
+}
+
+async function fetchCPARs() {
+  const listEl = document.getElementById('issues-list');
+  if (listEl) listEl.innerHTML = '<div class="issues-loading">Loading issues…</div>';
+  try {
+    const siteId = await getSpSiteId();
+    const listId = await getListIdByName(SP_CPAR_LIST);
+    const items  = await graphGetAll(
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999`
+    );
+    CPAR_ITEMS = items.sort((a,b) => parseCPARDate(b.fields?.LoggedAt) - parseCPARDate(a.fields?.LoggedAt));
+    cparListLoaded = true;
+    renderIssuesList();
+    updateIssuesTabBadge();
+  } catch(e) {
+    console.warn('fetchCPARs:', e);
+    if (listEl) listEl.innerHTML = `<div class="issues-empty">Could not load issues — ${e.message}</div>`;
+  }
+}
+
+function parseCPARDate(str) {
+  if (!str) return new Date(0);
+  const [datePart, timePart='00:00'] = str.split(' ');
+  const [d,m,y] = datePart.split('/');
+  if (!y) return new Date(0);
+  return new Date(`${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}T${timePart}:00`);
+}
+
+function getCPARStatus(item) {
+  const f = item.fields||{};
+  if (f.Status === 'Closed') return 'closed';
+  const hrs = (Date.now() - parseCPARDate(f.LoggedAt).getTime()) / 3600000;
+  if (hrs >= 96) return 'red';
+  if (hrs >= 48) return 'amber';
+  return 'open';
+}
+
+function getCPARStatusLabel(st) {
+  return {open:'Open', amber:'⚠ 48h+', red:'🔴 4 days+', closed:'✓ Closed'}[st] || st;
+}
+
+function setIssueFilter(f) {
+  cparFilterStatus = f;
+  document.querySelectorAll('.issues-chip').forEach(c => c.classList.toggle('active', c.dataset.f === f));
+  renderIssuesList();
+}
+
+function updateIssuesTabBadge() {
+  const openCount = CPAR_ITEMS.filter(i => getCPARStatus(i) !== 'closed').length;
+  const btn = document.getElementById('issues-tab-btn');
+  if (btn) btn.textContent = openCount > 0 ? `Issues (${openCount})` : 'Issues';
+}
+
+function renderIssuesList() {
+  const q = (document.getElementById('issues-search')?.value||'').toLowerCase();
+  const teamF = document.getElementById('issues-team-filter')?.value||'';
+  const listEl = document.getElementById('issues-list');
+  if (!listEl) return;
+
+  let items = CPAR_ITEMS;
+
+  if (cparFilterStatus !== 'all') {
+    items = items.filter(i => {
+      const st = getCPARStatus(i);
+      if (cparFilterStatus === 'open') return st !== 'closed';
+      return st === cparFilterStatus;
+    });
+  }
+  if (teamF) items = items.filter(i => (i.fields?.RaisedByTeam||'') === teamF);
+  if (q) items = items.filter(i => {
+    const f = i.fields||{};
+    return (f.Title||'').toLowerCase().includes(q) ||
+           (f.PrimaryREP||'').toLowerCase().includes(q) ||
+           (f.PrimaryModel||'').toLowerCase().includes(q) ||
+           (f.Description||'').toLowerCase().includes(q) ||
+           (f.SourceDept||'').toLowerCase().includes(q);
+  });
+
+  if (!items.length) {
+    listEl.innerHTML = '<div class="issues-empty">No issues found</div>';
+    return;
+  }
+  listEl.innerHTML = items.map(item => renderCPARCard(item)).join('');
+}
+
+function renderCPARCard(item) {
+  const f = item.fields||{};
+  const status = getCPARStatus(item);
+  const isClosed = status === 'closed';
+  const totalJobs = (f.TotalAffected||1) > 1 ? ` · ${f.TotalAffected} jobs` : '';
+  const age = formatCPARAge(parseCPARDate(f.LoggedAt));
+
+  return `<div class="cpar-card status-${status}" id="cpar-card-${item.id}">
+    <div class="cpar-card-header">
+      <span class="cpar-ref">${escHtml(f.Title||'?')}</span>
+      <span class="cpar-status-badge ${status==='red'?'overdue':status}">${getCPARStatusLabel(status)}</span>
+      <span class="cpar-age">${age}</span>
+    </div>
+    <div class="cpar-card-body">
+      <div class="cpar-job-line">${escHtml(f.PrimaryREP||'—')} · Job ${f.PrimaryJobNo||'—'}${f.PrimaryModel?' · '+escHtml(f.PrimaryModel):''}${totalJobs}</div>
+      <div class="cpar-source-line">
+        <span class="cpar-source-badge">${escHtml(f.RaisedByTeam||'?')}</span>
+        → <strong>${escHtml(f.SourceDept||'?')}</strong>${f.IssueCategory?' · '+escHtml(f.IssueCategory):''}
+      </div>
+      <div class="cpar-desc">${escHtml(f.Description||'')}</div>
+      <div class="cpar-meta">
+        <span>${f.PrimaryWeek||''}</span>
+        ${f.QTY?`<span>${f.QTY} chair${f.QTY>1?'s':''}</span>`:''}
+        ${f.HasPhoto?'<span>📷</span>':''}
+        ${isClosed?`<span>Closed by ${escHtml(f.ClosedBy||'?')}</span>`:''}
+      </div>
+      ${isClosed&&f.CauseCode?`<div style="font-size:11px;color:var(--text2);margin-top:5px"><strong>Cause:</strong> ${escHtml(f.CauseCode)}</div>`:''}
+      ${isClosed&&f.CorrectiveAction?`<div style="font-size:11px;color:var(--text2)"><strong>Action:</strong> ${escHtml(f.CorrectiveAction)}</div>`:''}
+    </div>
+    ${!isClosed?`
+    <div class="cpar-card-footer">
+      <button class="cpar-expand-btn" onclick="toggleCPARCloseout('${item.id}')">Close Out ▼</button>
+    </div>
+    <div class="cpar-closeout-panel" id="cpar-co-${item.id}">
+      <div class="cpar-cause-label">Root Cause</div>
+      <div class="cpar-cause-grid">
+        ${CPAR_CAUSE_CODES.map(c=>`<button class="cpar-cause-option" data-cause="${escHtml(c)}" onclick="selectCPARCause('${item.id}',this)">${escHtml(c)}</button>`).join('')}
+      </div>
+      <div class="cpar-cause-label" style="margin-top:8px">Corrective Action Taken</div>
+      <textarea class="cpar-action-input" id="cpar-action-${item.id}" placeholder="Describe what was done to fix this issue…"></textarea>
+      <button class="cpar-confirm-close-btn" id="cpar-close-${item.id}" onclick="confirmCloseCPAR('${item.id}')" disabled>Mark as Closed</button>
+    </div>` : ''}
+  </div>`;
+}
+
+function formatCPARAge(date) {
+  const diff = Date.now() - date.getTime();
+  const mins = Math.floor(diff/60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins/60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs/24)}d ago`;
+}
+
+function toggleCPARCloseout(id) {
+  document.getElementById(`cpar-co-${id}`)?.classList.toggle('open');
+}
+
+function selectCPARCause(id, btn) {
+  const panel = document.getElementById(`cpar-co-${id}`);
+  panel?.querySelectorAll('.cpar-cause-option').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  const closeBtn = document.getElementById(`cpar-close-${id}`);
+  if (closeBtn) closeBtn.disabled = false;
+}
+
+async function confirmCloseCPAR(id) {
+  const panel = document.getElementById(`cpar-co-${id}`);
+  const causeBtn = panel?.querySelector('.cpar-cause-option.selected');
+  if (!causeBtn) { toast('Select a root cause first', 'u'); return; }
+  const causeCode = causeBtn.dataset.cause;
+  const action = (document.getElementById(`cpar-action-${id}`)?.value||'').trim();
+  const closeBtn = document.getElementById(`cpar-close-${id}`);
+  closeBtn.disabled = true; closeBtn.textContent = 'Saving…';
+
+  try {
+    const siteId = await getSpSiteId();
+    const listId = await getListIdByName(SP_CPAR_LIST);
+    const now = new Date();
+    const closedAt = `${now.toLocaleDateString('en-GB')} ${now.toTimeString().slice(0,5)}`;
+    const closedBy = graphAccount?.name || graphAccount?.username || 'Manager';
+
+    const token = await getGraphToken();
+    await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}`, {
+      method:'PATCH',
+      headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
+      body: JSON.stringify({ fields:{ Status:'Closed', CauseCode:causeCode, CorrectiveAction:action, ClosedBy:closedBy, ClosedAt:closedAt }})
+    });
+
+    const item = CPAR_ITEMS.find(i => i.id === id);
+    if (item) Object.assign(item.fields, { Status:'Closed', CauseCode:causeCode, CorrectiveAction:action, ClosedBy:closedBy, ClosedAt:closedAt });
+
+    toast('CPAR closed ✓', 's');
+    updateIssuesTabBadge();
+    renderIssuesList();
+  } catch(e) {
+    console.warn('confirmCloseCPAR:', e);
+    toast('Could not close CPAR — check connection', 'u');
+    closeBtn.disabled = false; closeBtn.textContent = 'Mark as Closed';
+  }
+}
 </script>
 
 <!-- Job spec modal -->
 <div id="specModal" class="spec-modal" style="display:none" onclick="if(event.target===this)closeSpecModal()">
   <div class="spec-card" id="specCard"></div>
+</div>
+
+<!-- CPAR Form Modal -->
+<div id="cpar-modal" class="cpar-modal-overlay" style="display:none" onclick="if(event.target===this)closeCPARModal()">
+  <div class="cpar-modal-box" onclick="event.stopPropagation()">
+    <div class="cpar-modal-head">
+      <div style="flex:1;min-width:0">
+        <div class="cpar-modal-title">⚠ Raise CPAR</div>
+        <div class="cpar-modal-sub" id="cpar-modal-sub">—</div>
+      </div>
+      <button class="cpar-modal-close" onclick="closeCPARModal()">✕</button>
+    </div>
+    <div class="cpar-modal-body">
+      <div>
+        <div class="cpar-field-label">Where did this issue come from?</div>
+        <div class="cpar-source-grid" id="cpar-source-grid"></div>
+      </div>
+      <div id="cpar-cat-wrap" style="display:none">
+        <div class="cpar-field-label">Type of issue</div>
+        <select class="cpar-cat-select" id="cpar-cat-select" onchange="cparFormState.category=this.value"></select>
+      </div>
+      <div>
+        <div class="cpar-field-label">Description *</div>
+        <textarea class="cpar-desc-input" id="cpar-desc-input" placeholder="Describe the issue clearly…" oninput="cparFormState.desc=this.value"></textarea>
+      </div>
+      <div>
+        <div class="cpar-field-label">Chairs affected</div>
+        <div class="cpar-qty-row">
+          <input class="cpar-qty-input" id="cpar-qty-input" type="number" min="1" value="1" oninput="cparFormState.qty=parseInt(this.value)||1">
+          <span style="font-size:12px;color:var(--text2)">chairs</span>
+        </div>
+      </div>
+      <div>
+        <div class="cpar-field-label">Other affected jobs <span style="font-weight:400;text-transform:none;color:var(--text3)">(optional — select from all weeks)</span></div>
+        <button class="cpar-jobs-toggle" onclick="toggleCPARJobsList()">
+          <span id="cpar-jobs-toggle-label">Add more jobs from production plan ▼</span>
+        </button>
+        <div class="cpar-jobs-list" id="cpar-jobs-list">
+          <div class="cpar-jobs-search"><input id="cpar-jobs-search" placeholder="Search REP or model…" oninput="filterCPARJobsList()" autocomplete="off"></div>
+          <div id="cpar-jobs-items"></div>
+        </div>
+      </div>
+      <div>
+        <div class="cpar-field-label">Photo <span style="font-weight:400;text-transform:none;color:var(--text3)">(optional)</span></div>
+        <label class="cpar-photo-btn" for="cpar-photo-input">
+          <span style="font-size:18px">📷</span>
+          <span id="cpar-photo-label">Take or upload photo</span>
+        </label>
+        <input type="file" id="cpar-photo-input" accept="image/*" capture="environment" style="display:none" onchange="cparPhotoSelected(this)">
+        <img id="cpar-photo-preview" class="cpar-photo-preview" alt="Photo preview">
+      </div>
+    </div>
+    <div class="cpar-modal-footer">
+      <button class="cpar-modal-cancel" onclick="closeCPARModal()">Cancel</button>
+      <button class="cpar-modal-submit" id="cpar-submit-btn" onclick="submitCPAR()">Submit CPAR</button>
+    </div>
+  </div>
 </div>
 
 <!-- Mechanism Serial Code modal -->
