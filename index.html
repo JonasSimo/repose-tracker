@@ -3552,11 +3552,12 @@ async function acknowledgeAlert(alertId, btn) {
     const listId = await getListIdByName(SP_SPEC_ALERTS_LIST);
     const token  = await getGraphToken();
     const now    = new Date().toLocaleDateString('en-GB') + ' ' + new Date().toTimeString().slice(0,5);
-    await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${alertId}`, {
+    const ackRes = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${alertId}`, {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ fields: { Status: 'acknowledged', AcknowledgedAt: now } })
     });
+    if (!ackRes.ok) throw new Error(`HTTP ${ackRes.status}`);
     if (alert) { SPEC_ALERT_SENT.delete(`${alert.rep}__${alert.fieldKey}`); saveSpecAlertCache(); }
     SPEC_ALERTS = SPEC_ALERTS.filter(a => a.id !== alertId);
     renderSpecAlerts();
@@ -3575,7 +3576,7 @@ async function logScrapAndDismiss(alertId, btn) {
     const scrapId  = await getListIdByName(SP_SCRAP_LOG_LIST);
     const alertsId = await getListIdByName(SP_SPEC_ALERTS_LIST);
     const now      = new Date().toLocaleDateString('en-GB') + ' ' + new Date().toTimeString().slice(0,5);
-    await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${scrapId}/items`, {
+    const scrapPostRes = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${scrapId}/items`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ fields: {
@@ -3584,11 +3585,13 @@ async function logScrapAndDismiss(alertId, btn) {
         OldValue: alert.oldVal, NewValue: alert.newVal, LoggedAt: now, Reason: 'Late spec change',
       }})
     });
-    await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${alertsId}/items/${alertId}`, {
+    if (!scrapPostRes.ok) throw new Error(`HTTP ${scrapPostRes.status}`);
+    const alertPatchRes = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${alertsId}/items/${alertId}`, {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ fields: { Status: 'scrapped', AcknowledgedAt: now } })
     });
+    if (!alertPatchRes.ok) throw new Error(`HTTP ${alertPatchRes.status}`);
     if (alert) { SPEC_ALERT_SENT.delete(`${alert.rep}__${alert.fieldKey}`); saveSpecAlertCache(); }
     SPEC_ALERTS = SPEC_ALERTS.filter(a => a.id !== alertId);
     renderSpecAlerts();
@@ -3730,10 +3733,11 @@ async function deleteCompletionFromList(team, sub, wk, prep, ji) {
     const siteId = await getSpSiteId();
     const listId = await getSpListId();
     const token  = await getGraphToken();
-    await fetch(
+    const delRes = await fetch(
       `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${s.listItemId}`,
       { method:'DELETE', headers:{ Authorization:`Bearer ${token}` } }
     );
+    if (!delRes.ok) throw new Error(`HTTP ${delRes.status}`);
     s.listItemId = null;
   } catch(e) {
     console.warn('deleteCompletionFromList failed:', e.message);
@@ -4493,6 +4497,7 @@ async function initGraph() {
 
 function ovToggle(dayLabel, ri, dept) {
   const day = OV_DAYS.find(d=>d.label===dayLabel);
+  if (!day || !day.reps[ri]) return; // stale label after OV_DAYS rebuild
   const rep = day.reps[ri];
   const nowDone = !rep.s[dept];
   rep.s[dept] = nowDone ? 1 : 0;
@@ -5049,7 +5054,7 @@ function showStatsContent() {
   document.getElementById('stats-content').style.display = 'flex';
   document.getElementById('stats-content').style.flexDirection = 'column';
   statsUpdateNav();
-  if (!STATS_COMPLETIONS.length && !STATS_ALERTS.length && !STATS_SCRAP.length) {
+  if (!STATS_COMPLETIONS.length && !STATS_ALERTS.length && !STATS_SCRAP.length && !STATS_CPARS.length) {
     loadStatsData();
   } else {
     renderStatsDashboard();
@@ -6250,7 +6255,8 @@ function renderDetailCPAR() {
     }
 
     // Run chart
-    statsCharts['ch-q-trend'] = new Chart(document.getElementById('ch-q-trend').getContext('2d'), {
+    const trendEl = document.getElementById('ch-q-trend');
+    if (trendEl) statsCharts['ch-q-trend'] = new Chart(trendEl.getContext('2d'), {
       type:'line',
       data:{
         labels: weekBuckets.map(b => b.label),
@@ -6435,7 +6441,7 @@ async function logAccQCCompletion(repId) {
     const siteId = await getSpSiteId();
     const listId = await getListIdByName('ProductionCompletions');
     const now    = new Date();
-    await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`, {
+    const accQcRes = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ fields: {
@@ -6448,6 +6454,7 @@ async function logAccQCCompletion(repId) {
         IsComplete:    true,
       }}),
     });
+    if (!accQcRes.ok) throw new Error(`HTTP ${accQcRes.status}`);
     toast(`${repId} QC logged`, 's');
   } catch(e) {
     console.warn('logAccQCCompletion:', e.message);
