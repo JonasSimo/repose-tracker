@@ -135,7 +135,7 @@ let rawExcelData = []; // stored until we know column internal names
 // ── MSAL ──────────────────────────────────────────────
 async function initMsal() {
   msalInstance = new msal.PublicClientApplication({
-    auth: { clientId: AZURE_CLIENT_ID, authority: `https://login.microsoftonline.com/${AZURE_TENANT_ID}`, redirectUri: location.origin + '/migrate-cpar.html' },
+    auth: { clientId: AZURE_CLIENT_ID, authority: `https://login.microsoftonline.com/${AZURE_TENANT_ID}`, redirectUri: location.origin + '/' },
     cache: { cacheLocation: 'localStorage' },
   });
   await msalInstance.initialize();
@@ -152,7 +152,7 @@ async function initMsal() {
 async function doSignIn() {
   try {
     // Always use popup to ensure fresh token with correct scopes
-    const res = await msalInstance.acquireTokenPopup({ scopes: GRAPH_SCOPES, prompt: 'select_account' });
+    const res = await msalInstance.acquireTokenPopup({ scopes: GRAPH_SCOPES });
     graphToken = res.accessToken;
     setSignedIn(res.account.name || res.account.username);
   } catch(e) { alert('Sign-in failed: ' + e.message); }
