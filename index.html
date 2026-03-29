@@ -3577,7 +3577,7 @@ async function acknowledgeAlert(alertId, btn) {
     SPEC_ALERTS = SPEC_ALERTS.filter(a => a.id !== alertId);
     renderSpecAlerts();
     toast('Alert acknowledged', 's');
-  } catch(e) { console.warn('acknowledgeAlert:', e.message); toast('Could not update alert — check connection', 'u'); }
+  } catch(e) { console.warn('acknowledgeAlert:', e.message); toast('Could not update alert — check connection', 'u'); if (btn) { btn.disabled = false; btn.style.opacity = ''; } }
 }
 
 async function logScrapAndDismiss(alertId, btn) {
@@ -3611,7 +3611,7 @@ async function logScrapAndDismiss(alertId, btn) {
     SPEC_ALERTS = SPEC_ALERTS.filter(a => a.id !== alertId);
     renderSpecAlerts();
     toast(`${alert.rep} logged as scrap`, 's');
-  } catch(e) { console.warn('logScrapAndDismiss:', e.message); toast('Could not save scrap record — check connection', 'u'); }
+  } catch(e) { console.warn('logScrapAndDismiss:', e.message); toast('Could not save scrap record — check connection', 'u'); if (btn) { btn.disabled = false; btn.style.opacity = ''; } }
 }
 
 function renderSpecAlerts() {
@@ -3793,6 +3793,7 @@ function findJobByRep(rep7) {
 
 async function autoSyncQCCompletions() {
   if (!QC_SHEET_SHARING_URL) return;
+  if (qcSyncing) return;
   qcSyncing = true; // set before any await to prevent concurrent invocations
   const token = await getGraphToken().catch(() => null);
   if (!token) { qcSyncing = false; return; }
@@ -6844,7 +6845,7 @@ function renderCPARJobsItems(query) {
   } else {
     // Default: same week only, closest job numbers first
     filtered = allJobs.filter(j => j.wk === primaryWk);
-    filtered.sort((a, b) => Math.abs(parseInt(a.itemNo)||0 - primaryItemNo) - Math.abs(parseInt(b.itemNo)||0 - primaryItemNo));
+    filtered.sort((a, b) => Math.abs((parseInt(a.itemNo)||0) - primaryItemNo) - Math.abs((parseInt(b.itemNo)||0) - primaryItemNo));
   }
 
   const container = document.getElementById('cpar-jobs-items');
@@ -7134,6 +7135,7 @@ function renderCPARCard(item) {
 }
 
 function formatCPARAge(date) {
+  if (!date || !date.getTime()) return '—';
   const diff = Date.now() - date.getTime();
   const mins = Math.floor(diff/60000);
   if (mins < 1) return 'just now';
