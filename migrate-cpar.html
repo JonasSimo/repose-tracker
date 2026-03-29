@@ -122,6 +122,7 @@ let graphToken   = null;
 let spSiteId     = null;
 let spListId     = null;
 let parsedRows   = [];
+let rawExcelData = []; // stored until we know column internal names
 
 // ── MSAL ──────────────────────────────────────────────
 async function initMsal() {
@@ -163,12 +164,33 @@ async function graphGet(url) {
   return r.json();
 }
 
+let spColumnMap = {}; // displayName → internalName
+
 async function getIds() {
   if (spSiteId && spListId) return;
   const site = await graphGet(`https://graph.microsoft.com/v1.0/sites/${SP_HOST}:${SP_SITE_PATH}`);
   spSiteId = site.id;
   const list = await graphGet(`https://graph.microsoft.com/v1.0/sites/${spSiteId}/lists/${SP_CPAR_LIST}`);
   spListId = list.id;
+
+  // Fetch actual internal column names from SharePoint
+  const cols = await graphGet(`https://graph.microsoft.com/v1.0/sites/${spSiteId}/lists/${spListId}/columns`);
+  spColumnMap = {};
+  for (const col of (cols.value||[])) {
+    spColumnMap[col.displayName] = col.name; // e.g. "PrimaryJobNo" → "PrimaryJobNo0"
+  }
+  log('SharePoint columns found:', 'ok');
+  for (const [display, internal] of Object.entries(spColumnMap)) {
+    if (!['ID','Created','Modified','Author','Editor','_UIVersionString','Attachments','Edit','LinkTitleNoMenu','LinkTitle','DocIcon','ItemChildCount','FolderChildCount','AppAuthor','AppEditor'].includes(display)) {
+      const match = display === internal ? '✓' : `⚠ display="${display}" internal="${internal}"`;
+      log(`  ${match}`, display === internal ? 'ok' : 'warn');
+    }
+  }
+}
+
+// Map a field name to its actual SharePoint internal name
+function f(name) {
+  return spColumnMap[name] || name;
 }
 
 // ── Excel parsing ─────────────────────────────────────
@@ -188,8 +210,10 @@ function fileSelected(input) {
       const ws = wb.Sheets['Sheet1'];
       if (!ws) { alert('Could not find Sheet1 in this file'); return; }
       const data = XLSX.utils.sheet_to_json(ws, { header:1, raw:false, dateNF:'dd/mm/yyyy' });
-      parsedRows = transformRows(data);
-      showPreview(data.length - 1, parsedRows.length);
+      rawExcelData = data;
+      // Quick count of valid rows (those with an RP- REF) for the preview
+      const validCount = data.slice(1).filter(r => String(r[30]||'').trim().startsWith('RP-')).length;
+      showPreview(data.length - 1, validCount);
     } catch(err) {
       alert('Could not read file: ' + err.message);
     }
@@ -299,27 +323,26 @@ function transformRows(data) {
     const jobNo = parseInt(r[5]);
 
     const fields = {
-      Title:            san(ref, 20),
-      RaisedByTeam:     san(raisedByTeam, 100),
-      PrimaryREP:       '',
-      PrimaryModel:     san(pick(r[8]), 200),
-      PrimaryWeek:      san(week, 20),
-      AffectedJobs:     '[]',
-      QTY:              qtyRaw,
-      SourceDept:       san(sourceDept, 200),
-      IssueCategory:    san(issueCategory, 255),
-      Description:      san(description, 1000),
-      CauseCode:        san(causeCode, 255),
-      CorrectiveAction: san(correctiveAction, 2000),
-      Status:           'Closed',
-      ClosedBy:         san(pick(r[4]), 100),
-      ClosedAt:         san(closedAt, 30),
-      LoggedAt:         san(loggedAt, 30),
+      [f('Title')]:            san(ref, 20),
+      [f('RaisedByTeam')]:     san(raisedByTeam, 100),
+      [f('PrimaryREP')]:       '',
+      [f('PrimaryModel')]:     san(pick(r[8]), 200),
+      [f('PrimaryWeek')]:      san(week, 20),
+      [f('AffectedJobs')]:     '[]',
+      [f('QTY')]:              qtyRaw,
+      [f('SourceDept')]:       san(sourceDept, 200),
+      [f('IssueCategory')]:    san(issueCategory, 255),
+      [f('Description')]:      san(description, 1000),
+      [f('CauseCode')]:        san(causeCode, 255),
+      [f('CorrectiveAction')]: san(correctiveAction, 2000),
+      [f('Status')]:           'Closed',
+      [f('ClosedBy')]:         san(pick(r[4]), 100),
+      [f('ClosedAt')]:         san(closedAt, 30),
+      [f('LoggedAt')]:         san(loggedAt, 30),
     };
 
-    // Only include Number fields if they have valid values (avoid sending NaN/0 for optional fields)
-    if (!isNaN(jobNo) && jobNo > 0) fields.PrimaryJobNo = jobNo;
-    if (qtyRaw > 1) fields.TotalAffected = qtyRaw;
+    if (!isNaN(jobNo) && jobNo > 0) fields[f('PrimaryJobNo')] = jobNo;
+    if (qtyRaw > 1) fields[f('TotalAffected')] = qtyRaw;
 
     rows.push(fields);
   }
@@ -359,6 +382,10 @@ async function startImport() {
     return;
   }
 
+  // Transform rows NOW — after spColumnMap is populated so f() maps correctly
+  parsedRows = transformRows(rawExcelData);
+  log(`Transformed ${parsedRows.length} records with correct SharePoint column names`, 'ok');
+
   const total = parsedRows.length;
   const BATCH = 20;
   importDone = importSkip = importErr = 0;
@@ -389,10 +416,17 @@ async function startImport() {
           const row  = chunk[idx2];
           const ref  = row?.Title || '?';
           try {
-            const r2 = await fetch(`https://graph.microsoft.com/v1.0/sites/${spSiteId}/lists/${spListId}/items`, {
+            const coreFields = {};
+          coreFields[f('Title')]        = row[f('Title')] || '?';
+          coreFields[f('Status')]       = 'Closed';
+          coreFields[f('Description')]  = row[f('Description')]  || '';
+          coreFields[f('SourceDept')]   = row[f('SourceDept')]   || '';
+          coreFields[f('RaisedByTeam')] = row[f('RaisedByTeam')] || '';
+          coreFields[f('LoggedAt')]     = row[f('LoggedAt')]     || '';
+          const r2 = await fetch(`https://graph.microsoft.com/v1.0/sites/${spSiteId}/lists/${spListId}/items`, {
               method: 'POST',
               headers: { Authorization: `Bearer ${graphToken}`, 'Content-Type': 'application/json' },
-              body: JSON.stringify({ fields: { Title: row.Title, Status: 'Closed', Description: row.Description||'', SourceDept: row.SourceDept||'', RaisedByTeam: row.RaisedByTeam||'', LoggedAt: row.LoggedAt||'' } }),
+              body: JSON.stringify({ fields: coreFields }),
             });
             if (r2.ok) { importDone++; }
             else { importErr++; log(`Skipped ${ref}: ${resp.status}`, 'warn'); }
