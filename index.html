@@ -6126,9 +6126,9 @@ function renderDetailCPAR() {
   // ──────────────────────────────────────────────────────────────
 
   // derive unique teams from all data in this period for the filter chips
-  const allTeams = [...new Set(allPeriodCPARs.map(c => normaliseTeam(c.fields?.RaisedByTeam||'')).filter(Boolean))].sort();
+  const allTeams = [...new Set(allPeriodCPARs.map(c => normaliseTeam(c.fields?.SourceDept||'')).filter(Boolean))].sort();
   // apply team filter on top of period filter
-  const cpars = cparStatTeam ? allPeriodCPARs.filter(c => normaliseTeam(c.fields?.RaisedByTeam||'') === cparStatTeam) : allPeriodCPARs;
+  const cpars = cparStatTeam ? allPeriodCPARs.filter(c => normaliseTeam(c.fields?.SourceDept||'') === cparStatTeam) : allPeriodCPARs;
 
   const body   = document.getElementById('stats-detail-body');
   if (typeof Chart === 'undefined') {
