@@ -441,7 +441,7 @@ function transformRows(data) {
     // ClosedAt = today (all historical records treated as closed today)
     // ClosedBy = person responsible for that team (only written if column exists in SharePoint)
     if ('ClosedAt' in spColumnMap) fields[f('ClosedAt')] = TODAY_DDMMYYYY;
-    const closedBy = CLOSED_BY_MAP[raisedByTeam] || '';
+    const closedBy = CLOSED_BY_MAP[sourceDept] || CLOSED_BY_MAP[raisedByTeam] || '';
     if (closedBy && 'ClosedBy' in spColumnMap) fields[f('ClosedBy')] = closedBy;
 
     rows.push(fields);
