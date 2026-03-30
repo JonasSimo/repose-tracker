@@ -6219,7 +6219,7 @@ function renderDetailCPAR() {
     <div class="q-two-col">
       <div class="q-section" style="margin-bottom:0">
         <div class="q-section-title">Issues by Team</div>
-        <div style="height:${Math.max(140, Object.keys((() => { const m={}; cpars.forEach(c=>{const k=normaliseTeam(c.fields?.RaisedByTeam||'Unknown'); m[k]=(m[k]||0)+1;}); return m; })()).length * 30 + 20)}px"><canvas id="ch-q-team"></canvas></div>
+        <div style="height:${Math.max(140, Object.keys((() => { const m={}; cpars.forEach(c=>{const k=normaliseTeam(c.fields?.SourceDept||'Unknown'); m[k]=(m[k]||0)+1;}); return m; })()).length * 30 + 20)}px"><canvas id="ch-q-team"></canvas></div>
       </div>
       <div class="q-section" style="margin-bottom:0">
         <div class="q-section-title">SLA Compliance (closed issues)</div>
@@ -6281,7 +6281,7 @@ function renderDetailCPAR() {
 
   // Team
   const teamMap = {};
-  cpars.forEach(c => { const k = normaliseTeam(c.fields?.RaisedByTeam||'Unknown'); teamMap[k] = (teamMap[k]||0)+1; });
+  cpars.forEach(c => { const k = normaliseTeam(c.fields?.SourceDept||'Unknown'); teamMap[k] = (teamMap[k]||0)+1; });
   const teamEntries = Object.entries(teamMap).sort((a,b) => b[1]-a[1]);
 
   // Root cause
