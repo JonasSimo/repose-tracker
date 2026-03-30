@@ -55,7 +55,7 @@ button{padding:9px 18px;border-radius:8px;border:none;cursor:pointer;font-family
 <div class="card">
   <div class="card-title">Steps</div>
   <div class="step"><div class="step-num" id="s1">1</div><span>Sign in with your Repose M365 account</span></div>
-  <div class="step"><div class="step-num" id="s2">2</div><span>Select your <strong>Digital CPAR Form 1.xlsx</strong> file</span></div>
+  <div class="step"><div class="step-num" id="s2">2</div><span>Select your <strong>CPAR Migrate.xlsx</strong> file</span></div>
   <div class="step"><div class="step-num" id="s3">3</div><span>Review the preview and click Import</span></div>
 </div>
 
@@ -72,7 +72,7 @@ button{padding:9px 18px;border-radius:8px;border:none;cursor:pointer;font-family
   <div class="file-drop" id="file-drop">
     <input type="file" accept=".xlsx,.xlsm,.xls" onchange="fileSelected(this)">
     <div class="file-drop-icon">📂</div>
-    <div class="file-drop-label" id="file-label">Tap to select Digital CPAR Form 1.xlsx</div>
+    <div class="file-drop-label" id="file-label">Tap to select CPAR Migrate.xlsx</div>
   </div>
 </div>
 
@@ -89,8 +89,9 @@ button{padding:9px 18px;border-radius:8px;border:none;cursor:pointer;font-family
   </div>
   <div id="col-check-loading" style="margin-top:10px;font-size:13px;color:#706f6f;display:none">Checking SharePoint columns…</div>
 
-  <div style="margin-top:12px;display:flex;gap:8px">
-    <button class="btn-primary" id="import-btn" onclick="startImport()" disabled>Import All Records</button>
+  <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+    <button class="btn-primary" id="import-btn-test" onclick="startImport(100)" disabled>Test Import (first 100)</button>
+    <button class="btn-primary" id="import-btn" onclick="startImport()" disabled style="background:#059669">Import All Records</button>
     <button class="btn-secondary" onclick="location.reload()">Start Over</button>
   </div>
 </div>
@@ -102,7 +103,7 @@ button{padding:9px 18px;border-radius:8px;border:none;cursor:pointer;font-family
   <div class="progress-wrap"><div class="progress-bar" id="progress-bar" style="width:0%"></div></div>
   <div class="stat-row" style="margin-top:12px">
     <div class="stat"><div class="stat-num" id="stat-done">0</div><div class="stat-label">Imported</div></div>
-    <div class="stat"><div class="stat-num" id="stat-skip">0</div><div class="stat-label">Skipped (no REF)</div></div>
+    <div class="stat"><div class="stat-num" id="stat-skip">0</div><div class="stat-label">Skipped (empty rows)</div></div>
     <div class="stat"><div class="stat-num" id="stat-err">0</div><div class="stat-label">Errors</div></div>
   </div>
   <div class="log" id="log"></div>
@@ -227,6 +228,38 @@ function f(name) {
   return spColumnMap[name] || name;
 }
 
+// ── Excel serial date → RepNet DD/MM/YYYY HH:MM ───────
+function excelDateToRepNet(val) {
+  if (!val) return '';
+  const n = parseFloat(val);
+  if (isNaN(n)) return parseDate(String(val)); // fallback: try string parse
+  // Excel serial: days since 1900-01-00 (with 1900 leap-year bug — offset 25569 from Unix epoch)
+  const ms = (n - 25569) * 86400 * 1000;
+  const d  = new Date(ms);
+  if (isNaN(d.getTime())) return '';
+  const dd  = String(d.getUTCDate()).padStart(2,'0');
+  const mm  = String(d.getUTCMonth()+1).padStart(2,'0');
+  const yr  = d.getUTCFullYear();
+  const hr  = String(d.getUTCHours()).padStart(2,'0');
+  const min = String(d.getUTCMinutes()).padStart(2,'0');
+  return `${dd}/${mm}/${yr} ${hr}:${min}`;
+}
+
+// Normalise RaisedByTeam: "Arms"/"Backs"/"Seats" → Upholstery sub-teams
+function normaliseRaisedByTeam(raw) {
+  const t = (raw||'').trim();
+  if (t === 'Arms')  return 'Upholstery Arms';
+  if (t === 'Backs') return 'Upholstery Backs';
+  if (t === 'Seats') return 'Upholstery Seats';
+  return t; // Assembly, Cutting, QC, Sewing, Woodmill, Offices — keep as-is
+}
+
+// Normalise SourceDept: strip trailing " error"/" Error" suffixes
+// e.g. "Cutting error" → "Cutting", "Material / Supplier Error" → "Material / Supplier"
+function normaliseSourceDept(raw) {
+  return (raw||'').replace(/\s+error$/i, '').replace(/\s+Error$/i, '').trim();
+}
+
 // ── Excel parsing ─────────────────────────────────────
 function fileSelected(input) {
   const file = input.files[0];
@@ -239,14 +272,16 @@ function fileSelected(input) {
   const reader = new FileReader();
   reader.onload = e => {
     try {
-      const wb = XLSX.read(e.target.result, { type:'array', cellDates:true });
-      // Use Sheet1 — the raw submissions
+      const wb = XLSX.read(e.target.result, { type:'array', cellDates:false });
+      // Use Sheet1
       const ws = wb.Sheets['Sheet1'];
       if (!ws) { alert('Could not find Sheet1 in this file'); return; }
-      const data = XLSX.utils.sheet_to_json(ws, { header:1, raw:false, dateNF:'dd/mm/yyyy' });
+      // raw:true keeps numbers as numbers (important for Excel serial dates in LoggedAt)
+      const data = XLSX.utils.sheet_to_json(ws, { header:1, raw:true });
       rawExcelData = data;
-      // Quick count of valid rows (those with an RP- REF) for the preview
-      const validCount = data.slice(1).filter(r => String(r[30]||'').trim().startsWith('RP-')).length;
+      detectRefCol(data);
+      // Valid row = has a non-empty RaisedByTeam (col B, index 1)
+      const validCount = data.slice(1).filter(r => String(r[1]||'').trim() !== '').length;
       showPreview(data.length - 1, validCount);
       showRawPreview(data);
     } catch(err) {
@@ -254,6 +289,30 @@ function fileSelected(input) {
     }
   };
   reader.readAsArrayBuffer(file);
+}
+
+// Scan all columns in a row to find the RP-XXXXX reference number
+function findRef(r) {
+  for (const cell of (r||[])) {
+    const s = String(cell||'').trim();
+    if (/^RP-\d+/i.test(s)) return s.toUpperCase();
+  }
+  return '';
+}
+
+// Return the 0-based column index where the REF lives (determined from first valid data row)
+let refColIndex = -1;
+function detectRefCol(data) {
+  for (let i = 1; i < data.length; i++) {
+    const r = data[i];
+    for (let c = 0; c < (r||[]).length; c++) {
+      if (/^RP-\d+/i.test(String(r[c]||'').trim())) {
+        refColIndex = c;
+        return c;
+      }
+    }
+  }
+  return -1;
 }
 
 function pick(...vals) {
@@ -296,95 +355,67 @@ function parseDate(val) {
 
 function transformRows(data) {
   if (data.length < 2) return [];
-  // Row 0 = headers, rows 1+ = data
+  // CPAR Migrate.xlsx — 13 columns, already pre-processed:
+  // A=r[0]  Title (RP-XXXXX)        B=r[1]  RaisedByTeam
+  // C=r[2]  PrimaryJobNo            D=r[3]  Primary Model
+  // E=r[4]  Primary Week            F=r[5]  Total Affected
+  // G=r[6]  QTY                     H=r[7]  SourceDept
+  // I=r[8]  CauseCode               J=r[9]  Corrective Action
+  // K=r[10] LoggedAt (serial)       L=r[11] Description
+  // M=r[12] IssueCategory
   const rows = [];
+  let autoRefCounter = 1; // used when no RP- ref found in the row
   for (let i = 1; i < data.length; i++) {
     const r = data[i];
-    // C1=r[0] Id, C2=r[1] Start time, C3=r[2] Completion time
-    // C4=r[3] Email, C5=r[4] Name
-    // C6=r[5] Job Number, C7=r[6] Job Week Commencing
-    // C8=r[7] How many chairs affected, C9=r[8] Model name
-    // C10=r[9] Which team, C11=r[10] Upholstery Source Dept
-    // C12=r[11] Which option (upholstery), C13=r[12] Back options
-    // C14=r[13] Seat options, C15=r[14] Arm options
-    // C16=r[15] Sewing Source Dept, C17=r[16] Which option (sewing)
-    // C18=r[17] Describe issue (missing part), C19=r[18] Detailed description
-    // C20=r[19] Missing bit section, C21=r[20] Incorrectly cut section
-    // C22=r[21] Incorrectly made section
-    // C23=r[22] Category, C24=r[23] Describe issue, C25=r[24] Category1
-    // C26=r[25] Describe issue1, C27=r[26] Describe issue2
-    // C28=r[27] Cause of the issue, C29=r[28] Counter Measure
-    // C30=r[29] Sources, C31=r[30] REF, C32=r[31] Week, C33=r[32] Year
 
-    const ref = pick(r[30]);
-    if (!ref || !ref.startsWith('RP-')) continue; // skip rows without valid REF
+    // Valid row = non-empty RaisedByTeam (col B); skip ghost/empty rows
+    const raisedByTeamRaw = String(r[1]||'').trim();
+    if (!raisedByTeamRaw) continue;
 
-    const raisedByTeam = pick(r[9]);
-    const sourceDept   = pick(r[29]);
+    // Use RP- ref if found in any column, otherwise auto-generate
+    const foundRef = findRef(r);
+    const ref = foundRef || `HIST-${String(autoRefCounter++).padStart(5,'0')}`;
 
-    // Best description: pick first non-empty detailed description
-    const description  = pick(r[18], r[17], r[23], r[25], r[26], r[24]);
+    const raisedByTeam     = normaliseRaisedByTeam(raisedByTeamRaw);
+    const sourceDept       = normaliseSourceDept(pick(r[7]));
+    const description      = pick(r[11]);
+    const issueCategory    = pick(r[12]);
+    const causeCode        = pick(r[8]);
+    const correctiveAction = pick(r[9]);
 
-    // Issue category: build from the multi-level structure
-    // Col 12 = Back/Seat/Arm Error, Col 13/14/15 = specific sub-issue
-    const section = pick(r[11]); // e.g. "Back Error"
-    const backSub = pick(r[12]);
-    const seatSub = pick(r[13]);
-    const armSub  = pick(r[14]);
-    const sewingSub = pick(r[16]);
-    const cutSection = pick(r[19], r[20]);
-    // Build combined category label
-    let issueCategory = '';
-    if (section.toLowerCase().includes('back') && backSub) issueCategory = `Back — ${backSub}`;
-    else if (section.toLowerCase().includes('seat') && seatSub) issueCategory = `Seat — ${seatSub}`;
-    else if (section.toLowerCase().includes('arm') && armSub) issueCategory = `Arms — ${armSub}`;
-    else if (sewingSub) issueCategory = sewingSub;
-    else if (cutSection) issueCategory = cutSection;
-    else issueCategory = pick(r[11], r[12], r[13], r[14], r[16], r[22], r[24], r[19], r[20], r[21]);
+    const qtyRaw        = Math.max(1, Math.min(500, parseInt(r[6]) || 1));
+    const totalAffected = Math.max(qtyRaw, parseInt(r[5]) || 1);
+    const loggedAt      = excelDateToRepNet(r[10]);
+    const week          = pick(r[4]);         // keep "WK 06" as-is
+    const jobNoRaw      = String(r[2]||'').trim();
+    const jobNo         = parseInt(jobNoRaw); // NaN for non-numeric (e.g. "C19")
+    const model         = san(pick(r[3]), 200);
 
-    const causeCode       = pick(r[27]);
-    const correctiveAction = pick(r[28]);
-    const isClosed        = !!(causeCode || correctiveAction);
+    // Fold cause + corrective action into Description
+    // (CauseCode / CorrectiveAction columns don't exist in CPARLog)
+    let fullDesc = san(description, 800);
+    if (causeCode)         fullDesc += (fullDesc ? '\nCause: '  : 'Cause: ')  + san(causeCode, 255);
+    if (correctiveAction)  fullDesc += (fullDesc ? '\nAction: ' : 'Action: ') + san(correctiveAction, 500);
+    // Append non-numeric job refs so they're not silently lost
+    if (jobNoRaw && isNaN(jobNo)) fullDesc = (fullDesc ? fullDesc + ' ' : '') + `[Job: ${san(jobNoRaw,30)}]`;
 
-    const loggedAt = parseDate(pick(r[1]));
-    const closedAt = parseDate(pick(r[2]));
-
-    let qtyRaw = parseInt(r[7])||1;
-    if (qtyRaw < 1 || qtyRaw > 500) qtyRaw = 1;
-
-    // Format week: if r[31] is a number like "8", prefix "WK "
-    let week = pick(r[31]);
-    if (week && /^\d+$/.test(week)) week = `WK ${week}`;
-    else if (!week) week = pick(r[6]);
-
-    const jobNo = parseInt(r[5]);
-
-    // All SharePoint columns are text type except HasPhoto (boolean)
-    // — send numbers as strings to avoid 500 errors
     const fields = {
-      [f('Title')]:        san(ref, 20),
-      [f('RaisedByTeam')]: san(raisedByTeam, 100),
-      [f('AffectedJobs')]: '[]',
-      [f('QTY')]:          String(qtyRaw),
-      [f('SourceDept')]:   san(sourceDept, 200),
-      [f('Status')]:       'Closed',
-      [f('HasPhoto')]:     false,
+      [f('Title')]:         san(ref, 20),
+      [f('RaisedByTeam')]:  san(raisedByTeam, 100),
+      [f('AffectedJobs')]:  '[]',
+      [f('QTY')]:           String(qtyRaw),
+      [f('TotalAffected')]: String(totalAffected),
+      [f('SourceDept')]:    san(sourceDept, 200),
+      [f('Status')]:        'Closed',
+      [f('HasPhoto')]:      false,
     };
 
-    // Only include optional fields when they have a value
-    const model    = san(pick(r[8]), 200);
-    const closedBy = san(pick(r[4]), 100);
-    if (week)           fields[f('PrimaryWeek')]      = san(week, 20);
-    if (model)          fields[f('PrimaryModel')]     = model;
-    if (issueCategory)  fields[f('IssueCategory')]   = san(issueCategory, 255);
-    if (description)    fields[f('Description')]      = san(description, 1000);
-    if (causeCode)      fields[f('CauseCode')]        = san(causeCode, 255);
-    if (correctiveAction) fields[f('CorrectiveAction')] = san(correctiveAction, 2000);
-    if (closedBy)       fields[f('ClosedBy')]         = closedBy;
+    if (week)          fields[f('PrimaryWeek')]    = san(week, 20);
+    if (model)         fields[f('PrimaryModel')]   = model;
+    if (issueCategory) fields[f('IssueCategory')]  = san(issueCategory, 255);
+    if (fullDesc)      fields[f('Description')]    = fullDesc.slice(0, 1000);
     if (!isNaN(jobNo) && jobNo > 0) fields[f('PrimaryJobNo')] = String(jobNo);
-    if (qtyRaw > 1)     fields[f('TotalAffected')]   = String(qtyRaw);
-    if (loggedAt)       fields[f('LoggedAt')]         = loggedAt;
-    if (closedAt)       fields[f('ClosedAt')]         = closedAt;
+    if (loggedAt)      fields[f('LoggedAt')]       = loggedAt;
 
     rows.push(fields);
   }
@@ -392,16 +423,16 @@ function transformRows(data) {
 }
 
 function showRawPreview(data) {
-  // Find first row with an RP- REF to use as sample
+  // Find first row with a non-empty RaisedByTeam to use as sample
   let sample = null;
   for (let i = 1; i < data.length; i++) {
-    if (String(data[i][30]||'').trim().startsWith('RP-')) { sample = data[i]; break; }
+    if (String(data[i][1]||'').trim() !== '') { sample = data[i]; break; }
   }
   if (!sample) return;
 
-  // Show headers row + sample row at key indices
+  // Show all 13 columns
   const headers = data[0] || [];
-  const keyIndices = [5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32];
+  const keyIndices = [0,1,2,3,4,5,6,7,8,9,10,11,12];
   let html = '<div style="margin-top:14px"><div style="font-size:12px;font-weight:700;color:#706f6f;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Raw Excel Sample (first valid row)</div>';
   html += '<div class="log" style="max-height:200px">';
   html += `<div style="color:#14a1e9;font-weight:600">Col# | Header | Value</div>`;
@@ -445,6 +476,10 @@ async function showPreview(totalRows, validRows) {
     document.getElementById('col-check-loading').style.display = 'none';
     document.getElementById('col-check-wrap').style.display = 'block';
     document.getElementById('import-btn').disabled = false;
+    document.getElementById('import-btn-test').disabled = false;
+    // Update "Import All" label with actual count
+    const allRows = transformRows(rawExcelData);
+    document.getElementById('import-btn').textContent = `Import All ${allRows.length.toLocaleString()} Records`;
   } catch(e) {
     document.getElementById('col-check-loading').textContent = `Could not connect to SharePoint: ${e.message}`;
   }
@@ -459,8 +494,9 @@ function log(msg, cls='') {
   el.scrollTop = el.scrollHeight;
 }
 
-async function startImport() {
+async function startImport(limit) {
   document.getElementById('import-btn').disabled = true;
+  document.getElementById('import-btn-test').disabled = true;
   document.getElementById('card-progress').style.display = 'block';
   document.getElementById('card-preview').style.display = 'none';
 
@@ -476,9 +512,24 @@ async function startImport() {
     log(`⚠ Could not refresh token: ${e.message} — trying to continue`, 'warn');
   }
 
+  // Diagnostics — show what rawExcelData looks like before transform
+  log(`rawExcelData rows: ${rawExcelData.length}`, rawExcelData.length > 0 ? 'ok' : 'err');
+  if (rawExcelData.length > 1) {
+    const r0 = rawExcelData[0]; // headers
+    const r1 = rawExcelData[1]; // first data row
+    log(`REF column detected at index: ${refColIndex}`, refColIndex >= 0 ? 'ok' : 'err');
+    log(`Headers: ${JSON.stringify(r0)}`, 'ok');
+    log(`Row 1 all values: ${JSON.stringify(r1)}`, 'ok');
+  }
+
   // getIds() + column mapping already done during preview — just transform rows now
   parsedRows = transformRows(rawExcelData);
-  log(`Starting import of ${parsedRows.length} records…`, 'ok');
+  const rows = limit ? parsedRows.slice(0, limit) : parsedRows;
+  if (limit) {
+    log(`TEST MODE — importing first ${rows.length} of ${parsedRows.length} records`, 'warn');
+    document.getElementById('card-progress').querySelector('.card-title').textContent = `Test Import (${rows.length} records)`;
+  }
+  log(`Starting import of ${rows.length} records…`, 'ok');
 
   // Log first record fields so we can verify what's being sent
   if (parsedRows.length > 0) {
@@ -489,7 +540,7 @@ async function startImport() {
     log('── End ──', 'ok');
   }
 
-  const total = parsedRows.length;
+  const total = rows.length;
   const BATCH = 10; // smaller batches to stay under rate limits
   const BATCH_DELAY = 800; // ms between batches
   importDone = importSkip = importErr = 0;
@@ -498,7 +549,7 @@ async function startImport() {
   let firstBatch = true;
 
   for (let i = 0; i < total; i += BATCH) {
-    const chunk = parsedRows.slice(i, i + BATCH);
+    const chunk = rows.slice(i, i + BATCH);
 
     // Send batch with retry on 429
     let batchAttempt = 0;

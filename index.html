@@ -1747,7 +1747,9 @@ document.addEventListener('DOMContentLoaded', () => {
         <button class="issues-team-chip" data-team="Woodmill" onclick="setIssueTeam(this,'Woodmill')">Woodmill</button>
         <button class="issues-team-chip" data-team="Cutting" onclick="setIssueTeam(this,'Cutting')">Cutting</button>
         <button class="issues-team-chip" data-team="Sewing" onclick="setIssueTeam(this,'Sewing')">Sewing</button>
-        <button class="issues-team-chip" data-team="Upholstery" onclick="setIssueTeam(this,'Upholstery')">Upholstery</button>
+        <button class="issues-team-chip" data-team="Upholstery Arms" onclick="setIssueTeam(this,'Upholstery Arms')">Uph Arms</button>
+        <button class="issues-team-chip" data-team="Upholstery Backs" onclick="setIssueTeam(this,'Upholstery Backs')">Uph Backs</button>
+        <button class="issues-team-chip" data-team="Upholstery Seats" onclick="setIssueTeam(this,'Upholstery Seats')">Uph Seats</button>
         <button class="issues-team-chip" data-team="Assembly" onclick="setIssueTeam(this,'Assembly')">Assembly</button>
         <button class="issues-team-chip" data-team="Foam" onclick="setIssueTeam(this,'Foam')">Foam</button>
         <button class="issues-team-chip" data-team="Stores" onclick="setIssueTeam(this,'Stores')">Stores</button>
@@ -6680,8 +6682,11 @@ const TEAM_MANAGERS = {
   'Cutting':     'Mark@reposefurniture.co.uk',
   'Sewing':      'sewing@reposefurniture.co.uk',
   'Woodmill':    'paul.jenkins@reposefurniture.co.uk',
-  'Upholstery':  'daniel.seymour@reposefurniture.co.uk',
-  'Assembly':    'daniel.seymour@reposefurniture.co.uk',
+  'Upholstery':       'daniel.seymour@reposefurniture.co.uk',
+  'Upholstery Arms':  'daniel.seymour@reposefurniture.co.uk',
+  'Upholstery Backs': 'daniel.seymour@reposefurniture.co.uk',
+  'Upholstery Seats': 'daniel.seymour@reposefurniture.co.uk',
+  'Assembly':         'daniel.seymour@reposefurniture.co.uk',
   'Foam':        'foam@reposefurniture.co.uk',
   'Stores':      'stores@reposefurniture.co.uk',
   'Development': 'ryan.evans@reposefurniture.co.uk',
@@ -6801,6 +6806,7 @@ const TEAM_NAME_MAP = {
   'cutting': 'Cutting', 'cutting room': 'Cutting',
   'sewing': 'Sewing', 'sewing room': 'Sewing',
   'upholstery': 'Upholstery', 'upholstery room': 'Upholstery',
+  'upholstery arms': 'Upholstery Arms', 'upholstery backs': 'Upholstery Backs', 'upholstery seats': 'Upholstery Seats',
   'assembly': 'Assembly', 'assembly room': 'Assembly',
   'foam': 'Foam', 'foam room': 'Foam',
   'stores': 'Stores', 'stores room': 'Stores',
@@ -6992,7 +6998,7 @@ async function submitCPAR() {
       `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`,
       { fields: {
         Title:         ref,
-        RaisedByTeam:  activeTeam,
+        RaisedByTeam:  activeHasSubs ? activeTeam + ' ' + activeSub : activeTeam,
         PrimaryREP:    s.rep,
         PrimaryJobNo:  String(s.jobNo||''),
         PrimaryModel:  s.model,
@@ -7019,7 +7025,7 @@ async function submitCPAR() {
     closeCPARModal();
 
     CPAR_ITEMS.unshift({ id:created.id, fields:{
-      Title:ref, RaisedByTeam:activeTeam, PrimaryREP:s.rep, PrimaryJobNo:s.jobNo,
+      Title:ref, RaisedByTeam:activeHasSubs ? activeTeam + ' ' + activeSub : activeTeam, PrimaryREP:s.rep, PrimaryJobNo:s.jobNo,
       PrimaryModel:s.model, PrimaryWeek:s.week, AffectedJobs:JSON.stringify(s.extraJobs),
       TotalAffected:1+s.extraJobs.length, QTY:s.qty, SourceDept:sourceLabel,
       IssueCategory:s.category||'', Description:s.desc.trim(), Status:'Open',
