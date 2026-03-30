@@ -7164,7 +7164,7 @@ function renderIssuesList() {
       return st === cparFilterStatus;
     });
   }
-  if (cparFilterTeam) items = items.filter(i => normaliseTeam(i.fields?.RaisedByTeam) === cparFilterTeam);
+  if (cparFilterTeam) items = items.filter(i => normaliseTeam(i.fields?.SourceDept) === cparFilterTeam);
 
   if (!items.length) {
     listEl.innerHTML = '<div class="issues-empty">No issues found</div>';
@@ -7409,7 +7409,7 @@ function updateTeamCounts() {
   const openItems = CPAR_ITEMS.filter(i => getCPARStatus(i) !== 'closed');
   const counts = {};
   for (const item of openItems) {
-    const t = normaliseTeam(item.fields?.RaisedByTeam || '');
+    const t = normaliseTeam(item.fields?.SourceDept || '');
     counts[t] = (counts[t] || 0) + 1;
   }
   document.querySelectorAll('.issues-team-chip').forEach(chip => {
