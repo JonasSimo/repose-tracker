@@ -6210,7 +6210,7 @@ function renderDetailCPAR() {
     <!-- Pareto: Issues by Category -->
     <div class="q-section">
       <div class="q-section-title">Pareto Analysis — Issue Category (80/20)</div>
-      <div class="q-chart-wrap" style="height:${Math.max(160, Object.keys((() => { const m={}; cpars.forEach(c=>{const k=c.fields?.IssueCategory||'Unknown'; m[k]=(m[k]||0)+1;}); return m; })()).length * 28 + 40)}px">
+      <div class="q-chart-wrap" style="height:${Math.max(160, Object.keys((() => { const m={}; cpars.forEach(c=>{const k=c.fields?.IssueCategory; if(k) m[k]=(m[k]||0)+1;}); return m; })()).length * 28 + 40)}px">
         <canvas id="ch-q-pareto"></canvas>
       </div>
     </div>
@@ -6271,7 +6271,7 @@ function renderDetailCPAR() {
 
   // Pareto
   const catMap = {};
-  cpars.forEach(c => { const k = c.fields?.IssueCategory||'Unknown'; catMap[k] = (catMap[k]||0)+1; });
+  cpars.forEach(c => { const k = c.fields?.IssueCategory; if (k) catMap[k] = (catMap[k]||0)+1; });
   const catEntries = Object.entries(catMap).sort((a,b) => b[1]-a[1]);
   const catTotal   = catEntries.reduce((s,e) => s+e[1], 0);
   let cumPct = 0;
