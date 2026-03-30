@@ -4934,7 +4934,7 @@ let cparStatTeam   = '';       // '' = all teams; team name = filter to that tea
 let STATS_COMPLETIONS = [];
 let STATS_ALERTS      = [];
 let STATS_SCRAP       = [];
-let STATS_QC          = []; // [{ rep7: '2613044', date: Date }, ...]
+let STATS_QC          = []; // [{ rep7: '2613044', date: Date, inspector: 'Name', type: 'New Chair'|'Service Chair'|'Accessories' }, ...]
 let STATS_CPARS       = [];
 
 // Persisted mech QC completions (manual ticks in overview) — keyed by 7-digit rep
@@ -5187,7 +5187,7 @@ async function loadStatsData() {
     const chunks = await Promise.all(ranges.map(([r, end]) =>
       graphGet(
         `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}` +
-        `/workbook/worksheets('${encodeURIComponent(QC_SHEET_NAME)}')/range(address='A${r}:B${end}')?$select=values`
+        `/workbook/worksheets('${encodeURIComponent(QC_SHEET_NAME)}')/range(address='A${r}:D${end}')?$select=values`
       )
     ));
     const seen = new Set();
@@ -5205,7 +5205,12 @@ async function loadStatsData() {
         const uniqKey = `${m[1]}__${dateKey}`;
         if (seen.has(uniqKey)) return;
         seen.add(uniqKey);
-        qcRows.push({ rep7: m[1], date });
+        const inspector = String(row[2] ?? '').trim();
+        const rawType   = String(row[3] ?? '').trim().toLowerCase();
+        const type = rawType.includes('service') ? 'Service Chair'
+                   : rawType.includes('access')  ? 'Accessories'
+                   : 'New Chair'; // default to New Chair if blank or "new chair"
+        qcRows.push({ rep7: m[1], date, inspector, type });
       });
     });
     STATS_QC = qcRows;
@@ -5434,12 +5439,15 @@ function renderStatsDashboard() {
 
   const allReps  = [...new Set(comp.map(c => c.fields.REP))];
   const fullReps = statsFullyCompleteReps(comp);
-  const qcReps   = [...new Set(statsFilteredQC().map(q => q.rep7))];
+  const qcFiltered      = statsFilteredQC();
+  const qcNewChairReps  = [...new Set(qcFiltered.filter(q => q.type === 'New Chair').map(q => q.rep7))];
+  const qcServiceCount  = qcFiltered.filter(q => q.type === 'Service Chair').length;
+  const qcAccCount      = qcFiltered.filter(q => q.type === 'Accessories').length;
   const persons  = statsCountByPerson(comp);
   const top3     = persons.slice(0, 3);
 
-  const fullyPct = allReps.length  ? Math.round(fullReps.length / allReps.length * 100)  : 0;
-  const qcPct    = fullReps.length ? Math.round(qcReps.length   / fullReps.length * 100) : 0;
+  const fullyPct = allReps.length  ? Math.round(fullReps.length       / allReps.length   * 100) : 0;
+  const qcPct    = fullReps.length ? Math.round(qcNewChairReps.length / fullReps.length  * 100) : 0;
   const spark    = buildSparkData(comp, alerts, scrap, cpars);
 
   const top3Html = top3.map(p =>
@@ -5464,13 +5472,13 @@ function renderStatsDashboard() {
       <div class="card-label">QC Verified</div>
       <div class="card-row">
         <div>
-          <div class="card-number">${qcReps.length}</div>
-          <div class="card-sub">jobs signed off by QC</div>
+          <div class="card-number">${qcNewChairReps.length}</div>
+          <div class="card-sub">new chairs QC'd${(qcServiceCount+qcAccCount) ? ` · ${qcServiceCount+qcAccCount} service/acc` : ''}</div>
         </div>
         <div class="card-chart"><canvas id="spark-qc"></canvas></div>
       </div>
       <div class="prog-bar"><div class="prog-fill" style="width:${qcPct}%;background:#0e7490"></div></div>
-      <div style="font-size:11px;color:var(--repose-grey);margin-top:4px">${qcReps.length} of ${fullReps.length} fully complete jobs QC verified</div>
+      <div style="font-size:11px;color:var(--repose-grey);margin-top:4px">${qcNewChairReps.length} of ${fullReps.length} complete jobs QC verified</div>
       <div class="card-arrow">›</div>
     </div>`;
 
@@ -5697,41 +5705,64 @@ function renderDetailCompletions() {
 // ── QC detail ───────────────────────────────────
 
 function renderDetailQC() {
-  const comp      = statsFilteredCompletions();
-  const fullRepsS = new Set(statsFullyCompleteReps(comp));
-  const qcReps    = [...new Set(statsFilteredQC().map(q => q.rep7))];
-  const bothCount = qcReps.filter(r => fullRepsS.has(r)).length;
-  const fastTrack = qcReps.length - bothCount;
-  const body      = document.getElementById('stats-detail-body');
-  const spark     = buildSparkData(comp, [], [], []);
-  const labels    = statsPeriod === 'week' ? ['Mon','Tue','Wed','Thu','Fri'] :
-                    statsPeriod === 'month' ? ['Wk1','Wk2','Wk3','Wk4'] : MONTHS_SHORT;
+  const comp        = statsFilteredCompletions();
+  const fullRepsS   = new Set(statsFullyCompleteReps(comp));
+  const qc          = statsFilteredQC();
+
+  const newChairs     = qc.filter(q => q.type === 'New Chair');
+  const serviceChairs = qc.filter(q => q.type === 'Service Chair');
+  const accessories   = qc.filter(q => q.type === 'Accessories');
+
+  const newChairReps = [...new Set(newChairs.map(q => q.rep7))];
+  const bothCount    = newChairReps.filter(r => fullRepsS.has(r)).length;
+  const fastTrack    = newChairReps.length - bothCount;
+
+  // Inspector breakdown across all types
+  const byInspector = {};
+  qc.forEach(q => {
+    if (q.inspector) byInspector[q.inspector] = (byInspector[q.inspector]||0) + 1;
+  });
+  const inspectorRows = Object.entries(byInspector)
+    .sort((a,b) => b[1]-a[1])
+    .map(([name,cnt]) => `<div class="comp-row no-exp"><div class="row-team">${escHtml(name)}</div><div class="row-count" style="color:#0e7490">${cnt}</div></div>`)
+    .join('') || '<div style="font-size:12px;color:var(--repose-grey);padding:8px">No inspector data — check column C in the SafetyCulture export</div>';
+
+  const body   = document.getElementById('stats-detail-body');
+  const spark  = buildSparkData(comp, [], [], []);
+  const labels = statsPeriod === 'week' ? ['Mon','Tue','Wed','Thu','Fri'] :
+                 statsPeriod === 'month' ? ['Wk1','Wk2','Wk3','Wk4'] : MONTHS_SHORT;
 
   body.innerHTML = `
     <div class="chart-row">
       <div class="chart-panel">
-        <div class="chart-panel-title">QC verifications per day</div>
+        <div class="chart-panel-title">QC checks per day</div>
         <div class="chart-wrap" style="height:160px"><canvas id="ch-qc-daily"></canvas></div>
       </div>
       <div class="chart-panel" style="display:flex;flex-direction:column;align-items:center;justify-content:center">
-        <div class="chart-panel-title" style="text-align:center">Verified vs outstanding</div>
+        <div class="chart-panel-title" style="text-align:center">New Chairs — verified vs outstanding</div>
         <div class="chart-wrap" style="height:140px;width:140px"><canvas id="ch-qc-donut"></canvas></div>
       </div>
     </div>
     <div class="detail-card">
-      <div class="comp-row no-exp"><div class="row-team">QC Verified this period</div><div class="row-count" style="color:#0e7490;font-size:20px">${qcReps.length}</div></div>
-      <div class="comp-row no-exp"><div class="row-team" style="font-weight:400;font-size:13px;color:var(--repose-grey)">Fully complete AND QC verified</div><div class="row-count" style="color:#0e7490">${bothCount}</div></div>
-      <div class="comp-row no-exp"><div class="row-team" style="font-weight:400;font-size:13px;color:var(--repose-grey)">QC verified but not yet fully complete</div><div class="row-count" style="color:#d97706">${fastTrack}</div></div>
+      <div class="comp-row no-exp"><div class="row-team" style="font-weight:600">New Chairs QC'd</div><div class="row-count" style="color:#0e7490;font-size:20px">${newChairReps.length}</div></div>
+      <div class="comp-row no-exp"><div class="row-team" style="font-weight:400;font-size:13px;color:var(--repose-grey)">Service Chairs</div><div class="row-count" style="color:#64748b">${serviceChairs.length}</div></div>
+      <div class="comp-row no-exp"><div class="row-team" style="font-weight:400;font-size:13px;color:var(--repose-grey)">Accessories</div><div class="row-count" style="color:#64748b">${accessories.length}</div></div>
+      <div class="comp-row no-exp" style="border-top:1px solid #e5e7eb;margin-top:4px;padding-top:4px"><div class="row-team" style="font-weight:400;font-size:13px;color:var(--repose-grey)">New Chairs — fully complete + QC'd</div><div class="row-count" style="color:#0e7490">${bothCount}</div></div>
+      <div class="comp-row no-exp"><div class="row-team" style="font-weight:400;font-size:13px;color:var(--repose-grey)">New Chairs QC'd — not yet fully complete</div><div class="row-count" style="color:#d97706">${fastTrack}</div></div>
+    </div>
+    <div class="detail-card">
+      <div style="font-size:13px;font-weight:600;color:#374151;margin-bottom:6px">By QC Inspector</div>
+      ${inspectorRows}
     </div>`;
 
   setTimeout(() => {
     statsBarChart('ch-qc-daily', labels, spark.qc, '#0e7490');
     const donutCanvas = document.getElementById('ch-qc-donut');
     if (donutCanvas && typeof Chart !== 'undefined') {
-      const notQC = Math.max(0, fullRepsS.size - qcReps.length);
+      const notQC = Math.max(0, fullRepsS.size - newChairReps.length);
       statsCharts['ch-qc-donut'] = new Chart(donutCanvas.getContext('2d'), {
         type: 'doughnut',
-        data: { labels: ['QC Verified','Not yet QC'], datasets: [{ data: [qcReps.length, notQC], backgroundColor: ['#0e7490','#e5e7eb'], borderWidth: 0 }] },
+        data: { labels: ['New Chairs QC\'d','Not yet QC'], datasets: [{ data: [newChairReps.length, notQC], backgroundColor: ['#0e7490','#e5e7eb'], borderWidth: 0 }] },
         options: { responsive: true, maintainAspectRatio: false, cutout: '65%', plugins: { legend: { display: false } } },
       });
     }
@@ -6188,9 +6219,12 @@ function renderDetailCPAR() {
     ? allPeriodQCCPARs.filter(c => normaliseTeam(c.fields?.SourceDept||'') === cparStatTeam)
     : allPeriodQCCPARs;
   const rftDefects  = rftQCCPARs.reduce((s, c) => s + (parseInt(c.fields?.QTY)||1), 0);
-  const allComp     = statsFilteredCompletions();
-  const rftComp     = cparStatTeam ? allComp.filter(c => (c.fields?.Team||'') === cparStatTeam) : allComp;
-  const rftTotal    = rftComp.length;
+  // Denominator = New Chairs QC'd this period (join QC to completions by REP to apply team filter)
+  const qcNewChairs  = statsFilteredQC().filter(q => q.type === 'New Chair');
+  const compTeamMap  = new Map(statsFilteredCompletions().map(c => [c.fields.REP, c.fields.Team]));
+  const rftTotal     = cparStatTeam
+    ? qcNewChairs.filter(q => compTeamMap.get(q.rep7) === cparStatTeam).length
+    : qcNewChairs.length;
   const rftPct      = rftTotal ? Math.max(0, Math.round((rftTotal - rftDefects) / rftTotal * 100)) : null;
   const rftColor    = rftPct === null ? 'var(--repose-grey)' : rftPct >= 95 ? '#059669' : rftPct >= 85 ? '#d97706' : 'var(--red)';
   const rftLabel    = rftPct === null ? '—' : rftPct + '%';
