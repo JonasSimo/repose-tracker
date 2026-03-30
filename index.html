@@ -4999,6 +4999,11 @@ const CHANGE_FILTER_CATEGORIES = {
   backHeight:  'Dimensions',
   armHeight:   'Dimensions',
   specialInst: 'Special Inst.',
+  customer:    'Customer',
+  sewLabel:    'Sew Label',
+  backDesign:  'Back Design',
+  seatOption:  'Seat Option',
+  optExtras:   'Special Inst.',
 };
 
 const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -5149,15 +5154,15 @@ async function loadStatsData() {
   // Each list loaded independently so one failure doesn't block others
   await Promise.allSettled([
     getListIdByName('ProductionCompletions').then(id =>
-      graphGetAll(`${base}/${id}/items?$expand=fields&$filter=createdDateTime ge ${statsAfter}&$top=999`)
+      graphGetAll(`${base}/${id}/items?$expand=fields&$top=999`)
     ).then(r => { STATS_COMPLETIONS = r; }).catch(e => console.warn('stats (completions):', e.message)),
 
     getListIdByName('SpecAlerts').then(id =>
-      graphGetAll(`${base}/${id}/items?$expand=fields&$filter=createdDateTime ge ${statsAfter}&$top=999`)
+      graphGetAll(`${base}/${id}/items?$expand=fields&$top=999`)
     ).then(r => { STATS_ALERTS = r; }).catch(e => console.warn('stats (alerts):', e.message)),
 
     getListIdByName('ScrapLog').then(id =>
-      graphGetAll(`${base}/${id}/items?$expand=fields&$filter=createdDateTime ge ${statsAfter}&$top=999`)
+      graphGetAll(`${base}/${id}/items?$expand=fields&$top=999`)
     ).then(r => { STATS_SCRAP = r; }).catch(e => console.warn('stats (scrap):', e.message)),
 
     getListIdByName(SP_CPAR_LIST).then(id =>
@@ -5816,7 +5821,7 @@ function renderDetailChanges() {
     const cat = CHANGE_FILTER_CATEGORIES[a.fields.FieldKey];
     if (cat) chipCounts[cat] = (chipCounts[cat] || 0) + 1;
   });
-  const chipOrder  = ['All','Fabric','Mechanism','Castor','Cover Code','Model','Dimensions','Special Inst.'];
+  const chipOrder  = ['All','Fabric','Mechanism','Castor','Cover Code','Model','Dimensions','Special Inst.','Customer','Sew Label','Back Design','Seat Option'];
   const activeChips = chipOrder.filter(c => chipCounts[c] !== undefined);
 
   // Chart
@@ -5870,7 +5875,7 @@ function renderDetailChanges() {
     const alertTop = document.createElement('div');
     alertTop.className   = 'alert-top';
     alertTop.innerHTML   = `
-      <span class="alert-rep">${escHtml(f.REP || '—')}</span>
+      <span class="alert-rep">${escHtml(f.Title || '—')}</span>
       <span class="alert-field">${escHtml(f.FieldLabel || f.FieldKey || '—')}</span>
       <span class="alert-date">${escHtml(f.DetectedAt || '')}</span>`;
     row.appendChild(alertTop);
@@ -5926,7 +5931,7 @@ async function statsAcknowledgeAlert(alert, btn) {
       body: JSON.stringify({ fields: { Status: 'acknowledged', AcknowledgedAt: now } }),
     });
     if (!ackRes.ok) throw new Error(`HTTP ${ackRes.status}`);
-    const cacheKey = `${alert.fields.REP}__${alert.fields.FieldKey}`;
+    const cacheKey = `${alert.fields.Title}__${alert.fields.FieldKey}`;
     SPEC_ALERT_SENT.delete(cacheKey);
     saveSpecAlertCache();
     alert.fields.Status = 'acknowledged';
@@ -5953,7 +5958,7 @@ async function statsLogScrapAndDismiss(alert, btn) {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ fields: {
-        Title:      f.REP        || '',
+        Title:      f.Title      || '',
         JobNo:      f.JobNo      || '',
         Week:       f.Week       || '',
         Prep:       f.Prep       || '',
@@ -5973,12 +5978,12 @@ async function statsLogScrapAndDismiss(alert, btn) {
     });
     if (!patchRes.ok) throw new Error(`HTTP ${patchRes.status}`);
 
-    const cacheKey = `${f.REP}__${f.FieldKey}`;
+    const cacheKey = `${f.Title}__${f.FieldKey}`;
     SPEC_ALERT_SENT.delete(cacheKey);
     saveSpecAlertCache();
     alert.fields.Status = 'scrapped';
     renderStatsDetail('changes');
-    toast(`${f.REP} marked as scrapped`, 's');
+    toast(`${f.Title} marked as scrapped`, 's');
   } catch(e) {
     console.warn('statsLogScrapAndDismiss:', e.message);
     toast('Could not log scrap — check connection', 'u');
