@@ -4150,7 +4150,8 @@ async function loadMechQCFromSharePoint() {
 //     5. Copy the Application (client) ID below
 const AZURE_CLIENT_ID  = '2f8cdb1e-93da-4815-942b-c7c8d1a29ca5';
 const AZURE_TENANT_ID  = 'reposefurniturelimited.onmicrosoft.com';
-const GRAPH_SCOPES     = ['Files.Read.All', 'User.Read', 'Sites.ReadWrite.All', 'Mail.Send'];
+const GRAPH_SCOPES     = ['Files.Read.All', 'User.Read', 'Sites.ReadWrite.All'];
+const MAIL_SCOPES      = ['Mail.Send'];
 
 // Live SharePoint link — Production 2026 Dec-Nov.xlsx
 const PROD_SHARING_URL = 'https://reposefurniturelimited.sharepoint.com/:x:/s/ReposeFurniture-PlanningRepose/IQBLf67iYnbQSq2O8UU_zQihARfBedzZcW-CmO0q3v5zC3o?e=nfze02';
@@ -7291,22 +7292,34 @@ function buildDigestHtml(dateLabel, cparsArr, teamName) {
 async function sendDailyDigest(btn) {
   btn.disabled = true; btn.textContent = '⏳ Sending…';
   try {
-    const token = await getGraphToken();
+    // Acquire Mail.Send token separately — requires its own consent, not part of app login
+    const accounts = msalInstance.getAllAccounts();
+    if (!accounts.length) throw new Error('Not signed in');
+    let mailToken;
+    try {
+      const r = await msalInstance.acquireTokenSilent({ scopes: MAIL_SCOPES, account: accounts[0] });
+      mailToken = r.accessToken;
+    } catch {
+      const r = await msalInstance.acquireTokenPopup({ scopes: MAIL_SCOPES, account: accounts[0] });
+      mailToken = r.accessToken;
+    }
+    const token = mailToken;
 
     // Yesterday's date range in ISO for Graph filter
     const yest = new Date(); yest.setDate(yest.getDate() - 1);
     const yestLabel = yest.toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
     const yestISO   = yest.toISOString().slice(0,10); // YYYY-MM-DD
 
-    // Fetch yesterday's CPARs from SharePoint
-    const siteId = await getSpSiteId();
-    const listId = await getListIdByName(SP_CPAR_LIST);
+    // Fetch yesterday's CPARs from SharePoint (filter by createdDateTime — proper datetime field)
+    const siteId  = await getSpSiteId();
+    const listId  = await getListIdByName(SP_CPAR_LIST);
+    const nextISO = new Date(yest.getTime() + 86400000).toISOString().slice(0,10);
     const allYest = await graphGetAll(
-      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$filter=fields/LoggedAt ge '${yestISO}' and fields/LoggedAt lt '${new Date(yest.getTime()+86400000).toISOString().slice(0,10)}'&$top=999`
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$filter=createdDateTime ge '${yestISO}T00:00:00Z' and createdDateTime lt '${nextISO}T00:00:00Z'&$top=999`
     ).catch(() => {
-      // Fallback: use CPAR_ITEMS already in memory filtered by date
-      const dd = yest.toLocaleDateString('en-GB').slice(0,10); // DD/MM/YYYY start
-      return CPAR_ITEMS.filter(c => (c.fields?.LoggedAt||'').startsWith(dd.slice(0,2)+'/'+dd.slice(3,5)+'/'+dd.slice(6)));
+      // Fallback: filter CPAR_ITEMS already in memory by LoggedAt date
+      const ddPrefix = yest.toLocaleDateString('en-GB'); // "DD/MM/YYYY"
+      return CPAR_ITEMS.filter(c => (c.fields?.LoggedAt||'').startsWith(ddPrefix));
     });
 
     // Group by SourceDept for per-manager emails
