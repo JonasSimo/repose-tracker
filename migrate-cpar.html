@@ -257,8 +257,29 @@ function normaliseRaisedByTeam(raw) {
 // Normalise SourceDept: strip trailing " error"/" Error" suffixes
 // e.g. "Cutting error" → "Cutting", "Material / Supplier Error" → "Material / Supplier"
 function normaliseSourceDept(raw) {
-  return (raw||'').replace(/\s+error$/i, '').replace(/\s+Error$/i, '').trim();
+  return (raw||'').replace(/\s+error$/i, '').trim();
 }
+
+// Who closed off each team's issues — used to populate ClosedBy on historical records
+const CLOSED_BY_MAP = {
+  'Sewing':             'Gillian Fletcher',
+  'Upholstery':         'Daniel Seymour',
+  'Upholstery Arms':    'Daniel Seymour',
+  'Upholstery Backs':   'Daniel Seymour',
+  'Upholstery Seats':   'Daniel Seymour',
+  'Assembly':           'Daniel Seymour',
+  'Cutting':            'Mark Wood',
+  'Woodmill':           'Paul Jenkins',
+  'Stores':             'Ian Monk',
+  'Material / Supplier':'Jonas Simonaitis',
+  'Admin':              'Julie Underhill',
+};
+
+// Today's date in DD/MM/YYYY format — used as ClosedAt for all historical records
+const TODAY_DDMMYYYY = (() => {
+  const d = new Date();
+  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+})();
 
 // ── Excel parsing ─────────────────────────────────────
 function fileSelected(input) {
@@ -417,6 +438,12 @@ function transformRows(data) {
     if (!isNaN(jobNo) && jobNo > 0) fields[f('PrimaryJobNo')] = String(jobNo);
     if (loggedAt)      fields[f('LoggedAt')]       = loggedAt;
 
+    // ClosedAt = today (all historical records treated as closed today)
+    // ClosedBy = person responsible for that team (only written if column exists in SharePoint)
+    if ('ClosedAt' in spColumnMap) fields[f('ClosedAt')] = TODAY_DDMMYYYY;
+    const closedBy = CLOSED_BY_MAP[raisedByTeam] || '';
+    if (closedBy && 'ClosedBy' in spColumnMap) fields[f('ClosedBy')] = closedBy;
+
     rows.push(fields);
   }
   return rows;
@@ -541,8 +568,8 @@ async function startImport(limit) {
   }
 
   const total = rows.length;
-  const BATCH = 10; // smaller batches to stay under rate limits
-  const BATCH_DELAY = 800; // ms between batches
+  const BATCH = 20; // Graph API batch max is 20 requests
+  const BATCH_DELAY = 300; // ms between batches
   importDone = importSkip = importErr = 0;
 
   // Log batch HTTP status only on first batch
