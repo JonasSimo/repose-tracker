@@ -1693,7 +1693,9 @@ document.addEventListener('DOMContentLoaded', () => {
           <button class="stats-period-btn" onclick="setStatsPeriod('year',this)">Year</button>
         </div>
         <button class="stats-refresh-btn" id="stats-refresh-btn" onclick="refreshStatsData()">↻ Refresh</button>
+        <!-- Send Digest button disabled until Mail.Send admin consent is granted
         <button class="stats-refresh-btn" id="stats-digest-btn" onclick="sendDailyDigest(this)" style="background:var(--repose-navy);color:#fff;border-color:var(--repose-navy)">✉ Send Digest</button>
+        -->
       </div>
       <div class="stats-date-nav">
         <button class="stats-nav-arrow" id="stats-nav-prev" onclick="statsNavPeriod(-1)">‹</button>
@@ -6831,7 +6833,7 @@ function openCPARForm(wc, prep, ji) {
 
   Object.assign(cparFormState, {
     wc, prep:String(prep), ji,
-    rep:job.rep, jobNo:job.itemNo, model:job.model||'',
+    rep:job.rep, jobNo:job.itemNo, model:(job.spec?.model||'').trim(),
     week:wc, source:'', category:'', desc:'', qty:1,
     extraJobs:[], photoFile:null, photoDataUrl:null,
   });
