@@ -6118,6 +6118,13 @@ function renderDetailCPAR() {
   }
 
   const allPeriodCPARs = statsFilteredCPARs();
+
+  // ── Diagnostic (remove once confirmed working) ─────────────────
+  const _sample = STATS_CPARS[0];
+  const _sampleDate = _sample ? (_sample.fields?.LoggedAt || '(no LoggedAt)') : '(no records)';
+  console.log(`CPAR stats: ${STATS_CPARS.length} loaded, ${allPeriodCPARs.length} in period "${statsNavLabel()}", sample LoggedAt="${_sampleDate}"`);
+  // ──────────────────────────────────────────────────────────────
+
   // derive unique teams from all data in this period for the filter chips
   const allTeams = [...new Set(allPeriodCPARs.map(c => normaliseTeam(c.fields?.RaisedByTeam||'')).filter(Boolean))].sort();
   // apply team filter on top of period filter
@@ -6126,6 +6133,17 @@ function renderDetailCPAR() {
   const body   = document.getElementById('stats-detail-body');
   if (typeof Chart === 'undefined') {
     body.innerHTML = '<div style="padding:30px;text-align:center;color:var(--repose-grey)">Chart.js not loaded</div>';
+    return;
+  }
+
+  // Diagnostic banner — shows loaded/period counts and first record's LoggedAt
+  const _diag = `<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:6px;padding:8px 12px;font-size:11px;font-family:monospace;margin-bottom:12px;color:#856404">
+    DIAG: ${STATS_CPARS.length} CPARs loaded · ${allPeriodCPARs.length} in period (${statsNavLabel()}) · sample LoggedAt: "${STATS_CPARS[0]?.fields?.LoggedAt||'(empty)'}"
+  </div>`;
+  body.insertAdjacentHTML('afterbegin', _diag);
+
+  if (allPeriodCPARs.length === 0) {
+    body.innerHTML += `<div style="padding:30px;text-align:center;color:var(--repose-grey)">No CPAR data for ${statsNavLabel()}. Use the ← arrow to navigate to the period with your data.</div>`;
     return;
   }
 
