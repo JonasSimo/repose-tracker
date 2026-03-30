@@ -6097,6 +6097,26 @@ async function deleteScrapEntry(item, rowEl) {
 // ── CPAR detail ─────────────────────────────────
 
 function renderDetailCPAR() {
+  // If current period has no CPAR data but there IS data elsewhere,
+  // auto-jump to the most recent year that has records
+  if (STATS_CPARS.length > 0 && statsFilteredCPARs().length === 0) {
+    const years = [...new Set(STATS_CPARS.map(c => {
+      const d = parseCPARDate(c.fields?.LoggedAt);
+      return d.getTime() ? d.getFullYear() : null;
+    }).filter(Boolean))].sort((a,b) => b - a);
+    if (years.length) {
+      const targetYear = years[0];
+      const currentYear = statsRefDate().getFullYear();
+      if (targetYear !== currentYear) {
+        statsPeriod = 'year';
+        statsNavOffset = targetYear - new Date().getFullYear();
+        // Sync period toggle buttons
+        document.querySelectorAll('.stats-period-btn').forEach(b => b.classList.toggle('active', b.dataset.period === 'year'));
+        statsUpdateNav();
+      }
+    }
+  }
+
   const allPeriodCPARs = statsFilteredCPARs();
   // derive unique teams from all data in this period for the filter chips
   const allTeams = [...new Set(allPeriodCPARs.map(c => normaliseTeam(c.fields?.RaisedByTeam||'')).filter(Boolean))].sort();
