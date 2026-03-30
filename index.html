@@ -6865,7 +6865,7 @@ let cparListLoaded = false;
 const cparFormState = {
   wc:null, prep:null, ji:null,
   rep:'', jobNo:0, model:'', week:'',
-  source:'', category:'', desc:'', qty:1,
+  source:'', category:'', causeCode:'', desc:'', qty:1,
   extraJobs:[], photoFile:null, photoDataUrl:null,
 };
 
@@ -6885,6 +6885,7 @@ function openCPARForm(wc, prep, ji) {
   document.getElementById('cpar-modal-sub').textContent =
     `${job.rep} · Job ${job.itemNo}${job.model ? ' · '+job.model : ''}`;
   document.getElementById('cpar-desc-input').value = '';
+  document.getElementById('cpar-cause-select').value = '';
   document.getElementById('cpar-qty-input').value = '1';
   const prev = document.getElementById('cpar-photo-preview');
   prev.style.display = 'none'; prev.src = '';
@@ -7047,6 +7048,7 @@ async function submitCPAR() {
         QTY:           String(s.qty||1),
         SourceDept:    sourceLabel,
         IssueCategory: s.category||'',
+        CauseCode:     s.causeCode||'',
         Description:   s.desc.trim(),
         Status:        'Open',
         LoggedAt:      loggedAt,
@@ -7066,7 +7068,7 @@ async function submitCPAR() {
       Title:ref, RaisedByTeam:activeHasSubs ? activeTeam + ' ' + activeSub : activeTeam, PrimaryREP:s.rep, PrimaryJobNo:s.jobNo,
       PrimaryModel:s.model, PrimaryWeek:s.week, AffectedJobs:JSON.stringify(s.extraJobs),
       TotalAffected:1+s.extraJobs.length, QTY:s.qty, SourceDept:sourceLabel,
-      IssueCategory:s.category||'', Description:s.desc.trim(), Status:'Open',
+      IssueCategory:s.category||'', CauseCode:s.causeCode||'', Description:s.desc.trim(), Status:'Open',
       LoggedAt:loggedAt, HasPhoto:s.photoFile?true:false,
     }});
     if (document.getElementById('view-issues').classList.contains('active')) renderIssuesList();
@@ -7535,6 +7537,21 @@ async function confirmCloseCPAR(id) {
       <div>
         <div class="cpar-field-label">Description *</div>
         <textarea class="cpar-desc-input" id="cpar-desc-input" placeholder="Describe the issue clearly…" oninput="cparFormState.desc=this.value"></textarea>
+      </div>
+      <div>
+        <div class="cpar-field-label">Root cause <span style="font-weight:400;text-transform:none;color:var(--text3)">(optional — can be added on close-out)</span></div>
+        <select class="cpar-cat-select" id="cpar-cause-select" onchange="cparFormState.causeCode=this.value">
+          <option value="">Select root cause…</option>
+          <option>Human Error</option>
+          <option>Training / Knowledge Gap</option>
+          <option>Process / Method Failure</option>
+          <option>Machine / Equipment Issue</option>
+          <option>Material / Component Defect</option>
+          <option>Design / Specification Error</option>
+          <option>Communication Failure</option>
+          <option>Workmanship</option>
+          <option>Other</option>
+        </select>
       </div>
       <div>
         <div class="cpar-field-label">Chairs affected</div>
