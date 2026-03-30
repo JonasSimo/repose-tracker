@@ -5161,7 +5161,7 @@ async function loadStatsData() {
     ).then(r => { STATS_SCRAP = r; }).catch(e => console.warn('stats (scrap):', e.message)),
 
     getListIdByName(SP_CPAR_LIST).then(id =>
-      graphGetAll(`${base}/${id}/items?$expand=fields&$filter=createdDateTime ge ${statsAfter}&$top=999`)
+      graphGetAll(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${id}/items?$expand=fields&$top=999`)
     ).then(r => { STATS_CPARS = r; console.log(`stats (CPARs): loaded ${r.length} records`); }).catch(e => console.warn('stats (CPARLog):', e.message)),
   ]);
 
