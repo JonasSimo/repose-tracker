@@ -4222,8 +4222,8 @@ async function graphSignIn() {
     return;
   }
   if (!msalInstance) initMSAL();
-  // iOS standalone PWA blocks popups — use redirect flow for tablet mode
-  if (TABLET_TEAM) {
+  // iOS/Android Safari blocks popups — use redirect flow for mobile and tablet
+  if (TABLET_TEAM || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
     msalInstance.loginRedirect({ scopes: GRAPH_SCOPES });
     return;
   }
@@ -4254,7 +4254,7 @@ async function getGraphToken() {
     graphAccount = res.account;
     return res.accessToken;
   } catch {
-    if (TABLET_TEAM) {
+    if (TABLET_TEAM || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
       msalInstance.acquireTokenRedirect({ scopes: GRAPH_SCOPES });
       throw new Error('Redirecting for authentication');
     }
