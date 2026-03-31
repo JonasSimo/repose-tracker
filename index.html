@@ -1747,10 +1747,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <button class="issues-team-chip" data-team="Woodmill" onclick="setIssueTeam(this,'Woodmill')">Woodmill</button>
         <button class="issues-team-chip" data-team="Cutting" onclick="setIssueTeam(this,'Cutting')">Cutting</button>
         <button class="issues-team-chip" data-team="Sewing" onclick="setIssueTeam(this,'Sewing')">Sewing</button>
-        <button class="issues-team-chip" data-team="Upholstery Arms" onclick="setIssueTeam(this,'Upholstery Arms')">Uph Arms</button>
-        <button class="issues-team-chip" data-team="Upholstery Backs" onclick="setIssueTeam(this,'Upholstery Backs')">Uph Backs</button>
-        <button class="issues-team-chip" data-team="Upholstery Seats" onclick="setIssueTeam(this,'Upholstery Seats')">Uph Seats</button>
-        <button class="issues-team-chip" data-team="Assembly" onclick="setIssueTeam(this,'Assembly')">Assembly</button>
+        <button class="issues-team-chip" data-team="Upholstery" onclick="setIssueTeam(this,'Upholstery')">Upholstery</button>
         <button class="issues-team-chip" data-team="Foam" onclick="setIssueTeam(this,'Foam')">Foam</button>
         <button class="issues-team-chip" data-team="Stores" onclick="setIssueTeam(this,'Stores')">Stores</button>
         <button class="issues-team-chip" data-team="QC" onclick="setIssueTeam(this,'QC')">QC</button>
@@ -7257,10 +7254,11 @@ function renderIssuesList() {
       return st === cparFilterStatus;
     });
   }
-  if (cparFilterTeam) items = items.filter(i =>
-    normaliseTeam(i.fields?.SourceDept||'') === cparFilterTeam ||
-    normaliseTeam(i.fields?.RaisedByTeam||'') === cparFilterTeam
-  );
+  if (cparFilterTeam) {
+    const uphGroup = new Set(['Upholstery Arms','Upholstery Backs','Upholstery Seats','Assembly','Upholstery']);
+    const teamMatch = t => cparFilterTeam === 'Upholstery' ? uphGroup.has(normaliseTeam(t)) : normaliseTeam(t) === cparFilterTeam;
+    items = items.filter(i => teamMatch(i.fields?.SourceDept||'') || teamMatch(i.fields?.RaisedByTeam||''));
+  }
 
   if (!items.length) {
     listEl.innerHTML = '<div class="issues-empty">No issues found</div>';
