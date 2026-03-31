@@ -7257,7 +7257,7 @@ function renderIssuesList() {
   if (cparFilterTeam) {
     const uphGroup = new Set(['Upholstery Arms','Upholstery Backs','Upholstery Seats','Assembly','Upholstery']);
     const teamMatch = t => cparFilterTeam === 'Upholstery' ? uphGroup.has(normaliseTeam(t)) : normaliseTeam(t) === cparFilterTeam;
-    items = items.filter(i => teamMatch(i.fields?.SourceDept||'') || teamMatch(i.fields?.RaisedByTeam||''));
+    items = items.filter(i => teamMatch(i.fields?.SourceDept||''));
   }
 
   if (!items.length) {
