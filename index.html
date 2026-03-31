@@ -2594,7 +2594,7 @@ function tickJob(ji) {
   pendingTick = { ji, team: snapTeam, sub: snapSub, wc: snapWC, prep: snapPrep };
   document.getElementById('modal-rep-label').textContent = job.rep;
 
-  const operators = TEAM_OPERATORS[`${activeTeam} ${activeSub}`] || TEAM_OPERATORS[activeTeam];
+  const operators = TEAM_OPERATORS[`${snapTeam} ${snapSub}`] || TEAM_OPERATORS[snapTeam];
   const opsSection   = document.getElementById('modal-ops-section');
   const inputSection = document.getElementById('modal-input-section');
   const subLabel     = document.getElementById('modal-sub-label');
@@ -3884,6 +3884,7 @@ async function autoSyncQCCompletions() {
     qcLastSyncTime  = now;
     qcSyncError     = false;
     qcSyncing       = false;
+    if (activeTeam === 'QC') renderQCSyncBar();
 
     applyQCAutoToTeamView(); // mark all teams done for QC-completed REPs
     if (activeTeam === 'QC') {
@@ -3989,14 +3990,17 @@ async function loadLoadPlanFromSharePoint() {
     const baseUrl = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}` +
       `/workbook/worksheets('${encodeURIComponent(OV_LOAD_PLAN_SHEET)}')/usedRange`;
 
-    const [range, cellProps] = await Promise.all([
-      graphGet(`${baseUrl}?$select=values`),
-      graphPost(`${baseUrl}/getCellProperties`, {
-        cellPropertiesLoadOptions: { format: { fill: { color: true }, font: { color: true } } }
-      }).catch(() => null), // graceful fallback — colours optional
-    ]);
-
+    // Fetch values+address together, then use concrete range address for getCellProperties
+    // (getCellProperties is not supported on the dynamic /usedRange endpoint)
+    const range = await graphGet(`${baseUrl}?$select=values,address`);
     const values = range.values || [];
+    const rangeAddr = (range.address || '').split('!')[1]; // e.g. "A1:Z312"
+    const sheetBase = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}` +
+      `/workbook/worksheets('${encodeURIComponent(OV_LOAD_PLAN_SHEET)}')`;
+    const cellProps = rangeAddr ? await graphPost(
+      `${sheetBase}/range(address='${rangeAddr}')/getCellProperties`,
+      { cellPropertiesLoadOptions: { format: { fill: { color: true }, font: { color: true } } } }
+    ).catch(() => null) : null;
     // cellProps.value is a 2D array matching values rows/cols
     const cellColors = cellProps?.value || [];
     console.log('[LS colours] getCellProperties result:', cellProps ? 'OK' : 'FAILED', '— sample cell [3][1]:', JSON.stringify(cellColors[3]?.[1]));
@@ -6220,7 +6224,7 @@ function renderDetailCPAR() {
   const rftDefects  = rftQCCPARs.reduce((s, c) => s + (parseInt(c.fields?.QTY)||1), 0);
   // Denominator = New Chairs QC'd this period (join QC to completions by REP to apply team filter)
   const qcNewChairs  = statsFilteredQC().filter(q => q.type === 'New Chair');
-  const compTeamMap  = new Map(statsFilteredCompletions().map(c => [c.fields.REP, c.fields.Team]));
+  const compTeamMap  = new Map(statsFilteredCompletions().map(c => [String(c.fields.REP||'').replace(/\D/g,''), c.fields.Team]));
   const rftTotal     = cparStatTeam
     ? qcNewChairs.filter(q => compTeamMap.get(q.rep7) === cparStatTeam).length
     : qcNewChairs.length;
@@ -6921,7 +6925,7 @@ function openCPARForm(wc, prep, ji) {
   });
 
   document.getElementById('cpar-modal-sub').textContent =
-    `${job.rep} · Job ${job.itemNo}${job.model ? ' · '+job.model : ''}`;
+    `${job.rep} · Job ${job.itemNo}${job.spec?.model ? ' · '+job.spec.model : ''}`;
   document.getElementById('cpar-desc-input').value = '';
   document.getElementById('cpar-cause-select').value = '';
   document.getElementById('cpar-qty-input').value = '1';
@@ -6991,7 +6995,7 @@ function renderCPARJobsItems(query) {
     for (const [prep, prepJobs] of Object.entries(weekData)) {
       if (!Array.isArray(prepJobs)) continue;
       prepJobs.forEach((job, ji) => {
-        allJobs.push({ wk, prep:String(prep), ji, rep:job.rep||'', model:job.model||'', itemNo:job.itemNo||'' });
+        allJobs.push({ wk, prep:String(prep), ji, rep:job.rep||'', model:job.spec?.model||'', itemNo:job.itemNo||'' });
       });
     }
   }
