@@ -2515,7 +2515,7 @@ function renderJobs() {
       <div class="job-card ${s.done?'done':''}">
         <div class="jc-bar" style="background:${barColor}"></div>
         <div class="jc-body" onclick="openSpecModal('${activeWC}','${activePrep}',${ji})">
-          <span class="jc-item">Job ${job.itemNo}</span>
+          <span class="jc-item">Job ${escHtml(String(job.itemNo))}</span>
           <span class="jc-rep">${escHtml(job.rep)}</span>
           ${s.done ? `<div class="card-undo">
             ${isQcAuto ? `<span class="jc-qc-badge">QC ✓</span>` :
@@ -2690,7 +2690,7 @@ function openSpecModal(wc, prep, ji) {
   document.getElementById('specCard').innerHTML = `
     <div class="spec-head">
       <div>
-        <div class="spec-head-rep">${job.rep} &nbsp;·&nbsp; Job ${job.itemNo}</div>
+        <div class="spec-head-rep">${escHtml(job.rep)} &nbsp;·&nbsp; Job ${escHtml(String(job.itemNo))}</div>
         <div class="spec-head-model">${v(sp.model) || '—'}</div>
         <div class="spec-head-cust">${v(sp.customer) || ''}</div>
       </div>
@@ -2890,7 +2890,7 @@ function renderSearchResults() {
     return `<div class="search-result">
       <div style="flex:1;min-width:0;cursor:pointer" onclick="goToJob('${wk}','${p}')">
         <div style="display:flex;align-items:center;gap:8px">
-          <span class="sr-job">Job ${job.itemNo}</span>
+          <span class="sr-job">Job ${escHtml(String(job.itemNo))}</span>
           <span class="sr-rep">${job.rep}</span>
           <span class="sr-badge ${isDone?'':'pending'}">${isDone?'✓ Done · '+escHtml(s.initials||'?')+' · '+escHtml(s.doneAt):'Pending'}</span>
         </div>
@@ -2995,7 +2995,7 @@ function renderCustomerPanel() {
     return `<div class="cust-job-card" onclick="openSpecModal('${wk}','${prep}',${ji})">
       <div class="cust-job-top">
         <span class="cust-job-rep">${escHtml(job.rep)}</span>
-        <span class="cust-job-meta">Job ${job.itemNo} &nbsp;·&nbsp; ${wk} w/c ${wc} &nbsp;·&nbsp; ${prepLabel}</span>
+        <span class="cust-job-meta">Job ${escHtml(String(job.itemNo))} &nbsp;·&nbsp; ${wk} w/c ${wc} &nbsp;·&nbsp; ${prepLabel}</span>
       </div>
       ${detail ? `<div class="cust-job-detail">${detail}</div>` : ''}
       <div class="cust-chips">${chips}</div>
@@ -3676,6 +3676,21 @@ async function loadCompletionsFromList() {
       url = res['@odata.nextLink'] || null;
     }
 
+    // Capture any optimistic ticks that are still in-flight (done but not yet saved to SP)
+    const inFlight = [];
+    TEAMS_CFG.forEach(t => {
+      const keys = t.hasSubs ? SUBS : ['all'];
+      keys.forEach(k => {
+        WEEKS.forEach(wk => {
+          for (const p of [1,2,3,4,5,'express']) {
+            (STATE[t.name]?.[k]?.[wk]?.[p] || []).forEach((s, ji) => {
+              if (s.done && !s.listItemId) inFlight.push({ team:t.name, sub:k, wk, p, ji, snap:{...s} });
+            });
+          }
+        });
+      });
+    });
+
     // Reset all completion state before applying list data
     TEAMS_CFG.forEach(t => {
       const keys = t.hasSubs ? SUBS : ['all'];
@@ -3706,6 +3721,12 @@ async function loadCompletionsFromList() {
       if (ji < 0) return;
       const s = STATE[team]?.[sub]?.[wk]?.[prep]?.[ji];
       if (!s) return;
+      // If already set from a previous item, keep the more recent one to avoid ghost duplicates
+      if (s.done && s.listItemId) {
+        const existing = parseDdmmyyyy(s.doneDate);
+        const incoming = parseDdmmyyyy(f.CompletedDate);
+        if (existing && incoming && existing > incoming) return;
+      }
       s.done        = true;
       s.initials    = f.Initials    || '';
       s.doneAt      = f.CompletedTime || '';
@@ -3713,13 +3734,17 @@ async function loadCompletionsFromList() {
       s.listItemId  = item.id;
     });
 
+    // Re-apply in-flight ticks that weren't in SharePoint yet
+    inFlight.forEach(({ team, sub, wk, p, ji, snap }) => {
+      const s = STATE[team]?.[sub]?.[wk]?.[p]?.[ji];
+      if (s && !s.done) Object.assign(s, snap);
+    });
+
     applyQCAutoToTeamView();
     renderJobs();
     renderTeamSidebar();
     renderPriorityBtn();
     applyStateToOvBadges();
-    const t = new Date().toTimeString().slice(0,5);
-    console.log(`Completions loaded from SharePoint at ${t} — ${allItems.length} records`);
   } catch(e) {
     console.warn('loadCompletionsFromList failed:', e.message);
   }
@@ -4118,7 +4143,6 @@ async function loadLoadPlanFromSharePoint() {
 
 async function loadMechQCFromSharePoint() {
   try {
-    const token  = await getGraphToken();
     const siteId = await getSpSiteId();
     const listId = await getListIdByName('ProductionCompletions');
     const items  = await graphGetAll(
@@ -4325,7 +4349,7 @@ function parseSheetValues(values) {
     const row = values[i];
     if (!row || row.length < 12) continue;
     const kRaw = String(row[10]||'').trim();
-    const isExpressCode = /^(EXP|M-FT)\d*/i.test(kRaw);
+    const isExpressCode = /^(EXP|M-FT)\d*$/i.test(kRaw);
     const itemNo = isExpressCode ? kRaw : Number(kRaw);
     if (!kRaw || (!isExpressCode && (!Number.isFinite(itemNo) || itemNo <= 0))) continue;
     const lCell = String(row[11]||'');
@@ -4732,7 +4756,7 @@ function renderProductionPlan() {
     const jobRows = jobs.length
       ? jobs.map((j, ji) => {
           const s = getPPJobTeamStatus(col.key, ji);
-          const codeLabel = col.express ? `${j.itemNo}` : `Job ${j.itemNo}`;
+          const codeLabel = col.express ? escHtml(String(j.itemNo)) : `Job ${escHtml(String(j.itemNo))}`;
           // Badge strip — same design as Load Plan, scaled down via pp-badge-strip
           let badgeHtml = '<div class="badge-strip pp-badge-strip" style="flex-wrap:wrap;gap:2px">';
           OV_DEPTS.forEach((d, di) => {
@@ -7233,7 +7257,10 @@ function renderIssuesList() {
       return st === cparFilterStatus;
     });
   }
-  if (cparFilterTeam) items = items.filter(i => normaliseTeam(i.fields?.SourceDept) === cparFilterTeam);
+  if (cparFilterTeam) items = items.filter(i =>
+    normaliseTeam(i.fields?.SourceDept||'') === cparFilterTeam ||
+    normaliseTeam(i.fields?.RaisedByTeam||'') === cparFilterTeam
+  );
 
   if (!items.length) {
     listEl.innerHTML = '<div class="issues-empty">No issues found</div>';
@@ -7534,7 +7561,7 @@ async function confirmCloseCPAR(id) {
   } catch(e) {
     console.warn('confirmCloseCPAR:', e);
     toast('Could not close CPAR — check connection', 'u');
-    if (closeBtn) { closeBtn.disabled = false; closeBtn.textContent = 'Mark as Closed'; }
+    if (closeBtn) { closeBtn.disabled = false; closeBtn.textContent = '✓ Mark as Closed'; }
   }
 }
 </script>
