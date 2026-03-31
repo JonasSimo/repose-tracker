@@ -4120,9 +4120,10 @@ async function loadMechQCFromSharePoint() {
     const listId = await getListIdByName('ProductionCompletions');
     const items  = await graphGetAll(
       `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items` +
-      `?$expand=fields&$filter=fields/Team eq 'QC'&$top=999`
+      `?$expand=fields&$top=999`
     );
-    items.forEach(item => {
+    const qcItems = items.filter(i => (i.fields?.Team || '') === 'QC');
+    qcItems.forEach(item => {
       const rep  = String(item.fields?.REP ?? '').trim();
       const m7   = rep.match(/(?<!\d)(\d{7})(?!\d)/);
       if (m7) mechQCDone.add(m7[1]);
@@ -6630,10 +6631,10 @@ async function loadMechSerials() {
     const listId = await getListIdByName('ProductionCompletions');
     const items  = await graphGetAll(
       `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items` +
-      `?$expand=fields&$filter=fields/Team eq 'Assembly'&$top=999`
+      `?$expand=fields&$top=999`
     );
     MECH_SERIALS.clear();
-    items.forEach(item => {
+    items.filter(i => (i.fields?.Team || '') === 'Assembly').forEach(item => {
       const f   = item.fields || {};
       const ser = String(f.MechSerial ?? '').trim();
       if (!ser) return;
