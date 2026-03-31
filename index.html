@@ -1444,7 +1444,7 @@ body {
 .ls-empty       { padding:12px 6px; font-size:10px; color:#aaa; text-align:center; }
 </style>
 <script src="/msal-browser.min.js" defer></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="/chart.umd.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
   if (typeof Chart !== 'undefined') {
@@ -3668,9 +3668,7 @@ async function loadCompletionsFromList() {
     const siteId = await getSpSiteId();
     const listId = await getSpListId();
 
-    // Filter server-side by createdDateTime (always indexed) — only last 120 days
-    // This covers all weeks visible in the app while excluding old archived data
-    let url = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$filter=createdDateTime ge ${spAfterDate(120)}&$top=999`;
+    let url = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999`;
     const allItems = [];
     while (url) {
       const res = await graphGet(url);
@@ -4122,7 +4120,7 @@ async function loadMechQCFromSharePoint() {
     const listId = await getListIdByName('ProductionCompletions');
     const items  = await graphGetAll(
       `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items` +
-      `?$expand=fields&$filter=fields/Team eq 'QC' and createdDateTime ge ${spAfterDate(120)}&$top=999`
+      `?$expand=fields&$filter=fields/Team eq 'QC'&$top=999`
     );
     items.forEach(item => {
       const rep  = String(item.fields?.REP ?? '').trim();
@@ -6632,7 +6630,7 @@ async function loadMechSerials() {
     const listId = await getListIdByName('ProductionCompletions');
     const items  = await graphGetAll(
       `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items` +
-      `?$expand=fields&$filter=fields/Team eq 'Assembly' and createdDateTime ge ${spAfterDate(120)}&$top=999`
+      `?$expand=fields&$filter=fields/Team eq 'Assembly'&$top=999`
     );
     MECH_SERIALS.clear();
     items.forEach(item => {
