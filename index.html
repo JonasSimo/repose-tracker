@@ -4003,7 +4003,6 @@ async function loadLoadPlanFromSharePoint() {
     ).catch(() => null) : null;
     // cellProps.value is a 2D array matching values rows/cols
     const cellColors = cellProps?.value || [];
-    console.log('[LS colours] getCellProperties result:', cellProps ? 'OK' : 'FAILED', '— sample cell [3][1]:', JSON.stringify(cellColors[3]?.[1]));
     if (values.length < 4) {
       console.warn('Load plan: sheet has fewer than 4 rows');
       return;
@@ -4482,7 +4481,6 @@ async function loadProductionFromSharePoint() {
     toast('Production data loaded from SharePoint', 's');
     populateCustomerDropdown();
     // Await fetch so SPEC_ALERTS is populated before change detection runs (needed for dedup)
-    console.log('[SpecAlert] production sync complete — running spec check');
     await fetchSpecAlerts().catch(e => console.warn('fetchSpecAlerts:', e.message));
     checkForSpecChanges().catch(e => console.warn('checkForSpecChanges:', e.message));
 
@@ -5275,6 +5273,7 @@ function statsFilteredCPARs() {
 }
 function setCPARStatTeam(team) {
   cparStatTeam = team;
+  statsDestroyCharts();
   renderDetailCPAR();
 }
 function statsFilteredQC() {
@@ -6158,12 +6157,6 @@ function renderDetailCPAR() {
 
   const allPeriodCPARs = statsFilteredCPARs();
 
-  // ── Diagnostic (remove once confirmed working) ─────────────────
-  const _sample = STATS_CPARS[0];
-  const _sampleDate = _sample ? (_sample.fields?.LoggedAt || '(no LoggedAt)') : '(no records)';
-  console.log(`CPAR stats: ${STATS_CPARS.length} loaded, ${allPeriodCPARs.length} in period "${statsNavLabel()}", sample LoggedAt="${_sampleDate}"`);
-  // ──────────────────────────────────────────────────────────────
-
   // derive unique teams from all data in this period for the filter chips
   const allTeams = [...new Set(allPeriodCPARs.map(c => normaliseTeam(c.fields?.SourceDept||'')).filter(Boolean))].sort();
   // apply team filter on top of period filter
@@ -6174,12 +6167,6 @@ function renderDetailCPAR() {
     body.innerHTML = '<div style="padding:30px;text-align:center;color:var(--repose-grey)">Chart.js not loaded</div>';
     return;
   }
-
-  // Diagnostic banner — shows loaded/period counts and first record's LoggedAt
-  const _diag = `<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:6px;padding:8px 12px;font-size:11px;font-family:monospace;margin-bottom:12px;color:#856404">
-    DIAG: ${STATS_CPARS.length} CPARs loaded · ${allPeriodCPARs.length} in period (${statsNavLabel()}) · sample LoggedAt: "${STATS_CPARS[0]?.fields?.LoggedAt||'(empty)'}"
-  </div>`;
-  body.insertAdjacentHTML('afterbegin', _diag);
 
   if (allPeriodCPARs.length === 0) {
     body.innerHTML += `<div style="padding:30px;text-align:center;color:var(--repose-grey)">No CPAR data for ${statsNavLabel()}. Use the ← arrow to navigate to the period with your data.</div>`;
@@ -6337,7 +6324,7 @@ function renderDetailCPAR() {
     const d = new Date(); d.setDate(d.getDate() - i * 7);
     weekBuckets.push({ yr: isoWeekYear(d), wk: isoWeekNumber(d), label: `Wk${isoWeekNumber(d)}` });
   }
-  const runData = weekBuckets.map(b => STATS_CPARS.filter(c => {
+  const runData = weekBuckets.map(b => cpars.filter(c => {
     const d = parseCPARDate(c.fields?.LoggedAt);
     return d && d.getTime() && isoWeekYear(d) === b.yr && isoWeekNumber(d) === b.wk;
   }).length);
@@ -6920,7 +6907,7 @@ function openCPARForm(wc, prep, ji) {
   Object.assign(cparFormState, {
     wc, prep:String(prep), ji,
     rep:job.rep, jobNo:job.itemNo, model:(job.spec?.model||'').trim(),
-    week:wc, source:'', category:'', desc:'', qty:1,
+    week:wc, source:'', category:'', causeCode:'', desc:'', qty:1,
     extraJobs:[], photoFile:null, photoDataUrl:null,
   });
 
@@ -7084,7 +7071,7 @@ async function submitCPAR() {
         PrimaryJobNo:  String(s.jobNo||''),
         PrimaryModel:  s.model,
         PrimaryWeek:   s.week,
-        PrimaryPrep:   String(parseInt(s.prep)||0),
+        PrimaryPrep:   s.prep === 'express' ? 'express' : String(parseInt(s.prep)||0),
         AffectedJobs:  JSON.stringify(s.extraJobs),
         TotalAffected: String(1 + s.extraJobs.length),
         QTY:           String(s.qty||1),
@@ -7108,7 +7095,7 @@ async function submitCPAR() {
 
     CPAR_ITEMS.unshift({ id:created.id, fields:{
       Title:ref, RaisedByTeam:activeHasSubs ? activeTeam + ' ' + activeSub : activeTeam, PrimaryREP:s.rep, PrimaryJobNo:s.jobNo,
-      PrimaryModel:s.model, PrimaryWeek:s.week, AffectedJobs:JSON.stringify(s.extraJobs),
+      PrimaryModel:s.model, PrimaryWeek:s.week, PrimaryPrep:s.prep === 'express' ? 'express' : String(parseInt(s.prep)||0), AffectedJobs:JSON.stringify(s.extraJobs),
       TotalAffected:1+s.extraJobs.length, QTY:s.qty, SourceDept:sourceLabel,
       IssueCategory:s.category||'', CauseCode:s.causeCode||'', Description:s.desc.trim(), Status:'Open',
       LoggedAt:loggedAt, HasPhoto:s.photoFile?true:false,
