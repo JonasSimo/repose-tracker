@@ -865,6 +865,13 @@ body {
   color: var(--teal); font-family: 'JetBrains Mono', monospace;
   white-space: nowrap; flex-shrink: 0;
 }
+/* Service chair badge on job cards */
+.jc-serv-badge {
+  font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 4px;
+  background: #ede9fe; border: 1px solid #c4b5fd;
+  color: #6d28d9; font-family: 'JetBrains Mono', monospace;
+  white-space: nowrap; flex-shrink: 0;
+}
 /* ─── AUTH BADGE ─── */
 .auth-badge {
   display: flex; align-items: center; gap: 6px;
@@ -2432,10 +2439,15 @@ function renderPrepGrid() {
   const wkData = PROD[activeWC]||{};
   const prepBtns = [1,2,3,4,5].map(p => {
     const jobs = wkData[p]||[];
+    const servCt = jobs.filter(j => j.isService).length;
+    const newCt  = jobs.length - servCt;
+    const ctLabel = servCt
+      ? `${newCt} new · ${servCt} SERV`
+      : `${jobs.length} job${jobs.length!==1?'s':''}`;
     return `<button class="prep-btn ${activePrep===p?'active':''}" onclick="selectPrep(${p})">
       <span class="prep-num">${p}</span>
       <span class="prep-day">${PREP_DAYS[p-1]}</span>
-      <span class="prep-ct">${jobs.length} job${jobs.length!==1?'s':''}</span>
+      <span class="prep-ct">${ctLabel}</span>
     </button>`;
   });
   const expJobs = wkData.express||[];
@@ -2473,14 +2485,19 @@ function renderJobs() {
   const total = jobs.length;
   const pend  = total - done;
   const pct   = total ? Math.round(done/total*100) : 0;
+  const servCt = jobs.filter(j => j.isService).length;
+  const newCt  = total - servCt;
 
   // Header
   const prepLabel = activePrep === 'express' ? 'Express / M-FT' : `Prep ${activePrep}`;
   const dayLabel  = activePrep === 'express' ? 'Fast Track' : (PREP_DAYS[activePrep-1] || '');
   document.getElementById('jh-title').textContent =
     `${activeTeam}${activeHasSubs?' — '+activeSub:''}: ${prepLabel}`;
+  const jobCountLabel = servCt
+    ? `${newCt} new chair${newCt!==1?'s':''} · ${servCt} service`
+    : `${total} job${total!==1?'s':''}`;
   document.getElementById('jh-sub').textContent =
-    `${activeWC} · w/c ${PROD[activeWC]?.wc||''} · ${dayLabel} · ${total} job${total!==1?'s':''}`;
+    `${activeWC} · w/c ${PROD[activeWC]?.wc||''} · ${dayLabel} · ${jobCountLabel}`;
 
   const statsEl = document.getElementById('jh-stats');
   statsEl.style.display = total ? 'flex' : 'none';
@@ -2513,6 +2530,7 @@ function renderJobs() {
         <div class="jc-bar" style="background:${barColor}"></div>
         <div class="jc-body" onclick="openSpecModal('${activeWC}','${activePrep}',${ji})">
           <span class="jc-item">Job ${escHtml(String(job.itemNo))}</span>
+          ${job.isService ? `<span class="jc-serv-badge">SERVICE</span>` : ''}
           <span class="jc-rep">${escHtml(job.rep)}</span>
           ${s.done ? `<div class="card-undo">
             ${isQcAuto ? `<span class="jc-qc-badge">QC ✓</span>` :
@@ -4347,8 +4365,9 @@ function parseSheetValues(values) {
     if (!row || row.length < 12) continue;
     const kRaw = String(row[10]||'').trim();
     const isExpressCode = /^(EXP|M-FT)\d*$/i.test(kRaw);
-    const itemNo = isExpressCode ? kRaw : Number(kRaw);
-    if (!kRaw || (!isExpressCode && (!Number.isFinite(itemNo) || itemNo <= 0))) continue;
+    const isServCode    = /^SERV/i.test(kRaw);
+    const itemNo = (isExpressCode || isServCode) ? kRaw : Number(kRaw);
+    if (!kRaw || (!isExpressCode && !isServCode && (!Number.isFinite(itemNo) || itemNo <= 0))) continue;
     const lCell = String(row[11]||'');
     const m = lCell.match(/REP\s*(\d{7})/);
     if (!m) continue;
@@ -4382,7 +4401,7 @@ function parseSheetValues(values) {
       optExtras:  sp(35),  // AJ
     };
     const expressType = isExpressCode ? (/^M-?FT/i.test(kRaw) ? 'MFT' : 'EXP') : null;
-    jobs.push({ itemNo, rep: `REP ${m[1]}`, prep, spec, expressType });
+    jobs.push({ itemNo, rep: `REP ${m[1]}`, prep, spec, expressType, isService: isServCode });
   }
   return jobs;
 }
@@ -4390,7 +4409,7 @@ function parseSheetValues(values) {
 function distributeIntoPreps(jobs) {
   const preps = {1:[],2:[],3:[],4:[],5:[],express:[]};
   // Express jobs always go to express bucket regardless of other prep values
-  const jo = j => ({ itemNo: j.itemNo, rep: j.rep, spec: j.spec, expressType: j.expressType || null });
+  const jo = j => ({ itemNo: j.itemNo, rep: j.rep, spec: j.spec, expressType: j.expressType || null, isService: j.isService || false });
   jobs.filter(j => j.prep === 'express').forEach(j => preps.express.push(jo(j)));
   const normalJobs = jobs.filter(j => j.prep !== 'express');
   const hasNumericPrep = normalJobs.some(j => typeof j.prep === 'number');
@@ -4789,9 +4808,13 @@ function renderProductionPlan() {
         }).join('')
       : `<div class="pp-empty">No jobs</div>`;
 
+    const lpServCt = jobs.filter(j => j.isService).length;
+    const lpNewCt  = total - lpServCt;
     const subLine = activeProdTeam
       ? `${doneCount}/${total} done`
-      : `${total} job${total!==1?'s':''}`;
+      : lpServCt
+        ? `${lpNewCt} new · ${lpServCt} SERV`
+        : `${total} job${total!==1?'s':''}`;
 
     return `<div class="pp-col">
       <div class="${headCls}">
