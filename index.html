@@ -1192,6 +1192,9 @@ body {
 .cpar-job-rep { font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; color:var(--text); background:var(--bg4); border:1px solid var(--border2); border-radius:4px; padding:1px 6px; }
 .cpar-job-model { font-size:11px; color:var(--text3); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .cpar-spec-btn { font-size:10px; padding:2px 8px; border-radius:5px; border:1px solid var(--border2); background:var(--bg3); color:var(--blue); cursor:pointer; font-family:inherit; flex-shrink:0; white-space:nowrap; }
+.cpar-photo-wrap { margin-bottom:10px; }
+.cpar-photo-wrap img { width:100%; max-height:280px; object-fit:contain; border-radius:8px; border:1px solid var(--border); background:var(--bg4); display:block; }
+.cpar-photo-loading { font-size:12px; color:var(--text3); padding:8px 0; }
 .cpar-closeout-btn { display:block; width:100%; padding:12px; border:none; background:var(--bg3); border-top:1.5px solid var(--border); font-size:13px; font-weight:600; color:var(--text2); cursor:pointer; font-family:inherit; text-align:center; transition:.1s; }
 .cpar-closeout-btn:hover { background:var(--bbg); color:var(--blue); }
 .cpar-closeout-btn.active { background:var(--bbg); color:var(--blue); border-bottom:none; }
@@ -7282,9 +7285,8 @@ async function getNextCPARRef(siteId, listId) {
 async function uploadCPARPhoto(siteId, cparRef, file) {
   const token = await getGraphToken();
   if (!token) throw new Error('Not authenticated');
-  const ext = (file.name.split('.').pop()||'jpg').toLowerCase();
   const buf = await file.arrayBuffer();
-  const path = `CPAR Photos/${cparRef}.${ext}`;
+  const path = `CPAR Photos/${cparRef}.jpg`;
   const r = await fetch(
     `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:/${encodeURIComponent(path)}:/content`,
     { method:'PUT', headers:{ Authorization:`Bearer ${token}`, 'Content-Type':file.type||'image/jpeg' }, body:buf }
@@ -7436,6 +7438,7 @@ function renderCPARCard(item) {
     </div>` : `
     <button class="cpar-closeout-btn" id="cpar-co-btn-${item.id}" onclick="toggleCPARCloseout('${item.id}')">Close Out Issue ▼</button>
     <div class="cpar-closeout-panel" id="cpar-co-${item.id}">
+      ${f.HasPhoto ? `<div class="cpar-photo-wrap" id="cpar-photo-wrap-${item.id}"><div class="cpar-photo-loading">Loading photo…</div></div>` : ''}
       <div class="cpar-cause-label">Root Cause</div>
       <div class="cpar-cause-grid">
         ${CPAR_CAUSE_CODES.map(c=>`<button class="cpar-cause-option" data-cause="${escHtml(c)}" onclick="selectCPARCause('${item.id}',this)">${escHtml(c)}</button>`).join('')}
@@ -7458,6 +7461,8 @@ function formatCPARAge(date) {
   return `${Math.floor(hrs/24)}d ago`;
 }
 
+const _cparPhotoCache = {};
+
 function toggleCPARCloseout(id) {
   const panel = document.getElementById(`cpar-co-${id}`);
   const btn = document.getElementById(`cpar-co-btn-${id}`);
@@ -7466,6 +7471,28 @@ function toggleCPARCloseout(id) {
   if (btn) {
     btn.classList.toggle('active', isOpen);
     btn.textContent = isOpen ? 'Close Out Issue ▲' : 'Close Out Issue ▼';
+  }
+  if (isOpen) loadCPARPhoto(id);
+}
+
+async function loadCPARPhoto(id) {
+  const wrap = document.getElementById(`cpar-photo-wrap-${id}`);
+  if (!wrap) return;
+  if (_cparPhotoCache[id]) { wrap.innerHTML = _cparPhotoCache[id]; return; }
+  const item = CPAR_ITEMS.find(i => i.id === id);
+  if (!item?.fields?.HasPhoto) return;
+  const ref = item.fields.Title;
+  try {
+    const siteId = await getSpSiteId();
+    const token  = await getGraphToken();
+    const meta   = await graphGet(`https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:/CPAR%20Photos/${encodeURIComponent(ref)}.jpg`);
+    const url    = meta['@microsoft.graph.downloadUrl'];
+    if (!url) throw new Error('No download URL');
+    const html = `<img src="${escHtml(url)}" alt="CPAR photo">`;
+    _cparPhotoCache[id] = html;
+    wrap.innerHTML = html;
+  } catch(e) {
+    wrap.innerHTML = `<div class="cpar-photo-loading" style="color:var(--red)">Photo not found</div>`;
   }
 }
 
