@@ -6952,23 +6952,15 @@ const CPAR_WOODMILL_GROUPS = {
   ],
 };
 
+const CPAR_CUTTING_GROUPS = {
+  'Missing bits': ['Arms Section', 'Back Section', 'Seat Section', 'Accessories'],
+  'Cut wrong/uneven': ['Arms Section', 'Back Section', 'Seat Section', 'Accessories'],
+};
+const CPAR_CUTTING_DIRECT = ['Leather/Fabric defect', 'Lining error', 'Product damaged', 'Part not fitting'];
+
 const CPAR_CATEGORIES = {
   woodmill: [], // handled via CPAR_WOODMILL_GROUPS
-  cutting: [
-    'Missing bits — Arms section',
-    'Missing bits — Back section',
-    'Missing bits — Seat section',
-    'Missing bits — Accessories',
-    'Cut wrong/uneven — Arms section',
-    'Cut wrong/uneven — Back section',
-    'Cut wrong/uneven — Seat section',
-    'Cut wrong/uneven — Accessories',
-    'Lining error',
-    'Fabric/leather defect',
-    'Parts over',
-    'Part not fitting',
-    'Other',
-  ],
+  cutting: [], // handled via CPAR_CUTTING_GROUPS + CPAR_CUTTING_DIRECT
   sewing: [
     'Damaged/error post sewing',
     'Missing bits',
@@ -7116,6 +7108,26 @@ function selectCPARSource(key, color) {
     return;
   }
 
+  if (key === 'cutting') {
+    wrap.style.display = 'block';
+    wrap.innerHTML = `
+      <div class="cpar-field-label">Type of issue</div>
+      <div class="cpar-group-grid" style="grid-template-columns:repeat(2,1fr)">
+        ${Object.keys(CPAR_CUTTING_GROUPS).map(g =>
+          `<button class="cpar-group-btn" onclick="selectCPARCuttingGroup('${escHtml(g)}')">${escHtml(g)}</button>`
+        ).join('')}
+      </div>
+      <div id="cpar-subcat-wrap" style="display:none">
+        <select class="cpar-cat-select" id="cpar-cat-select" onchange="cparFormState.category=this.value"></select>
+      </div>
+      <div style="margin-top:8px;display:grid;grid-template-columns:repeat(2,1fr);gap:6px">
+        ${CPAR_CUTTING_DIRECT.map(d =>
+          `<button class="cpar-group-btn" id="cpar-cutting-direct-${escHtml(d.replace(/\W/g,''))}" onclick="selectCPARDirectItem('${escHtml(d)}')">${escHtml(d)}</button>`
+        ).join('')}
+      </div>`;
+    return;
+  }
+
   wrap.innerHTML = `
     <div class="cpar-field-label">Type of issue</div>
     <select class="cpar-cat-select" id="cpar-cat-select" onchange="cparFormState.category=this.value"></select>`;
@@ -7139,6 +7151,31 @@ function selectCPARGroup(group) {
     items.map(i => `<option value="${escHtml(group + ' — ' + i)}">${escHtml(i)}</option>`).join('');
   sel.value = '';
   subcatWrap.style.display = 'block';
+}
+
+function selectCPARCuttingGroup(group) {
+  cparFormState.category = '';
+  document.querySelectorAll('.cpar-group-btn').forEach(b => b.classList.remove('selected'));
+  document.querySelectorAll('.cpar-group-btn').forEach(b => {
+    if (b.textContent.trim() === group) b.classList.add('selected');
+  });
+  const items = CPAR_CUTTING_GROUPS[group] || [];
+  const subcatWrap = document.getElementById('cpar-subcat-wrap');
+  const sel = document.getElementById('cpar-cat-select');
+  sel.innerHTML = `<option value="">Select section…</option>` +
+    items.map(i => `<option value="${escHtml(group + ' — ' + i)}">${escHtml(i)}</option>`).join('');
+  sel.value = '';
+  subcatWrap.style.display = 'block';
+}
+
+function selectCPARDirectItem(item) {
+  cparFormState.category = item;
+  document.querySelectorAll('.cpar-group-btn').forEach(b => b.classList.remove('selected'));
+  document.querySelectorAll('.cpar-group-btn').forEach(b => {
+    if (b.textContent.trim() === item) b.classList.add('selected');
+  });
+  const subcatWrap = document.getElementById('cpar-subcat-wrap');
+  if (subcatWrap) subcatWrap.style.display = 'none';
 }
 
 // ── Multi-job selector ───────────────────────────────────
