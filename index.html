@@ -7193,6 +7193,7 @@ async function submitCPAR() {
         Description:   s.desc.trim(),
         Status:        'Open',
         LoggedAt:      loggedAt,
+        HasPhoto:      s.photoFile ? true : false,
       }}
     );
 
