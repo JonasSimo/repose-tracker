@@ -1224,6 +1224,9 @@ body {
 .cpar-source-opt.selected { color:#fff; border-color:transparent; }
 .cpar-cat-select { width:100%; padding:9px 10px; border-radius:8px; border:1.5px solid var(--border); font-size:12px; font-family:inherit; background:var(--bg); color:var(--text); cursor:pointer; }
 .cpar-cat-select:focus { outline:none; border-color:var(--blue); }
+.cpar-group-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-bottom:10px; }
+.cpar-group-btn { padding:10px 6px; border-radius:8px; border:1.5px solid var(--border2); background:var(--bg3); font-size:11px; font-weight:700; cursor:pointer; font-family:inherit; text-align:center; color:var(--text2); transition:.1s; line-height:1.3; }
+.cpar-group-btn.selected { background:#7c3aed; color:#fff; border-color:#7c3aed; }
 .cpar-desc-input { width:100%; padding:9px 10px; border-radius:8px; border:1.5px solid var(--border); font-size:12px; font-family:inherit; resize:vertical; min-height:70px; background:var(--bg); color:var(--text); box-sizing:border-box; }
 .cpar-desc-input:focus { outline:none; border-color:var(--blue); }
 .cpar-qty-row { display:flex; align-items:center; gap:10px; }
@@ -6920,36 +6923,37 @@ const CPAR_SOURCES = [
   { key:'own',         label:'Own Team',            color:'#475569' },
 ];
 
-const CPAR_CATEGORIES = {
-  woodmill: [
-    // Back issues
-    'Back — Wrong D-nut holes',
-    'Back — Post wrong size',
-    'Back — Port/hole error',
-    'Back — Missing facings',
-    'Back — Wrong width',
-    'Back — Poor assembly',
-    'Back — Wrong pilot holes in post',
-    'Back — Wrong wings',
-    'Back — Wrong model',
-    // Seat issues
-    'Seat — Wrong D-nut holes',
-    'Seat — Missing parts',
-    'Seat — Wrong size',
-    'Seat — Missing D-nuts',
-    'Seat — Wrong size footplate',
-    // Arms issues
-    'Arms — Port/hole error',
-    'Arms — T-nut not in hole properly',
-    'Arms — Wrong size',
-    'Arms — Wrong pull lever',
-    'Arms — Missing arm',
-    'Arms — Missing back packers',
-    // General
-    'Missing/error with packer',
-    'Bad finish',
-    'Other',
+const CPAR_WOODMILL_GROUPS = {
+  'Back Error': [
+    'Post wrong size',
+    'Wrong model',
+    'Wrong wings',
+    'Missing facings',
+    'Poor assembly (assembled wrong)',
+    'Wrong D-nut holes',
+    'Missing hole/port',
   ],
+  'Seat Error': [
+    'Seat wrong size',
+    'Wrong D-nut holes',
+    'Missing parts',
+    'Missing hole/port',
+    'Poor assembly',
+    'Wrong model',
+  ],
+  'Arm Error': [
+    'Missing arm',
+    'Arm wrong size/model',
+    'Port/hole error',
+    'Inset handset error',
+    'T-nut wrong position',
+    'Knuckle issue',
+    'Missing/error with packer',
+  ],
+};
+
+const CPAR_CATEGORIES = {
+  woodmill: [], // handled via CPAR_WOODMILL_GROUPS
   cutting: [
     'Missing bits — Arms section',
     'Missing bits — Back section',
@@ -7067,7 +7071,8 @@ function openCPARForm(wc, prep, ji) {
   document.getElementById('cpar-photo-input').value = '';
   document.getElementById('cpar-jobs-list').classList.remove('open');
   document.getElementById('cpar-jobs-toggle-label').textContent = 'Add more jobs from production plan ▼';
-  document.getElementById('cpar-cat-wrap').style.display = 'none';
+  const catWrap = document.getElementById('cpar-cat-wrap');
+  catWrap.style.display = 'none'; catWrap.innerHTML = '';
 
   renderCPARSourceGrid();
   renderCPARJobsItems('');
@@ -7094,12 +7099,46 @@ function selectCPARSource(key, color) {
   cparFormState.source = key;
   cparFormState.category = '';
   renderCPARSourceGrid();
+
+  const wrap = document.getElementById('cpar-cat-wrap');
+  if (key === 'woodmill') {
+    wrap.style.display = 'block';
+    wrap.innerHTML = `
+      <div class="cpar-field-label">Type of issue</div>
+      <div class="cpar-group-grid">
+        ${Object.keys(CPAR_WOODMILL_GROUPS).map(g =>
+          `<button class="cpar-group-btn" onclick="selectCPARGroup('${escHtml(g)}')">${escHtml(g)}</button>`
+        ).join('')}
+      </div>
+      <div id="cpar-subcat-wrap" style="display:none">
+        <select class="cpar-cat-select" id="cpar-cat-select" onchange="cparFormState.category=this.value"></select>
+      </div>`;
+    return;
+  }
+
+  wrap.innerHTML = `
+    <div class="cpar-field-label">Type of issue</div>
+    <select class="cpar-cat-select" id="cpar-cat-select" onchange="cparFormState.category=this.value"></select>`;
   const cats = CPAR_CATEGORIES[key] || [];
   const sel = document.getElementById('cpar-cat-select');
   sel.innerHTML = '<option value="">Select category…</option>' +
     cats.map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('');
   sel.value = '';
-  document.getElementById('cpar-cat-wrap').style.display = cats.length ? 'block' : 'none';
+  wrap.style.display = cats.length ? 'block' : 'none';
+}
+
+function selectCPARGroup(group) {
+  cparFormState.category = '';
+  document.querySelectorAll('.cpar-group-btn').forEach(b => {
+    b.classList.toggle('selected', b.textContent.trim() === group);
+  });
+  const items = CPAR_WOODMILL_GROUPS[group] || [];
+  const subcatWrap = document.getElementById('cpar-subcat-wrap');
+  const sel = document.getElementById('cpar-cat-select');
+  sel.innerHTML = `<option value="">Select ${escHtml(group)} issue…</option>` +
+    items.map(i => `<option value="${escHtml(group + ' — ' + i)}">${escHtml(i)}</option>`).join('');
+  sel.value = '';
+  subcatWrap.style.display = 'block';
 }
 
 // ── Multi-job selector ───────────────────────────────────
@@ -7748,10 +7787,7 @@ async function confirmCloseCPAR(id) {
         <div class="cpar-field-label">Where did this issue come from?</div>
         <div class="cpar-source-grid" id="cpar-source-grid"></div>
       </div>
-      <div id="cpar-cat-wrap" style="display:none">
-        <div class="cpar-field-label">Type of issue</div>
-        <select class="cpar-cat-select" id="cpar-cat-select" onchange="cparFormState.category=this.value"></select>
-      </div>
+      <div id="cpar-cat-wrap" style="display:none"></div>
       <div>
         <div class="cpar-field-label">Description *</div>
         <textarea class="cpar-desc-input" id="cpar-desc-input" placeholder="Describe the issue clearly…" oninput="cparFormState.desc=this.value"></textarea>
