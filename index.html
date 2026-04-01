@@ -1187,6 +1187,11 @@ body {
 .cpar-category-line { font-size:12px; color:var(--text2); margin-bottom:5px; }
 .cpar-desc { font-size:13px; color:var(--text); line-height:1.4; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; margin-bottom:6px; }
 .cpar-meta { font-size:11px; color:var(--text3); display:flex; gap:10px; flex-wrap:wrap; }
+.cpar-jobs-affected { margin-top:8px; display:flex; flex-direction:column; gap:4px; }
+.cpar-job-row { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text2); }
+.cpar-job-rep { font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; color:var(--text); background:var(--bg4); border:1px solid var(--border2); border-radius:4px; padding:1px 6px; }
+.cpar-job-model { font-size:11px; color:var(--text3); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cpar-spec-btn { font-size:10px; padding:2px 8px; border-radius:5px; border:1px solid var(--border2); background:var(--bg3); color:var(--blue); cursor:pointer; font-family:inherit; flex-shrink:0; white-space:nowrap; }
 .cpar-closeout-btn { display:block; width:100%; padding:12px; border:none; background:var(--bg3); border-top:1.5px solid var(--border); font-size:13px; font-weight:600; color:var(--text2); cursor:pointer; font-family:inherit; text-align:center; transition:.1s; }
 .cpar-closeout-btn:hover { background:var(--bbg); color:var(--blue); }
 .cpar-closeout-btn.active { background:var(--bbg); color:var(--blue); border-bottom:none; }
@@ -7358,7 +7363,22 @@ function renderCPARCard(item) {
   const isClosed = status === 'closed';
   const age = formatCPARAge(parseCPARDate(f.LoggedAt));
   const badgeCls = status === 'red' ? 'overdue' : status;
-  const metaParts = [f.PrimaryWeek, f.PrimaryJobNo ? `Job ${f.PrimaryJobNo}` : '', f.PrimaryREP, f.QTY ? `${f.QTY} chair${f.QTY!=1?'s':''}` : '', f.HasPhoto ? '📷' : ''].filter(Boolean);
+  const metaParts = [f.PrimaryWeek, f.QTY ? `${f.QTY} chair${f.QTY!=1?'s':''}` : ''].filter(Boolean);
+
+  // Build affected jobs list: primary job first, then extras from AffectedJobs JSON
+  let extraJobs = [];
+  try { extraJobs = JSON.parse(f.AffectedJobs||'[]'); } catch(e) {}
+  const allJobs = [
+    { rep: f.PrimaryREP, jobNo: f.PrimaryJobNo, model: f.PrimaryModel, primary: true },
+    ...extraJobs.map(j => ({ rep: j.rep, jobNo: j.ji != null ? j.ji : '', model: j.model, primary: false })),
+  ].filter(j => j.rep);
+  const jobsHtml = allJobs.length ? `<div class="cpar-jobs-affected">${allJobs.map(j => `
+    <div class="cpar-job-row">
+      <span class="cpar-job-rep">${escHtml(j.rep||'')}</span>
+      ${j.jobNo ? `<span style="font-size:11px;color:var(--text3)">Job ${escHtml(String(j.jobNo))}</span>` : ''}
+      ${j.model ? `<span class="cpar-job-model">${escHtml(j.model)}</span>` : '<span class="cpar-job-model"></span>'}
+      <button class="cpar-spec-btn" onclick="openSpecModalByRep('${escHtml(j.rep||'')}')">View Spec</button>
+    </div>`).join('')}</div>` : '';
 
   return `<div class="cpar-card status-${status}" id="cpar-card-${item.id}">
     <div class="cpar-card-header">
@@ -7373,7 +7393,8 @@ function renderCPARCard(item) {
       </div>
       ${f.IssueCategory ? `<div class="cpar-category-line">${escHtml(f.IssueCategory)}</div>` : ''}
       ${f.Description ? `<div class="cpar-desc">${escHtml(f.Description)}</div>` : ''}
-      <div class="cpar-meta">${metaParts.map(p=>`<span>${escHtml(String(p))}</span>`).join('')}</div>
+      ${jobsHtml}
+      <div class="cpar-meta" style="margin-top:6px">${metaParts.map(p=>`<span>${escHtml(String(p))}</span>`).join('')}</div>
     </div>
     ${isClosed ? `
     <div class="cpar-closed-detail">
