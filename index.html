@@ -7198,7 +7198,7 @@ async function submitCPAR() {
     );
 
     if (s.photoFile && created.id) {
-      try { await uploadCPARPhoto(siteId, listId, created.id, s.photoFile); }
+      try { await uploadCPARPhoto(siteId, ref, s.photoFile); }
       catch(e) { console.warn('Photo upload:', e.message); toast('CPAR saved — photo upload failed', 'u'); }
     }
 
@@ -7249,16 +7249,17 @@ async function getNextCPARRef(siteId, listId) {
   }
 }
 
-async function uploadCPARPhoto(siteId, listId, itemId, file) {
+async function uploadCPARPhoto(siteId, cparRef, file) {
   const token = await getGraphToken();
-  if (!token) return;
+  if (!token) throw new Error('Not authenticated');
   const ext = (file.name.split('.').pop()||'jpg').toLowerCase();
   const buf = await file.arrayBuffer();
+  const path = `CPAR Photos/${cparRef}.${ext}`;
   const r = await fetch(
-    `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${itemId}/attachments/photo.${ext}`,
+    `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:/${encodeURIComponent(path)}:/content`,
     { method:'PUT', headers:{ Authorization:`Bearer ${token}`, 'Content-Type':file.type||'image/jpeg' }, body:buf }
   );
-  if (!r.ok) throw new Error(`Photo ${r.status}`);
+  if (!r.ok) throw new Error(`Photo ${r.status}: ${await r.text()}`);
 }
 
 // ── Issues tab ───────────────────────────────────────────
