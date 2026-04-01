@@ -662,7 +662,7 @@ body {
 .sync-btn:hover { background: var(--bg4); color: var(--text); }
 
 /* ─── TOASTS ─── */
-.toasts { position: fixed; bottom: 14px; right: 14px; display: flex; flex-direction: column; gap: 5px; z-index: 600; }
+.toasts { position: fixed; bottom: 14px; right: 14px; display: flex; flex-direction: column; gap: 5px; z-index: 9999; }
 .toast {
   padding: 7px 13px; border-radius: 8px; font-size: 12px;
   display: flex; align-items: center; gap: 6px;
@@ -1701,6 +1701,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <button class="stats-period-btn active" onclick="setStatsPeriod('week',this)">Week</button>
           <button class="stats-period-btn" onclick="setStatsPeriod('month',this)">Month</button>
           <button class="stats-period-btn" onclick="setStatsPeriod('year',this)">Year</button>
+          <button class="stats-period-btn" onclick="setStatsPeriod('day',this)">Day</button>
         </div>
         <button class="stats-refresh-btn" id="stats-refresh-btn" onclick="refreshStatsData()">↻ Refresh</button>
         <!-- Send Digest button disabled until Mail.Send admin consent is granted
@@ -1712,6 +1713,9 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="stats-nav-label" id="stats-nav-label">Loading…</div>
         <button class="stats-nav-arrow" id="stats-nav-next" onclick="statsNavPeriod(1)" disabled>›</button>
         <button class="stats-nav-today" id="stats-nav-today" onclick="statsNavToday()" style="display:none">Current ↩</button>
+      </div>
+      <div id="stats-day-picker" style="display:none;margin-top:8px">
+        <input type="date" id="stats-day-input" style="padding:6px 10px;border-radius:7px;border:1.5px solid var(--border2);background:var(--bg2);color:var(--text);font-size:13px;font-family:inherit;cursor:pointer" onchange="statsPickDay(this.value)">
       </div>
       <div id="stats-spinner" class="stats-spinner" style="display:none">
         <div class="stats-spinner-ring"></div>
@@ -3531,6 +3535,7 @@ async function checkForSpecChanges() {
       const ov = (oldSpec[key] || '').trim();
       const nv = (newSpec[key] || '').trim();
       if (!ov || !nv || ov === nv) return;
+      if (/DELIVERED|ORDERED/i.test(ov) || /DELIVERED|ORDERED/i.test(nv)) return;
       const cacheKey = `${rep}__${key}`;
       if (SPEC_ALERT_SENT.has(cacheKey)) return;
       toAlert.push({ rep, itemNo: newSpec._itemNo, wk: newSpec._wk, prep: String(newSpec._prep), fieldKey: key, fieldLabel: SPEC_FIELD_LABELS[key], oldVal: ov, newVal: nv, cacheKey });
@@ -5092,6 +5097,9 @@ function statsRefDate() {
     const d = new Date(today); d.setDate(d.getDate() + statsNavOffset * 7); return d;
   }
   if (statsPeriod === 'month') return new Date(today.getFullYear(), today.getMonth() + statsNavOffset, 1);
+  if (statsPeriod === 'day') {
+    const d = new Date(today); d.setDate(d.getDate() + statsNavOffset); return d;
+  }
   return new Date(today.getFullYear() + statsNavOffset, 0, 1);
 }
 
@@ -5105,6 +5113,10 @@ function statsNavLabel() {
     return `WK ${wk} · ${mon.getDate()} ${MONTHS_SHORT[mon.getMonth()]}–${fri.getDate()} ${MONTHS_SHORT[fri.getMonth()]} ${fri.getFullYear()}`;
   }
   if (statsPeriod === 'month') return `${MONTHS_SHORT[ref.getMonth()]} ${ref.getFullYear()}`;
+  if (statsPeriod === 'day') {
+    const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    return `${days[ref.getDay()]} ${ref.getDate()} ${MONTHS_SHORT[ref.getMonth()]} ${ref.getFullYear()}`;
+  }
   return `${ref.getFullYear()}`;
 }
 
@@ -5117,6 +5129,15 @@ function statsUpdateNav() {
   labelEl.textContent = statsNavLabel();
   if (nextBtn)  nextBtn.disabled = statsNavOffset >= 0;
   if (todayBtn) todayBtn.style.display = statsNavOffset < 0 ? '' : 'none';
+  const picker = document.getElementById('stats-day-picker');
+  if (picker) {
+    picker.style.display = statsPeriod === 'day' ? '' : 'none';
+    if (statsPeriod === 'day') {
+      const ref = statsRefDate();
+      const y = ref.getFullYear(), m = String(ref.getMonth()+1).padStart(2,'0'), d = String(ref.getDate()).padStart(2,'0');
+      document.getElementById('stats-day-input').value = `${y}-${m}-${d}`;
+    }
+  }
 }
 
 function statsNavPeriod(dir) {
@@ -5197,6 +5218,7 @@ function statsInPeriod(dateStr) {
   const ref = statsRefDate();
   if (statsPeriod === 'week')  return isoWeekNumber(d) === isoWeekNumber(ref) && isoWeekYear(d) === isoWeekYear(ref);
   if (statsPeriod === 'month') return d.getMonth() === ref.getMonth() && d.getFullYear() === ref.getFullYear();
+  if (statsPeriod === 'day')   return d.getDate() === ref.getDate() && d.getMonth() === ref.getMonth() && d.getFullYear() === ref.getFullYear();
   return d.getFullYear() === ref.getFullYear();
 }
 
@@ -5332,6 +5354,7 @@ function statsInPeriodCPAR(dateStr) {
   const ref = statsRefDate();
   if (statsPeriod === 'week')  return isoWeekNumber(d) === isoWeekNumber(ref) && isoWeekYear(d) === isoWeekYear(ref);
   if (statsPeriod === 'month') return d.getMonth() === ref.getMonth() && d.getFullYear() === ref.getFullYear();
+  if (statsPeriod === 'day')   return d.getDate() === ref.getDate() && d.getMonth() === ref.getMonth() && d.getFullYear() === ref.getFullYear();
   return d.getFullYear() === ref.getFullYear();
 }
 function statsFilteredCPARs() {
@@ -5349,6 +5372,7 @@ function statsFilteredQC() {
     if (!d) return false;
     if (statsPeriod === 'week')  return isoWeekNumber(d) === isoWeekNumber(ref) && isoWeekYear(d) === isoWeekYear(ref);
     if (statsPeriod === 'month') return d.getMonth() === ref.getMonth() && d.getFullYear() === ref.getFullYear();
+    if (statsPeriod === 'day')   return d.getDate() === ref.getDate() && d.getMonth() === ref.getMonth() && d.getFullYear() === ref.getFullYear();
     return d.getFullYear() === ref.getFullYear();
   });
 }
@@ -5485,6 +5509,22 @@ function setStatsPeriod(period, btn) {
   statsUpdateNav();
   const detailEl = document.getElementById('stats-detail');
   if (detailEl.style.display !== 'none') {
+    renderStatsDetail(detailEl.dataset.view);
+  } else {
+    renderStatsDashboard();
+  }
+}
+
+function statsPickDay(isoDate) {
+  if (!isoDate) return;
+  const [y, m, d] = isoDate.split('-').map(Number);
+  const picked = new Date(y, m - 1, d);
+  const today  = new Date(); today.setHours(0,0,0,0);
+  const diffMs = picked - today;
+  statsNavOffset = Math.round(diffMs / 86400000);
+  statsUpdateNav();
+  const detailEl = document.getElementById('stats-detail');
+  if (detailEl && detailEl.style.display !== 'none') {
     renderStatsDetail(detailEl.dataset.view);
   } else {
     renderStatsDashboard();
@@ -6981,7 +7021,7 @@ function openCPARForm(wc, prep, ji) {
   document.getElementById('cpar-modal-sub').textContent =
     `${job.rep} · Job ${job.itemNo}${job.spec?.model ? ' · '+job.spec.model : ''}`;
   document.getElementById('cpar-desc-input').value = '';
-  document.getElementById('cpar-cause-select').value = '';
+
   document.getElementById('cpar-qty-input').value = '1';
   const prev = document.getElementById('cpar-photo-preview');
   prev.style.display = 'none'; prev.src = '';
@@ -7637,21 +7677,6 @@ async function confirmCloseCPAR(id) {
       <div>
         <div class="cpar-field-label">Description *</div>
         <textarea class="cpar-desc-input" id="cpar-desc-input" placeholder="Describe the issue clearly…" oninput="cparFormState.desc=this.value"></textarea>
-      </div>
-      <div>
-        <div class="cpar-field-label">Root cause <span style="font-weight:400;text-transform:none;color:var(--text3)">(optional — can be added on close-out)</span></div>
-        <select class="cpar-cat-select" id="cpar-cause-select" onchange="cparFormState.causeCode=this.value">
-          <option value="">Select root cause…</option>
-          <option>Human Error</option>
-          <option>Training / Knowledge Gap</option>
-          <option>Process / Method Failure</option>
-          <option>Machine / Equipment Issue</option>
-          <option>Material / Component Defect</option>
-          <option>Design / Specification Error</option>
-          <option>Communication Failure</option>
-          <option>Workmanship</option>
-          <option>Other</option>
-        </select>
       </div>
       <div>
         <div class="cpar-field-label">Chairs affected</div>
