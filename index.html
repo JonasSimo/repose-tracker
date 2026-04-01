@@ -6958,21 +6958,15 @@ const CPAR_CUTTING_GROUPS = {
 };
 const CPAR_CUTTING_DIRECT = ['Leather/Fabric defect', 'Lining error', 'Product damaged', 'Part not fitting'];
 
+const CPAR_SEWING_GROUPS = {
+  'Internal': ['Machine Error', 'Human Error', 'Other (Specify)'],
+};
+const CPAR_SEWING_DIRECT = ['Poor stitching', 'Sewn wrong'];
+
 const CPAR_CATEGORIES = {
   woodmill: [], // handled via CPAR_WOODMILL_GROUPS
   cutting: [], // handled via CPAR_CUTTING_GROUPS + CPAR_CUTTING_DIRECT
-  sewing: [
-    'Damaged/error post sewing',
-    'Missing bits',
-    'Cut wrong/uneven',
-    'Lining error',
-    'Product damaged',
-    'Parts over',
-    'Part not fitting',
-    'Velcro/fastenings error',
-    'Sewing room error',
-    'Other',
-  ],
+  sewing: [], // handled via CPAR_SEWING_GROUPS + CPAR_SEWING_DIRECT
   upholstery: [
     'Back — Arm error',
     'Back — Seat error',
@@ -7108,6 +7102,26 @@ function selectCPARSource(key, color) {
     return;
   }
 
+  if (key === 'sewing') {
+    wrap.style.display = 'block';
+    wrap.innerHTML = `
+      <div class="cpar-field-label">Type of issue</div>
+      <div class="cpar-group-grid" style="grid-template-columns:1fr">
+        ${Object.keys(CPAR_SEWING_GROUPS).map(g =>
+          `<button class="cpar-group-btn" onclick="selectCPARSewingGroup('${escHtml(g)}')">${escHtml(g)}</button>`
+        ).join('')}
+      </div>
+      <div id="cpar-subcat-wrap" style="display:none">
+        <select class="cpar-cat-select" id="cpar-cat-select" onchange="cparFormState.category=this.value"></select>
+      </div>
+      <div style="margin-top:8px;display:grid;grid-template-columns:repeat(2,1fr);gap:6px">
+        ${CPAR_SEWING_DIRECT.map(d =>
+          `<button class="cpar-group-btn" onclick="selectCPARDirectItem('${escHtml(d)}')">${escHtml(d)}</button>`
+        ).join('')}
+      </div>`;
+    return;
+  }
+
   if (key === 'cutting') {
     wrap.style.display = 'block';
     wrap.innerHTML = `
@@ -7163,6 +7177,21 @@ function selectCPARCuttingGroup(group) {
   const subcatWrap = document.getElementById('cpar-subcat-wrap');
   const sel = document.getElementById('cpar-cat-select');
   sel.innerHTML = `<option value="">Select section…</option>` +
+    items.map(i => `<option value="${escHtml(group + ' — ' + i)}">${escHtml(i)}</option>`).join('');
+  sel.value = '';
+  subcatWrap.style.display = 'block';
+}
+
+function selectCPARSewingGroup(group) {
+  cparFormState.category = '';
+  document.querySelectorAll('.cpar-group-btn').forEach(b => b.classList.remove('selected'));
+  document.querySelectorAll('.cpar-group-btn').forEach(b => {
+    if (b.textContent.trim() === group) b.classList.add('selected');
+  });
+  const items = CPAR_SEWING_GROUPS[group] || [];
+  const subcatWrap = document.getElementById('cpar-subcat-wrap');
+  const sel = document.getElementById('cpar-cat-select');
+  sel.innerHTML = `<option value="">Select cause…</option>` +
     items.map(i => `<option value="${escHtml(group + ' — ' + i)}">${escHtml(i)}</option>`).join('');
   sel.value = '';
   subcatWrap.style.display = 'block';
