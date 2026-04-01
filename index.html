@@ -2834,7 +2834,37 @@ function openSpecModalByRep(repId) {
       if (ji >= 0) { openSpecModal(wk, p, ji); return; }
     }
   }
-  // REP found in Load Plan but not in current PROD window — show basic info
+  // Not in current PROD window — try SPEC_SNAPSHOT cache
+  const snap = SPEC_SNAPSHOT[lookupRep];
+  if (snap) {
+    const sp = snap;
+    const v  = x => escHtml((x && String(x).trim()) || '');
+    const row = (lbl, val) => val ? `<div class="spec-row"><span class="spec-lbl">${lbl}</span><span class="spec-val">${val}</span></div>` : '';
+    const dim = (lbl, val) => val ? `<div class="spec-dim-cell"><div class="spec-dim-val">${val}</div><div class="spec-dim-lbl">${lbl}</div></div>` : '';
+    const mechanism = [v(sp.mechanism1), v(sp.mechanism2)].filter(Boolean).join(' + ');
+    const castors   = [v(sp.castor1),    v(sp.castor2)   ].filter(Boolean).join(', ');
+    const card = document.getElementById('specCard');
+    card.innerHTML = `
+      <div class="spec-head">
+        <div>
+          <div class="spec-head-rep">${escHtml(lookupRep)}${sp._itemNo ? ` &nbsp;·&nbsp; Job ${escHtml(String(sp._itemNo))}` : ''}</div>
+          <div class="spec-head-model">${v(sp.model) || '—'}</div>
+          <div class="spec-head-cust">${v(sp.customer) || ''}</div>
+          <div style="font-size:10px;color:var(--amber);margin-top:2px">Cached spec — job not in current window</div>
+        </div>
+        <button class="spec-close" onclick="closeSpecModal()">✕</button>
+      </div>
+      <div class="spec-body">
+        <div><div class="spec-section-title">Identity</div>${row('Sew Label', v(sp.sewLabel))}${row('Back Design', v(sp.backDesign))}</div>
+        <div><div class="spec-section-title">Fabric &amp; Cover</div>${row('Cover Code / Supplier', v(sp.coverCode))}${row('Fabric Description', v(sp.fabric))}${row('Mechanism', mechanism || '—')}</div>
+        <div><div class="spec-section-title">Dimensions</div><div class="spec-dim-grid">${dim('Seat H',v(sp.seatHeight))}${dim('Seat W',v(sp.seatWidth))}${dim('Seat D',v(sp.seatDepth))}${dim('Back H',v(sp.backHeight))}${dim('Arm H',v(sp.armHeight))}</div></div>
+        <div><div class="spec-section-title">Options</div>${row('Seat Option',v(sp.seatOption))}${row('Castors',castors)}${row('Optional Extras',v(sp.optExtras))}</div>
+        ${v(sp.specialInst) ? `<div class="spec-special"><div class="spec-special-title">⚠ Special Instructions</div><div class="spec-special-text">${v(sp.specialInst)}</div></div>` : ''}
+      </div>`;
+    document.getElementById('specModal').style.display = 'flex';
+    return;
+  }
+  // Nothing in cache either
   const card = document.getElementById('specCard');
   card.innerHTML = `
     <div class="spec-head">
@@ -2844,8 +2874,8 @@ function openSpecModalByRep(repId) {
       </div>
       <button class="spec-close" onclick="closeSpecModal()">✕</button>
     </div>
-    <div class="spec-body" style="color:var(--text3);font-size:12px">
-      Spec data is only available for jobs within the current production week range.
+    <div class="spec-body" style="color:var(--text3);font-size:12px;padding:20px">
+      Spec not available — job is outside the current production window and has not been seen on this device before.
     </div>`;
   document.getElementById('specModal').style.display = 'flex';
 }
