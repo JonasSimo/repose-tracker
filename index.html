@@ -7286,10 +7286,9 @@ async function uploadCPARPhoto(siteId, cparRef, file) {
   const token = await getGraphToken();
   if (!token) throw new Error('Not authenticated');
   const buf = await file.arrayBuffer();
-  const path = `CPAR Photos/${cparRef}.jpg`;
   const r = await fetch(
-    `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:/${encodeURIComponent(path)}:/content`,
-    { method:'PUT', headers:{ Authorization:`Bearer ${token}`, 'Content-Type':file.type||'image/jpeg' }, body:buf }
+    `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:/CPAR%20Photos/${encodeURIComponent(cparRef)}.jpg:/content`,
+    { method:'PUT', headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'image/jpeg' }, body:buf }
   );
   if (!r.ok) throw new Error(`Photo ${r.status}: ${await r.text()}`);
 }
