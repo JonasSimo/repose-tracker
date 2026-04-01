@@ -4089,8 +4089,11 @@ async function loadLoadPlanFromSharePoint() {
       for (let row = 3; row < values.length; row++) {
         const cell = String(values[row]?.[col] ?? '').trim();
         if (!cell) continue;
-        const isMech = /\bmech\b/i.test(cell);
-        const isServ = /\bserv\b/i.test(cell);
+        const isMech       = /\bmech\b/i.test(cell);
+        const isServ       = /\bserv\b/i.test(cell);
+        const isCollection = /\bcollect/i.test(cell);
+        // Service + collection = external driver collection, not a factory delivery
+        const isServCollect = isServ && isCollection;
         // Acc check runs first — "Job A" takes priority over any 7-digit number in the same cell
         const mAcc   = cell.match(/\bJob\s*A\s*(\d+)/i);
         const isAcc  = !!mAcc;
@@ -4102,12 +4105,15 @@ async function loadLoadPlanFromSharePoint() {
           if (!newRaw[key]) newRaw[key] = [];
           if (!newRaw[key].includes(accId)) newRaw[key].push(accId);
           colItems.push({ text: cell, rep7: null, isMech: false, isServ: false, isAcc: true, accJobNum: mAcc[1] });
-        } else if (m) {
-          // REP item (7-digit)
+        } else if (m && !isServCollect) {
+          // REP item (7-digit) — service collections excluded from OV delivery count
           const repId = isMech ? `REP ${m[1]} Mech` : isServ ? `REP ${m[1]} Serv` : `REP ${m[1]}`;
           if (!newRaw[key]) newRaw[key] = [];
           if (!newRaw[key].includes(repId)) newRaw[key].push(repId);
           colItems.push({ text: cell, rep7: m[1], isMech, isServ, isAcc: false, accJobNum: null });
+        } else if (m && isServCollect) {
+          // Service collection — visible in load sheet but not tracked or counted as a delivery
+          colItems.push({ text: cell, rep7: null, isMech: false, isServ: false, isAcc: false, accJobNum: null, itemType: 'service' });
         } else {
           const cellFmt   = cellColors[row]?.[col]?.format;
           const fillColor = (cellFmt?.fill?.color  || '').replace('#','').toLowerCase();
