@@ -7188,7 +7188,6 @@ async function submitCPAR() {
         Description:   s.desc.trim(),
         Status:        'Open',
         LoggedAt:      loggedAt,
-        HasPhoto:      s.photoFile ? true : false,
       }}
     );
 
@@ -7205,7 +7204,7 @@ async function submitCPAR() {
       PrimaryModel:s.model, PrimaryWeek:s.week, PrimaryPrep:s.prep === 'express' ? 'express' : String(parseInt(s.prep)||0), AffectedJobs:JSON.stringify(s.extraJobs),
       TotalAffected:1+s.extraJobs.length, QTY:s.qty, SourceDept:sourceLabel,
       IssueCategory:s.category||'', CauseCode:s.causeCode||'', Description:s.desc.trim(), Status:'Open',
-      LoggedAt:loggedAt, HasPhoto:s.photoFile?true:false,
+      LoggedAt:loggedAt, HasPhoto:!!s.photoFile,
     }});
     if (document.getElementById('view-issues').classList.contains('active')) renderIssuesList();
 
