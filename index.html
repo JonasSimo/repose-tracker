@@ -6963,28 +6963,17 @@ const CPAR_SEWING_GROUPS = {
 };
 const CPAR_SEWING_DIRECT = ['Poor stitching', 'Sewn wrong'];
 
+const CPAR_UPHOLSTERY_GROUPS = {
+  'Poor Upholstery/Finish': ['Seats', 'Backs', 'Arms'],
+  'Product Damaged':        ['Seats', 'Backs', 'Arms'],
+};
+const CPAR_UPHOLSTERY_DIRECT = ['Parts lost post sewing (re-sew requested)'];
+
 const CPAR_CATEGORIES = {
   woodmill: [], // handled via CPAR_WOODMILL_GROUPS
   cutting: [], // handled via CPAR_CUTTING_GROUPS + CPAR_CUTTING_DIRECT
   sewing: [], // handled via CPAR_SEWING_GROUPS + CPAR_SEWING_DIRECT
-  upholstery: [
-    'Back — Arm error',
-    'Back — Seat error',
-    'Back — Velcro/fastenings error',
-    'Back — Bad finish',
-    'Back — Wrong back frame',
-    'Seat — Missing parts',
-    'Seat — Wrong size',
-    'Seat — Poor finish',
-    'Arms — Inset handset error',
-    'Arms — Missing back packers',
-    'Arms — Wrong colour knuckle',
-    'Arms — Loop & pocket wrong side',
-    'Product damaged',
-    'Missing bits post sewing',
-    'Part not fitting',
-    'Other',
-  ],
+  upholstery: [], // handled via CPAR_UPHOLSTERY_GROUPS + CPAR_UPHOLSTERY_DIRECT
   foam:        ['Wrong size','Missing parts','Damaged','Other'],
   stores:      ['Missing parts','Wrong parts delivered','Late delivery','Damaged in stores','Other'],
   admin:       ['Wrong spec','Wrong model info','Scheduling error','Wrong mech','Missing cable/handset','Other'],
@@ -7102,6 +7091,26 @@ function selectCPARSource(key, color) {
     return;
   }
 
+  if (key === 'upholstery') {
+    wrap.style.display = 'block';
+    wrap.innerHTML = `
+      <div class="cpar-field-label">Type of issue</div>
+      <div class="cpar-group-grid" style="grid-template-columns:repeat(2,1fr)">
+        ${Object.keys(CPAR_UPHOLSTERY_GROUPS).map(g =>
+          `<button class="cpar-group-btn" onclick="selectCPARUpholsteryGroup('${escHtml(g)}')">${escHtml(g)}</button>`
+        ).join('')}
+      </div>
+      <div id="cpar-subcat-wrap" style="display:none">
+        <select class="cpar-cat-select" id="cpar-cat-select" onchange="cparFormState.category=this.value"></select>
+      </div>
+      <div style="margin-top:8px;display:grid;grid-template-columns:1fr;gap:6px">
+        ${CPAR_UPHOLSTERY_DIRECT.map(d =>
+          `<button class="cpar-group-btn" onclick="selectCPARDirectItem('${escHtml(d)}')">${escHtml(d)}</button>`
+        ).join('')}
+      </div>`;
+    return;
+  }
+
   if (key === 'sewing') {
     wrap.style.display = 'block';
     wrap.innerHTML = `
@@ -7174,6 +7183,21 @@ function selectCPARCuttingGroup(group) {
     if (b.textContent.trim() === group) b.classList.add('selected');
   });
   const items = CPAR_CUTTING_GROUPS[group] || [];
+  const subcatWrap = document.getElementById('cpar-subcat-wrap');
+  const sel = document.getElementById('cpar-cat-select');
+  sel.innerHTML = `<option value="">Select section…</option>` +
+    items.map(i => `<option value="${escHtml(group + ' — ' + i)}">${escHtml(i)}</option>`).join('');
+  sel.value = '';
+  subcatWrap.style.display = 'block';
+}
+
+function selectCPARUpholsteryGroup(group) {
+  cparFormState.category = '';
+  document.querySelectorAll('.cpar-group-btn').forEach(b => b.classList.remove('selected'));
+  document.querySelectorAll('.cpar-group-btn').forEach(b => {
+    if (b.textContent.trim() === group) b.classList.add('selected');
+  });
+  const items = CPAR_UPHOLSTERY_GROUPS[group] || [];
   const subcatWrap = document.getElementById('cpar-subcat-wrap');
   const sel = document.getElementById('cpar-cat-select');
   sel.innerHTML = `<option value="">Select section…</option>` +
