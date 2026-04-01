@@ -7061,19 +7061,14 @@ function closeCPARModal() {
 // ── Source & category ────────────────────────────────────
 
 function renderCPARSourceGrid() {
-  const grid = document.getElementById('cpar-source-grid');
-  grid.innerHTML = CPAR_SOURCES.map(s => {
-    const sel = cparFormState.source === s.key;
-    return `<button class="cpar-source-opt${sel?' selected':''}"
-      style="${sel ? `background:${s.color}` : ''}"
-      onclick="selectCPARSource('${s.key}','${escHtml(s.color)}')">${escHtml(s.label)}</button>`;
-  }).join('');
+  const sel = document.getElementById('cpar-source-grid');
+  sel.innerHTML = '<option value="">Select team / source…</option>' +
+    CPAR_SOURCES.map(s => `<option value="${escHtml(s.key)}"${cparFormState.source===s.key?' selected':''}>${escHtml(s.label)}</option>`).join('');
 }
 
-function selectCPARSource(key, color) {
+function selectCPARSource(key) {
   cparFormState.source = key;
   cparFormState.category = '';
-  renderCPARSourceGrid();
 
   const wrap = document.getElementById('cpar-cat-wrap');
   if (key === 'woodmill') {
@@ -7875,7 +7870,9 @@ async function confirmCloseCPAR(id) {
     <div class="cpar-modal-body">
       <div>
         <div class="cpar-field-label">Where did this issue come from?</div>
-        <div class="cpar-source-grid" id="cpar-source-grid"></div>
+        <select class="cpar-cat-select" id="cpar-source-grid" onchange="selectCPARSource(this.value)">
+          <option value="">Select team / source…</option>
+        </select>
       </div>
       <div id="cpar-cat-wrap" style="display:none"></div>
       <div>
