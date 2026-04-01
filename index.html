@@ -493,6 +493,8 @@ body {
 .mech-tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; background: var(--tbg); color: var(--teal); border: 1px solid var(--tborder); border-radius: 4px; padding: 1px 5px; margin-left: 5px; vertical-align: middle; }
 .rep-row.acc-row  { background: #faf5ff; }
 .acc-tag  { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; background: #f3e8ff; color: #7c3aed; border: 1px solid #c4b5fd; border-radius: 4px; padding: 1px 5px; margin-left: 5px; vertical-align: middle; }
+.rep-row.serv-row { background: #fdf4ff; }
+.serv-tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; background: #ede9fe; color: #6d28d9; border: 1px solid #c4b5fd; border-radius: 4px; padding: 1px 5px; margin-left: 5px; vertical-align: middle; }
 
 /* Badge strip — one badge per dept */
 .badge-strip { display: flex; gap: 2px; flex-shrink: 0; align-items: center; }
@@ -1417,6 +1419,7 @@ body {
 .ls-rep-num     { font-family:'Consolas','Courier New',monospace; font-size:11px; font-weight:700; color:#0e023a; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .ls-rep-num .ls-mech-tag { font-size:8px; font-weight:700; background:#cffafe; color:#0e7490; border:1px solid #a5f3fc; border-radius:3px; padding:0 3px; vertical-align:middle; margin-left:3px; }
 .ls-rep-num .ls-acc-tag  { font-size:8px; font-weight:700; background:#f3e8ff; color:#7c3aed; border:1px solid #c4b5fd; border-radius:3px; padding:0 3px; vertical-align:middle; margin-left:3px; }
+.ls-rep-num .ls-serv-tag { font-size:8px; font-weight:700; background:#ede9fe; color:#6d28d9; border:1px solid #c4b5fd; border-radius:3px; padding:0 3px; vertical-align:middle; margin-left:3px; }
 .ls-rep-desc    { font-size:9px; color:#555; line-height:1.1; padding-bottom:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 /* Text item types */
 .ls-item-text   { padding:1px 4px; border-bottom:1px solid #b8c4d8; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; line-height:1.25; }
@@ -2757,6 +2760,14 @@ function isMechDelivery(repId) {
 function mechBaseRep(repId) {
   return repId.replace(/\s*\bmech\b\s*/i, '').trim();
 }
+// Returns true if the raw REP string is a service chair delivery
+function isServDelivery(repId) {
+  return /\bserv\b/i.test(repId);
+}
+// Strips "Serv" suffix to get the bare REP number for PROD lookups
+function servBaseRep(repId) {
+  return repId.replace(/\s*\bserv\b\s*/i, '').trim();
+}
 
 // Returns true if the entry is an accessory job ("Job A XXXXXX")
 function isAccDelivery(repId) {
@@ -2804,11 +2815,13 @@ function openSpecModalByRep(repId) {
     document.getElementById('specModal').style.display = 'flex';
     return;
   }
+  // Service chair deliveries — look up spec by base REP (strip Serv suffix)
+  const lookupRep = isServDelivery(repId) ? servBaseRep(repId) : repId;
   // Search PROD for the job matching this REP number
   for (const wk of Object.keys(PROD)) {
     for (const p of [1,2,3,4,5,'express']) {
       const jobs = PROD[wk]?.[p] || [];
-      const ji = jobs.findIndex(j => j.rep === repId);
+      const ji = jobs.findIndex(j => j.rep === lookupRep);
       if (ji >= 0) { openSpecModal(wk, p, ji); return; }
     }
   }
@@ -3257,19 +3270,21 @@ function renderOverviewAll() {
     repsOrdered.forEach((rep, ri) => {
       const isMech    = isMechDelivery(rep.id);
       const isAcc     = isAccDelivery(rep.id);
-      const allDone   = (isMech || isAcc) ? !!rep.s.qc : OV_DEPTS.every(d => teamTileState(d, rep) === 'done');
+      const isServ    = isServDelivery(rep.id);
+      const allDone   = (isMech || isAcc || isServ) ? !!rep.s.qc : OV_DEPTS.every(d => teamTileState(d, rep) === 'done');
       const repDigits = rep.id.replace(/\D/g,'');
       const ovMatch   = ovSearchQuery && repDigits.includes(ovSearchQuery);
       const ovRowCls  = ovSearchQuery ? (ovMatch ? 'ov-highlight' : 'ov-dim') : '';
       const origRi    = day.reps.indexOf(rep);
       const mechLabel  = isMech ? ` <span class="mech-tag">Mech</span>` : '';
       const accLabel   = isAcc  ? ` <span class="acc-tag">Acc</span>`   : '';
-      const repDisplay = isMech ? escHtml(mechBaseRep(rep.id)) : isAcc ? `Job A ${escHtml(accJobBase(rep.id))}` : escHtml(rep.id);
-      const rowCls     = isMech ? ' mech-row' : isAcc ? ' acc-row' : '';
+      const servLabel  = isServ ? ` <span class="serv-tag">Serv</span>` : '';
+      const repDisplay = isMech ? escHtml(mechBaseRep(rep.id)) : isAcc ? `Job A ${escHtml(accJobBase(rep.id))}` : isServ ? escHtml(servBaseRep(rep.id)) : escHtml(rep.id);
+      const rowCls     = isMech ? ' mech-row' : isAcc ? ' acc-row' : isServ ? ' serv-row' : '';
       gridHtml += `<div class="rep-row ${allDone?'all-done':''} ${ovRowCls}${rowCls}">
-        <span class="rep-num" onclick="openSpecModalByRep(this.dataset.repid)" data-repid="${escHtml(rep.id)}">${repDisplay}${mechLabel}${accLabel}</span>
+        <span class="rep-num" onclick="openSpecModalByRep(this.dataset.repid)" data-repid="${escHtml(rep.id)}">${repDisplay}${mechLabel}${accLabel}${servLabel}</span>
         <div class="badge-strip">`;
-      const deptsToRender = (isMech || isAcc) ? OV_DEPTS.filter(d => d.k === 'qc') : OV_DEPTS;
+      const deptsToRender = (isMech || isAcc || isServ) ? OV_DEPTS.filter(d => d.k === 'qc') : OV_DEPTS;
       deptsToRender.forEach((d, di) => {
         if (di > 0) gridHtml += `<div class="bdiv"></div>`;
         const state = teamTileState(d, rep);
@@ -4075,6 +4090,7 @@ async function loadLoadPlanFromSharePoint() {
         const cell = String(values[row]?.[col] ?? '').trim();
         if (!cell) continue;
         const isMech = /\bmech\b/i.test(cell);
+        const isServ = /\bserv\b/i.test(cell);
         // Acc check runs first — "Job A" takes priority over any 7-digit number in the same cell
         const mAcc   = cell.match(/\bJob\s*A\s*(\d+)/i);
         const isAcc  = !!mAcc;
@@ -4085,13 +4101,13 @@ async function loadLoadPlanFromSharePoint() {
           const accId = `Job A ${mAcc[1]}`;
           if (!newRaw[key]) newRaw[key] = [];
           if (!newRaw[key].includes(accId)) newRaw[key].push(accId);
-          colItems.push({ text: cell, rep7: null, isMech: false, isAcc: true, accJobNum: mAcc[1] });
+          colItems.push({ text: cell, rep7: null, isMech: false, isServ: false, isAcc: true, accJobNum: mAcc[1] });
         } else if (m) {
           // REP item (7-digit)
-          const repId = isMech ? `REP ${m[1]} Mech` : `REP ${m[1]}`;
+          const repId = isMech ? `REP ${m[1]} Mech` : isServ ? `REP ${m[1]} Serv` : `REP ${m[1]}`;
           if (!newRaw[key]) newRaw[key] = [];
           if (!newRaw[key].includes(repId)) newRaw[key].push(repId);
-          colItems.push({ text: cell, rep7: m[1], isMech, isAcc: false, accJobNum: null });
+          colItems.push({ text: cell, rep7: m[1], isMech, isServ, isAcc: false, accJobNum: null });
         } else {
           const cellFmt   = cellColors[row]?.[col]?.format;
           const fillColor = (cellFmt?.fill?.color  || '').replace('#','').toLowerCase();
@@ -4365,10 +4381,10 @@ function parseSheetValues(values) {
     if (!row || row.length < 12) continue;
     const kRaw = String(row[10]||'').trim();
     const isExpressCode = /^(EXP|M-FT)\d*$/i.test(kRaw);
-    const isServCode    = /^SERV/i.test(kRaw);
+    const lCell = String(row[11]||'');
+    const isServCode    = /^SERV/i.test(kRaw) || /\bserv\b/i.test(lCell);
     const itemNo = (isExpressCode || isServCode) ? kRaw : Number(kRaw);
     if (!kRaw || (!isExpressCode && !isServCode && (!Number.isFinite(itemNo) || itemNo <= 0))) continue;
-    const lCell = String(row[11]||'');
     const m = lCell.match(/REP\s*(\d{7})/);
     if (!m) continue;
     // Prep day from column BI (index 60): 1-5 or EXP/M-FT → 'express'
@@ -6518,12 +6534,13 @@ function renderLoadSheet() {
       if (item.rep7) {
         const isDone     = qcCompletedReps.has(item.rep7) || mechQCDone.has(item.rep7);
         const mechTag    = item.isMech ? ' <span class="ls-mech-tag">MECH</span>' : '';
-        const extra      = item.text.replace(/\bREP\b/gi,'').replace(/\bmech\b/gi,'').replace(item.rep7,'').replace(/^[\s\-–]+|[\s\-–]+$/g,'').trim();
+        const servTag    = item.isServ ? ' <span class="ls-serv-tag">SERV</span>' : '';
+        const extra      = item.text.replace(/\bREP\b/gi,'').replace(/\bmech\b/gi,'').replace(/\bserv\b/gi,'').replace(item.rep7,'').replace(/^[\s\-–]+|[\s\-–]+$/g,'').trim();
         const expType    = EXPRESS_TYPE_MAP.get(item.rep7);
         const expCls     = expType === 'MFT' ? ' mft-job' : expType === 'EXP' ? ' exp-job' : '';
         const cls        = `ls-item-rep${expCls}${isDone?' qc-done':''}${isChanged?' ls-changed':''}`;
         return `<div class="${cls}"${isChanged?` style="${delayStyle}"`:''}>
-          <div class="ls-rep-num">${item.rep7}${mechTag}</div>
+          <div class="ls-rep-num">${item.rep7}${mechTag}${servTag}</div>
           ${extra ? `<div class="ls-rep-desc">${escHtml(extra)}</div>` : ''}
         </div>`;
       } else if (item.isAcc) {
