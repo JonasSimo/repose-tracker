@@ -6611,13 +6611,13 @@ function renderLoadSheet() {
     return;
   }
 
-  // Show yesterday through next 4 working days (skip bank holidays)
+  // Show previous working day + today + next 3 working days (skip bank holidays)
   const today = new Date(); today.setHours(0,0,0,0);
-  const cols = LS_RAW.filter(c => {
-    if (UK_BANK_HOLIDAYS.has(localDateKey(c.date))) return false;
-    const diff = Math.round((c.date - today) / 86400000);
-    return diff >= -1 && diff <= 4;
-  });
+  const targetKeys = new Set();
+  targetKeys.add(localDateKey(addWorkdays(today, -1)));
+  targetKeys.add(localDateKey(today));
+  for (let i = 1; i <= 3; i++) targetKeys.add(localDateKey(addWorkdays(today, i)));
+  const cols = LS_RAW.filter(c => targetKeys.has(localDateKey(c.date)));
 
   wrap.innerHTML = cols.map(col => {
     const label    = lsDayLabel(col.date);
