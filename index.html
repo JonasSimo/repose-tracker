@@ -102,21 +102,37 @@ body {
 .tdiv { width: 1px; height: 22px; background: rgba(255,255,255,.15); }
 .appname { font-weight: 600; font-size: 13px; color: rgba(255,255,255,.6); }
 .tr { display: flex; align-items: center; gap: 6px; }
-.tab-bar {
-  display: flex; gap: 2px;
-  background: rgba(255,255,255,.08);
-  border-radius: 8px; padding: 3px;
+/* ── Nav dropdown ── */
+.nav-menu { position: relative; }
+.nav-trigger {
+  display: flex; align-items: center; gap: 7px;
+  padding: 6px 12px; border-radius: 8px; border: none;
+  background: rgba(255,255,255,.1); color: #fff;
+  font-size: 13px; font-family: inherit; cursor: pointer;
+  font-weight: 500; white-space: nowrap; transition: background .12s;
 }
-.tab-btn {
-  padding: 5px 14px; border-radius: 6px; border: none;
-  background: transparent; color: rgba(255,255,255,.45);
-  font-size: 12px; font-family: inherit; cursor: pointer;
-  transition: .12s; font-weight: 500;
+.nav-trigger:hover { background: rgba(255,255,255,.16); }
+.nav-trigger-label { max-width: 130px; overflow: hidden; text-overflow: ellipsis; }
+.nav-arrow { font-size: 10px; opacity: .6; transition: transform .15s; flex-shrink: 0; }
+.nav-menu.open .nav-arrow { transform: rotate(180deg); }
+.nav-dropdown {
+  display: none; position: absolute; right: 0; top: calc(100% + 8px);
+  background: #1a1145; border: 1px solid rgba(255,255,255,.12);
+  border-radius: 10px; overflow: hidden; min-width: 180px;
+  box-shadow: 0 8px 28px rgba(0,0,0,.45); z-index: 9999;
 }
-.tab-btn:hover { color: rgba(255,255,255,.75); }
-.tab-btn.active { background: var(--repose-blue); color: #fff; }
-/* Tablet/team lock — hide all tabs except Team View when ?team= param is set */
-html.tablet-team .tab-btn + .tab-btn { display: none !important; }
+.nav-menu.open .nav-dropdown { display: flex; flex-direction: column; }
+.nav-item {
+  padding: 12px 16px; border: none; background: transparent;
+  color: rgba(255,255,255,.65); font-family: inherit; font-size: 13px;
+  cursor: pointer; text-align: left; font-weight: 500;
+  border-bottom: 1px solid rgba(255,255,255,.06); transition: background .1s;
+}
+.nav-item:last-child { border-bottom: none; }
+.nav-item:hover { background: rgba(255,255,255,.08); color: #fff; }
+.nav-item.active { color: var(--repose-blue); background: rgba(20,161,233,.1); }
+/* Tablet/team lock — hide nav menu entirely (only one view available) */
+html.tablet-team .nav-menu { display: none !important; }
 
 /* ─── VIEWS ─── */
 .view { display: none; flex: 1; overflow: hidden; flex-direction: column; }
@@ -1474,7 +1490,8 @@ html.tablet-team .tab-btn + .tab-btn { display: none !important; }
 /* ─── Larger tablet font scaling (768px+) ─── */
 @media (min-width: 768px) {
   body                  { font-size: 15px; }
-  .tab-btn              { font-size: 14px; padding: 6px 18px; }
+  .nav-trigger          { font-size: 14px; padding: 7px 14px; }
+  .nav-item             { font-size: 14px; padding: 13px 18px; }
   /* Team select */
   .ts-title             { font-size: 24px; }
   .ts-sub               { font-size: 15px; }
@@ -1543,13 +1560,19 @@ document.addEventListener('DOMContentLoaded', () => {
     <div id="auth-badge" class="auth-badge" title="Sign in to load live SharePoint data">
       <span class="auth-dot off"></span><span class="auth-name">Sign in</span>
     </div>
-    <div class="tab-bar">
-      <button class="tab-btn active" onclick="showView('team-select')">Team View</button>
-      <button class="tab-btn" onclick="showView('overview')">Load Plan</button>
-      <button class="tab-btn" onclick="showView('loadsheet')">Delivery</button>
-      <button class="tab-btn" onclick="showView('production')">Production Plan</button>
-      <button class="tab-btn" onclick="showView('stats')">Stats</button>
-      <button class="tab-btn" onclick="showView('issues')" id="issues-tab-btn">Issues</button>
+    <div class="nav-menu" id="nav-menu">
+      <button class="nav-trigger" onclick="toggleNavMenu()">
+        <span class="nav-trigger-label" id="nav-current">Team View</span>
+        <span class="nav-arrow">▾</span>
+      </button>
+      <div class="nav-dropdown" id="nav-dropdown">
+        <button class="nav-item active" data-view="team-select" onclick="navTo('team-select')">Team View</button>
+        <button class="nav-item" data-view="overview" onclick="navTo('overview')">Load Plan</button>
+        <button class="nav-item" data-view="loadsheet" onclick="navTo('loadsheet')">Delivery</button>
+        <button class="nav-item" data-view="production" onclick="navTo('production')">Production Plan</button>
+        <button class="nav-item" data-view="stats" onclick="navTo('stats')">Stats</button>
+        <button class="nav-item" data-view="issues" id="issues-tab-btn" onclick="navTo('issues')">Issues</button>
+      </div>
     </div>
   </div>
 </div>
@@ -2219,12 +2242,13 @@ let activeProdTeam = null; // team key being highlighted (e.g. 'wm')
 // ═══════════════════════════════════════════════
 // ROUTING
 // ═══════════════════════════════════════════════
+const NAV_LABELS = { 'team-select':'Team View','tracker':'Team View','overview':'Load Plan','loadsheet':'Delivery','production':'Production Plan','stats':'Stats','issues':'Issues' };
 function showView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-  const tabMap = { 'team-select':0, 'tracker':0, 'overview':1, 'loadsheet':2, 'production':3, 'stats':4, 'issues':5 };
-  document.querySelectorAll('.tab-btn').forEach((b, i) => {
-    b.classList.toggle('active', tabMap[name] === i);
-  });
+  const activeView = name === 'tracker' ? 'team-select' : name;
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.view === activeView));
+  const lbl = document.getElementById('nav-current');
+  if (lbl) lbl.textContent = NAV_LABELS[name] || name;
   document.getElementById('view-' + name).classList.add('active');
   if (name === 'overview')    { if (!ovActiveTab) ovActiveTab = 'live'; buildOvSlots(ovActiveTab==='wk1'?5:ovActiveTab==='wk2'?10:0); applyStateToOvBadges(); renderOverviewTabs(); renderOverview(); populateCustomerDropdown(); }
   if (name === 'loadsheet')   { renderLoadSheet(); }
@@ -2232,6 +2256,18 @@ function showView(name) {
   if (name === 'stats')       { openStatsView(); }
   if (name === 'issues')      { openIssuesView(); }
 }
+
+function toggleNavMenu() {
+  document.getElementById('nav-menu').classList.toggle('open');
+}
+function navTo(view) {
+  document.getElementById('nav-menu').classList.remove('open');
+  showView(view);
+}
+document.addEventListener('click', function(e) {
+  const m = document.getElementById('nav-menu');
+  if (m && !m.contains(e.target)) m.classList.remove('open');
+});
 
 function openTeam(name, hasSubs) {
   activeTeam = name;
@@ -5081,11 +5117,7 @@ if (TABLET_TEAM) {
   document.querySelectorAll('button').forEach(b => {
     if (b.textContent.trim().startsWith('← Teams')) b.style.display = 'none';
   });
-  // Hide Load Plan, Production Plan, Stats tabs — only Team View visible
-  document.querySelectorAll('.tab-btn').forEach(b => {
-    const txt = b.textContent.trim();
-    if (txt !== 'Team View') b.style.display = 'none';
-  });
+  // Nav menu hidden entirely in tablet-team mode via CSS (html.tablet-team .nav-menu)
   // Add tablet class for compact sidebar styling
   document.body.classList.add('tablet-mode');
 }
