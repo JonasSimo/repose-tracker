@@ -3189,13 +3189,18 @@ const UK_BANK_HOLIDAYS = new Set([
   '2027-01-01','2027-03-26','2027-03-29','2027-05-03','2027-05-31','2027-08-30','2027-12-27','2027-12-28',
 ]);
 
+// Use local date components to avoid UTC offset issues (e.g. BST = UTC+1)
+function localDateKey(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
 function addWorkdays(d, n) {
   const r = new Date(d);
   const step = n >= 0 ? 1 : -1;
   let remaining = Math.abs(n);
   while (remaining > 0) {
     r.setDate(r.getDate() + step);
-    if (r.getDay() !== 0 && r.getDay() !== 6 && !UK_BANK_HOLIDAYS.has(r.toISOString().slice(0,10))) remaining--;
+    if (r.getDay() !== 0 && r.getDay() !== 6 && !UK_BANK_HOLIDAYS.has(localDateKey(r))) remaining--;
   }
   return r;
 }
@@ -6609,8 +6614,7 @@ function renderLoadSheet() {
   // Show yesterday through next 4 working days (skip bank holidays)
   const today = new Date(); today.setHours(0,0,0,0);
   const cols = LS_RAW.filter(c => {
-    const key = c.date.toISOString().slice(0,10);
-    if (UK_BANK_HOLIDAYS.has(key)) return false;
+    if (UK_BANK_HOLIDAYS.has(localDateKey(c.date))) return false;
     const diff = Math.round((c.date - today) / 86400000);
     return diff >= -1 && diff <= 4;
   });
