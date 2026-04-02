@@ -4329,9 +4329,10 @@ async function graphSignIn() {
     return;
   }
   if (!msalInstance) initMSAL();
+  if (!msalInstance) { toast('Auth library not ready — please try again', 'u'); return; }
   // iOS/Android Safari blocks popups — use redirect flow for mobile and tablet
   if (TABLET_TEAM || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-    msalInstance.loginRedirect({ scopes: GRAPH_SCOPES });
+    try { msalInstance.loginRedirect({ scopes: GRAPH_SCOPES }); } catch(e) { toast('Sign-in failed: ' + e.message, 'u'); }
     return;
   }
   try {
@@ -5052,6 +5053,7 @@ if (TABLET_TEAM) {
 }
 renderTeamSidebar();
 renderWeekList();
+updateAuthBadge(); // attach Sign-in click handler immediately, before MSAL loads
 // Init Graph API auth after MSAL library loads
 window.addEventListener('load', () => initGraph().catch(console.error));
 
