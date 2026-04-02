@@ -3223,6 +3223,7 @@ let OV_DAYS = [];
 let OV_RAW  = {}; // { 'YYYY-MM-DD': ['REP 1234567', ...] } — all parsed from SharePoint
 let LS_RAW     = []; // [{ key, lsKey, date, items:[{text,rep7,isMech}] }] — one entry per Excel column
 const LS_CHANGES = new Map(); // item.text → ms timestamp — new/changed items (last 1 hour)
+const MECH_SERIALS = new Map(); // `${rep}__${wk}__${prep}` → serial code (Assembly only)
 
 const UK_BANK_HOLIDAYS = new Set([
   // 2025
@@ -6824,8 +6825,6 @@ async function logAccQCCompletion(repId) {
 // ═══════════════════════════════════════════════
 // MECHANISM SERIAL CODE (Assembly only)
 // ═══════════════════════════════════════════════
-// Keyed by `${rep}__${wk}__${prep}` → serial code string
-const MECH_SERIALS = new Map();
 
 async function loadMechSerials() {
   try {
