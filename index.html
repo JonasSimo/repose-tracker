@@ -1470,6 +1470,43 @@ html.tablet-team .tab-btn + .tab-btn { display: none !important; }
   pointer-events: none;
 }
 .ls-empty       { padding:12px 6px; font-size:10px; color:#aaa; text-align:center; }
+
+/* ─── Larger tablet font scaling (768px+) ─── */
+@media (min-width: 768px) {
+  body                  { font-size: 15px; }
+  .tab-btn              { font-size: 14px; padding: 6px 18px; }
+  /* Team select */
+  .ts-title             { font-size: 24px; }
+  .ts-sub               { font-size: 15px; }
+  .tc-name              { font-size: 16px; }
+  .tc-sub               { font-size: 13px; }
+  .tc-icon              { font-size: 28px; }
+  /* Job tracker sidebar */
+  .team-name            { font-size: 15px; }
+  .team-cnt             { font-size: 12px; }
+  .sub-btn              { font-size: 13px; }
+  .week-btn             { font-size: 12px; }
+  .prep-num             { font-size: 19px; }
+  .prep-day, .prep-ct   { font-size: 11px; }
+  /* Job cards */
+  .jh-title             { font-size: 16px; }
+  .jh-sub               { font-size: 13px; }
+  .jc-rep               { font-size: 14px; }
+  .jc-desc              { font-size: 13px; }
+  .jc-qty               { font-size: 13px; }
+  .tb-label             { font-size: 11px; }
+  .tb-icon              { font-size: 17px; }
+  /* Delivery (load sheet) */
+  .ls-col-day           { font-size: 15px; }
+  .ls-col-date          { font-size: 13px; }
+  .ls-col-tally         { font-size: 13px; }
+  .ls-rep-num           { font-size: 14px; }
+  .ls-rep-desc          { font-size: 12px; }
+  /* Overview */
+  .dh-label             { font-size: 12px; }
+  .dh-date              { font-size: 16px; }
+  .dh-ct                { font-size: 12px; }
+}
 </style>
 <script src="/msal-browser.min.js" defer></script>
 <script src="/chart.umd.min.js"></script>
