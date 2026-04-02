@@ -4367,8 +4367,8 @@ async function graphSignIn() {
   }
   if (!msalInstance) initMSAL();
   if (!msalInstance) { toast('Auth library not ready — please try again', 'u'); return; }
-  // iOS/Android Safari blocks popups — use redirect flow for mobile and tablet
-  if (TABLET_TEAM || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+  // iOS/Android blocks popups — use redirect; desktop always uses popup even with ?team=
+  if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
     try { msalInstance.loginRedirect({ scopes: GRAPH_SCOPES }); } catch(e) { toast('Sign-in failed: ' + e.message, 'u'); }
     return;
   }
@@ -4399,7 +4399,7 @@ async function getGraphToken() {
     graphAccount = res.account;
     return res.accessToken;
   } catch {
-    if (TABLET_TEAM || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+    if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
       msalInstance.acquireTokenRedirect({ scopes: GRAPH_SCOPES });
       throw new Error('Redirecting for authentication');
     }
