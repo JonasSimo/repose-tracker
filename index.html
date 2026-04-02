@@ -7,8 +7,13 @@
 <link rel="manifest" id="manifest-link" href="/manifest.json">
 <script>
 (function(){
-  var tp = new URLSearchParams(location.search).get('team');
-  if (tp) document.getElementById('manifest-link').href = '/manifest-' + tp.toLowerCase() + '.json';
+  var tp = new URLSearchParams(location.search).get('team')
+        || sessionStorage.getItem('tabletTeam');
+  if (tp) {
+    document.getElementById('manifest-link').href = '/manifest-' + tp.toLowerCase() + '.json';
+    document.documentElement.classList.add('tablet-team');
+    sessionStorage.setItem('tabletTeam', tp);
+  }
 })();
 </script>
 <meta name="theme-color" content="#0e023a">
@@ -110,6 +115,8 @@ body {
 }
 .tab-btn:hover { color: rgba(255,255,255,.75); }
 .tab-btn.active { background: var(--repose-blue); color: #fff; }
+/* Tablet/team lock — hide all tabs except Team View when ?team= param is set */
+html.tablet-team .tab-btn + .tab-btn { display: none !important; }
 
 /* ─── VIEWS ─── */
 .view { display: none; flex: 1; overflow: hidden; flex-direction: column; }
