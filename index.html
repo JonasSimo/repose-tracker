@@ -4673,6 +4673,7 @@ async function loadProductionFromSharePoint() {
     WEEKS.length = 0;
     newWEEKS.forEach(w => WEEKS.push(w));
     if (!activeWC || !newWEEKS.includes(activeWC)) activeWC = `WK ${now}`;
+    activeProdWC = `WK ${now}`;
 
     // Build EXPRESS_TYPE_MAP: rep7 → 'EXP'|'MFT'
     EXPRESS_TYPE_MAP.clear();
@@ -4703,6 +4704,7 @@ async function loadProductionFromSharePoint() {
     // 6. Re-render
     renderWeekList();
     renderJobs();
+    if (document.getElementById('view-production')?.classList.contains('active')) renderProductionPlan();
     const now2 = new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
     _setProdSyncUI('synced', `Live · synced ${now2}`);
     toast('Production data loaded from SharePoint', 's');
