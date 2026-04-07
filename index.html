@@ -7505,6 +7505,8 @@ let cparFilterStatus = 'open';
 let cparFilterTeam = '';
 let cparListLoaded = false;
 
+let cparSelectedGroups = {}; // { 'Back Error': 'Post wrong size', 'Seat Error': '' }
+
 // Form state — persists while modal is open
 const cparFormState = {
   wc:null, prep:null, ji:null,
@@ -7560,35 +7562,32 @@ function renderCPARSourceGrid() {
 function selectCPARSource(key) {
   cparFormState.source = key;
   cparFormState.category = '';
+  cparSelectedGroups = {};
 
   const wrap = document.getElementById('cpar-cat-wrap');
   if (key === 'woodmill') {
     wrap.style.display = 'block';
     wrap.innerHTML = `
-      <div class="cpar-field-label">Type of issue</div>
+      <div class="cpar-field-label">Type of issue <span style="font-weight:400;color:var(--text3)">(select all that apply)</span></div>
       <div class="cpar-group-grid">
         ${Object.keys(CPAR_WOODMILL_GROUPS).map(g =>
-          `<button class="cpar-group-btn" onclick="selectCPARGroup('${escHtml(g)}')">${escHtml(g)}</button>`
+          `<button class="cpar-group-btn" data-group="${escHtml(g)}" onclick="toggleCPARMultiGroup('${escHtml(g)}',CPAR_WOODMILL_GROUPS)">${escHtml(g)}</button>`
         ).join('')}
       </div>
-      <div id="cpar-subcat-wrap" style="display:none">
-        <select class="cpar-cat-select" id="cpar-cat-select" onchange="cparFormState.category=this.value"></select>
-      </div>`;
+      <div id="cpar-groups-detail" style="display:none;margin-top:6px"></div>`;
     return;
   }
 
   if (key === 'upholstery') {
     wrap.style.display = 'block';
     wrap.innerHTML = `
-      <div class="cpar-field-label">Type of issue</div>
+      <div class="cpar-field-label">Type of issue <span style="font-weight:400;color:var(--text3)">(select all that apply)</span></div>
       <div class="cpar-group-grid" style="grid-template-columns:repeat(2,1fr)">
         ${Object.keys(CPAR_UPHOLSTERY_GROUPS).map(g =>
-          `<button class="cpar-group-btn" onclick="selectCPARUpholsteryGroup('${escHtml(g)}')">${escHtml(g)}</button>`
+          `<button class="cpar-group-btn" data-group="${escHtml(g)}" onclick="toggleCPARMultiGroup('${escHtml(g)}',CPAR_UPHOLSTERY_GROUPS)">${escHtml(g)}</button>`
         ).join('')}
       </div>
-      <div id="cpar-subcat-wrap" style="display:none">
-        <select class="cpar-cat-select" id="cpar-cat-select" onchange="cparFormState.category=this.value"></select>
-      </div>
+      <div id="cpar-groups-detail" style="display:none;margin-top:6px"></div>
       <div style="margin-top:8px;display:grid;grid-template-columns:1fr;gap:6px">
         ${CPAR_UPHOLSTERY_DIRECT.map(d =>
           `<button class="cpar-group-btn" onclick="selectCPARDirectItem('${escHtml(d)}')">${escHtml(d)}</button>`
@@ -7715,6 +7714,41 @@ function selectCPARDirectItem(item) {
   });
   const subcatWrap = document.getElementById('cpar-subcat-wrap');
   if (subcatWrap) subcatWrap.style.display = 'none';
+}
+
+function toggleCPARMultiGroup(group, groupsData) {
+  if (cparSelectedGroups[group] !== undefined) {
+    delete cparSelectedGroups[group];
+  } else {
+    cparSelectedGroups[group] = '';
+  }
+  // Update button visual state
+  document.querySelectorAll('.cpar-group-btn[data-group]').forEach(b => {
+    b.classList.toggle('selected', cparSelectedGroups[b.dataset.group] !== undefined);
+  });
+  // Re-render per-group dropdowns
+  const detail = document.getElementById('cpar-groups-detail');
+  if (!detail) return;
+  const selected = Object.keys(cparSelectedGroups);
+  if (!selected.length) { detail.style.display = 'none'; detail.innerHTML = ''; updateCPARGroupCategory(); return; }
+  detail.style.display = 'block';
+  detail.innerHTML = selected.map(g => {
+    const items = groupsData[g] || [];
+    const cur   = cparSelectedGroups[g] || '';
+    return `<div style="margin-bottom:8px">
+      <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:4px">${escHtml(g)}</div>
+      <select class="cpar-cat-select" onchange="cparSelectedGroups['${escHtml(g)}']=this.value;updateCPARGroupCategory()">
+        <option value="">Select ${escHtml(g)} issue…</option>
+        ${items.map(i => `<option value="${escHtml(i)}"${cur===i?' selected':''}>${escHtml(i)}</option>`).join('')}
+      </select>
+    </div>`;
+  }).join('');
+  updateCPARGroupCategory();
+}
+
+function updateCPARGroupCategory() {
+  const parts = Object.entries(cparSelectedGroups).map(([g, v]) => v ? `${g} — ${v}` : g);
+  cparFormState.category = parts.join(' | ');
 }
 
 // ── Multi-job selector ───────────────────────────────────
