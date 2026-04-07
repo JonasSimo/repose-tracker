@@ -2491,6 +2491,39 @@ function selectPriorityJobs() {
   renderJobs();
 }
 
+// Find the first PROD job matching repId; returns {wc, prep, ji} or null
+function findProdJob(repId) {
+  for (const wc of Object.keys(PROD)) {
+    const wkData = PROD[wc];
+    for (const prep of Object.keys(wkData)) {
+      if (prep === 'wc') continue;
+      const jobs = Array.isArray(wkData[prep]) ? wkData[prep] : [];
+      for (let ji = 0; ji < jobs.length; ji++) {
+        if (jobs[ji].rep === repId) return { wc, prep, ji };
+      }
+    }
+  }
+  return null;
+}
+
+// Wrappers that temporarily set globals so tickJob/startJob/unStartJob work
+// from priority view, then restore PRIORITY context so renderJobs re-renders the list.
+function priorityTickJob(wc, prep, ji) {
+  activeWC = wc; activePrep = isNaN(prep) ? prep : Number(prep);
+  tickJob(ji);
+  activeWC = 'PRIORITY'; activePrep = null;
+}
+function priorityStartJob(wc, prep, ji) {
+  activeWC = wc; activePrep = isNaN(prep) ? prep : Number(prep);
+  startJob(ji);
+  activeWC = 'PRIORITY'; activePrep = null;
+}
+function priorityUnStartJob(wc, prep, ji) {
+  activeWC = wc; activePrep = isNaN(prep) ? prep : Number(prep);
+  unStartJob(ji);
+  activeWC = 'PRIORITY'; activePrep = null;
+}
+
 function renderPriorityJobsList() {
   const area = document.getElementById('jobListArea');
   const statsEl = document.getElementById('jh-stats');
@@ -2518,7 +2551,9 @@ function renderPriorityJobsList() {
     byDay[j.dayLabel].items.push(j);
   });
 
-  const map = TEAM_OV_MAP[activeTeam];
+  const color = getTeamColor();
+  const sk = activeSub;
+  const showStart = showsStartButton();
   let html = '';
 
   ['Yesterday', 'Today', 'Tomorrow'].forEach(dayLabel => {
@@ -2532,10 +2567,51 @@ function renderPriorityJobsList() {
         <span class="pj-date">${group.date}</span>
       </div>`;
     group.items.forEach(j => {
-      html += `<div class="pj-job-row">
-        <span class="pj-rep">${escHtml(j.repId)}</span>
-        <button class="pj-mark-btn" onclick="markPriorityJobDone(${j.dayIdx},${j.repIdx})">✓ Mark Done</button>
-      </div>`;
+      const found = findProdJob(j.repId);
+      if (found) {
+        const { wc, prep, ji } = found;
+        const job = PROD[wc][prep][ji];
+        const s = STATE[activeTeam]?.[sk]?.[wc]?.[prep]?.[ji] || { done:false, doneAt:'', initials:'' };
+        const isQcAuto  = s.qcAuto && s.done;
+        const isAuto    = s.autoSync && s.done;
+        const isStarted = s.started && !s.done;
+        const barColor  = s.done ? (isQcAuto || isAuto ? 'var(--teal)' : 'var(--green)') : isStarted ? 'var(--amber)' : color;
+        const startedName = isStarted && s.startedBy ? resolveInitialsToName(s.startedBy, activeTeam) : '';
+        html += `
+          <div class="job-card ${s.done?'done':isStarted?'in-progress':''}">
+            <div class="jc-bar" style="background:${barColor}"></div>
+            <div class="jc-body" onclick="openSpecModal('${wc}','${prep}',${ji})">
+              <span class="jc-item">Job ${escHtml(String(job.itemNo))}</span>
+              ${job.isService ? `<span class="jc-serv-badge">SERVICE</span>` : ''}
+              <span class="jc-rep">${escHtml(job.rep)}</span>
+              ${s.done ? `<div class="card-undo">
+                ${isQcAuto ? `<span class="jc-qc-badge">QC ✓</span>` :
+                  isAuto ? `<span class="jc-auto-badge">📋 AUTO</span>` :
+                  (s.initials?`<span class="jc-initials">${escHtml(s.initials)}</span>`:'')}
+                ${s.doneAt?`<span class="jc-time-sm">${escHtml(s.doneAt)}</span>`:''}
+                ${!isQcAuto ? `<button class="card-undo-btn" onclick="event.stopPropagation();undoJob('${activeTeam}','${escHtml(sk)}','${wc}','${prep}',${ji})">↩ Undo</button>` : ''}
+              </div>` : isStarted ? `
+                <div class="jc-started-label">▶ In progress · ${escHtml(startedName || s.startedBy || '')}${s.startedAt?' · '+escHtml(s.startedAt):''}</div>` :
+                `<span class="jc-qty">Qty: ${job.qty||'—'}</span>`}
+            </div>
+            ${activeTeam === 'Assembly' ? (() => { const _s = MECH_SERIALS.get(`${job.rep}__${wc}__${prep}`); return `<button class="serial-card-btn${_s?' saved':''}" onclick="event.stopPropagation();openMechSerialModal('${wc}','${prep}',${ji},'${escHtml(job.rep)}')">${_s ? `✓<br><span style="font-size:9px;letter-spacing:.02em">${escHtml(_s)}</span>` : '⊞<br>Serial'}</button>`; })() : ''}
+            <button class="cpar-btn" onclick="event.stopPropagation();openCPARForm('${wc}','${prep}',${ji})" title="Raise CPAR for this job">⚠<br>CPAR</button>
+            ${showStart && !s.done ? `<button class="start-btn${isStarted?' active':''}" onclick="event.stopPropagation();${isStarted?`priorityUnStartJob('${wc}','${prep}',${ji})`:`priorityStartJob('${wc}','${prep}',${ji})`}" title="${isStarted?'Cancel start':'Start this job'}">
+              <span class="sb-icon">${isStarted?'⏸':'▶'}</span>
+              <span>${isStarted?'STARTED':'START'}</span>
+            </button>` : ''}
+            <button class="tick-btn ${s.done?'ticked':''}" onclick="priorityTickJob('${wc}','${prep}',${ji})">
+              <span class="tb-icon">${s.done?'✓':'○'}</span>
+              <span class="tb-label">${s.done?'DONE':'MARK'}</span>
+            </button>
+          </div>`;
+      } else {
+        // Fallback: rep not yet loaded into PROD — show simple row
+        html += `<div class="pj-job-row">
+          <span class="pj-rep">${escHtml(j.repId)}</span>
+          <button class="pj-mark-btn" onclick="markPriorityJobDone(${j.dayIdx},${j.repIdx})">✓ Mark Done</button>
+        </div>`;
+      }
     });
     html += `</div>`;
   });
