@@ -2287,6 +2287,11 @@ function navTo(view) {
 document.addEventListener('click', function(e) {
   const m = document.getElementById('nav-menu');
   if (m && !m.contains(e.target)) m.classList.remove('open');
+  // Dismiss PP completion tooltip when clicking outside a job row
+  const tip = document.getElementById('pp-tooltip');
+  if (tip && tip.style.display !== 'none' && !e.target.closest('.pp-job')) {
+    tip.style.display = 'none';
+  }
 });
 
 function openTeam(name, hasSubs) {
@@ -5139,11 +5144,7 @@ function showPPTooltip(event, text) {
   const y = Math.min(event.clientY - 10,  window.innerHeight - 120);
   tip.style.left = x + 'px';
   tip.style.top  = y + 'px';
-
-  // Dismiss on next click anywhere
-  setTimeout(() => {
-    document.addEventListener('click', () => { tip.style.display = 'none'; }, { once: true });
-  }, 50);
+  // dismissed by the persistent handler below
 }
 
 // ═══════════════════════════════════════════════
