@@ -1746,6 +1746,13 @@ document.addEventListener('DOMContentLoaded', () => {
 <!-- Production Plan view -->
 <div class="view" id="view-production">
   <div class="pp-wrap">
+    <div class="prod-sync-bar" style="border-bottom:1px solid var(--border)">
+      <div id="pp-sync-pill" class="sync-pill">
+        <span class="sync-dot"></span>
+        <span id="pp-sync-lbl">Static data · Sign in to sync live</span>
+      </div>
+      <button class="sync-btn" onclick="loadProductionFromSharePoint()" title="Reload from SharePoint">↻ Sync</button>
+    </div>
     <div id="pp-week-bar" class="pp-week-bar"></div>
     <div id="pp-team-bar" class="pp-team-bar"></div>
     <div id="pp-area" class="pp-area"></div>
@@ -2238,6 +2245,7 @@ let activeWC = 'WK 12'; // default to current week
 let activePrep = 1;
 let activeProdWC   = null;
 let activeProdTeam = null; // team key being highlighted (e.g. 'wm')
+let ppAutoSyncInterval = null;
 
 // ═══════════════════════════════════════════════
 // ROUTING
@@ -2252,7 +2260,13 @@ function showView(name) {
   document.getElementById('view-' + name).classList.add('active');
   if (name === 'overview')    { if (!ovActiveTab) ovActiveTab = 'live'; buildOvSlots(ovActiveTab==='wk1'?5:ovActiveTab==='wk2'?10:0); applyStateToOvBadges(); renderOverviewTabs(); renderOverview(); populateCustomerDropdown(); }
   if (name === 'loadsheet')   { renderLoadSheet(); }
-  if (name === 'production')  { renderProductionPlan(); }
+  if (name === 'production')  {
+    renderProductionPlan();
+    if (ppAutoSyncInterval) clearInterval(ppAutoSyncInterval);
+    ppAutoSyncInterval = setInterval(() => loadProductionFromSharePoint(), 60000);
+  } else {
+    if (ppAutoSyncInterval) { clearInterval(ppAutoSyncInterval); ppAutoSyncInterval = null; }
+  }
   if (name === 'stats')       { openStatsView(); }
   if (name === 'issues')      { openIssuesView(); }
 }
@@ -4610,9 +4624,15 @@ async function loadProductionFromSharePoint() {
   const token = await getGraphToken().catch(() => null);
   if (!token) { toast('Sign in first to load live data', 'u'); return; }
 
-  const pill = document.getElementById('prod-sync-pill');
-  const lbl  = document.getElementById('prod-sync-lbl');
-  if (pill) { pill.className = 'sync-pill syncing'; lbl.textContent = 'Loading from SharePoint…'; }
+  const pill   = document.getElementById('prod-sync-pill');
+  const lbl    = document.getElementById('prod-sync-lbl');
+  const ppPill = document.getElementById('pp-sync-pill');
+  const ppLbl  = document.getElementById('pp-sync-lbl');
+  function _setProdSyncUI(cls, txt) {
+    if (pill)   { pill.className   = 'sync-pill ' + cls; lbl.textContent   = txt; }
+    if (ppPill) { ppPill.className = 'sync-pill ' + cls; ppLbl.textContent = txt; }
+  }
+  _setProdSyncUI('syncing', 'Loading from SharePoint…');
 
   try {
     // 1. Resolve sharing link to driveItem
@@ -4684,7 +4704,7 @@ async function loadProductionFromSharePoint() {
     renderWeekList();
     renderJobs();
     const now2 = new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
-    if (pill) { pill.className = 'sync-pill synced'; lbl.textContent = `Live · synced ${now2}`; }
+    _setProdSyncUI('synced', `Live · synced ${now2}`);
     toast('Production data loaded from SharePoint', 's');
     populateCustomerDropdown();
     // Await fetch so SPEC_ALERTS is populated before change detection runs (needed for dedup)
@@ -4693,7 +4713,7 @@ async function loadProductionFromSharePoint() {
 
   } catch(e) {
     console.error('Production load failed', e);
-    if (pill) { pill.className = 'sync-pill error'; lbl.textContent = 'Sync failed'; }
+    _setProdSyncUI('error', 'Sync failed');
     toast('Failed to load: ' + e.message.slice(0,60), 'u');
   }
 }
