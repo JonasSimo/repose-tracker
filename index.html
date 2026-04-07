@@ -4988,7 +4988,7 @@ function renderProductionPlan() {
             }
           });
           badgeHtml += '</div>';
-          return `<div class="pp-job">
+          return `<div class="pp-job" onclick="ppJobClick('${col.key}',${ji},event)" style="cursor:pointer">
             <div class="pp-job-top">
               <span class="pp-job-code">${codeLabel}</span>
               <span class="pp-job-rep">${escHtml(j.rep)}</span>
@@ -5026,6 +5026,72 @@ function selectProdWC(wk) {
 function selectProdTeam(key) {
   activeProdTeam = activeProdTeam === key ? null : key; // toggle
   renderProductionPlan();
+}
+
+function ppJobClick(prep, ji, event) {
+  // Find team name from the active highlight key (e.g. 'sw' → 'Sewing')
+  const ovEntry = Object.entries(TEAM_OV_MAP).find(([, v]) => v.key === activeProdTeam);
+  if (!ovEntry) return;
+  const teamName = ovEntry[0];
+  const teamCfg  = TEAMS_CFG.find(t => t.name === teamName);
+  if (!teamCfg) return;
+
+  const wk = activeProdWC;
+  const lines = [];
+
+  if (teamCfg.hasSubs) {
+    SUBS.forEach(sub => {
+      const s = STATE[teamName]?.[sub]?.[wk]?.[prep]?.[ji];
+      if (s?.done) {
+        const who  = s.initials || '—';
+        const when = [s.doneAt, s.doneDate].filter(Boolean).join(' · ') || '—';
+        lines.push(`${SUB_SHORT[sub]}  ·  By: ${who}  ·  At: ${when}`);
+      }
+    });
+  } else {
+    const s = STATE[teamName]?.['all']?.[wk]?.[prep]?.[ji];
+    if (s?.done) {
+      const who  = s.initials || '—';
+      const when = [s.doneAt, s.doneDate].filter(Boolean).join(' · ') || '—';
+      lines.push(`By: ${who}`);
+      lines.push(`At: ${when}`);
+    }
+  }
+
+  if (!lines.length) return; // not completed — nothing to show
+  showPPTooltip(event, `✅ Completed\n${lines.join('\n')}`);
+}
+
+function showPPTooltip(event, text) {
+  let tip = document.getElementById('pp-tooltip');
+  if (!tip) {
+    tip = document.createElement('div');
+    tip.id = 'pp-tooltip';
+    tip.style.cssText = [
+      'position:fixed', 'z-index:9999',
+      'background:#0e023a', 'color:#fff',
+      'padding:10px 14px', 'border-radius:10px',
+      'font-size:12px', 'font-weight:500', 'line-height:1.8',
+      'box-shadow:0 6px 24px rgba(0,0,0,0.28)',
+      'border-left:3px solid #14a1e9',
+      'white-space:pre', 'pointer-events:none',
+      'font-family:inherit',
+    ].join(';');
+    document.body.appendChild(tip);
+  }
+  tip.textContent = text;
+  tip.style.display = 'block';
+
+  // Position near click, keep within viewport
+  const x = Math.min(event.clientX + 14, window.innerWidth  - 220);
+  const y = Math.min(event.clientY - 10,  window.innerHeight - 120);
+  tip.style.left = x + 'px';
+  tip.style.top  = y + 'px';
+
+  // Dismiss on next click anywhere
+  setTimeout(() => {
+    document.addEventListener('click', () => { tip.style.display = 'none'; }, { once: true });
+  }, 50);
 }
 
 // ═══════════════════════════════════════════════
