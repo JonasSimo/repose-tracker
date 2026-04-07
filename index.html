@@ -3933,6 +3933,7 @@ async function loadCompletionsFromList() {
     renderTeamSidebar();
     renderPriorityBtn();
     applyStateToOvBadges();
+    if (document.getElementById('view-production')?.classList.contains('active')) renderProductionPlan();
   } catch(e) {
     console.warn('loadCompletionsFromList failed:', e.message);
   }
