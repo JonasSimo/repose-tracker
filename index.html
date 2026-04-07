@@ -348,6 +348,19 @@ html.tablet-team .nav-menu { display: none !important; }
 .tb-time { font-size: 9px; color: var(--text3); font-family: 'JetBrains Mono', monospace; margin-top: 1px; }
 .tick-btn.ticked .tb-time { color: var(--green); opacity: .7; }
 
+/* In-progress (started) job state */
+.job-card.in-progress .jc-bar { background: var(--amber) !important; }
+.jc-started-label { font-size: 10px; font-weight: 700; color: var(--amber); display: flex; align-items: center; gap: 4px; margin-top: 3px; }
+.start-btn {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  width: 48px; flex-shrink: 0; border: none; cursor: pointer; font-family: inherit;
+  background: var(--abg); border-left: 1px solid var(--aborder); color: var(--amber);
+  font-size: 9px; font-weight: 700; gap: 3px; padding: 0; transition: .12s;
+}
+.start-btn:hover { background: #fed7aa; }
+.start-btn .sb-icon { font-size: 15px; line-height: 1; }
+.start-btn.active { background: var(--amber); color: #fff; border-color: var(--amber); }
+
 /* Sub-tick row (Woodmill / Upholstery — Arms / Backs / Seats) */
 .subtick-row {
   display: flex; gap: 0; flex-shrink: 0;
@@ -1861,7 +1874,7 @@ document.addEventListener('DOMContentLoaded', () => {
 <!-- Initials modal -->
 <div id="modal-initials" class="modal-overlay" style="display:none" onclick="if(event.target===this)modalCancel()">
   <div class="modal-box">
-    <div class="modal-title">Mark as Complete</div>
+    <div class="modal-title" id="modal-title">Mark as Complete</div>
     <div class="modal-sub" id="modal-sub-label">Enter operator initials for traceability</div>
     <div class="modal-rep" id="modal-rep-label">REP 0000000</div>
     <div id="modal-ops-section" style="display:none">
@@ -2637,10 +2650,14 @@ function renderJobs() {
   }
 
   const color = getTeamColor();
-  // Pending jobs first, done jobs at the bottom
-  const sortedIndices = jobs.map((_, ji) => ji).sort((a, b) =>
-    (stateSlice[a]?.done ? 1 : 0) - (stateSlice[b]?.done ? 1 : 0)
-  );
+  // Sort: started (orange) first, then pending, then done at bottom
+  const sortedIndices = jobs.map((_, ji) => ji).sort((a, b) => {
+    const sa = stateSlice[a] || {}, sb = stateSlice[b] || {};
+    if (sa.done !== sb.done) return (sa.done ? 1 : 0) - (sb.done ? 1 : 0);
+    if (sa.started !== sb.started) return (sa.started ? -1 : 0) - (sb.started ? -1 : 0);
+    return 0;
+  });
+  const showStart = showsStartButton();
   let html = '';
   sortedIndices.forEach(ji => {
     const job = jobs[ji];
@@ -2648,9 +2665,11 @@ function renderJobs() {
     const sk2 = activeSub;
     const isQcAuto = s.qcAuto && s.done;
     const isAuto   = s.autoSync && s.done;
-    const barColor = s.done ? (isQcAuto ? 'var(--teal)' : isAuto ? 'var(--teal)' : 'var(--green)') : color;
+    const isStarted = s.started && !s.done;
+    const barColor = s.done ? (isQcAuto ? 'var(--teal)' : isAuto ? 'var(--teal)' : 'var(--green)') : isStarted ? 'var(--amber)' : color;
+    const startedName = isStarted && s.startedBy ? resolveInitialsToName(s.startedBy, activeTeam) : '';
     html += `
-      <div class="job-card ${s.done?'done':''}">
+      <div class="job-card ${s.done?'done':isStarted?'in-progress':''}">
         <div class="jc-bar" style="background:${barColor}"></div>
         <div class="jc-body" onclick="openSpecModal('${activeWC}','${activePrep}',${ji})">
           <span class="jc-item">Job ${escHtml(String(job.itemNo))}</span>
@@ -2662,10 +2681,16 @@ function renderJobs() {
               (s.initials?`<span class="jc-initials">${escHtml(s.initials)}</span>`:'')}
             ${s.doneAt?`<span class="jc-time-sm">${escHtml(s.doneAt)}</span>`:''}
             ${!isQcAuto ? `<button class="card-undo-btn" onclick="event.stopPropagation();undoJob('${activeTeam}','${sk2}','${activeWC}','${activePrep}',${ji})">↩ Undo</button>` : ''}
-          </div>` : `<span class="jc-qty">Qty: ${job.qty||'—'}</span>`}
+          </div>` : isStarted ? `
+            <div class="jc-started-label">▶ In progress · ${escHtml(startedName || s.startedBy || '')}${s.startedAt ? ' · '+escHtml(s.startedAt) : ''}</div>` :
+            `<span class="jc-qty">Qty: ${job.qty||'—'}</span>`}
         </div>
         ${activeTeam === 'Assembly' ? (() => { const _s = MECH_SERIALS.get(`${job.rep}__${activeWC}__${activePrep}`); return `<button class="serial-card-btn${_s?' saved':''}" onclick="event.stopPropagation();openMechSerialModal('${activeWC}','${activePrep}',${ji},'${escHtml(job.rep)}')">${_s ? `✓<br><span style="font-size:9px;letter-spacing:.02em">${escHtml(_s)}</span>` : '⊞<br>Serial'}</button>`; })() : ''}
         <button class="cpar-btn" onclick="event.stopPropagation();openCPARForm('${activeWC}','${activePrep}',${ji})" title="Raise CPAR for this job">⚠<br>CPAR</button>
+        ${showStart && !s.done ? `<button class="start-btn${isStarted?' active':''}" onclick="event.stopPropagation();${isStarted?`unStartJob(${ji})`:`startJob(${ji})`}" title="${isStarted?'Cancel start':'Start this job'}">
+          <span class="sb-icon">${isStarted?'⏸':'▶'}</span>
+          <span>${isStarted?'STARTED':'START'}</span>
+        </button>` : ''}
         <button class="tick-btn ${s.done?'ticked':''}" onclick="tickJob(${ji})">
           <span class="tb-icon">${s.done?'✓':'○'}</span>
           <span class="tb-label">${s.done?'DONE':'MARK'}</span>
@@ -2679,7 +2704,15 @@ function renderJobs() {
 }
 
 // ─── Pending tick (waiting for initials) ───
-let pendingTick = null; // { ji, team, sub, wc, prep }
+let pendingTick  = null; // { ji, team, sub, wc, prep }
+let pendingStart = null; // { ji, team, sub, wc, prep }
+let modalMode    = 'complete'; // 'complete' | 'start'
+
+function showsStartButton() {
+  // Teams where the Start button is shown
+  return activeTeam === 'Assembly' || activeTeam === 'Sewing' ||
+         (activeHasSubs && ['Arms','Backs','Seats'].includes(activeSub));
+}
 
 function tickJob(ji) {
   // Snapshot all context at call time — globals may shift if team/week changes during async modal
@@ -2730,7 +2763,9 @@ function tickJob(ji) {
   }
 
   // All other teams — show initials modal
+  modalMode  = 'complete';
   pendingTick = { ji, team: snapTeam, sub: snapSub, wc: snapWC, prep: snapPrep };
+  document.getElementById('modal-title').textContent = 'Mark as Complete';
   document.getElementById('modal-rep-label').textContent = job.rep;
 
   const operators = TEAM_OPERATORS[`${snapTeam} ${snapSub}`] || TEAM_OPERATORS[snapTeam];
@@ -2814,6 +2849,7 @@ function modalMultiConfirm() {
 }
 
 function modalConfirm() {
+  if (modalMode === 'start') { startJobConfirm(); return; }
   if (!pendingTick) return;
   const inp = document.getElementById('modal-initials-input');
   const initials = inp.value.trim().toUpperCase();
@@ -2847,14 +2883,131 @@ function modalConfirm() {
 }
 
 function modalCancel() {
-  pendingTick = null;
+  pendingTick  = null;
+  pendingStart = null;
+  modalMode    = 'complete';
   document.getElementById('modal-initials').style.display = 'none';
+}
+
+function startJob(ji) {
+  const snapTeam = activeTeam, snapSub = activeSub, snapWC = activeWC, snapPrep = activePrep;
+  const s = STATE[snapTeam]?.[snapSub]?.[snapWC]?.[snapPrep]?.[ji];
+  if (!s || s.done || s.started) return;
+  const job = PROD[snapWC][snapPrep][ji];
+
+  modalMode    = 'start';
+  pendingStart = { ji, team: snapTeam, sub: snapSub, wc: snapWC, prep: snapPrep };
+  document.getElementById('modal-title').textContent = 'Who is starting this job?';
+  document.getElementById('modal-rep-label').textContent = job.rep;
+
+  // Always single-select for start
+  const operators = TEAM_OPERATORS[`${snapTeam} ${snapSub}`] || TEAM_OPERATORS[snapTeam];
+  const opsSection   = document.getElementById('modal-ops-section');
+  const inputSection = document.getElementById('modal-input-section');
+  const subLabel     = document.getElementById('modal-sub-label');
+  const opsActions   = document.querySelector('#modal-ops-section .modal-actions');
+
+  if (operators) {
+    subLabel.textContent = 'Select your name';
+    opsSection.style.display   = '';
+    inputSection.style.display = 'none';
+    const opsList = document.getElementById('modal-ops-list');
+    opsList.style.maxHeight = '52vh';
+    opsList.style.overflowY = 'auto';
+    opsList.innerHTML = operators.map(op =>
+      `<button class="modal-op-btn" onclick="modalSelectOperator('${escHtml(op.initials)}')">
+        ${op.initials !== op.name ? `<span class="modal-op-initials">${escHtml(op.initials)}</span>` : ''}
+        <span>${escHtml(op.name)}</span>
+      </button>`
+    ).join('');
+    opsActions.innerHTML = `<button class="modal-cancel" onclick="modalCancel()">Cancel</button>`;
+  } else {
+    subLabel.textContent = 'Enter your initials';
+    opsSection.style.display   = 'none';
+    inputSection.style.display = '';
+    const inp = document.getElementById('modal-initials-input');
+    inp.value = '';
+    setTimeout(() => inp.focus(), 80);
+  }
+  document.getElementById('modal-initials').style.display = 'flex';
+}
+
+function startJobConfirm() {
+  if (!pendingStart) return;
+  const inp      = document.getElementById('modal-initials-input');
+  const initials = inp.value.trim().toUpperCase();
+  if (!initials) { inp.focus(); inp.style.borderColor='var(--red)'; setTimeout(()=>inp.style.borderColor='',800); return; }
+  document.getElementById('modal-initials').style.display = 'none';
+
+  const { ji, team, sub, wc, prep } = pendingStart;
+  pendingStart = null;
+  modalMode    = 'complete';
+
+  const s = STATE[team]?.[sub]?.[wc]?.[prep]?.[ji];
+  if (!s) return;
+  s.started   = true;
+  s.startedBy = initials;
+  s.startedAt = new Date().toTimeString().slice(0,5);
+  const job   = PROD[wc][prep][ji];
+  toast(`${job.rep} · started by ${initials}`, 's');
+
+  saveStartToList(team, sub, wc, prep, ji).catch(err => {
+    console.warn('saveStartToList:', err);
+    s.started = false; s.startedBy = ''; s.startedAt = ''; s.startItemId = null;
+    renderJobs();
+    toast('Could not save start — try again', 'u');
+  });
+  renderJobs();
+  renderTeamSidebar();
+}
+
+async function saveStartToList(team, sub, wk, prep, ji) {
+  const siteId = await getSpSiteId();
+  const listId = await getSpListId();
+  const job    = PROD[wk][prep][ji];
+  const s      = STATE[team][sub][wk][prep][ji];
+  const token  = await getGraphToken();
+  const res = await fetch(
+    `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`,
+    { method:'POST', headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
+      body: JSON.stringify({ fields: {
+        Team: team, SubTeam: sub === 'all' ? '' : sub, Week: wk,
+        WCDate: PROD[wk]?.wc || '', Prep: prep,
+        JobNo: job.itemNo, REP: job.rep,
+        Initials: s.startedBy, CompletedTime: s.startedAt,
+        CompletedDate: new Date().toLocaleDateString('en-GB'),
+        IsComplete: false,
+      }})
+    }
+  );
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data   = await res.json();
+  s.startItemId = data.id;
+}
+
+async function unStartJob(ji) {
+  const team = activeTeam, sub = activeSub, wc = activeWC, prep = activePrep;
+  const s    = STATE[team]?.[sub]?.[wc]?.[prep]?.[ji];
+  if (!s?.started) return;
+  const itemId    = s.startItemId;
+  s.started       = false;
+  s.startedBy     = '';
+  s.startedAt     = '';
+  s.startItemId   = null;
+  renderJobs(); renderTeamSidebar();
+  if (itemId) {
+    try {
+      const siteId = await getSpSiteId(), listId = await getSpListId(), token = await getGraphToken();
+      await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${itemId}`,
+        { method:'DELETE', headers:{ Authorization:`Bearer ${token}` } });
+    } catch(e) { console.warn('unStartJob delete failed:', e.message); }
+  }
 }
 
 // Allow Enter key to confirm
 document.addEventListener('keydown', e => {
-  if (e.key === 'Enter'  && pendingTick !== null) modalConfirm();
-  if (e.key === 'Escape' && pendingTick !== null) modalCancel();
+  if (e.key === 'Enter'  && (pendingTick !== null || pendingStart !== null)) modalConfirm();
+  if (e.key === 'Escape' && (pendingTick !== null || pendingStart !== null)) modalCancel();
   if (e.key === 'Escape' && document.getElementById('specModal')?.style.display !== 'none') closeSpecModal();
 });
 
@@ -3945,17 +4098,34 @@ async function loadCompletionsFromList() {
           for (const p of [1,2,3,4,5,'express']) {
             const jobs = PROD[wk]?.[p] || [];
             if (STATE[t.name]?.[k]?.[wk]?.[p]) {
-              STATE[t.name][k][wk][p] = jobs.map(() => ({ done:false, doneAt:'', initials:'', doneDate:'', listItemId:null }));
+              STATE[t.name][k][wk][p] = jobs.map(() => ({ done:false, doneAt:'', initials:'', doneDate:'', listItemId:null, started:false, startedBy:'', startedAt:'', startItemId:null }));
             }
           }
         });
       });
     });
 
-    // Apply each completion from the list
+    // Apply each completion (and in-progress starts) from the list
     allItems.forEach(item => {
       const f = item.fields;
-      if (!f.IsComplete) return;
+      if (!f.IsComplete && !f.Initials) return; // skip empty/orphan records
+      if (!f.IsComplete) {
+        // In-progress (started) record
+        const team = f.Team, sub = f.SubTeam || 'all', wk = f.Week;
+        const prep = f.Prep === 'express' ? 'express' : Number(f.Prep);
+        const rep  = f.REP;
+        if (!team || !wk || !prep || !rep) return;
+        const jobs = PROD[wk]?.[prep] || [];
+        const ji   = jobs.findIndex(j => j.rep === rep);
+        if (ji < 0) return;
+        const s = STATE[team]?.[sub]?.[wk]?.[prep]?.[ji];
+        if (!s || s.done) return; // don't overwrite completions
+        s.started     = true;
+        s.startedBy   = f.Initials || '';
+        s.startedAt   = f.CompletedTime || '';
+        s.startItemId = item.id;
+        return;
+      }
       const team = f.Team;
       const sub  = f.SubTeam || 'all';
       const wk   = f.Week;
@@ -4004,30 +4174,40 @@ async function saveCompletionToList(team, sub, wk, prep, ji) {
     const job = PROD[wk][prep][ji];
     const s   = STATE[team][sub][wk][prep][ji];
     const token = await getGraphToken();
-    const res = await fetch(
-      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`,
-      {
-        method: 'POST',
-        headers: { Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
-        body: JSON.stringify({ fields: {
-          Team:          team,
-          SubTeam:       sub === 'all' ? '' : sub,
-          Week:          wk,
-          WCDate:        PROD[wk]?.wc || '',
-          Prep:          prep,
-          JobNo:         job.itemNo,
-          REP:           job.rep,
-          Initials:      s.initials,
-          CompletedTime: s.doneAt,
-          CompletedDate: s.doneDate,
-          IsComplete:    true,
-          ...(team === 'Assembly' ? { MechSerial: MECH_SERIALS.get(`${job.rep}__${wk}__${prep}`) || '' } : {}),
-        }})
-      }
-    );
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    s.listItemId = data.id;
+    const fields = {
+      Team:          team,
+      SubTeam:       sub === 'all' ? '' : sub,
+      Week:          wk,
+      WCDate:        PROD[wk]?.wc || '',
+      Prep:          prep,
+      JobNo:         job.itemNo,
+      REP:           job.rep,
+      Initials:      s.initials,
+      CompletedTime: s.doneAt,
+      CompletedDate: s.doneDate,
+      IsComplete:    true,
+      ...(team === 'Assembly' ? { MechSerial: MECH_SERIALS.get(`${job.rep}__${wk}__${prep}`) || '' } : {}),
+    };
+    // If the job was "started" and saved to SP, PATCH that record rather than creating a new one
+    if (s.startItemId) {
+      const res = await fetch(
+        `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${s.startItemId}`,
+        { method:'PATCH', headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
+          body: JSON.stringify({ fields }) }
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      s.listItemId   = s.startItemId;
+      s.startItemId  = null;
+    } else {
+      const res = await fetch(
+        `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`,
+        { method:'POST', headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
+          body: JSON.stringify({ fields }) }
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      s.listItemId = data.id;
+    }
   } catch(e) {
     console.warn('saveCompletionToList failed:', e.message);
     throw e;
