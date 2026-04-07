@@ -770,6 +770,8 @@ html.tablet-team .nav-menu { display: none !important; }
   display: flex; align-items: center; gap: 10px; transition: all .12s;
 }
 .modal-op-btn:hover { border-color: var(--blue); background: var(--bbg); }
+.modal-op-btn.selected { background: var(--gbg); border-color: var(--green); color: var(--green); }
+.modal-op-btn.selected .modal-op-initials { color: var(--green); background: var(--gbg); border-color: var(--gborder); }
 .modal-op-initials {
   font-family: 'JetBrains Mono',monospace; font-weight: 700; font-size: 13px;
   color: var(--blue); background: var(--bbg); border: 1px solid var(--bborder);
@@ -2100,6 +2102,10 @@ const PROD = {
 // Ordered: last 2 weeks, current, next — matches the 4-week window
 const WEEKS = ['WK 10', 'WK 11', 'WK 12', 'WK 13'];
 
+// Teams where multiple people can complete a single job together
+const MULTI_SELECT_TEAMS = new Set(['Sewing']);
+let modalSelectedOps = [];
+
 // Preset operators per team — shown as buttons instead of free-text initials input
 const TEAM_OPERATORS = {
   'Cutting': [
@@ -2727,16 +2733,39 @@ function tickJob(ji) {
   const subLabel     = document.getElementById('modal-sub-label');
 
   if (operators) {
-    // Show operator buttons, hide text input
-    subLabel.textContent = 'Select operator';
+    const isMulti = MULTI_SELECT_TEAMS.has(snapTeam);
+    subLabel.textContent = isMulti ? 'Select everyone who completed this job' : 'Select operator';
     opsSection.style.display   = '';
     inputSection.style.display = 'none';
-    document.getElementById('modal-ops-list').innerHTML = operators.map(op =>
-      `<button class="modal-op-btn" onclick="modalSelectOperator('${escHtml(op.initials)}')">
-        ${op.initials !== op.name ? `<span class="modal-op-initials">${escHtml(op.initials)}</span>` : ''}
-        <span>${escHtml(op.name)}</span>
-      </button>`
-    ).join('');
+    modalSelectedOps = [];
+
+    const opsList = document.getElementById('modal-ops-list');
+    const opsActions = document.querySelector('#modal-ops-section .modal-actions');
+
+    if (isMulti) {
+      opsList.style.maxHeight = '52vh';
+      opsList.style.overflowY = 'auto';
+      opsList.innerHTML = operators.map(op =>
+        `<button class="modal-op-btn" data-initials="${escHtml(op.initials)}" onclick="toggleModalOperator('${escHtml(op.initials)}',this)">
+          ${op.initials !== op.name ? `<span class="modal-op-initials">${escHtml(op.initials)}</span>` : ''}
+          <span>${escHtml(op.name)}</span>
+        </button>`
+      ).join('');
+      opsActions.innerHTML = `
+        <button class="modal-cancel" onclick="modalCancel()">Cancel</button>
+        <button class="modal-confirm" id="modal-multi-confirm" onclick="modalMultiConfirm()" disabled style="opacity:.4">Mark as Complete</button>
+      `;
+    } else {
+      opsList.style.maxHeight = '';
+      opsList.style.overflowY = '';
+      opsList.innerHTML = operators.map(op =>
+        `<button class="modal-op-btn" onclick="modalSelectOperator('${escHtml(op.initials)}')">
+          ${op.initials !== op.name ? `<span class="modal-op-initials">${escHtml(op.initials)}</span>` : ''}
+          <span>${escHtml(op.name)}</span>
+        </button>`
+      ).join('');
+      opsActions.innerHTML = `<button class="modal-cancel" onclick="modalCancel()">Cancel</button>`;
+    }
   } else {
     // Show free-text input
     subLabel.textContent = 'Enter operator initials for traceability';
@@ -2752,6 +2781,29 @@ function tickJob(ji) {
 
 function modalSelectOperator(initials) {
   document.getElementById('modal-initials-input').value = initials;
+  modalConfirm();
+}
+
+function toggleModalOperator(initials, btn) {
+  const idx = modalSelectedOps.indexOf(initials);
+  if (idx >= 0) {
+    modalSelectedOps.splice(idx, 1);
+    btn.classList.remove('selected');
+  } else {
+    modalSelectedOps.push(initials);
+    btn.classList.add('selected');
+  }
+  const confirmBtn = document.getElementById('modal-multi-confirm');
+  if (confirmBtn) {
+    const hasSelection = modalSelectedOps.length > 0;
+    confirmBtn.disabled = !hasSelection;
+    confirmBtn.style.opacity = hasSelection ? '1' : '.4';
+  }
+}
+
+function modalMultiConfirm() {
+  if (!modalSelectedOps.length) return;
+  document.getElementById('modal-initials-input').value = modalSelectedOps.join(', ');
   modalConfirm();
 }
 
