@@ -5086,6 +5086,22 @@ function selectProdTeam(key) {
   renderProductionPlan();
 }
 
+function resolveInitialsToName(initials, teamName) {
+  // Looks up full name from TEAM_OPERATORS; falls back to the initials string itself
+  const allOps = [
+    ...(TEAM_OPERATORS[teamName] || []),
+    ...(TEAM_OPERATORS[teamName + ' Arms']  || []),
+    ...(TEAM_OPERATORS[teamName + ' Backs'] || []),
+    ...(TEAM_OPERATORS[teamName + ' Seats'] || []),
+  ];
+  // Handle comma-separated multi-person initials (e.g. "DC, JB, KM")
+  return initials.split(',').map(raw => {
+    const i = raw.trim();
+    const op = allOps.find(o => o.initials === i);
+    return op ? op.name : i;
+  }).join(', ');
+}
+
 function ppJobClick(prep, ji, event) {
   // Find team name from the active highlight key (e.g. 'sw' → 'Sewing')
   const ovEntry = Object.entries(TEAM_OV_MAP).find(([, v]) => v.key === activeProdTeam);
@@ -5101,7 +5117,7 @@ function ppJobClick(prep, ji, event) {
     SUBS.forEach(sub => {
       const s = STATE[teamName]?.[sub]?.[wk]?.[prep]?.[ji];
       if (s?.done) {
-        const who  = s.initials || '—';
+        const who  = s.initials ? resolveInitialsToName(s.initials, teamName) : '—';
         const when = [s.doneAt, s.doneDate].filter(Boolean).join(' · ') || '—';
         lines.push(`${SUB_SHORT[sub]}  ·  By: ${who}  ·  At: ${when}`);
       }
@@ -5109,7 +5125,7 @@ function ppJobClick(prep, ji, event) {
   } else {
     const s = STATE[teamName]?.['all']?.[wk]?.[prep]?.[ji];
     if (s?.done) {
-      const who  = s.initials || '—';
+      const who  = s.initials ? resolveInitialsToName(s.initials, teamName) : '—';
       const when = [s.doneAt, s.doneDate].filter(Boolean).join(' · ') || '—';
       lines.push(`By: ${who}`);
       lines.push(`At: ${when}`);
