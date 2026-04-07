@@ -5295,6 +5295,8 @@ const STATS_PASSWORD = 'Repnetiscool';
 let statsUnlocked  = false;
 let statsPeriod    = 'week';   // 'week' | 'month' | 'year'
 let statsNavOffset = 0;        // 0 = current period, -1 = previous, etc.
+let ppPersonTeam   = '';       // '' = all teams
+let ppPersonDay    = '';       // '' = all days, or 'dd/mm/yyyy'
 let statsCharts    = {};
 let statsSparkTimer = null;
 let cparStatTeam   = '';       // '' = all teams; team name = filter to that team
@@ -6176,13 +6178,30 @@ function renderDetailQC() {
 // ── Per Person detail ───────────────────────────
 
 function renderDetailPerPerson() {
-  const comp    = statsFilteredCompletions();
+  // Apply period filter then local team/day filters
+  let comp = statsFilteredCompletions();
+  if (ppPersonTeam) comp = comp.filter(c => c.fields.Team === ppPersonTeam);
+  if (ppPersonDay)  comp = comp.filter(c => c.fields.CompletedDate === ppPersonDay);
+
   const persons = statsCountByPerson(comp);
   const body    = document.getElementById('stats-detail-body');
   const medals  = ['gold','silver','bronze'];
 
+  const teams = ['Cutting','Sewing','Upholstery','Assembly','Foam'];
+  const teamChips = teams.map(t =>
+    `<button class="stats-chip${ppPersonTeam===t?' active':''}" onclick="setPPPersonTeam('${t}')">${t}</button>`
+  ).join('');
+
+  // Convert stored dd/mm/yyyy → yyyy-mm-dd for the date input value
+  let dayInputVal = '';
+  if (ppPersonDay) {
+    const [d, m, y] = ppPersonDay.split('/');
+    dayInputVal = `${y}-${m}-${d}`;
+  }
+  const hasFilter = ppPersonTeam || ppPersonDay;
+
   const rowsHtml = persons.length === 0
-    ? '<div style="padding:20px;text-align:center;color:var(--repose-grey);font-size:13px">No data this period</div>'
+    ? '<div style="padding:20px;text-align:center;color:var(--repose-grey);font-size:13px">No data for selected filters</div>'
     : persons.map((p, i) => `
         <div class="person-row">
           <div class="person-rank${i < 3 ? ` ${medals[i]}` : ''}">${i + 1}</div>
@@ -6191,7 +6210,26 @@ function renderDetailPerPerson() {
         </div>`).join('');
 
   body.innerHTML = `
-    <div class="chart-panel" style="margin-bottom:14px">
+    <div style="padding:12px 16px 0;display:flex;flex-direction:column;gap:10px">
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--repose-grey);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Team</div>
+        <div class="stats-chips" style="margin-bottom:0">
+          <button class="stats-chip all-chip${!ppPersonTeam?' active':''}" onclick="setPPPersonTeam('')">All Teams</button>
+          ${teamChips}
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div>
+          <div style="font-size:11px;font-weight:700;color:var(--repose-grey);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Day</div>
+          <input type="date" value="${dayInputVal}"
+            style="padding:6px 10px;border-radius:8px;border:1.5px solid var(--border2);background:var(--bg2);color:var(--text);font-size:13px;font-family:inherit;cursor:pointer"
+            onchange="setPPPersonDay(this.value)">
+        </div>
+        ${ppPersonDay ? `<button class="stats-chip" style="margin-top:20px" onclick="setPPPersonDay('')">✕ Clear day</button>` : ''}
+        ${hasFilter ? `<button class="stats-chip all-chip" style="margin-top:20px" onclick="clearPPPersonFilters()">✕ Clear all</button>` : ''}
+      </div>
+    </div>
+    <div class="chart-panel" style="margin:12px 0 14px">
       <div class="chart-panel-title">Completions by operator (top 15)</div>
       <div class="chart-wrap" style="height:200px"><canvas id="ch-per-person"></canvas></div>
     </div>
@@ -6221,6 +6259,26 @@ function renderDetailPerPerson() {
       },
     });
   }, 0);
+}
+
+function setPPPersonTeam(team) {
+  ppPersonTeam = ppPersonTeam === team ? '' : team;
+  renderDetailPerPerson();
+}
+
+function setPPPersonDay(val) {
+  if (!val) { ppPersonDay = ''; }
+  else {
+    const [y, m, d] = val.split('-');
+    ppPersonDay = `${d}/${m}/${y}`;
+  }
+  renderDetailPerPerson();
+}
+
+function clearPPPersonFilters() {
+  ppPersonTeam = '';
+  ppPersonDay  = '';
+  renderDetailPerPerson();
 }
 
 // ── Spec Changes detail ─────────────────────────
