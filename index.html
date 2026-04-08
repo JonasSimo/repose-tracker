@@ -4816,6 +4816,11 @@ const MAIL_SCOPES      = ['Mail.Send'];
 
 // Live SharePoint link — Production 2026 Dec-Nov.xlsx
 const PROD_SHARING_URL = 'https://reposefurniturelimited.sharepoint.com/:x:/s/ReposeFurniture-PlanningRepose/IQBLf67iYnbQSq2O8UU_zQihARfBedzZcW-CmO0q3v5zC3o?e=nfze02';
+// Historical orders ledger — separate SharePoint Excel
+const HIST_LEDGER_SHARING_URL = 'https://reposefurniturelimited.sharepoint.com/:x:/s/ReposeFurniture-PlanningRepose/IQBu5mtfNIDIQLW5_7aeZvLzAT6jp8kJGVjvrUr9g7PqA4M?e=d8xK0F';
+
+// In-memory history index — built by ocBuildHistory(), null until built
+let ocKnownValues = null;
 
 // Cached once resolved so serial write-back doesn't need a second share-link resolve
 let PROD_DRIVE_ID = null;
@@ -8620,6 +8625,32 @@ async function confirmCloseCPAR(id) {
     console.warn('confirmCloseCPAR:', e);
     toast('Could not close CPAR — check connection', 'u');
     if (closeBtn) { closeBtn.disabled = false; closeBtn.textContent = '✓ Mark as Closed'; }
+  }
+}
+
+// ═══════════════════════════════════════════════
+// ORDER CHECK
+// ═══════════════════════════════════════════════
+
+const OC_SET_FIELDS = ['model','fabric','coverCode','backDesign','mechanism1','mechanism2','seatOption','castor1','castor2'];
+const OC_NUM_FIELDS = ['seatHeight','seatWidth','seatDepth','backHeight','armHeight'];
+const OC_FIELD_LABELS = {
+  model:'Model', fabric:'Fabric', coverCode:'Cover Code', backDesign:'Back Design',
+  mechanism1:'Mechanism 1', mechanism2:'Mechanism 2', seatHeight:'Seat Height',
+  seatWidth:'Seat Width', seatDepth:'Seat Depth', backHeight:'Back Height',
+  armHeight:'Arm Height', seatOption:'Seat Option', castor1:'Castor 1', castor2:'Castor 2'
+};
+
+function ocOnOpen() {
+  const sel = document.getElementById('oc-week-select');
+  if (sel.options.length > 0) return; // already populated
+  const now = currentISOWeek();
+  for (let wn = 1; wn <= 52; wn++) {
+    const opt = document.createElement('option');
+    opt.value = `WK ${wn}`;
+    opt.textContent = `WK ${wn}`;
+    if (wn === now) opt.selected = true;
+    sel.appendChild(opt);
   }
 }
 </script>
