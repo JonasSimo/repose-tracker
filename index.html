@@ -4433,6 +4433,9 @@ async function autoSyncQCCompletions() {
         // Use lookahead/lookbehind instead of \b — handles REP2610016 (no space) correctly
         const m = cell.match(/(?<!\d)(\d{7})(?!\d)/);
         if (m) repNums.add(m[1]);
+        // Also catch accessory jobs ("Job A XXXXX") and feed into accQCDone
+        const mAcc = cell.match(/\bJob\s*A\s*(\d+)/i);
+        if (mAcc) accQCDone.add(mAcc[1]);
       });
     });
 
@@ -4456,6 +4459,7 @@ async function autoSyncQCCompletions() {
     });
 
     repNums.forEach(r => qcCompletedReps.add(r)); // merge, never replace — avoids badge flicker when sheet is trimmed
+    saveAccQCDone(accQCDone); // persist any acc jobs picked up from the SC sheet
     qcLastSyncTime  = now;
     qcSyncError     = false;
     qcSyncing       = false;
