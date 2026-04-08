@@ -6509,6 +6509,8 @@ function renderDetailPerPerson() {
   }
   const hasFilter = ppPersonTeam || ppPersonDay;
 
+  const teamTotal = persons.reduce((s, p) => s + p.count, 0);
+
   const rowsHtml = persons.length === 0
     ? '<div style="padding:20px;text-align:center;color:var(--repose-grey);font-size:13px">No data for selected filters</div>'
     : persons.map((p, i) => `
@@ -6516,7 +6518,14 @@ function renderDetailPerPerson() {
           <div class="person-rank${i < 3 ? ` ${medals[i]}` : ''}">${i + 1}</div>
           <div><div class="person-name">${escHtml(p.name)}</div><div class="person-team">${escHtml(p.team)}</div></div>
           <div class="person-count">${p.count}</div>
-        </div>`).join('');
+        </div>`).join('')
+    + (persons.length > 1
+        ? `<div class="person-row" style="border-top:2px solid var(--border2);margin-top:4px;font-weight:700">
+             <div class="person-rank" style="visibility:hidden">—</div>
+             <div><div class="person-name">Total</div>${ppPersonTeam ? `<div class="person-team">${escHtml(ppPersonTeam)}</div>` : ''}</div>
+             <div class="person-count" style="color:var(--repose-navy)">${teamTotal}</div>
+           </div>`
+        : '');
 
   body.innerHTML = `
     <div style="padding:12px 16px 0;display:flex;flex-direction:column;gap:10px">
