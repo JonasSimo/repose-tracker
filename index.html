@@ -1916,6 +1916,17 @@ document.addEventListener('DOMContentLoaded', () => {
       <div id="stats-day-picker" style="display:none;margin-top:8px">
         <input type="date" id="stats-day-input" style="padding:6px 10px;border-radius:7px;border:1.5px solid var(--border2);background:var(--bg2);color:var(--text);font-size:13px;font-family:inherit;cursor:pointer" onchange="statsPickDay(this.value)">
       </div>
+      <div id="stats-team-filter" style="margin-top:8px">
+        <div class="stats-chips">
+          <button class="stats-chip all-chip active" onclick="setStatsTeamFilter('',this)">All Teams</button>
+          <button class="stats-chip" onclick="setStatsTeamFilter('Woodmill',this)">Woodmill</button>
+          <button class="stats-chip" onclick="setStatsTeamFilter('Foam',this)">Foam</button>
+          <button class="stats-chip" onclick="setStatsTeamFilter('Cutting',this)">Cutting</button>
+          <button class="stats-chip" onclick="setStatsTeamFilter('Sewing',this)">Sewing</button>
+          <button class="stats-chip" onclick="setStatsTeamFilter('Upholstery',this)">Upholstery</button>
+          <button class="stats-chip" onclick="setStatsTeamFilter('Assembly',this)">Assembly</button>
+        </div>
+      </div>
       <div id="stats-spinner" class="stats-spinner" style="display:none">
         <div class="stats-spinner-ring"></div>
         <div class="stats-spinner-txt">Loading…</div>
@@ -5757,6 +5768,7 @@ let ppPersonDay    = '';       // '' = all days, or 'dd/mm/yyyy'
 let statsCharts    = {};
 let statsSparkTimer = null;
 let cparStatTeam   = '';       // '' = all teams; team name = filter to that team
+let statsTeamFilter = '';      // '' = all teams; team name = filter stats to that team
 
 let STATS_COMPLETIONS = [];
 let STATS_ALERTS      = [];
@@ -6272,6 +6284,18 @@ function statsBarChart(id, labels, data, color) {
 
 // ── Dashboard ───────────────────────────────────
 
+function setStatsTeamFilter(team, btn) {
+  statsTeamFilter = team;
+  document.querySelectorAll('#stats-team-filter .stats-chip').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  const detailEl = document.getElementById('stats-detail');
+  if (detailEl && detailEl.style.display !== 'none') {
+    renderStatsDetail(detailEl.dataset.view);
+  } else {
+    renderStatsDashboard();
+  }
+}
+
 function setStatsPeriod(period, btn) {
   statsPeriod    = period;
   statsNavOffset = 0;
@@ -6333,7 +6357,57 @@ function renderStatsDashboard() {
     `<div class="top3-row"><span class="top3-name">${escHtml(p.name)}</span><span class="top3-count">${p.count}</span></div>`
   ).join('') || '<div style="font-size:12px;color:var(--repose-grey)">No data this period</div>';
 
-  document.getElementById('stats-dash-top').innerHTML = `
+  // ── Team-filtered top card ──
+  let topCardHtml = '';
+  if (statsTeamFilter && (statsTeamFilter === 'Woodmill' || statsTeamFilter === 'Upholstery')) {
+    const hasSubs = true;
+    const tc = comp.filter(c => c.fields.Team === statsTeamFilter);
+    const tArms  = tc.filter(c => c.fields.SubTeam === 'Arms').length;
+    const tBacks = tc.filter(c => c.fields.SubTeam === 'Backs').length;
+    const tSeats = tc.filter(c => c.fields.SubTeam === 'Seats').length;
+    const tReps  = [...new Set(tc.map(c => c.fields.REP))];
+    const tComplete = tReps.filter(rep =>
+      ['Arms','Backs','Seats'].every(sub => tc.some(c => c.fields.REP === rep && c.fields.SubTeam === sub))
+    ).length;
+    topCardHtml = `
+    <div class="stat-card blue" onclick="renderStatsDetail('completions')">
+      <div class="card-label">${statsTeamFilter} Production</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:8px 0 4px">
+        <div style="text-align:center"><div style="font-size:22px;font-weight:700;color:var(--repose-blue)">${tArms}</div><div style="font-size:11px;color:var(--repose-grey)">Arms</div></div>
+        <div style="text-align:center"><div style="font-size:22px;font-weight:700;color:var(--repose-blue)">${tBacks}</div><div style="font-size:11px;color:var(--repose-grey)">Backs</div></div>
+        <div style="text-align:center"><div style="font-size:22px;font-weight:700;color:var(--repose-blue)">${tSeats}</div><div style="font-size:11px;color:var(--repose-grey)">Seats</div></div>
+      </div>
+      <div style="border-top:1px solid var(--border2);margin-top:4px;padding-top:8px;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:13px;color:var(--repose-grey)">Complete jobs (all 3 parts)</span>
+        <span style="font-size:20px;font-weight:700;color:var(--repose-navy)">${tComplete}</span>
+      </div>
+      <div class="card-arrow">›</div>
+    </div>`;
+  } else if (statsTeamFilter) {
+    const tc = comp.filter(c => c.fields.Team === statsTeamFilter);
+    const tCount = tc.length;
+    const tReps  = [...new Set(tc.map(c => c.fields.REP))];
+    const tPct   = allReps.length ? Math.round(tReps.length / allReps.length * 100) : 0;
+    const tPersons = statsCountByPerson(tc);
+    const tTop3 = tPersons.slice(0, 3).map(p =>
+      `<div class="top3-row"><span class="top3-name">${escHtml(p.name)}</span><span class="top3-count">${p.count}</span></div>`
+    ).join('') || '<div style="font-size:12px;color:var(--repose-grey)">No data</div>';
+    topCardHtml = `
+    <div class="stat-card blue" onclick="renderStatsDetail('completions')">
+      <div class="card-label">${statsTeamFilter} Completions</div>
+      <div class="card-row">
+        <div>
+          <div class="card-number">${tCount}</div>
+          <div class="card-sub">jobs completed this period</div>
+        </div>
+        <div class="card-chart"><canvas id="spark-complete"></canvas></div>
+      </div>
+      <div class="prog-bar"><div class="prog-fill" style="width:${tPct}%;background:var(--repose-blue)"></div></div>
+      <div style="font-size:11px;color:var(--repose-grey);margin-top:4px">${tReps.length} of ${allReps.length} REPs touched by ${statsTeamFilter}</div>
+      <div class="card-arrow">›</div>
+    </div>`;
+  } else {
+    topCardHtml = `
     <div class="stat-card blue" onclick="renderStatsDetail('completions')">
       <div class="card-label">Fully Complete Jobs</div>
       <div class="card-row">
@@ -6346,7 +6420,10 @@ function renderStatsDashboard() {
       <div class="prog-bar"><div class="prog-fill" style="width:${fullyPct}%;background:var(--repose-blue)"></div></div>
       <div style="font-size:11px;color:var(--repose-grey);margin-top:4px">${fullReps.length} of ${allReps.length} REPs in window complete</div>
       <div class="card-arrow">›</div>
-    </div>
+    </div>`;
+  }
+
+  document.getElementById('stats-dash-top').innerHTML = topCardHtml + `
     <div class="stat-card teal" onclick="renderStatsDetail('qc')">
       <div class="card-label">QC Verified</div>
       <div class="card-row">
@@ -6468,11 +6545,35 @@ function renderDetailCompletions() {
   const labels    = statsPeriod === 'week' ? ['Mon','Tue','Wed','Thu','Fri'] :
                     statsPeriod === 'month' ? ['Wk1','Wk2','Wk3','Wk4'] : MONTHS_SHORT;
 
+  // ── Woodmill / Upholstery parts breakdown (shown when team filter active) ──
+  function partsBreakdownHtml(team) {
+    const tc = comp.filter(c => c.fields.Team === team);
+    const arms  = tc.filter(c => c.fields.SubTeam === 'Arms').length;
+    const backs = tc.filter(c => c.fields.SubTeam === 'Backs').length;
+    const seats = tc.filter(c => c.fields.SubTeam === 'Seats').length;
+    const reps  = [...new Set(tc.map(c => c.fields.REP))];
+    const complete = reps.filter(rep =>
+      ['Arms','Backs','Seats'].every(sub => tc.some(c => c.fields.REP === rep && c.fields.SubTeam === sub))
+    ).length;
+    return `
+      <div class="detail-section-head">${team} — parts breakdown</div>
+      <div class="comp-row no-exp"><div class="row-team">Arms</div><div class="row-count" style="color:var(--repose-blue)">${arms}</div></div>
+      <div class="comp-row no-exp"><div class="row-team">Backs</div><div class="row-count" style="color:var(--repose-blue)">${backs}</div></div>
+      <div class="comp-row no-exp"><div class="row-team">Seats</div><div class="row-count" style="color:var(--repose-blue)">${seats}</div></div>
+      <div class="comp-row no-exp" style="border-top:2px solid var(--border2);margin-top:4px;padding-top:6px">
+        <div class="row-team" style="font-weight:600">Complete jobs (all 3 parts)</div>
+        <div class="row-count" style="font-size:20px;color:var(--repose-navy)">${complete}</div>
+      </div>`;
+  }
+
   const teamRowsHtml = teamOrder.map(team => {
     const count = byTeam[team] || 0;
     const noExp = STATS_NO_PER_PERSON.includes(team);
     if (noExp) {
-      return `<div class="comp-row no-exp"><div class="row-team">${team}</div><span class="team-badge">No per-person</span><div class="row-count">${count}</div></div>`;
+      const partsHtml = (team === 'Woodmill' || team === 'Upholstery')
+        ? partsBreakdownHtml(team)
+        : `<div class="comp-row no-exp"><div class="row-team">${team}</div><span class="team-badge">No per-person</span><div class="row-count">${count}</div></div>`;
+      return partsHtml;
     }
     const teamComp = comp.filter(c => c.fields.Team === team);
     const byPerson = {};
@@ -6489,13 +6590,22 @@ function renderDetailCompletions() {
         <div class="row-expand" id="exp-${tid}">›</div>
       </div>
       <div class="sub-rows" id="sub-${tid}">${personRows}</div>`;
-  }).join('');
+  });
+
+  // If team filter active, only show the filtered team's section
+  const filteredTeamRows = statsTeamFilter
+    ? teamRowsHtml[teamOrder.indexOf(statsTeamFilter)] || ''
+    : teamRowsHtml.join('');
 
   const teamAbbr    = ['WM','Foam','Cut','Sew','Uph','Ass'];
   const teamCounts  = teamOrder.map(t => byTeam[t] || 0);
   const teamColors  = ['#0e023a', '#14a1e9',
     alpha('#14a1e9', 0.75), alpha('#14a1e9', 0.6),
     alpha('#14a1e9', 0.5),  alpha('#14a1e9', 0.4)];
+
+  const sectionHead = statsTeamFilter
+    ? `<div class="detail-section-head">${statsTeamFilter}</div>`
+    : `<div class="detail-section-head">Individual team completions — tap to expand per person</div>`;
 
   body.innerHTML = `
     <div class="chart-row">
@@ -6513,13 +6623,14 @@ function renderDetailCompletions() {
       <div class="chart-wrap" style="height:180px"><canvas id="ch-comp-vs-qc"></canvas></div>
     </div>
     <div class="detail-card">
-      <div class="detail-section-head">Individual team completions — tap to expand per person</div>
-      ${teamRowsHtml}
+      ${sectionHead}
+      ${filteredTeamRows}
+      ${!statsTeamFilter ? `
       <div class="detail-section-head">Fully complete REPs (all teams signed off)</div>
       <div class="comp-row no-exp">
         <div class="row-team" style="font-weight:400;font-size:13px">REPs where every team has completed</div>
         <div class="row-count" style="font-size:20px">${fullReps.length}</div>
-      </div>
+      </div>` : ''}
     </div>`;
 
   setTimeout(() => {
