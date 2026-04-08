@@ -389,7 +389,7 @@ html.tablet-team .nav-menu { display: none !important; }
 .gluing-done-btn { flex-shrink:0; padding:8px 16px; border-radius:8px; border:none; cursor:pointer; font-family:inherit; font-size:13px; font-weight:700; background:var(--gbg); color:var(--green); border:1px solid var(--gborder); transition:.12s; }
 .gluing-done-btn:hover { background:var(--green); color:#fff; }
 .gluing-empty { text-align:center; padding:40px 20px; color:var(--repose-grey); font-size:14px; }
-.glu-chip { font-size:9px; font-weight:700; padding:1px 5px; border-radius:3px; background:#fff7ed; color:#ea580c; border:1px solid #f97316; letter-spacing:.04em; }
+.dsub.on.glu-pending { background:#fff7ed !important; border-color:#f97316 !important; color:#ea580c !important; }
 
 /* Sub-tick row (Woodmill / Upholstery — Arms / Backs / Seats) */
 .subtick-row {
@@ -2949,12 +2949,12 @@ function renderJobs() {
           <span>${isStarted?'STARTED':'START'}</span>
         </button>` : ''}
         ${activeTeam === 'Woodmill' && !job.isService ? (() => {
-          const gk = gluingKey(activeWC, activePrep, ji);
+          const gk = gluingKey(activeWC, activePrep, ji, activeSub);
           const g  = GLUING_QUEUE[gk];
           const cls = g?.done ? 'glued' : g ? 'flagged' : '';
           const lbl = g?.done ? 'GLUED' : g ? 'GLU ✓' : 'GLU';
-          return `<button class="glu-btn ${cls}" onclick="event.stopPropagation();toggleGluingFlag('${activeWC}','${activePrep}',${ji})" title="${g?.done?'Gluing complete':g?'Remove gluing flag':'Flag for gluing'}">
-            <span class="glu-icon">🔩</span><span>${lbl}</span>
+          return `<button class="glu-btn ${cls}" onclick="event.stopPropagation();toggleGluingFlag('${activeWC}','${activePrep}',${ji},'${activeSub}')" title="${g?.done?'Gluing complete':g?'Remove gluing flag':'Flag '+activeSub+' for gluing'}">
+            <span class="glu-icon">🧲</span><span>${lbl}</span>
           </button>`;
         })() : ''}
         <button class="tick-btn ${s.done?'ticked':''}" onclick="tickJob(${ji})">
@@ -4437,12 +4437,13 @@ async function loadCompletionsFromList() {
       const f = item.fields;
       const wk   = f.Week;
       const prep = f.Prep === 'express' ? 'express' : Number(f.Prep);
+      const sub  = f.SubTeam || 'all';
       const jobs = PROD[wk]?.[prep] || [];
       const ji   = jobs.findIndex(j => j.rep === f.REP);
       if (ji < 0) return;
-      const key = gluingKey(wk, prep, ji);
+      const key = gluingKey(wk, prep, ji, sub);
       if (!GLUING_QUEUE[key]) {
-        GLUING_QUEUE[key] = { rep: f.REP, wk, prep, ji, jobNo: f.JobNo, itemId: null, flaggedAt: '', flaggedDate: '', done: false, doneAt: '', doneDate: '' };
+        GLUING_QUEUE[key] = { rep: f.REP, wk, prep, ji, sub, jobNo: f.JobNo, itemId: null, flaggedAt: '', flaggedDate: '', done: false, doneAt: '', doneDate: '' };
       }
       if (!f.IsComplete) {
         GLUING_QUEUE[key].itemId      = item.id;
@@ -5574,8 +5575,12 @@ function renderProductionPlan() {
                   ${OV_SUBS_SHORT.map(sub => {
                     const on = done.includes(sub);
                     const inPrSub = !on && startedSubs.includes(sub);
-                    return `<div class="dsub ${on?'on':inPrSub?'in-progress':''}"
-                      title="${d.lbl} ${sub==='A'?'Arms':sub==='B'?'Backs':'Seats'}">${sub}</div>`;
+                    // Woodmill only: orange dot if done but gluing pending
+                    const fullSub = GLU_SUB_FULL[sub] || sub;
+                    const gkSub = d.k === 'wm' ? GLUING_QUEUE[gluingKey(activeProdWC, col.key, ji, fullSub)] : null;
+                    const gluPending = d.k === 'wm' && on && gkSub && !gkSub.done;
+                    return `<div class="dsub ${on?('on'+(gluPending?' glu-pending':'')):inPrSub?'in-progress':''}"
+                      title="${d.lbl} ${fullSub}${gluPending?' — gluing needed':''}">${sub}</div>`;
                   }).join('')}
                 </div>
               </div>`;
@@ -5589,18 +5594,10 @@ function renderProductionPlan() {
             }
           });
           badgeHtml += '</div>';
-          const gk2 = gluingKey(activeProdWC, col.key, ji);
-          const gq2 = GLUING_QUEUE[gk2];
-          const gluChip = gq2
-            ? (gq2.done
-              ? `<span class="glu-chip" style="background:var(--gbg);color:var(--green);border-color:var(--gborder)">GLU ✓</span>`
-              : `<span class="glu-chip">GLU</span>`)
-            : '';
           return `<div class="pp-job" onclick="ppJobClick('${col.key}',${ji},event)" style="cursor:pointer">
             <div class="pp-job-top">
               <span class="pp-job-code">${codeLabel}</span>
               <span class="pp-job-rep">${escHtml(j.rep)}</span>
-              ${gluChip}
             </div>
             ${badgeHtml}
           </div>`;
@@ -5890,7 +5887,8 @@ let cparStatTeam   = '';       // '' = all teams; team name = filter to that tea
 let statsTeamFilter = '';      // '' = all teams; team name = filter stats to that team
 let GLUING_QUEUE   = {};       // { key: { rep, wk, prep, ji, jobNo, itemId, flaggedAt, flaggedDate, done, doneAt, doneDate } }
 
-function gluingKey(wk, prep, ji) { return `${wk}__${prep}__${ji}`; }
+function gluingKey(wk, prep, ji, sub) { return `${wk}__${prep}__${ji}__${sub || 'all'}`; }
+const GLU_SUB_FULL = { A:'Arms', B:'Backs', S:'Seats' };
 
 let STATS_COMPLETIONS = [];
 let STATS_ALERTS      = [];
@@ -6430,13 +6428,14 @@ function renderGluingQueue() {
   if (!area) return;
   updateGluingBadge();
 
-  const pending = [], done = [];
+  const allEntries = [];
   Object.entries(GLUING_QUEUE).forEach(([key, g]) => {
     const job = PROD[g.wk]?.[g.prep]?.[g.ji];
     if (!job) return;
-    (g.done ? done : pending).push({ key, ...g, job });
+    allEntries.push({ key, ...g, job });
   });
-  pending.sort((a, b) => {
+
+  const sortByDate = arr => arr.sort((a, b) => {
     const da = parseDdmmyyyy(a.flaggedDate), db = parseDdmmyyyy(b.flaggedDate);
     return (da && db) ? da - db : 0;
   });
@@ -6444,31 +6443,37 @@ function renderGluingQueue() {
   const cardHtml = (e, isDone) => `
     <div class="gluing-card${isDone?' done-card':''}">
       <div class="gluing-card-info">
-        <div class="gluing-card-rep">${escHtml(e.rep)}</div>
+        <div class="gluing-card-rep">${escHtml(e.rep)} <span style="font-size:11px;font-weight:400;color:var(--repose-grey)">${escHtml(e.sub)}</span></div>
         <div class="gluing-card-detail">Job ${escHtml(String(e.job.itemNo))} · ${escHtml(e.wk)} · Prep ${escHtml(String(e.prep))}</div>
-        <div class="gluing-card-time">${isDone ? `Glued ${escHtml(e.doneDate)} ${escHtml(e.doneAt)}` : `Flagged by Woodmill · ${escHtml(e.flaggedDate)} ${escHtml(e.flaggedAt)}`}</div>
+        <div class="gluing-card-time">${isDone ? `Glued ${escHtml(e.doneDate)} ${escHtml(e.doneAt)}` : `Flagged ${escHtml(e.flaggedDate)} ${escHtml(e.flaggedAt)}`}</div>
       </div>
-      ${isDone
-        ? `<span style="color:var(--green);font-size:20px;font-weight:700">✓</span>`
-        : `<button class="gluing-done-btn" onclick="gluingMarkDone('${e.key}',this)">✓ Done</button>`
-      }
+      <div style="display:flex;flex-direction:column;gap:5px;flex-shrink:0">
+        <button class="stats-chip" style="font-size:11px;padding:4px 8px" onclick="openSpecModal('${e.wk}','${e.prep}',${e.ji})">📋 Spec</button>
+        ${isDone
+          ? `<button class="card-undo-btn" onclick="gluingUndoDone('${e.key}',this)">↩ Undo</button>
+             <span style="color:var(--green);font-size:18px;font-weight:700;text-align:center">✓</span>`
+          : `<button class="gluing-done-btn" onclick="gluingMarkDone('${e.key}',this)">✓ Done</button>`
+        }
+      </div>
     </div>`;
 
-  area.innerHTML = `
-    <div>
-      <div class="gluing-section-head">Pending (${pending.length})</div>
-      ${pending.length === 0
-        ? '<div class="gluing-empty">No jobs waiting for gluing 🎉</div>'
-        : pending.map(e => cardHtml(e, false)).join('')}
-    </div>
-    ${done.length ? `<div style="margin-top:18px">
-      <div class="gluing-section-head">Completed (${done.length})</div>
+  const sections = ['Arms','Backs','Seats'].map(sub => {
+    const pending = sortByDate(allEntries.filter(e => e.sub === sub && !e.done));
+    const done    = sortByDate(allEntries.filter(e => e.sub === sub && e.done));
+    if (!pending.length && !done.length) return '';
+    return `<div style="margin-bottom:18px">
+      <div class="gluing-section-head">${sub} — ${pending.length} pending · ${done.length} done</div>
+      ${pending.map(e => cardHtml(e, false)).join('')}
       ${done.map(e => cardHtml(e, true)).join('')}
-    </div>` : ''}`;
+    </div>`;
+  }).join('');
+
+  const totalPending = allEntries.filter(e => !e.done).length;
+  area.innerHTML = sections || `<div class="gluing-empty">No jobs waiting for gluing 🎉</div>`;
 }
 
-async function toggleGluingFlag(wk, prep, ji) {
-  const key = gluingKey(wk, prep, ji);
+async function toggleGluingFlag(wk, prep, ji, sub) {
+  const key = gluingKey(wk, prep, ji, sub);
   const existing = GLUING_QUEUE[key];
   if (existing && !existing.done) {
     // Remove flag
@@ -6497,14 +6502,14 @@ async function toggleGluingFlag(wk, prep, ji) {
         `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`,
         { method:'POST', headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
           body: JSON.stringify({ fields: {
-            Team: 'Gluing', SubTeam: '', Week: wk, WCDate: PROD[wk]?.wc || '',
+            Team: 'Gluing', SubTeam: sub || '', Week: wk, WCDate: PROD[wk]?.wc || '',
             Prep: String(prep), JobNo: job.itemNo, REP: job.rep,
             Initials: 'WM', CompletedTime: timeStr, CompletedDate: dateStr, IsComplete: false
           }}) }
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      GLUING_QUEUE[key] = { rep: job.rep, wk, prep, ji, jobNo: job.itemNo, itemId: data.id, flaggedAt: timeStr, flaggedDate: dateStr, done: false, doneAt: '', doneDate: '' };
+      GLUING_QUEUE[key] = { rep: job.rep, wk, prep, ji, sub: sub || 'all', jobNo: job.itemNo, itemId: data.id, flaggedAt: timeStr, flaggedDate: dateStr, done: false, doneAt: '', doneDate: '' };
     } catch(e) { console.warn('saveGluingFlag:', e); }
   }
   updateGluingBadge();
@@ -6538,6 +6543,30 @@ async function gluingMarkDone(key, btn) {
     btn.disabled = false;
     btn.textContent = '✓ Done';
     console.warn('gluingMarkDone:', e);
+  }
+}
+
+async function gluingUndoDone(key, btn) {
+  const g = GLUING_QUEUE[key];
+  if (!g || !g.done || !g.itemId) return;
+  btn.disabled = true;
+  try {
+    const siteId = await getSpSiteId();
+    const listId = await getSpListId();
+    const token  = await getGraphToken();
+    await fetch(
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${g.itemId}`,
+      { method:'PATCH', headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
+        body: JSON.stringify({ fields: { IsComplete: false, CompletedTime: g.flaggedAt, CompletedDate: g.flaggedDate } }) }
+    );
+    g.done = false;
+    g.doneAt = '';
+    g.doneDate = '';
+    renderGluingQueue();
+    if (document.getElementById('view-production')?.classList.contains('active')) renderProductionPlan();
+  } catch(e) {
+    btn.disabled = false;
+    console.warn('gluingUndoDone:', e);
   }
 }
 
