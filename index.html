@@ -3285,14 +3285,19 @@ function servBaseRep(repId) {
   return repId.replace(/\s*\bserv\b\s*/i, '').trim();
 }
 
-// Returns true if the entry is an accessory job ("Job A XXXXXX")
+// Returns true if the entry is an accessory job ("Job A ...")
 function isAccDelivery(repId) {
-  return /\bJob\s*A\s*\d{5,}/i.test(repId);
+  return /\bJob\s*A\b/i.test(repId);
 }
 // Returns the job number string from a "Job A XXXXXX" id
 function accJobBase(repId) {
-  const m = repId.match(/\bJob\s*A\s*(\d{5,})/i);
-  return m ? m[1] : repId;
+  const mLong = repId.match(/\bJob\s*A\s*(\d{5,})/i);
+  if (mLong) return mLong[1];
+  // Fallback: 7-digit number elsewhere in the string
+  const m7 = repId.match(/(?<!\d)(\d{7})(?!\d)/);
+  if (m7) return m7[1];
+  const mAny = repId.match(/\bJob\s*A\s*(\d+)/i);
+  return mAny ? mAny[1] : repId;
 }
 
 function openSpecModalByRep(repId) {
@@ -4516,9 +4521,12 @@ async function autoSyncQCCompletions() {
           // If col D says Accessories, also add directly to accQCDone
           if (isAccRow) accQCDone.add(m[1]);
         }
-        // Also catch "Job A XXXXX" format anywhere in the cell
-        const mAcc = cell.match(/\bJob\s*A\s*(\d{5,})/i);
-        if (mAcc) accQCDone.add(mAcc[1]);
+        // Also catch "Job A ..." format anywhere in the cell
+        const mAccLong2 = cell.match(/\bJob\s*A\s*(\d{5,})/i);
+        const isAccFlag2 = /\bJob\s*A\b/i.test(cell);
+        const m7fb2 = cell.match(/(?<!\d)(\d{7})(?!\d)/);
+        const accNum2 = mAccLong2 ? mAccLong2[1] : (isAccFlag2 && m7fb2 ? m7fb2[1] : null);
+        if (accNum2) accQCDone.add(accNum2);
       });
     });
 
@@ -4702,16 +4710,19 @@ async function loadLoadPlanFromSharePoint() {
         // Service + collection = external driver collection, not a factory delivery
         const isServCollect = isServ && isCollection;
         // Acc check runs first — "Job A" takes priority over any 7-digit number in the same cell
-        const mAcc   = cell.match(/\bJob\s*A\s*(\d{5,})/i);
-        const isAcc  = !!mAcc;
-        const m      = !isAcc && cell.match(/(?<!\d)(\d{7})(?!\d)/);
+        const mAccLong  = cell.match(/\bJob\s*A\s*(\d{5,})/i);   // "Job A 2613256"
+        const isAccFlag = /\bJob\s*A\b/i.test(cell);              // any "Job A" reference
+        const m7Fallbk  = cell.match(/(?<!\d)(\d{7})(?!\d)/);    // 7-digit elsewhere
+        const isAcc     = !!(mAccLong || (isAccFlag && m7Fallbk));
+        const accJobNum = mAccLong ? mAccLong[1] : (isAccFlag && m7Fallbk ? m7Fallbk[1] : null);
+        const m         = !isAcc && cell.match(/(?<!\d)(\d{7})(?!\d)/);
 
-        if (isAcc) {
-          // Accessory job item ("Job A XXXXXX") — QC only
-          const accId = `Job A ${mAcc[1]}`;
+        if (isAcc && accJobNum) {
+          // Accessory job item ("Job A ...") — QC only
+          const accId = `Job A ${accJobNum}`;
           if (!newRaw[key]) newRaw[key] = [];
           if (!newRaw[key].includes(accId)) newRaw[key].push(accId);
-          colItems.push({ text: cell, rep7: null, isMech: false, isServ: false, isAcc: true, accJobNum: mAcc[1] });
+          colItems.push({ text: cell, rep7: null, isMech: false, isServ: false, isAcc: true, accJobNum });
         } else if (m && !isServCollect) {
           // REP item (7-digit) — service collections excluded from OV delivery count
           const repId = isMech ? `REP ${m[1]} Mech` : isServ ? `REP ${m[1]} Serv` : `REP ${m[1]}`;
