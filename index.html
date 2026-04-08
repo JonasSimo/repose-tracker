@@ -2949,7 +2949,7 @@ function renderJobs() {
           <span>${isStarted?'STARTED':'START'}</span>
         </button>` : ''}
         ${activeTeam === 'Woodmill' && !job.isService ? (() => {
-          const gk = gluingKey(activeWC, activePrep, ji, activeSub);
+          const gk = gluingKey(activeWC, activePrep, job.rep, activeSub);
           const g  = GLUING_QUEUE[gk];
           const cls = g?.done ? 'glued' : g ? 'flagged' : '';
           const lbl = g?.done ? 'GLUED' : g ? 'GLU ✓' : 'GLU';
@@ -4432,27 +4432,27 @@ async function loadCompletionsFromList() {
     });
 
     // Build GLUING_QUEUE from Team="Gluing" records
+    // Key uses REP (not ji) so this is safe to run before PROD is populated
     GLUING_QUEUE = {};
     allItems.filter(i => i.fields?.Team === 'Gluing').forEach(item => {
-      const f = item.fields;
-      const wk   = f.Week;
+      const f   = item.fields;
+      const wk  = f.Week;
       const prep = f.Prep === 'express' ? 'express' : Number(f.Prep);
       const sub  = f.SubTeam || 'all';
-      const jobs = PROD[wk]?.[prep] || [];
-      const ji   = jobs.findIndex(j => j.rep === f.REP);
-      if (ji < 0) return;
-      const key = gluingKey(wk, prep, ji, sub);
+      const rep  = f.REP;
+      if (!wk || !prep || !rep) return;
+      const key = gluingKey(wk, prep, rep, sub);
       if (!GLUING_QUEUE[key]) {
-        GLUING_QUEUE[key] = { rep: f.REP, wk, prep, ji, sub, jobNo: f.JobNo, itemId: null, flaggedAt: '', flaggedDate: '', done: false, doneAt: '', doneDate: '' };
+        GLUING_QUEUE[key] = { rep, wk, prep, sub, jobNo: f.JobNo, itemId: null, flaggedAt: '', flaggedDate: '', done: false, doneAt: '', doneDate: '' };
       }
       if (!f.IsComplete) {
         GLUING_QUEUE[key].itemId      = item.id;
         GLUING_QUEUE[key].flaggedAt   = f.CompletedTime || '';
         GLUING_QUEUE[key].flaggedDate = f.CompletedDate || '';
       } else {
-        GLUING_QUEUE[key].done    = true;
-        GLUING_QUEUE[key].doneAt  = f.CompletedTime || '';
-        GLUING_QUEUE[key].doneDate= f.CompletedDate || '';
+        GLUING_QUEUE[key].done     = true;
+        GLUING_QUEUE[key].doneAt   = f.CompletedTime || '';
+        GLUING_QUEUE[key].doneDate = f.CompletedDate || '';
       }
     });
     updateGluingBadge();
@@ -5577,7 +5577,7 @@ function renderProductionPlan() {
                     const inPrSub = !on && startedSubs.includes(sub);
                     // Woodmill only: orange dot if done but gluing pending
                     const fullSub = GLU_SUB_FULL[sub] || sub;
-                    const gkSub = d.k === 'wm' ? GLUING_QUEUE[gluingKey(activeProdWC, col.key, ji, fullSub)] : null;
+                    const gkSub = d.k === 'wm' ? GLUING_QUEUE[gluingKey(activeProdWC, col.key, j.rep, fullSub)] : null;
                     const gluPending = d.k === 'wm' && on && gkSub && !gkSub.done;
                     return `<div class="dsub ${on?('on'+(gluPending?' glu-pending':'')):inPrSub?'in-progress':''}"
                       title="${d.lbl} ${fullSub}${gluPending?' — gluing needed':''}">${sub}</div>`;
@@ -5887,7 +5887,7 @@ let cparStatTeam   = '';       // '' = all teams; team name = filter to that tea
 let statsTeamFilter = '';      // '' = all teams; team name = filter stats to that team
 let GLUING_QUEUE   = {};       // { key: { rep, wk, prep, ji, jobNo, itemId, flaggedAt, flaggedDate, done, doneAt, doneDate } }
 
-function gluingKey(wk, prep, ji, sub) { return `${wk}__${prep}__${ji}__${sub || 'all'}`; }
+function gluingKey(wk, prep, rep, sub) { return `${wk}__${prep}__${rep}__${sub || 'all'}`; }
 const GLU_SUB_FULL = { A:'Arms', B:'Backs', S:'Seats' };
 
 let STATS_COMPLETIONS = [];
@@ -6430,9 +6430,10 @@ function renderGluingQueue() {
 
   const allEntries = [];
   Object.entries(GLUING_QUEUE).forEach(([key, g]) => {
-    const job = PROD[g.wk]?.[g.prep]?.[g.ji];
-    if (!job) return;
-    allEntries.push({ key, ...g, job });
+    const jobs = PROD[g.wk]?.[g.prep] || [];
+    const ji   = jobs.findIndex(j => j.rep === g.rep);
+    const job  = ji >= 0 ? jobs[ji] : null;
+    allEntries.push({ key, ...g, ji, job });
   });
 
   const sortByDate = arr => arr.sort((a, b) => {
@@ -6473,7 +6474,9 @@ function renderGluingQueue() {
 }
 
 async function toggleGluingFlag(wk, prep, ji, sub) {
-  const key = gluingKey(wk, prep, ji, sub);
+  const job = PROD[wk]?.[prep]?.[ji];
+  if (!job) return;
+  const key = gluingKey(wk, prep, job.rep, sub);
   const existing = GLUING_QUEUE[key];
   if (existing && !existing.done) {
     // Remove flag
@@ -6509,7 +6512,7 @@ async function toggleGluingFlag(wk, prep, ji, sub) {
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      GLUING_QUEUE[key] = { rep: job.rep, wk, prep, ji, sub: sub || 'all', jobNo: job.itemNo, itemId: data.id, flaggedAt: timeStr, flaggedDate: dateStr, done: false, doneAt: '', doneDate: '' };
+      GLUING_QUEUE[key] = { rep: job.rep, wk, prep, sub: sub || 'all', jobNo: job.itemNo, itemId: data.id, flaggedAt: timeStr, flaggedDate: dateStr, done: false, doneAt: '', doneDate: '' };
     } catch(e) { console.warn('saveGluingFlag:', e); }
   }
   updateGluingBadge();
