@@ -2975,9 +2975,9 @@ let pendingStart = null; // { ji, team, sub, wc, prep }
 let modalMode    = 'complete'; // 'complete' | 'start'
 
 function showsStartButton() {
-  // Teams where the Start button is shown
+  // Teams where the Start button is shown (Woodmill and Foam excluded)
   return activeTeam === 'Assembly' || activeTeam === 'Sewing' || activeTeam === 'Cutting' ||
-         (activeHasSubs && ['Arms','Backs','Seats'].includes(activeSub));
+         (activeHasSubs && activeTeam !== 'Woodmill' && ['Arms','Backs','Seats'].includes(activeSub));
 }
 
 function tickJob(ji) {
