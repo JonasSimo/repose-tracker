@@ -5390,6 +5390,25 @@ function getPPJobInProgress(prep, ji) {
   return result;
 }
 
+function getPPJobStartedStatus(prep, ji) {
+  // Returns same structure as getPPJobTeamStatus but for started-not-done state
+  const wk = activeProdWC;
+  const r = { wm:[], fm:0, ct:0, sw:0, uh:[], as:0, qc:0 };
+  TEAMS_CFG.forEach(t => {
+    const ovMap = TEAM_OV_MAP[t.name]; if (!ovMap) return;
+    if (t.hasSubs) {
+      SUBS.forEach(sub => {
+        const st = STATE[t.name]?.[sub]?.[wk]?.[prep]?.[ji];
+        if (st?.started && !st.done) r[ovMap.key].push(SUB_SHORT[sub]);
+      });
+    } else {
+      const st = STATE[t.name]?.['all']?.[wk]?.[prep]?.[ji];
+      if (st?.started && !st.done) r[ovMap.key] = 1;
+    }
+  });
+  return r;
+}
+
 function getPPJobTeamStatus(prep, ji) {
   // Returns same structure as rep.s in Load Plan: { wm:['A','B','S'], fm:0|1, ... }
   const wk = activeProdWC;
@@ -5452,7 +5471,8 @@ function renderProductionPlan() {
 
     const jobRows = jobs.length
       ? jobs.map((j, ji) => {
-          const s = getPPJobTeamStatus(col.key, ji);
+          const s       = getPPJobTeamStatus(col.key, ji);
+          const started = getPPJobStartedStatus(col.key, ji);
           const codeLabel = col.express ? escHtml(String(j.itemNo)) : `Job ${escHtml(String(j.itemNo))}`;
           // Badge strip — same design as Load Plan, scaled down via pp-badge-strip
           let badgeHtml = '<div class="badge-strip pp-badge-strip" style="flex-wrap:wrap;gap:2px">';
@@ -5461,31 +5481,34 @@ function renderProductionPlan() {
             const dimCls = activeProdTeam && d.k !== activeProdTeam ? 'pp-badge-dim' : '';
             const selCls = activeProdTeam && d.k === activeProdTeam ? 'pp-badge-sel' : '';
             if (d.hasSubs) {
-              const done = Array.isArray(s[d.k]) ? s[d.k] : [];
-              const grpCls = done.length===3?'done':done.length>0?'partial':'';
+              const done        = Array.isArray(s[d.k]) ? s[d.k] : [];
+              const startedSubs = Array.isArray(started[d.k]) ? started[d.k] : [];
+              const grpCls = done.length===3?'done':done.length>0?'partial':startedSubs.length>0?'in-progress':'';
               badgeHtml += `<div class="dbadge-grp-wrap ${dimCls} ${selCls}">
                 <span class="dbadge-grp-lbl ${grpCls}">${d.lbl}</span>
                 <div class="dbadge-grp">
-                  ${OV_SUBS_SHORT.map(sub => `<div class="dsub ${done.includes(sub)?'on':''}"
-                    title="${d.lbl} ${sub==='A'?'Arms':sub==='B'?'Backs':'Seats'}">${sub}</div>`).join('')}
+                  ${OV_SUBS_SHORT.map(sub => {
+                    const on = done.includes(sub);
+                    const inPrSub = !on && startedSubs.includes(sub);
+                    return `<div class="dsub ${on?'on':inPrSub?'in-progress':''}"
+                      title="${d.lbl} ${sub==='A'?'Arms':sub==='B'?'Backs':'Seats'}">${sub}</div>`;
+                  }).join('')}
                 </div>
               </div>`;
             } else {
-              const st = s[d.k] ? 'done' : '';
-              const cls = st + (d.k==='qc' && st ? ' qc' : '');
+              const isDone = !!s[d.k];
+              const isStarted = !isDone && !!started[d.k];
+              const cls = isDone ? ('done' + (d.k==='qc' ? ' qc' : '')) : isStarted ? 'in-progress' : '';
               badgeHtml += `<div class="dbadge ${cls} ${dimCls} ${selCls}">
                 <span class="db-lbl">${d.lbl}</span>
               </div>`;
             }
           });
           badgeHtml += '</div>';
-          const inProg = getPPJobInProgress(col.key, ji);
-          const inProgStyle = inProg.length ? 'background:#fff7ed;border-left:3px solid #f97316;' : '';
-          return `<div class="pp-job" onclick="ppJobClick('${col.key}',${ji},event)" style="cursor:pointer;${inProgStyle}">
+          return `<div class="pp-job" onclick="ppJobClick('${col.key}',${ji},event)" style="cursor:pointer">
             <div class="pp-job-top">
               <span class="pp-job-code">${codeLabel}</span>
               <span class="pp-job-rep">${escHtml(j.rep)}</span>
-              ${inProg.length ? `<span style="margin-left:auto;font-size:10px;font-weight:700;color:#ea580c;white-space:nowrap">🔄 In Progress</span>` : ''}
             </div>
             ${badgeHtml}
           </div>`;
