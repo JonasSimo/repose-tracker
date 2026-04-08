@@ -8852,6 +8852,111 @@ async function ocBuildHistory() {
   status.textContent = `✓ History loaded — ${modelCount} models known`;
   btn.disabled = false;
 }
+
+function renderOcResults(results) {
+  const resultsEl = document.getElementById('oc-results');
+  const summaryEl = document.getElementById('oc-summary');
+
+  if (!results.length) {
+    resultsEl.innerHTML = '<div class="oc-empty">No jobs found in this week</div>';
+    summaryEl.textContent = '';
+    return;
+  }
+
+  let totalBlocks = 0;
+  let totalWarnings = 0;
+
+  const html = results.map(r => {
+    const { blocks, warnings } = r.validation;
+    totalBlocks   += blocks.length;
+    totalWarnings += warnings.length;
+
+    let stateClass, icon, label;
+    if (blocks.length) {
+      stateClass = 'oc-block';
+      icon  = '✖';
+      label = `${blocks.length} issue${blocks.length > 1 ? 's' : ''}`;
+    } else if (warnings.length) {
+      stateClass = 'oc-warn';
+      icon  = '⚠';
+      label = `${warnings.length} warning${warnings.length > 1 ? 's' : ''}`;
+    } else {
+      stateClass = 'oc-ok';
+      icon  = '✓';
+      label = 'All OK';
+    }
+
+    const hasFlags = blocks.length + warnings.length > 0;
+
+    const flagRows = [
+      ...blocks.map(f => `
+        <div class="oc-flag oc-flag-block">
+          <span class="oc-flag-field">${OC_FIELD_LABELS[f.field] || f.field}:</span>
+          <span class="oc-flag-val">"${f.value}"</span>
+          <span class="oc-flag-reason">— ${f.reason}</span>
+        </div>`),
+      ...warnings.map(f => `
+        <div class="oc-flag oc-flag-warn">
+          <span class="oc-flag-field">${OC_FIELD_LABELS[f.field] || f.field}:</span>
+          <span class="oc-flag-val">"${f.value}"</span>
+          <span class="oc-flag-reason">— ${f.reason}</span>
+        </div>`),
+    ].join('');
+
+    return `
+      <div class="oc-card ${stateClass}" onclick="this.classList.toggle('open')">
+        <div class="oc-card-header">
+          <span class="oc-rep">${r.rep}</span>
+          <span class="oc-job">Job ${r.itemNo}</span>
+          <span class="oc-status-badge ${stateClass}">${icon} ${label}</span>
+          ${hasFlags ? '<span class="oc-chevron">▾</span>' : ''}
+        </div>
+        ${hasFlags ? `<div class="oc-card-body">${flagRows}</div>` : ''}
+      </div>`;
+  }).join('');
+
+  resultsEl.innerHTML = html;
+
+  const bWord = totalBlocks   === 1 ? 'issue'   : 'issues';
+  const wWord = totalWarnings === 1 ? 'warning' : 'warnings';
+  summaryEl.textContent = `${results.length} orders checked · ${totalBlocks} ${bWord} · ${totalWarnings} ${wWord}`;
+}
+
+async function ocRunCheck() {
+  if (!ocKnownValues) {
+    alert('Please click "Build History" first before running a check.');
+    return;
+  }
+
+  const weekName  = document.getElementById('oc-week-select').value;
+  const resultsEl = document.getElementById('oc-results');
+  const summaryEl = document.getElementById('oc-summary');
+
+  resultsEl.innerHTML = `<div class="oc-loading">Loading ${weekName}…</div>`;
+  summaryEl.textContent = '';
+
+  try {
+    if (!PROD_DRIVE_ID || !PROD_ITEM_ID) {
+      const driveItem = await graphGet(
+        `https://graph.microsoft.com/v1.0/shares/${encodeSharingUrl(PROD_SHARING_URL)}/driveItem`
+      );
+      PROD_DRIVE_ID = driveItem.parentReference.driveId;
+      PROD_ITEM_ID  = driveItem.id;
+    }
+
+    const range = await graphGet(
+      `https://graph.microsoft.com/v1.0/drives/${PROD_DRIVE_ID}/items/${PROD_ITEM_ID}` +
+      `/workbook/worksheets('${encodeURIComponent(weekName)}')/usedRange`
+    );
+
+    const jobs    = parseSheetValues(range.values || []);
+    const results = jobs.map(job => ({ ...job, validation: validateSpec(job.spec, ocKnownValues) }));
+    renderOcResults(results);
+  } catch(e) {
+    resultsEl.innerHTML = `<div class="oc-error">Failed to load ${weekName}: ${e.message}</div>`;
+    summaryEl.textContent = '';
+  }
+}
 </script>
 
 <!-- Job spec modal -->
