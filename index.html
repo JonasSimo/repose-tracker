@@ -6183,8 +6183,10 @@ function statsCountByPerson(completions) {
 }
 
 function statsFullyCompleteReps(completions) {
+  // REPs that had at least one completion in this period AND are fully done across all time.
+  // This correctly handles jobs where different teams completed on different days.
   const reps = [...new Set(completions.map(c => c.fields.REP))];
-  return reps.filter(rep => isRepFullyComplete(rep, completions));
+  return reps.filter(rep => isRepFullyComplete(rep, STATS_COMPLETIONS));
 }
 
 // ── Spark / chart helpers ────────────────────────
