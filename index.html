@@ -8891,32 +8891,8 @@ async function ocBuildHistory() {
   try {
     const kv = ocMakeKV();
 
-    // Ensure Production 2026 drive/item IDs are resolved
-    if (!PROD_DRIVE_ID || !PROD_ITEM_ID) {
-      status.textContent = '● Resolving file…';
-      const driveItem = await graphGet(
-        `https://graph.microsoft.com/v1.0/shares/${encodeSharingUrl(PROD_SHARING_URL)}/driveItem`
-      );
-      PROD_DRIVE_ID = driveItem.parentReference.driveId;
-      PROD_ITEM_ID  = driveItem.id;
-    }
-
-    const base = `https://graph.microsoft.com/v1.0/drives/${PROD_DRIVE_ID}/items/${PROD_ITEM_ID}/workbook/worksheets`;
-
-    // Load all 52 WK sheets
-    for (let wn = 1; wn <= 52; wn++) {
-      const sheetName = `WK ${wn}`;
-      status.textContent = `● Loading WK ${wn} of 52…`;
-      try {
-        const range = await graphGet(`${base}('${encodeURIComponent(sheetName)}')/usedRange`);
-        const jobs  = parseSheetValues(range.values || []);
-        ocIngestJobs(jobs, kv);
-      } catch(e) {
-        // Sheet not yet created — skip silently
-      }
-    }
-
-    // Load historical ledger
+    // History comes from the historical ledger only — not from WK sheets.
+    // WK sheets are the production plan (orders to validate), not completed history.
     status.textContent = '● Loading historical ledger…';
     try {
       await ocLoadHistLedger(kv);
