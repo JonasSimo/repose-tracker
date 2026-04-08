@@ -4521,12 +4521,9 @@ async function autoSyncQCCompletions() {
           // If col D says Accessories, also add directly to accQCDone
           if (isAccRow) accQCDone.add(m[1]);
         }
-        // Also catch "Job A ..." format anywhere in the cell
-        const mAccLong2 = cell.match(/\bJob\s*A\s*(\d{5,})/i);
-        const isAccFlag2 = /\bJob\s*A\s*\d/i.test(cell);
-        const m7fb2 = cell.match(/(?<!\d)(\d{7})(?!\d)/);
-        const accNum2 = mAccLong2 ? mAccLong2[1] : (isAccFlag2 && m7fb2 ? m7fb2[1] : null);
-        if (accNum2) accQCDone.add(accNum2);
+        // Acc: cell has "A" adjacent to digits + a 7-digit job number
+        const m7sc2 = cell.match(/(?<!\d)(\d{7})(?!\d)/);
+        if (m7sc2 && /\bA\s*\d/i.test(cell)) accQCDone.add(m7sc2[1]);
       });
     });
 
@@ -4709,13 +4706,12 @@ async function loadLoadPlanFromSharePoint() {
         const isCollection = /\bcollect/i.test(cell);
         // Service + collection = external driver collection, not a factory delivery
         const isServCollect = isServ && isCollection;
-        // Acc check runs first — "Job A" takes priority over any 7-digit number in the same cell
-        const mAccLong  = cell.match(/\bJob\s*A\s*(\d{5,})/i);   // "Job A 2613256"
-        const isAccFlag = /\bJob\s*A\s*\d/i.test(cell);             // "Job A" followed by a digit (handles "JOB A4" and "Job A 2613256")
-        const m7Fallbk  = cell.match(/(?<!\d)(\d{7})(?!\d)/);    // 7-digit elsewhere
-        const isAcc     = !!(mAccLong || (isAccFlag && m7Fallbk));
-        const accJobNum = mAccLong ? mAccLong[1] : (isAccFlag && m7Fallbk ? m7Fallbk[1] : null);
-        const m         = !isAcc && cell.match(/(?<!\d)(\d{7})(?!\d)/);
+        // Acc: cell contains "A" adjacent to digits (e.g. "JOB A4", "A2613256")
+        // Job number = 7-digit number anywhere in the cell
+        const m7        = cell.match(/(?<!\d)(\d{7})(?!\d)/);
+        const isAcc     = !!(m7 && /\bA\s*\d/i.test(cell));
+        const accJobNum = isAcc ? m7[1] : null;
+        const m         = !isAcc && m7;
 
         if (isAcc && accJobNum) {
           // Accessory job item ("Job A ...") — QC only
