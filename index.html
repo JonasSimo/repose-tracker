@@ -5916,7 +5916,7 @@ async function loadStatsData() {
   await Promise.allSettled([
     getListIdByName('ProductionCompletions').then(id =>
       graphGetAll(`${base}/${id}/items?$expand=fields&$top=999`)
-    ).then(r => { STATS_COMPLETIONS = r; }).catch(e => console.warn('stats (completions):', e.message)),
+    ).then(r => { STATS_COMPLETIONS = r.filter(i => i.fields?.IsComplete === true); }).catch(e => console.warn('stats (completions):', e.message)),
 
     getListIdByName('SpecAlerts').then(id =>
       graphGetAll(`${base}/${id}/items?$expand=fields&$top=999`)
