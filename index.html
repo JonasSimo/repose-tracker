@@ -5979,6 +5979,22 @@ async function loadStatsData() {
     console.warn('loadStatsData (QC sheet):', e.message);
   }
 
+  // Use STATS_QC (already correctly typed) to seed accQCDone and qcCompletedReps
+  // This is more reliable than relying solely on the 60-second QC sync interval
+  let accUpdated = false;
+  STATS_QC.forEach(q => {
+    qcCompletedReps.add(q.rep7); // always keep qcCompletedReps in sync
+    if (q.type === 'Accessories' && !accQCDone.has(q.rep7)) {
+      accQCDone.add(q.rep7);
+      accUpdated = true;
+    }
+  });
+  if (accUpdated) {
+    saveAccQCDone(accQCDone);
+    applyStateToOvBadges();
+    if (document.getElementById('view-loadsheet')?.classList.contains('active')) renderLoadSheet();
+  }
+
   document.getElementById('stats-spinner').style.display = 'none';
   renderStatsDashboard();
 }
