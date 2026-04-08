@@ -3287,11 +3287,11 @@ function servBaseRep(repId) {
 
 // Returns true if the entry is an accessory job ("Job A XXXXXX")
 function isAccDelivery(repId) {
-  return /\bJob\s*A\b/i.test(repId);
+  return /\bJob\s*A\s*\d{5,}/i.test(repId);
 }
 // Returns the job number string from a "Job A XXXXXX" id
 function accJobBase(repId) {
-  const m = repId.match(/\bJob\s*A\s*(\d+)/i);
+  const m = repId.match(/\bJob\s*A\s*(\d{5,})/i);
   return m ? m[1] : repId;
 }
 
@@ -4517,7 +4517,7 @@ async function autoSyncQCCompletions() {
           if (isAccRow) accQCDone.add(m[1]);
         }
         // Also catch "Job A XXXXX" format anywhere in the cell
-        const mAcc = cell.match(/\bJob\s*A\s*(\d+)/i);
+        const mAcc = cell.match(/\bJob\s*A\s*(\d{5,})/i);
         if (mAcc) accQCDone.add(mAcc[1]);
       });
     });
@@ -4702,7 +4702,7 @@ async function loadLoadPlanFromSharePoint() {
         // Service + collection = external driver collection, not a factory delivery
         const isServCollect = isServ && isCollection;
         // Acc check runs first — "Job A" takes priority over any 7-digit number in the same cell
-        const mAcc   = cell.match(/\bJob\s*A\s*(\d+)/i);
+        const mAcc   = cell.match(/\bJob\s*A\s*(\d{5,})/i);
         const isAcc  = !!mAcc;
         const m      = !isAcc && cell.match(/(?<!\d)(\d{7})(?!\d)/);
 
@@ -4798,7 +4798,7 @@ async function loadMechQCFromSharePoint() {
       const rep  = String(item.fields?.REP ?? '').trim();
       const m7   = rep.match(/(?<!\d)(\d{7})(?!\d)/);
       if (m7) mechQCDone.add(m7[1]);
-      const mAcc = rep.match(/\bJob\s*A\s*(\d+)/i);
+      const mAcc = rep.match(/\bJob\s*A\s*(\d{5,})/i);
       if (mAcc) accQCDone.add(mAcc[1]);
     });
     saveMechQCDone(mechQCDone);
