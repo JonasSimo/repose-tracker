@@ -4918,12 +4918,13 @@ function parseSheetValues(values) {
     if (!kRaw || (!isExpressCode && !isServCode && (!Number.isFinite(itemNo) || itemNo <= 0))) continue;
     const m = lCell.match(/REP\s*(\d{7})/);
     if (!m) continue;
-    // Prep day from column BI (index 60): 1-5 or EXP/M-FT → 'express'
+    // Prep day from column BI (index 60): "PREP 1"–"PREP 5", "EXP", "M-FT"
     const biRaw = String(row[60]||'').trim().toUpperCase();
     let prep;
-    if (biRaw === 'EXP' || biRaw === 'M-FT' || biRaw === 'MFT') prep = 'express';
+    if (/^(EXP|M-FT|MFT)/.test(biRaw)) prep = 'express';
     else {
-      const prepVal = parseInt(biRaw, 10);
+      // Strip "PREP " prefix so "PREP 1" → 1, plain "1" → 1
+      const prepVal = parseInt(biRaw.replace(/^PREP\s*/,''), 10);
       prep = (prepVal >= 1 && prepVal <= 5) ? prepVal : null;
     }
     const sp = idx => String(row[idx] ?? '').trim();
