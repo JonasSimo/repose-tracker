@@ -8653,6 +8653,86 @@ function ocOnOpen() {
     sel.appendChild(opt);
   }
 }
+
+function ocMakeKV() {
+  const kv = { global: {}, byModel: {} };
+  OC_SET_FIELDS.forEach(f => kv.global[f] = new Set());
+  OC_NUM_FIELDS.forEach(f => kv.global[f] = { min: null, max: null });
+  return kv;
+}
+
+function ocIngestJobs(jobs, kv) {
+  for (const job of jobs) {
+    const s = job.spec;
+    if (!s) continue;
+    const modelKey = s.model?.trim().toLowerCase();
+
+    if (modelKey && !kv.byModel[modelKey]) {
+      kv.byModel[modelKey] = {};
+      OC_SET_FIELDS.forEach(f => kv.byModel[modelKey][f] = new Set());
+      OC_NUM_FIELDS.forEach(f => kv.byModel[modelKey][f] = { min: null, max: null });
+    }
+
+    for (const f of OC_SET_FIELDS) {
+      const val = s[f]?.trim().toLowerCase();
+      if (!val) continue;
+      kv.global[f].add(val);
+      if (modelKey) kv.byModel[modelKey][f].add(val);
+    }
+
+    for (const f of OC_NUM_FIELDS) {
+      const num = parseFloat(s[f]?.trim());
+      if (!Number.isFinite(num)) continue;
+      const g = kv.global[f];
+      if (g.min === null || num < g.min) g.min = num;
+      if (g.max === null || num > g.max) g.max = num;
+      if (modelKey) {
+        const m = kv.byModel[modelKey][f];
+        if (m.min === null || num < m.min) m.min = num;
+        if (m.max === null || num > m.max) m.max = num;
+      }
+    }
+  }
+}
+
+function validateSpec(spec, kv) {
+  const blocks = [];
+  const warnings = [];
+  const modelKey = spec.model?.trim().toLowerCase();
+  const modelLabel = spec.model?.trim();
+  const byModel = modelKey && kv.byModel[modelKey] ? kv.byModel[modelKey] : null;
+
+  for (const f of OC_SET_FIELDS) {
+    const val = spec[f]?.trim();
+    if (!val) continue;
+    const valKey = val.toLowerCase();
+
+    if (!kv.global[f].has(valKey)) {
+      blocks.push({ field: f, value: val, reason: `"${val}" has never appeared in any historical order` });
+    } else if (f !== 'model' && byModel && !byModel[f].has(valKey)) {
+      warnings.push({ field: f, value: val, reason: `"${val}" has never been used with ${modelLabel}` });
+    }
+  }
+
+  for (const f of OC_NUM_FIELDS) {
+    const raw = spec[f]?.trim();
+    if (!raw) continue;
+    const num = parseFloat(raw);
+    if (!Number.isFinite(num)) continue;
+
+    const g = kv.global[f];
+    if (g.min !== null && (num < g.min || num > g.max)) {
+      blocks.push({ field: f, value: raw, reason: `${num} is outside the global range seen in history (${g.min}–${g.max})` });
+    } else if (byModel) {
+      const m = byModel[f];
+      if (m.min !== null && (num < m.min || num > m.max)) {
+        warnings.push({ field: f, value: raw, reason: `${num} is outside the normal range for ${modelLabel} (${m.min}–${m.max})` });
+      }
+    }
+  }
+
+  return { blocks, warnings };
+}
 </script>
 
 <!-- Job spec modal -->
