@@ -5265,6 +5265,24 @@ const PP_TEAMS = [
   { key:'qc', icon:'✅', lbl:'QC' },
 ];
 
+function getPPJobInProgress(prep, ji) {
+  // Returns array of started-but-not-done entries across all teams for this job
+  const wk = activeProdWC;
+  const result = [];
+  TEAMS_CFG.forEach(t => {
+    if (t.hasSubs) {
+      SUBS.forEach(sub => {
+        const s = STATE[t.name]?.[sub]?.[wk]?.[prep]?.[ji];
+        if (s?.started && !s.done) result.push({ team: t.name, sub, startedBy: s.startedBy || '', startedAt: s.startedAt || '' });
+      });
+    } else {
+      const s = STATE[t.name]?.['all']?.[wk]?.[prep]?.[ji];
+      if (s?.started && !s.done) result.push({ team: t.name, sub: null, startedBy: s.startedBy || '', startedAt: s.startedAt || '' });
+    }
+  });
+  return result;
+}
+
 function getPPJobTeamStatus(prep, ji) {
   // Returns same structure as rep.s in Load Plan: { wm:['A','B','S'], fm:0|1, ... }
   const wk = activeProdWC;
@@ -5354,10 +5372,13 @@ function renderProductionPlan() {
             }
           });
           badgeHtml += '</div>';
-          return `<div class="pp-job" onclick="ppJobClick('${col.key}',${ji},event)" style="cursor:pointer">
+          const inProg = getPPJobInProgress(col.key, ji);
+          const inProgStyle = inProg.length ? 'background:#fff7ed;border-left:3px solid #f97316;' : '';
+          return `<div class="pp-job" onclick="ppJobClick('${col.key}',${ji},event)" style="cursor:pointer;${inProgStyle}">
             <div class="pp-job-top">
               <span class="pp-job-code">${codeLabel}</span>
               <span class="pp-job-rep">${escHtml(j.rep)}</span>
+              ${inProg.length ? `<span style="margin-left:auto;font-size:10px;font-weight:700;color:#ea580c;white-space:nowrap">🔄 In Progress</span>` : ''}
             </div>
             ${badgeHtml}
           </div>`;
@@ -5411,37 +5432,55 @@ function resolveInitialsToName(initials, teamName) {
 }
 
 function ppJobClick(prep, ji, event) {
-  // Find team name from the active highlight key (e.g. 'sw' → 'Sewing')
-  const ovEntry = Object.entries(TEAM_OV_MAP).find(([, v]) => v.key === activeProdTeam);
-  if (!ovEntry) return;
-  const teamName = ovEntry[0];
-  const teamCfg  = TEAMS_CFG.find(t => t.name === teamName);
-  if (!teamCfg) return;
-
-  const wk = activeProdWC;
+  const wk    = activeProdWC;
   const lines = [];
 
-  if (teamCfg.hasSubs) {
-    SUBS.forEach(sub => {
-      const s = STATE[teamName]?.[sub]?.[wk]?.[prep]?.[ji];
-      if (s?.done) {
-        const who  = s.initials ? resolveInitialsToName(s.initials, teamName) : '—';
-        const when = [s.doneAt, s.doneDate].filter(Boolean).join(' · ') || '—';
-        lines.push(`${SUB_SHORT[sub]}  ·  By: ${who}  ·  At: ${when}`);
-      }
+  // ── In-progress section (all teams, no highlight required) ──
+  const inProg = getPPJobInProgress(prep, ji);
+  if (inProg.length) {
+    lines.push('🔄 In Progress');
+    inProg.forEach(ip => {
+      const who     = ip.startedBy ? resolveInitialsToName(ip.startedBy, ip.team) : '—';
+      const subPart = ip.sub ? ` · ${ip.sub}` : '';
+      lines.push(`  ${ip.team}${subPart}  ·  ${who}  ·  ${ip.startedAt || '—'}`);
     });
-  } else {
-    const s = STATE[teamName]?.['all']?.[wk]?.[prep]?.[ji];
-    if (s?.done) {
-      const who  = s.initials ? resolveInitialsToName(s.initials, teamName) : '—';
-      const when = [s.doneAt, s.doneDate].filter(Boolean).join(' · ') || '—';
-      lines.push(`By: ${who}`);
-      lines.push(`At: ${when}`);
+  }
+
+  // ── Completed section (highlighted team only) ──
+  const ovEntry = activeProdTeam ? Object.entries(TEAM_OV_MAP).find(([, v]) => v.key === activeProdTeam) : null;
+  if (ovEntry) {
+    const teamName = ovEntry[0];
+    const teamCfg  = TEAMS_CFG.find(t => t.name === teamName);
+    if (teamCfg) {
+      const compLines = [];
+      if (teamCfg.hasSubs) {
+        SUBS.forEach(sub => {
+          const s = STATE[teamName]?.[sub]?.[wk]?.[prep]?.[ji];
+          if (s?.done) {
+            const who  = s.initials ? resolveInitialsToName(s.initials, teamName) : '—';
+            const when = [s.doneAt, s.doneDate].filter(Boolean).join(' · ') || '—';
+            compLines.push(`  ${SUB_SHORT[sub]}  ·  By: ${who}  ·  At: ${when}`);
+          }
+        });
+      } else {
+        const s = STATE[teamName]?.['all']?.[wk]?.[prep]?.[ji];
+        if (s?.done) {
+          const who  = s.initials ? resolveInitialsToName(s.initials, teamName) : '—';
+          const when = [s.doneAt, s.doneDate].filter(Boolean).join(' · ') || '—';
+          compLines.push(`  By: ${who}`);
+          compLines.push(`  At: ${when}`);
+        }
+      }
+      if (compLines.length) {
+        if (lines.length) lines.push('');
+        lines.push(`✅ Completed — ${teamName}`);
+        lines.push(...compLines);
+      }
     }
   }
 
-  if (!lines.length) return; // not completed — nothing to show
-  showPPTooltip(event, `✅ Completed\n${lines.join('\n')}`);
+  if (!lines.length) return;
+  showPPTooltip(event, lines.join('\n'));
 }
 
 function showPPTooltip(event, text) {
