@@ -5585,8 +5585,9 @@ if (TABLET_TEAM) {
     if (b.textContent.trim().startsWith('← Teams')) b.style.display = 'none';
   });
   // Nav menu hidden entirely in tablet-team mode via CSS (html.tablet-team .nav-menu)
-  // Add tablet class for compact sidebar styling
-  document.body.classList.add('tablet-mode');
+  // Add tablet class for large-font scaling — only for Samsung tablet teams, not PC teams like Cutting
+  const TABLET_FONT_TEAMS = ['woodmill','sewing','assembly'];
+  if (TABLET_FONT_TEAMS.includes(TABLET_TEAM.toLowerCase())) document.body.classList.add('tablet-mode');
 }
 renderTeamSidebar();
 renderWeekList();
