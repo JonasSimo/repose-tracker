@@ -8729,16 +8729,64 @@ const OC_FIELD_LABELS = {
   armHeight:'Arm Height', seatOption:'Seat Option', castor1:'Castor 1', castor2:'Castor 2'
 };
 
+const OC_CACHE_KEY = 'repnet_oc_history';
+
+function ocSaveCache(kv) {
+  const data = { builtAt: Date.now(), global: {}, byModel: {} };
+  OC_SET_FIELDS.forEach(f => data.global[f] = [...kv.global[f]]);
+  OC_NUM_FIELDS.forEach(f => data.global[f] = kv.global[f]);
+  Object.entries(kv.byModel).forEach(([model, mv]) => {
+    data.byModel[model] = {};
+    OC_SET_FIELDS.forEach(f => data.byModel[model][f] = [...mv[f]]);
+    OC_NUM_FIELDS.forEach(f => data.byModel[model][f] = mv[f]);
+  });
+  try { localStorage.setItem(OC_CACHE_KEY, JSON.stringify(data)); } catch(e) {}
+}
+
+function ocLoadCache() {
+  try {
+    const raw = localStorage.getItem(OC_CACHE_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    const kv = ocMakeKV();
+    OC_SET_FIELDS.forEach(f => kv.global[f] = new Set(data.global[f] || []));
+    OC_NUM_FIELDS.forEach(f => kv.global[f] = data.global[f] || { min: null, max: null });
+    Object.entries(data.byModel || {}).forEach(([model, mv]) => {
+      kv.byModel[model] = {};
+      OC_SET_FIELDS.forEach(f => kv.byModel[model][f] = new Set(mv[f] || []));
+      OC_NUM_FIELDS.forEach(f => kv.byModel[model][f] = mv[f] || { min: null, max: null });
+    });
+    return { kv, builtAt: data.builtAt };
+  } catch(e) {
+    localStorage.removeItem(OC_CACHE_KEY);
+    return null;
+  }
+}
+
 function ocOnOpen() {
+  // Populate week dropdown once
   const sel = document.getElementById('oc-week-select');
-  if (sel.options.length > 0) return; // already populated
-  const now = currentISOWeek();
-  for (let wn = 1; wn <= 52; wn++) {
-    const opt = document.createElement('option');
-    opt.value = `WK ${wn}`;
-    opt.textContent = `WK ${wn}`;
-    if (wn === now) opt.selected = true;
-    sel.appendChild(opt);
+  if (sel.options.length === 0) {
+    const now = currentISOWeek();
+    for (let wn = 1; wn <= 52; wn++) {
+      const opt = document.createElement('option');
+      opt.value = `WK ${wn}`;
+      opt.textContent = `WK ${wn}`;
+      if (wn === now) opt.selected = true;
+      sel.appendChild(opt);
+    }
+  }
+  // Load from cache if history not yet in memory
+  if (!ocKnownValues) {
+    const cached = ocLoadCache();
+    if (cached) {
+      ocKnownValues = cached.kv;
+      const date = new Date(cached.builtAt).toLocaleDateString('en-GB');
+      const status = document.getElementById('oc-hist-status');
+      status.className = 'oc-hist-status loaded';
+      status.textContent = `✓ History ready (cached ${date})`;
+      document.getElementById('oc-build-btn').textContent = 'Refresh History';
+    }
   }
 }
 
@@ -8912,9 +8960,12 @@ async function ocBuildHistory() {
     }
 
     ocKnownValues = kv;
+    ocSaveCache(kv);
     const modelCount = Object.keys(kv.byModel).length;
+    const today = new Date().toLocaleDateString('en-GB');
     status.className = 'oc-hist-status loaded';
-    status.textContent = `✓ History loaded — ${modelCount} models known`;
+    status.textContent = `✓ History ready — ${modelCount} models (cached ${today})`;
+    btn.textContent = 'Refresh History';
   } catch(e) {
     status.className = 'oc-hist-status not-loaded';
     status.textContent = '● Build failed — try again';
