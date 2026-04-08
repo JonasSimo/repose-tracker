@@ -5567,7 +5567,7 @@ function applyStateToOvBadges() {
     day.reps.forEach(rep => {
       const digits = rep.id.replace(/\D/g, '');
       if (digits.length === 7 && (qcCompletedReps.has(digits) || mechQCDone.has(digits))) rep.s.qc = 1;
-      if (isAccDelivery(rep.id) && accQCDone.has(accJobBase(rep.id))) rep.s.qc = 1;
+      if (isAccDelivery(rep.id) && (accQCDone.has(accJobBase(rep.id)) || qcCompletedReps.has(accJobBase(rep.id)))) rep.s.qc = 1;
     });
   });
 
@@ -7279,7 +7279,7 @@ function renderLoadSheet() {
     const repCount  = col.items.filter(i => i.rep7 || i.isAcc).length;
     const doneCount = col.items.filter(i => {
       if (i.rep7)   return qcCompletedReps.has(i.rep7) || mechQCDone.has(i.rep7);
-      if (i.isAcc)  return accQCDone.has(i.accJobNum);
+      if (i.isAcc)  return accQCDone.has(i.accJobNum) || qcCompletedReps.has(i.accJobNum);
       return false;
     }).length;
     const allDone   = repCount > 0 && doneCount === repCount;
@@ -7302,7 +7302,7 @@ function renderLoadSheet() {
           ${extra ? `<div class="ls-rep-desc">${escHtml(extra)}</div>` : ''}
         </div>`;
       } else if (item.isAcc) {
-        const isDone  = accQCDone.has(item.accJobNum);
+        const isDone  = accQCDone.has(item.accJobNum) || qcCompletedReps.has(item.accJobNum);
         const extra   = item.text.replace(/\bJob\s*A\b/gi,'').replace(item.accJobNum,'').replace(/^[\s\-–]+|[\s\-–]+$/g,'').trim();
         const cls     = `ls-item-rep${isDone?' qc-done':''}${isChanged?' ls-changed':''}`;
         return `<div class="${cls}"${isChanged?` style="${delayStyle}"`:''}>
