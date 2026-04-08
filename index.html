@@ -1634,6 +1634,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <button class="nav-item" data-view="production" onclick="navTo('production')">Production Plan</button>
         <button class="nav-item" data-view="stats" onclick="navTo('stats')">Stats</button>
         <button class="nav-item" data-view="issues" id="issues-tab-btn" onclick="navTo('issues')">Issues</button>
+        <button class="nav-item" data-view="ordercheck" onclick="navTo('ordercheck')">Order Check</button>
       </div>
     </div>
   </div>
@@ -1938,6 +1939,27 @@ document.addEventListener('DOMContentLoaded', () => {
         <button class="modal-confirm" onclick="modalConfirm()">✓ Confirm</button>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     VIEW: ORDER CHECK
+════════════════════════════════════════════════ -->
+<div class="view" id="view-ordercheck">
+  <div class="oc-wrap">
+    <div class="oc-toolbar">
+      <div class="oc-controls">
+        <label class="oc-label">Week</label>
+        <select id="oc-week-select" class="oc-select"></select>
+        <button class="oc-btn oc-btn-primary" id="oc-run-btn" onclick="ocRunCheck()">Load &amp; Check</button>
+      </div>
+      <div class="oc-hist-row">
+        <span id="oc-hist-status" class="oc-hist-status not-loaded">● History not loaded</span>
+        <button class="oc-btn" id="oc-build-btn" onclick="ocBuildHistory()">Build History</button>
+      </div>
+    </div>
+    <div id="oc-results" class="oc-results"></div>
+    <div id="oc-summary" class="oc-summary"></div>
   </div>
 </div>
 
@@ -2317,7 +2339,7 @@ let ppAutoSyncInterval = null;
 // ═══════════════════════════════════════════════
 // ROUTING
 // ═══════════════════════════════════════════════
-const NAV_LABELS = { 'team-select':'Team View','tracker':'Team View','overview':'Load Plan','loadsheet':'Delivery','production':'Production Plan','stats':'Stats','issues':'Issues' };
+const NAV_LABELS = { 'team-select':'Team View','tracker':'Team View','overview':'Load Plan','loadsheet':'Delivery','production':'Production Plan','stats':'Stats','issues':'Issues','ordercheck':'Order Check' };
 function showView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   const activeView = name === 'tracker' ? 'team-select' : name;
@@ -2336,6 +2358,7 @@ function showView(name) {
   }
   if (name === 'stats')       { openStatsView(); }
   if (name === 'issues')      { openIssuesView(); }
+  if (name === 'ordercheck')  { ocOnOpen(); }
 }
 
 function toggleNavMenu() {
