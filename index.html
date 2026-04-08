@@ -2833,7 +2833,7 @@ let modalMode    = 'complete'; // 'complete' | 'start'
 
 function showsStartButton() {
   // Teams where the Start button is shown
-  return activeTeam === 'Assembly' || activeTeam === 'Sewing' ||
+  return activeTeam === 'Assembly' || activeTeam === 'Sewing' || activeTeam === 'Cutting' ||
          (activeHasSubs && ['Arms','Backs','Seats'].includes(activeSub));
 }
 
