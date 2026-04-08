@@ -4422,18 +4422,24 @@ async function autoSyncQCCompletions() {
     const chunkResults = await Promise.all(ranges.map(([r, end]) =>
       graphGet(
         `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}` +
-        `/workbook/worksheets('${encodeURIComponent(QC_SHEET_NAME)}')/range(address='A${r}:A${end}')?$select=values`
+        `/workbook/worksheets('${encodeURIComponent(QC_SHEET_NAME)}')/range(address='A${r}:D${end}')?$select=values`
       )
     ));
 
     const repNums = new Set();
     chunkResults.forEach(chunk => {
       (chunk.values || []).forEach(row => {
-        const cell = String(row[0] ?? '').trim();
+        const cell    = String(row[0] ?? '').trim();
+        const rawType = String(row[3] ?? '').trim().toLowerCase(); // col D = type
+        const isAccRow = rawType.includes('access');
         // Use lookahead/lookbehind instead of \b — handles REP2610016 (no space) correctly
         const m = cell.match(/(?<!\d)(\d{7})(?!\d)/);
-        if (m) repNums.add(m[1]);
-        // Also catch accessory jobs ("Job A XXXXX") and feed into accQCDone
+        if (m) {
+          repNums.add(m[1]);
+          // If col D says Accessories, also add directly to accQCDone
+          if (isAccRow) accQCDone.add(m[1]);
+        }
+        // Also catch "Job A XXXXX" format anywhere in the cell
         const mAcc = cell.match(/\bJob\s*A\s*(\d+)/i);
         if (mAcc) accQCDone.add(mAcc[1]);
       });
