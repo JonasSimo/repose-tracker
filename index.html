@@ -9584,6 +9584,9 @@ function openNmsModal() {
   document.getElementById('nms-raised-by').value = '';
   document.getElementById('nms-location').value = '';
   document.getElementById('nms-issue').value = '';
+  document.getElementById('nms-area-safe').value = '';
+  document.getElementById('nms-steps-taken').value = '';
+  document.getElementById('nms-fully-resolved').value = '';
   const btn = document.getElementById('nms-submit-btn');
   btn.disabled = false;
   btn.textContent = 'Submit Report';
@@ -9594,10 +9597,13 @@ function closeNmsModal() {
 }
 
 async function submitNearMiss() {
-  const raisedBy = document.getElementById('nms-raised-by').value.trim();
-  const location = document.getElementById('nms-location').value;
-  const issue    = document.getElementById('nms-issue').value.trim();
-  if (!raisedBy || !location || !issue) {
+  const raisedBy     = document.getElementById('nms-raised-by').value.trim();
+  const location     = document.getElementById('nms-location').value;
+  const issue        = document.getElementById('nms-issue').value.trim();
+  const areaSafe     = document.getElementById('nms-area-safe').value;
+  const stepsTaken   = document.getElementById('nms-steps-taken').value.trim();
+  const fullyResolved = document.getElementById('nms-fully-resolved').value;
+  if (!raisedBy || !location || !issue || !areaSafe) {
     alert('Please fill in all required fields.');
     return;
   }
@@ -9616,7 +9622,11 @@ async function submitNearMiss() {
           RaisedBy_x003a_:          raisedBy,
           Locationofissue:          location,
           Whatistheissue_x003f_:    issue,
+          IsAreaSafe:               areaSafe,
+          StepsTakenToKeepSafe:     stepsTaken,
+          IssueFullyResolved:       fullyResolved === 'Yes',
           NearMissclosedout_x003f_: false,
+          Source:                   'RepNet',
         }})
       }
     );
@@ -9832,6 +9842,26 @@ async function closeOutNearMiss(itemId) {
       <div>
         <div class="nms-field-label">What is the issue? *</div>
         <textarea class="nms-textarea" id="nms-issue" placeholder="Describe the near miss or hazard…"></textarea>
+      </div>
+      <div>
+        <div class="nms-field-label">Is the area safe? *</div>
+        <select class="nms-select" id="nms-area-safe">
+          <option value="">— Select —</option>
+          <option value="It's safe">It's safe</option>
+          <option value="Requires immediate attention">Requires immediate attention</option>
+        </select>
+      </div>
+      <div>
+        <div class="nms-field-label">Steps taken to keep everyone safe</div>
+        <textarea class="nms-textarea" id="nms-steps-taken" placeholder="Describe any immediate steps taken…" style="min-height:70px"></textarea>
+      </div>
+      <div>
+        <div class="nms-field-label">Has the issue been fully resolved and confirmed safe?</div>
+        <select class="nms-select" id="nms-fully-resolved">
+          <option value="">— Select —</option>
+          <option value="Yes">Yes</option>
+          <option value="No">No</option>
+        </select>
       </div>
     </div>
     <div id="nms-success-body" class="nms-success" style="display:none">
