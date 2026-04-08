@@ -8733,6 +8733,125 @@ function validateSpec(spec, kv) {
 
   return { blocks, warnings };
 }
+
+async function ocLoadHistLedger(kv) {
+  const encoded = encodeSharingUrl(HIST_LEDGER_SHARING_URL);
+  const driveItem = await graphGet(`https://graph.microsoft.com/v1.0/shares/${encoded}/driveItem`);
+  const ledgerDriveId = driveItem.parentReference.driveId;
+  const ledgerItemId  = driveItem.id;
+
+  // Discover sheets and use the first one
+  const sheetsRes = await graphGet(
+    `https://graph.microsoft.com/v1.0/drives/${ledgerDriveId}/items/${ledgerItemId}/workbook/worksheets`
+  );
+  console.log('[OrderCheck] Ledger sheets:', sheetsRes.value.map(s => s.name));
+  const sheetName = sheetsRes.value[0].name;
+
+  const range = await graphGet(
+    `https://graph.microsoft.com/v1.0/drives/${ledgerDriveId}/items/${ledgerItemId}` +
+    `/workbook/worksheets('${encodeURIComponent(sheetName)}')/usedRange`
+  );
+
+  const rows = range.values || [];
+  if (!rows.length) return;
+
+  // Map header names → spec field names
+  const HEADER_MAP = {
+    'model':                'model',
+    'back design':          'backDesign',
+    'cover code/ supplier': 'coverCode',
+    'cover code/supplier':  'coverCode',
+    'fabric description':   'fabric',
+    'mechanism - 1':        'mechanism1',
+    'mechanism - 2':        'mechanism2',
+    'seat height':          'seatHeight',
+    'seat width':           'seatWidth',
+    'seat depth':           'seatDepth',
+    'back height':          'backHeight',
+    'arm height':           'armHeight',
+    'seat option':          'seatOption',
+    'castor - 1':           'castor1',
+    'castor - 2':           'castor2',
+  };
+
+  // Find the header row (first row containing a cell equal to "model")
+  let headerRowIdx = -1;
+  const colMap = {}; // specField → column index
+  for (let i = 0; i < Math.min(6, rows.length); i++) {
+    const hasModel = rows[i].some(c => String(c || '').toLowerCase().trim() === 'model');
+    if (hasModel) {
+      headerRowIdx = i;
+      rows[i].forEach((cell, idx) => {
+        const key = String(cell || '').toLowerCase().trim();
+        if (HEADER_MAP[key]) colMap[HEADER_MAP[key]] = idx;
+      });
+      break;
+    }
+  }
+  if (headerRowIdx < 0) { console.warn('[OrderCheck] Ledger header row not found'); return; }
+
+  const jobs = [];
+  for (let i = headerRowIdx + 1; i < rows.length; i++) {
+    const row = rows[i];
+    const spec = {};
+    Object.entries(colMap).forEach(([field, idx]) => {
+      spec[field] = String(row[idx] ?? '').trim();
+    });
+    jobs.push({ spec });
+  }
+
+  console.log(`[OrderCheck] Ledger: ${jobs.length} historical orders loaded`);
+  ocIngestJobs(jobs, kv);
+}
+
+async function ocBuildHistory() {
+  const btn    = document.getElementById('oc-build-btn');
+  const status = document.getElementById('oc-hist-status');
+  btn.disabled = true;
+  status.className = 'oc-hist-status';
+  status.textContent = '● Building…';
+
+  const kv = ocMakeKV();
+
+  // Ensure Production 2026 drive/item IDs are resolved
+  if (!PROD_DRIVE_ID || !PROD_ITEM_ID) {
+    status.textContent = '● Resolving file…';
+    const driveItem = await graphGet(
+      `https://graph.microsoft.com/v1.0/shares/${encodeSharingUrl(PROD_SHARING_URL)}/driveItem`
+    );
+    PROD_DRIVE_ID = driveItem.parentReference.driveId;
+    PROD_ITEM_ID  = driveItem.id;
+  }
+
+  const base = `https://graph.microsoft.com/v1.0/drives/${PROD_DRIVE_ID}/items/${PROD_ITEM_ID}/workbook/worksheets`;
+
+  // Load all 52 WK sheets
+  for (let wn = 1; wn <= 52; wn++) {
+    const sheetName = `WK ${wn}`;
+    status.textContent = `● Loading ${sheetName}/52…`;
+    try {
+      const range = await graphGet(`${base}('${encodeURIComponent(sheetName)}')/usedRange`);
+      const jobs  = parseSheetValues(range.values || []);
+      ocIngestJobs(jobs, kv);
+    } catch(e) {
+      // Sheet not yet created — skip silently
+    }
+  }
+
+  // Load historical ledger
+  status.textContent = '● Loading historical ledger…';
+  try {
+    await ocLoadHistLedger(kv);
+  } catch(e) {
+    console.warn('[OrderCheck] Ledger load failed:', e.message);
+  }
+
+  ocKnownValues = kv;
+  const modelCount = Object.keys(kv.byModel).length;
+  status.className = 'oc-hist-status loaded';
+  status.textContent = `✓ History loaded — ${modelCount} models known`;
+  btn.disabled = false;
+}
 </script>
 
 <!-- Job spec modal -->
