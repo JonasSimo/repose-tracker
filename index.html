@@ -550,6 +550,7 @@ html.tablet-team .nav-menu { display: none !important; }
 .dbadge.done     { background: var(--green); border-color: var(--green); }
 .dbadge.done.qc  { background: var(--teal);  border-color: var(--teal);  }
 .dbadge.partial  { background: var(--abg);   border-color: var(--aborder); }
+.dbadge.in-progress { background: #fff7ed; border-color: #f97316; }
 .dbadge.qc-impl  { background: #d1fae5; border: 1.5px dashed var(--green); }
 
 .db-lbl {
@@ -559,6 +560,7 @@ html.tablet-team .nav-menu { display: none !important; }
 .dbadge.done     .db-lbl { color: #fff; }
 .dbadge.done.qc  .db-lbl { color: #fff; }
 .dbadge.partial  .db-lbl { color: var(--amber); }
+.dbadge.in-progress .db-lbl { color: #ea580c; }
 .dbadge.qc-impl  .db-lbl { color: var(--green); }
 
 .db-icon { display: none; }
@@ -584,7 +586,8 @@ html.tablet-team .nav-menu { display: none !important; }
   font-size: 6px; font-weight: 700; color: var(--text3);
   cursor: pointer; transition: all .12s; flex-shrink: 0;
 }
-.dsub.on       { background: var(--green); border-color: var(--green); color: #fff; }
+.dsub.on           { background: var(--green); border-color: var(--green); color: #fff; }
+.dsub.in-progress  { background: #fff7ed;   border-color: #f97316;   color: #ea580c; }
 .dsub.qc-impl  { background: #d1fae5; border: 1.5px dashed var(--green); color: var(--green); }
 .dsub:hover:not(.on):not(.qc-impl) { background: var(--bg4); }
 
@@ -3781,7 +3784,8 @@ function renderOverviewAll() {
         const state = teamTileState(d, rep);
         const isQC  = d.k === 'qc';
         if (d.hasSubs) {
-          const done = Array.isArray(rep.s[d.k]) ? rep.s[d.k] : [];
+          const done        = Array.isArray(rep.s[d.k])        ? rep.s[d.k]        : [];
+          const started     = Array.isArray(rep._started?.[d.k]) ? rep._started[d.k] : [];
           const impliedSubs = Array.isArray(rep._qcImpl?.[d.k]) ? rep._qcImpl[d.k] : [];
           const grpCls = state==='done' ? (impliedSubs.length===3?'qc-impl':'done') : state==='partial'?'partial':'';
           gridHtml += `<div class="dbadge-grp-wrap">
@@ -3790,16 +3794,19 @@ function renderOverviewAll() {
               ${OV_SUBS_SHORT.map(s => {
                 const on = done.includes(s);
                 const isImpl = on && impliedSubs.includes(s);
-                return `<div class="dsub ${on?(isImpl?'on qc-impl':'on'):''}" title="${d.lbl} ${s==='A'?'Arms':s==='B'?'Backs':'Seats'}"
+                const isStarted = !on && started.includes(s);
+                return `<div class="dsub ${on?(isImpl?'on qc-impl':'on'):isStarted?'in-progress':''}" title="${d.lbl} ${s==='A'?'Arms':s==='B'?'Backs':'Seats'}"
                   onclick="ovToggleSub('${day.label}',${origRi},'${d.k}','${s}')">${s}</div>`;
               }).join('')}
             </div>
           </div>`;
         } else {
-          const isImpl = rep._qcImpl?.[d.k] === true;
+          const isImpl    = rep._qcImpl?.[d.k] === true;
+          const isStarted = !rep.s[d.k] && !!rep._started?.[d.k];
           const cls = state==='done'
             ? ('done' + (isQC ? ' qc' : '') + (isImpl ? ' qc-impl' : ''))
-            : state==='partial' ? 'partial' : '';
+            : state==='partial' ? 'partial'
+            : isStarted ? 'in-progress' : '';
           gridHtml += `<div class="dbadge ${cls}" onclick="ovToggle('${day.label}',${origRi},'${d.k}')">
             <span class="db-lbl">${d.lbl}</span>
           </div>`;
@@ -5526,8 +5533,9 @@ function applyStateToOvBadges() {
   // Reset all badges
   OV_DAYS.forEach(day => {
     day.reps.forEach(rep => {
-      rep.s = { wm:[], fm:0, ct:0, sw:0, uh:[], as:0, qc:0 };
-      rep._qcImpl = {};
+      rep.s        = { wm:[], fm:0, ct:0, sw:0, uh:[], as:0, qc:0 };
+      rep._qcImpl  = {};
+      rep._started = { wm:[], fm:0, ct:0, sw:0, uh:[], as:0, qc:0 };
     });
   });
 
@@ -5553,14 +5561,26 @@ function applyStateToOvBadges() {
           const jobs = PROD[wk]?.[p] || [];
           jobs.forEach((job, ji) => {
             const st = STATE[t.name]?.[subKey]?.[wk]?.[p]?.[ji];
-            if (!st?.done || st.qcAuto) return; // skip undone or QC-auto (not a genuine team completion)
-            (repIndex[job.rep] || []).forEach(rep => {
-              if (t.hasSubs) {
-                if (!rep.s[deptKey].includes(shortSub)) rep.s[deptKey].push(shortSub);
-              } else {
-                rep.s[deptKey] = 1;
-              }
-            });
+            if (!st) return;
+            if (st.done && !st.qcAuto) {
+              // Genuine team completion → done badge
+              (repIndex[job.rep] || []).forEach(rep => {
+                if (t.hasSubs) {
+                  if (!rep.s[deptKey].includes(shortSub)) rep.s[deptKey].push(shortSub);
+                } else {
+                  rep.s[deptKey] = 1;
+                }
+              });
+            } else if (st.started && !st.done) {
+              // In-progress → orange badge
+              (repIndex[job.rep] || []).forEach(rep => {
+                if (t.hasSubs) {
+                  if (!rep._started[deptKey].includes(shortSub)) rep._started[deptKey].push(shortSub);
+                } else {
+                  rep._started[deptKey] = 1;
+                }
+              });
+            }
           });
         }
       });
