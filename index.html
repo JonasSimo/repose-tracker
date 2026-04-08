@@ -8242,6 +8242,40 @@ function renderIssuesList() {
   listEl.innerHTML = items.map(item => renderCPARCard(item)).join('');
 }
 
+// Teams where we show "completed by" info — Foam and Woodmill excluded per user preference
+const CPAR_COMPLETION_TEAMS = new Set(['Cutting','Sewing','Upholstery','Assembly']);
+
+function getCPARCompletedBy(f) {
+  const rawTeam = normaliseTeam(f.SourceDept || '');
+  // Strip sub-team suffix to get the base team (e.g. "Upholstery Arms" → "Upholstery")
+  const baseTeam = rawTeam.replace(/\s+(Arms|Backs|Seats)$/i, '').trim();
+  if (!CPAR_COMPLETION_TEAMS.has(baseTeam)) return null;
+  const teamCfg = TEAMS_CFG.find(t => t.name === baseTeam);
+  if (!teamCfg) return null;
+
+  const wk   = f.PrimaryWeek || '';
+  const prep = f.PrimaryPrep === 'express' ? 'express' : parseInt(f.PrimaryPrep) || null;
+  if (!wk || prep === null) return null;
+  if (!PROD[wk]?.[prep]) return null;
+
+  // Find the job index by REP
+  const jobs = PROD[wk][prep];
+  const ji   = jobs.findIndex(j => j.rep === f.PrimaryREP);
+  if (ji < 0) return null;
+
+  if (teamCfg.hasSubs) {
+    const parts = [];
+    SUBS.forEach(sub => {
+      const s = STATE[baseTeam]?.[sub]?.[wk]?.[prep]?.[ji];
+      if (s?.done && s.initials) parts.push(`${sub}: ${resolveInitialsToName(s.initials, baseTeam)}`);
+    });
+    return parts.length ? parts.join(' · ') : null;
+  } else {
+    const s = STATE[baseTeam]?.['all']?.[wk]?.[prep]?.[ji];
+    return (s?.done && s.initials) ? resolveInitialsToName(s.initials, baseTeam) : null;
+  }
+}
+
 function renderCPARCard(item) {
   const f = item.fields||{};
   const status = getCPARStatus(item);
@@ -8279,6 +8313,7 @@ function renderCPARCard(item) {
       ${f.IssueCategory ? `<div class="cpar-category-line">${escHtml(f.IssueCategory)}</div>` : ''}
       ${f.Description ? `<div class="cpar-desc">${escHtml(f.Description)}</div>` : ''}
       ${jobsHtml}
+      ${(() => { const by = getCPARCompletedBy(f); return by ? `<div style="font-size:11px;color:var(--text2);margin-top:4px">✂ Completed by: <strong>${escHtml(by)}</strong></div>` : ''; })()}
       <div class="cpar-meta" style="margin-top:6px">${metaParts.map(p=>`<span>${escHtml(String(p))}</span>`).join('')}</div>
     </div>
     ${isClosed ? `
