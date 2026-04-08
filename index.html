@@ -8811,46 +8811,53 @@ async function ocBuildHistory() {
   status.className = 'oc-hist-status';
   status.textContent = '● Building…';
 
-  const kv = ocMakeKV();
-
-  // Ensure Production 2026 drive/item IDs are resolved
-  if (!PROD_DRIVE_ID || !PROD_ITEM_ID) {
-    status.textContent = '● Resolving file…';
-    const driveItem = await graphGet(
-      `https://graph.microsoft.com/v1.0/shares/${encodeSharingUrl(PROD_SHARING_URL)}/driveItem`
-    );
-    PROD_DRIVE_ID = driveItem.parentReference.driveId;
-    PROD_ITEM_ID  = driveItem.id;
-  }
-
-  const base = `https://graph.microsoft.com/v1.0/drives/${PROD_DRIVE_ID}/items/${PROD_ITEM_ID}/workbook/worksheets`;
-
-  // Load all 52 WK sheets
-  for (let wn = 1; wn <= 52; wn++) {
-    const sheetName = `WK ${wn}`;
-    status.textContent = `● Loading ${sheetName}/52…`;
-    try {
-      const range = await graphGet(`${base}('${encodeURIComponent(sheetName)}')/usedRange`);
-      const jobs  = parseSheetValues(range.values || []);
-      ocIngestJobs(jobs, kv);
-    } catch(e) {
-      // Sheet not yet created — skip silently
-    }
-  }
-
-  // Load historical ledger
-  status.textContent = '● Loading historical ledger…';
   try {
-    await ocLoadHistLedger(kv);
-  } catch(e) {
-    console.warn('[OrderCheck] Ledger load failed:', e.message);
-  }
+    const kv = ocMakeKV();
 
-  ocKnownValues = kv;
-  const modelCount = Object.keys(kv.byModel).length;
-  status.className = 'oc-hist-status loaded';
-  status.textContent = `✓ History loaded — ${modelCount} models known`;
-  btn.disabled = false;
+    // Ensure Production 2026 drive/item IDs are resolved
+    if (!PROD_DRIVE_ID || !PROD_ITEM_ID) {
+      status.textContent = '● Resolving file…';
+      const driveItem = await graphGet(
+        `https://graph.microsoft.com/v1.0/shares/${encodeSharingUrl(PROD_SHARING_URL)}/driveItem`
+      );
+      PROD_DRIVE_ID = driveItem.parentReference.driveId;
+      PROD_ITEM_ID  = driveItem.id;
+    }
+
+    const base = `https://graph.microsoft.com/v1.0/drives/${PROD_DRIVE_ID}/items/${PROD_ITEM_ID}/workbook/worksheets`;
+
+    // Load all 52 WK sheets
+    for (let wn = 1; wn <= 52; wn++) {
+      const sheetName = `WK ${wn}`;
+      status.textContent = `● Loading WK ${wn} of 52…`;
+      try {
+        const range = await graphGet(`${base}('${encodeURIComponent(sheetName)}')/usedRange`);
+        const jobs  = parseSheetValues(range.values || []);
+        ocIngestJobs(jobs, kv);
+      } catch(e) {
+        // Sheet not yet created — skip silently
+      }
+    }
+
+    // Load historical ledger
+    status.textContent = '● Loading historical ledger…';
+    try {
+      await ocLoadHistLedger(kv);
+    } catch(e) {
+      console.warn('[OrderCheck] Ledger load failed:', e.message);
+    }
+
+    ocKnownValues = kv;
+    const modelCount = Object.keys(kv.byModel).length;
+    status.className = 'oc-hist-status loaded';
+    status.textContent = `✓ History loaded — ${modelCount} models known`;
+  } catch(e) {
+    status.className = 'oc-hist-status not-loaded';
+    status.textContent = '● Build failed — try again';
+    console.error('[OrderCheck] Build history failed:', e);
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 function renderOcResults(results) {
@@ -8891,23 +8898,23 @@ function renderOcResults(results) {
     const flagRows = [
       ...blocks.map(f => `
         <div class="oc-flag oc-flag-block">
-          <span class="oc-flag-field">${OC_FIELD_LABELS[f.field] || f.field}:</span>
-          <span class="oc-flag-val">"${f.value}"</span>
-          <span class="oc-flag-reason">— ${f.reason}</span>
+          <span class="oc-flag-field">${escHtml(OC_FIELD_LABELS[f.field] || f.field)}:</span>
+          <span class="oc-flag-val">"${escHtml(f.value)}"</span>
+          <span class="oc-flag-reason">— ${escHtml(f.reason)}</span>
         </div>`),
       ...warnings.map(f => `
         <div class="oc-flag oc-flag-warn">
-          <span class="oc-flag-field">${OC_FIELD_LABELS[f.field] || f.field}:</span>
-          <span class="oc-flag-val">"${f.value}"</span>
-          <span class="oc-flag-reason">— ${f.reason}</span>
+          <span class="oc-flag-field">${escHtml(OC_FIELD_LABELS[f.field] || f.field)}:</span>
+          <span class="oc-flag-val">"${escHtml(f.value)}"</span>
+          <span class="oc-flag-reason">— ${escHtml(f.reason)}</span>
         </div>`),
     ].join('');
 
     return `
       <div class="oc-card ${stateClass}" onclick="this.classList.toggle('open')">
         <div class="oc-card-header">
-          <span class="oc-rep">${r.rep}</span>
-          <span class="oc-job">Job ${r.itemNo}</span>
+          <span class="oc-rep">${escHtml(r.rep)}</span>
+          <span class="oc-job">Job ${escHtml(String(r.itemNo))}</span>
           <span class="oc-status-badge ${stateClass}">${icon} ${label}</span>
           ${hasFlags ? '<span class="oc-chevron">▾</span>' : ''}
         </div>
