@@ -8214,21 +8214,23 @@ async function writeMechSerialToExcel(rep, wk, serial) {
 const SP_CPAR_LIST = 'CPARLog';
 
 // Team manager email routing (from qms-source/team-managers.md)
+// Per-team recipient lists — all addresses receive that team's CPAR emails
 const TEAM_MANAGERS = {
-  'Cutting':     'Mark@reposefurniture.co.uk',
-  'Sewing':      'sewing@reposefurniture.co.uk',
-  'Woodmill':    'paul.jenkins@reposefurniture.co.uk',
-  'Upholstery':       'daniel.seymour@reposefurniture.co.uk',
-  'Upholstery Arms':  'daniel.seymour@reposefurniture.co.uk',
-  'Upholstery Backs': 'daniel.seymour@reposefurniture.co.uk',
-  'Upholstery Seats': 'daniel.seymour@reposefurniture.co.uk',
-  'Assembly':         'daniel.seymour@reposefurniture.co.uk',
-  'Foam':        'foam@reposefurniture.co.uk',
-  'Stores':      'stores@reposefurniture.co.uk',
-  'Development': 'ryan.evans@reposefurniture.co.uk',
-  'QC':          'weronika.hathaway@reposefurniture.co.uk',
+  'Woodmill':         ['richard.semmens@reposefurniture.co.uk','mitch@reposefurniture.co.uk','jonas.simonaitis@reposefurniture.co.uk','paul.jenkins@reposefurniture.co.uk'],
+  'Cutting':          ['richard.semmens@reposefurniture.co.uk','mitch@reposefurniture.co.uk','jonas.simonaitis@reposefurniture.co.uk','mark@reposefurniture.co.uk'],
+  'Sewing':           ['richard.semmens@reposefurniture.co.uk','mitch@reposefurniture.co.uk','jonas.simonaitis@reposefurniture.co.uk','sewingroom@reposefurniture.co.uk'],
+  'Upholstery':       ['richard.semmens@reposefurniture.co.uk','mitch@reposefurniture.co.uk','jonas.simonaitis@reposefurniture.co.uk','daniel.seymour@reposefurniture.co.uk'],
+  'Upholstery Arms':  ['richard.semmens@reposefurniture.co.uk','mitch@reposefurniture.co.uk','jonas.simonaitis@reposefurniture.co.uk','daniel.seymour@reposefurniture.co.uk'],
+  'Upholstery Backs': ['richard.semmens@reposefurniture.co.uk','mitch@reposefurniture.co.uk','jonas.simonaitis@reposefurniture.co.uk','daniel.seymour@reposefurniture.co.uk'],
+  'Upholstery Seats': ['richard.semmens@reposefurniture.co.uk','mitch@reposefurniture.co.uk','jonas.simonaitis@reposefurniture.co.uk','daniel.seymour@reposefurniture.co.uk'],
+  'Assembly':         ['richard.semmens@reposefurniture.co.uk','mitch@reposefurniture.co.uk','jonas.simonaitis@reposefurniture.co.uk','daniel.seymour@reposefurniture.co.uk'],
+  'Foam':             ['richard.semmens@reposefurniture.co.uk','mitch@reposefurniture.co.uk','jonas.simonaitis@reposefurniture.co.uk','foam@reposefurniture.co.uk'],
+  'Stores':           ['richard.semmens@reposefurniture.co.uk','mitch@reposefurniture.co.uk','jonas.simonaitis@reposefurniture.co.uk','stores@reposefurniture.co.uk'],
+  'QC':               ['richard.semmens@reposefurniture.co.uk','mitch@reposefurniture.co.uk','jonas.simonaitis@reposefurniture.co.uk','weronika.hathaway@reposefurniture.co.uk'],
+  'Admin':            ['richard.semmens@reposefurniture.co.uk','mitch@reposefurniture.co.uk','jonas.simonaitis@reposefurniture.co.uk','jody.tilley@reposefurniture.co.uk','kayleigh.perkins@reposefurniture.co.uk','katy.bartlett@reposefurniture.co.uk','julie.underhill@reposefurniture.co.uk','production@reposefurniture.co.uk'],
+  'Development':      ['richard.semmens@reposefurniture.co.uk','mitch@reposefurniture.co.uk','jonas.simonaitis@reposefurniture.co.uk','ryan.evans@reposefurniture.co.uk'],
 };
-// Always receive full digest (all teams)
+// Always receive full daily digest summary (all teams)
 const DIGEST_MANAGEMENT = ['mitch@reposefurniture.co.uk', 'richard.semmens@reposefurniture.co.uk'];
 
 const CPAR_SOURCES = [
@@ -9112,25 +9114,18 @@ async function sendDailyDigest(btn) {
     const sent = [];
     const failed = [];
 
-    // Send per-team emails to each manager
-    for (const [team, mgEmail] of Object.entries(TEAM_MANAGERS)) {
+    // Send per-team emails to all team recipients
+    for (const [team, recipients] of Object.entries(TEAM_MANAGERS)) {
       const teamCPARs = byTeam[team] || [];
       if (!teamCPARs.length) continue; // no issues for this team yesterday — skip
       const subject = `RepNet Issues Digest — ${team} · ${yestLabel}`;
       const html    = buildDigestHtml(yestLabel, teamCPARs, team);
-      const to = [mgEmail];
-      // Jonas (signed-in user) always gets a copy
-      if (signedInEmail && signedInEmail !== mgEmail) to.push(signedInEmail);
-
+      const recipList = [...new Set(recipients)];
       const body = {
         message: {
           subject,
           body: { contentType: 'HTML', content: html },
-          toRecipients: [{ emailAddress: { address: mgEmail } }],
-          ccRecipients: [
-            ...DIGEST_MANAGEMENT.map(a => ({ emailAddress: { address: a } })),
-            ...(signedInEmail && signedInEmail !== mgEmail ? [{ emailAddress: { address: signedInEmail } }] : []),
-          ],
+          toRecipients: recipList.map(a => ({ emailAddress: { address: a } })),
         },
         saveToSentItems: true,
       };
@@ -9610,12 +9605,6 @@ async function ocRunCheck() {
 // ═══════════════════════════════════════════════
 
 async function sendOpenCPARDigest() {
-  const openItems = CPAR_ITEMS.filter(i => {
-    const s = getCPARStatus(i);
-    return s === 'open' || s === 'amber' || s === 'red';
-  });
-  if (!openItems.length) { alert('No open CPARs to report.'); return; }
-
   const btn = document.getElementById('cpar-email-btn');
   if (btn) { btn.textContent = 'Sending…'; btn.disabled = true; }
 
@@ -9627,7 +9616,6 @@ async function sendOpenCPARDigest() {
       const res = await msalInstance.acquireTokenSilent({ scopes: ['Mail.Send'], account: accounts[0] });
       token = res.accessToken;
     } catch (e) {
-      // Consent not yet granted — show popup so user can approve Mail.Send
       const res = await msalInstance.acquireTokenPopup({ scopes: ['Mail.Send'], account: accounts[0] });
       token = res.accessToken;
     }
@@ -9641,75 +9629,112 @@ async function sendOpenCPARDigest() {
     const prevWorkDayEnd = new Date(prevWorkDay); prevWorkDayEnd.setHours(23,59,59,999);
     const prevWorkDayLabel = prevWorkDay.toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long' });
 
-    const newItems = CPAR_ITEMS.filter(item => {
-      const f = item.fields || {};
-      const raised = f.RaisedAt ? new Date(f.RaisedAt) : (item.createdDateTime ? new Date(item.createdDateTime) : null);
-      return raised && raised >= prevWorkDay && raised <= prevWorkDayEnd;
-    });
+    // Helpers
+    const teamOf = item => normaliseTeam(item.fields?.SourceDept || item.fields?.RaisedByTeam || '');
+    const isOpenCPAR = item => { const s = getCPARStatus(item); return s === 'open' || s === 'amber' || s === 'red'; };
+    const raisedDate = item => { const f = item.fields||{}; return f.RaisedAt ? new Date(f.RaisedAt) : (item.createdDateTime ? new Date(item.createdDateTime) : null); };
 
     const rowColour = (s) => s === 'red' ? '#fff8f8' : s === 'amber' ? '#fffbeb' : '#f0f7ff';
     const statusLabel = (s) => s === 'red' ? '🔴 4+ days' : s === 'amber' ? '🟡 48h+' : '🔵 Open';
 
-    const cparTableHead = `<tr style="background:#0e023a;color:#fff">
-            <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Ref</th>
-            <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Raised By</th>
-            <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Source Dept</th>
-            <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Category</th>
-            <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Description</th>
-            <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Age</th>
-            <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Status</th>
-          </tr>`;
+    const tableHead = `<thead><tr style="background:#1e3a5f;color:#fff">
+      <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Ref</th>
+      <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Raised By</th>
+      <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Category</th>
+      <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Description</th>
+      <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Age</th>
+      <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Status</th>
+    </tr></thead>`;
 
     const buildRows = (items) => items.map(item => {
       const f = item.fields || {};
-      const raised = f.RaisedAt ? new Date(f.RaisedAt) : (item.createdDateTime ? new Date(item.createdDateTime) : null);
-      const age = raised ? Math.floor((Date.now() - raised) / 86400000) + 'd' : '—';
+      const rd = raisedDate(item);
+      const age = rd ? Math.floor((Date.now() - rd) / 86400000) + 'd' : '—';
       const s = getCPARStatus(item);
       return `<tr style="background:${rowColour(s)}">
-        <td style="padding:8px 10px;border:1px solid #ddd;font-weight:700;font-family:monospace">${escHtml(f.Title||'?')}</td>
-        <td style="padding:8px 10px;border:1px solid #ddd">${escHtml(f.RaisedByTeam||'?')}</td>
-        <td style="padding:8px 10px;border:1px solid #ddd">${escHtml(f.SourceDept||'?')}</td>
+        <td style="padding:8px 10px;border:1px solid #ddd;font-weight:700;font-family:monospace;white-space:nowrap">${escHtml(f.Title||'?')}</td>
+        <td style="padding:8px 10px;border:1px solid #ddd;white-space:nowrap">${escHtml(f.RaisedByTeam||'?')}</td>
         <td style="padding:8px 10px;border:1px solid #ddd">${escHtml(f.IssueCategory||'—')}</td>
-        <td style="padding:8px 10px;border:1px solid #ddd;max-width:300px">${escHtml(f.Description||'—')}</td>
+        <td style="padding:8px 10px;border:1px solid #ddd;max-width:280px">${escHtml(f.Description||'—')}</td>
         <td style="padding:8px 10px;border:1px solid #ddd;white-space:nowrap">${age}</td>
         <td style="padding:8px 10px;border:1px solid #ddd;white-space:nowrap">${statusLabel(s)}</td>
       </tr>`;
     }).join('');
 
-    const newSection = newItems.length
-      ? `<h3 style="margin:24px 0 6px;color:#0e023a">New CPARs raised ${prevWorkDayLabel} (${newItems.length})</h3>
-      <table style="width:100%;border-collapse:collapse;margin:0 0 20px">
-        <thead>${cparTableHead}</thead>
-        <tbody>${buildRows(newItems)}</tbody>
-      </table>`
-      : `<p style="color:#666;font-style:italic">No new CPARs were raised on ${prevWorkDayLabel}.</p>`;
+    const sent = [], skipped = [], failed = [];
 
-    const html = `<div style="font-family:Calibri,Arial,sans-serif;font-size:11pt;color:#1f1f1f;line-height:1.5">
-      <p><strong>Open CPAR Report — ${now}</strong></p>
+    // Deduplicate teams — Upholstery sub-teams collapse into 'Upholstery'
+    const uphGroup = new Set(['Upholstery','Upholstery Arms','Upholstery Backs','Upholstery Seats']);
+    const seenTeams = new Set();
+
+    for (const [teamKey, recipients] of Object.entries(TEAM_MANAGERS)) {
+      // Collapse Upholstery sub-variants to single send
+      const canonTeam = uphGroup.has(teamKey) ? 'Upholstery' : teamKey;
+      if (seenTeams.has(canonTeam)) continue;
+      seenTeams.add(canonTeam);
+
+      // Filter CPARs for this team (match SourceDept, accounting for upholstery group)
+      const matchTeam = t => canonTeam === 'Upholstery' ? uphGroup.has(normaliseTeam(t)) : normaliseTeam(t) === canonTeam;
+      const openForTeam = CPAR_ITEMS.filter(i => isOpenCPAR(i) && matchTeam(teamOf(i)));
+      const newForTeam  = CPAR_ITEMS.filter(i => {
+        const rd = raisedDate(i);
+        return rd && rd >= prevWorkDay && rd <= prevWorkDayEnd && matchTeam(teamOf(i));
+      });
+
+      // Skip if nothing to report
+      if (!openForTeam.length && !newForTeam.length) { skipped.push(canonTeam); continue; }
+
+      const newSection = newForTeam.length
+        ? `<h3 style="margin:20px 0 6px;font-size:14px;color:#1e3a5f">Raised ${prevWorkDayLabel} (${newForTeam.length})</h3>
+           <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:18px">${tableHead}<tbody>${buildRows(newForTeam)}</tbody></table>`
+        : `<p style="color:#059669;font-style:italic;margin:12px 0">No new CPARs raised on ${prevWorkDayLabel}.</p>`;
+
+      const openSection = openForTeam.length
+        ? `<h3 style="margin:20px 0 6px;font-size:14px;color:#1e3a5f">All open CPARs (${openForTeam.length})</h3>
+           <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:18px">${tableHead}<tbody>${buildRows(openForTeam)}</tbody></table>`
+        : `<p style="color:#059669;font-style:italic;margin:12px 0">No outstanding open CPARs — great work!</p>`;
+
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#f0f4f8;font-family:Arial,Helvetica,sans-serif">
+  <div style="max-width:700px;margin:24px auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
+    <div style="background:#1e3a5f;padding:22px 28px">
+      <div style="color:#fff;font-size:20px;font-weight:700">RepNet — CPAR Report · ${escHtml(canonTeam)}</div>
+      <div style="color:rgba(255,255,255,.7);font-size:13px;margin-top:5px">${escHtml(now)}</div>
+    </div>
+    <div style="padding:20px 28px">
       ${newSection}
-      <h3 style="margin:24px 0 6px;color:#0e023a">All open CPARs (${openItems.length})</h3>
-      <table style="width:100%;border-collapse:collapse;margin:0 0 20px">
-        <thead>${cparTableHead}</thead>
-        <tbody>${buildRows(openItems)}</tbody>
-      </table>
-      <p>Please ensure all open issues are investigated and closed out promptly.</p>
-      <p style="color:#666;font-size:10pt">Sent from RepNet · Repose Production Tracker</p>
-    </div>`;
+      ${openSection}
+      <p style="margin-top:16px;font-size:13px;color:#374151">Please ensure all open issues are investigated and closed out promptly.</p>
+    </div>
+    <div style="background:#f0f4f8;padding:12px 28px;font-size:11px;color:#9ca3af;border-top:1px solid #e2e8f0">
+      RepNet · Repose Furniture Production Tracker · Automated report — do not reply.
+    </div>
+  </div>
+</body></html>`;
 
-    await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message: {
-          subject: `Open CPAR Report — ${openItems.length} open issue${openItems.length !== 1 ? 's' : ''} · ${now}`,
-          body: { contentType: 'HTML', content: html },
-          toRecipients: [{ emailAddress: { address: 'jonas.simonaitis@reposefurniture.co.uk' } }],
-        },
-        saveToSentItems: true
-      })
-    });
+      const recipList = [...new Set(TEAM_MANAGERS[teamKey])];
+      const res = await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: {
+            subject: `CPAR Report — ${canonTeam} · ${openForTeam.length} open · ${now}`,
+            body: { contentType: 'HTML', content: html },
+            toRecipients: recipList.map(a => ({ emailAddress: { address: a } })),
+          },
+          saveToSentItems: true,
+        }),
+      });
+      if (res.ok) sent.push(canonTeam); else failed.push(canonTeam);
+    }
 
-    toast(`CPAR digest sent — ${openItems.length} open issues`, 's');
+    if (!sent.length && !failed.length) {
+      toast('Nothing to send — no open or recent CPARs for any team', 'u');
+    } else if (failed.length) {
+      toast(`Sent: ${sent.join(', ')||'none'} · Failed: ${failed.join(', ')}`, 'u');
+    } else {
+      toast(`CPAR emails sent to ${sent.length} team${sent.length!==1?'s':''}: ${sent.join(', ')}`, 's');
+    }
   } catch(e) {
     alert('Failed to send: ' + e.message);
   } finally {
