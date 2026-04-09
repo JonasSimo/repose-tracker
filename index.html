@@ -2117,7 +2117,10 @@ document.addEventListener('DOMContentLoaded', () => {
         <button class="issues-chip red" data-f="red" onclick="setIssueFilter('red')">4 days+</button>
         <button class="issues-chip green" data-f="closed" onclick="setIssueFilter('closed')">Closed</button>
         <button class="issues-chip" data-f="all" onclick="setIssueFilter('all')">All</button>
-        <button onclick="fetchCPARs()" style="margin-left:auto;padding:5px 10px;border-radius:7px;border:1.5px solid var(--border2);background:var(--bg3);font-size:13px;cursor:pointer;font-family:inherit;color:var(--text2)" title="Refresh">↻</button>
+        <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
+          <button id="cpar-email-btn" style="display:none;padding:5px 12px;border-radius:7px;border:none;background:#0e023a;color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit" onclick="sendOpenCPARDigest()" title="Send open CPAR digest email">📧 Email Open CPARs</button>
+          <button onclick="fetchCPARs()" style="padding:5px 10px;border-radius:7px;border:1.5px solid var(--border2);background:var(--bg3);font-size:13px;cursor:pointer;font-family:inherit;color:var(--text2)" title="Refresh">↻</button>
+        </div>
       </div>
       <div class="issues-team-row">
         <button class="issues-team-chip active" data-team="" onclick="setIssueTeam(this,'')">All Teams</button>
@@ -5413,6 +5416,9 @@ function updateAuthBadge() {
     badge.onclick = null;
     badge.title = `Signed in as ${graphAccount.username}`;
     if (pill) { pill.className = 'sync-pill'; lbl.textContent = 'Ready to sync'; }
+    const isJonas = graphAccount.username.toLowerCase() === 'jonas.simonaitis@reposefurniture.co.uk';
+    const emailBtn = document.getElementById('cpar-email-btn');
+    if (emailBtn) emailBtn.style.display = isJonas ? 'inline-flex' : 'none';
   } else {
     badge.innerHTML = `<span class="auth-dot off"></span><span class="auth-name">Sign in</span>`;
     badge.onclick = graphSignIn;
@@ -9596,6 +9602,89 @@ async function ocRunCheck() {
   } catch(e) {
     resultsEl.innerHTML = `<div class="oc-error">Failed to load ${weekName}: ${e.message}</div>`;
     summaryEl.textContent = '';
+  }
+}
+
+// ═══════════════════════════════════════════════
+// CPAR EMAIL DIGEST
+// ═══════════════════════════════════════════════
+
+async function sendOpenCPARDigest() {
+  const openItems = CPAR_ITEMS.filter(i => {
+    const s = getCPARStatus(i);
+    return s === 'open' || s === 'amber' || s === 'red';
+  });
+  if (!openItems.length) { alert('No open CPARs to report.'); return; }
+
+  const btn = document.getElementById('cpar-email-btn');
+  if (btn) { btn.textContent = 'Sending…'; btn.disabled = true; }
+
+  try {
+    const accounts = msalInstance.getAllAccounts();
+    if (!accounts.length) throw new Error('Not signed in');
+    const res = await msalInstance.acquireTokenSilent({ scopes: ['Mail.Send'], account: accounts[0] });
+    const token = res.accessToken;
+
+    const now = new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+
+    const rowColour = (s) => s === 'red' ? '#fff8f8' : s === 'amber' ? '#fffbeb' : '#f0f7ff';
+    const statusLabel = (s) => s === 'red' ? '🔴 4+ days' : s === 'amber' ? '🟡 48h+' : '🔵 Open';
+
+    const rows = openItems.map(item => {
+      const f = item.fields || {};
+      const raised = f.RaisedAt ? new Date(f.RaisedAt) : (item.createdDateTime ? new Date(item.createdDateTime) : null);
+      const age = raised ? Math.floor((Date.now() - raised) / 86400000) + 'd' : '—';
+      const s = getCPARStatus(item);
+      return `<tr style="background:${rowColour(s)}">
+        <td style="padding:8px 10px;border:1px solid #ddd;font-weight:700;font-family:monospace">${escHtml(f.Title||'?')}</td>
+        <td style="padding:8px 10px;border:1px solid #ddd">${escHtml(f.RaisedByTeam||'?')}</td>
+        <td style="padding:8px 10px;border:1px solid #ddd">${escHtml(f.SourceDept||'?')}</td>
+        <td style="padding:8px 10px;border:1px solid #ddd">${escHtml(f.IssueCategory||'—')}</td>
+        <td style="padding:8px 10px;border:1px solid #ddd;max-width:300px">${escHtml(f.Description||'—')}</td>
+        <td style="padding:8px 10px;border:1px solid #ddd;white-space:nowrap">${age}</td>
+        <td style="padding:8px 10px;border:1px solid #ddd;white-space:nowrap">${statusLabel(s)}</td>
+      </tr>`;
+    }).join('');
+
+    const html = `<div style="font-family:Calibri,Arial,sans-serif;font-size:11pt;color:#1f1f1f;line-height:1.5">
+      <p><strong>Open CPAR Report — ${now}</strong></p>
+      <p>There are currently <strong>${openItems.length} open CPAR${openItems.length !== 1 ? 's' : ''}</strong> requiring attention:</p>
+      <table style="width:100%;border-collapse:collapse;margin:15px 0">
+        <thead>
+          <tr style="background:#0e023a;color:#fff">
+            <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Ref</th>
+            <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Raised By</th>
+            <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Source Dept</th>
+            <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Category</th>
+            <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Description</th>
+            <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Age</th>
+            <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Status</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <p>Please ensure all open issues are investigated and closed out promptly.</p>
+      <p style="color:#666;font-size:10pt">Sent from RepNet · Repose Production Tracker</p>
+    </div>`;
+
+    await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: {
+          subject: `Open CPAR Report — ${openItems.length} open issue${openItems.length !== 1 ? 's' : ''} · ${now}`,
+          body: { contentType: 'HTML', content: html },
+          toRecipients: [{ emailAddress: { address: 'jonas.simonaitis@reposefurniture.co.uk' } }],
+        },
+        saveToSentItems: true
+      })
+    });
+
+    toast(`CPAR digest sent — ${openItems.length} open issues`, 's');
+  } catch(e) {
+    alert('Failed to send: ' + e.message);
+  } finally {
+    if (btn) { btn.textContent = '📧 Email Open CPARs'; btn.disabled = false; }
   }
 }
 
