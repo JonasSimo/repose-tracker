@@ -2109,17 +2109,6 @@ document.addEventListener('DOMContentLoaded', () => {
       <div id="stats-day-picker" style="display:none;margin-top:8px">
         <input type="date" id="stats-day-input" style="padding:6px 10px;border-radius:7px;border:1.5px solid var(--border2);background:var(--bg2);color:var(--text);font-size:13px;font-family:inherit;cursor:pointer" onchange="statsPickDay(this.value)">
       </div>
-      <div id="stats-team-filter" style="margin-top:8px">
-        <div class="stats-chips">
-          <button class="stats-chip all-chip active" onclick="setStatsTeamFilter('',this)">All Teams</button>
-          <button class="stats-chip" onclick="setStatsTeamFilter('Woodmill',this)">Woodmill</button>
-          <button class="stats-chip" onclick="setStatsTeamFilter('Foam',this)">Foam</button>
-          <button class="stats-chip" onclick="setStatsTeamFilter('Cutting',this)">Cutting</button>
-          <button class="stats-chip" onclick="setStatsTeamFilter('Sewing',this)">Sewing</button>
-          <button class="stats-chip" onclick="setStatsTeamFilter('Upholstery',this)">Upholstery</button>
-          <button class="stats-chip" onclick="setStatsTeamFilter('Assembly',this)">Assembly</button>
-        </div>
-      </div>
       <div id="stats-spinner" class="stats-spinner" style="display:none">
         <div class="stats-spinner-ring"></div>
         <div class="stats-spinner-txt">Loading…</div>
@@ -6810,10 +6799,12 @@ function setStatsTeamFilter(team, btn) {
   }
 }
 
-// Called from team token clicks on the dashboard — toggles filter and stays on dashboard
+// Called from team token clicks on the dashboard — opens team detail view
+let teamTokenPeriod = 'today'; // 'today' | 'yesterday' | 'week' | 'month'
 function statsSetTeamFilter(team) {
-  statsTeamFilter = statsTeamFilter === team ? '' : team; // toggle off if already selected
-  renderStatsDashboard();
+  statsTeamFilter  = team;
+  teamTokenPeriod  = 'today'; // always reset to today when opening a new team
+  renderStatsDetail('team');
 }
 
 function setStatsPeriod(period, btn) {
@@ -6931,7 +6922,7 @@ function renderStatsDashboard() {
     <div class="team-tokens-section">
       <div class="team-tokens-header">
         <div class="team-tokens-title">Production — ${escHtml(periodLabel)}</div>
-        ${statsTeamFilter ? `<button style="font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid var(--border2);background:var(--bg3);cursor:pointer;color:var(--text2)" onclick="statsSetTeamFilter('')">✕ Clear filter</button>` : ''}
+        <div style="font-size:11px;color:var(--repose-grey)">Tap a team for breakdown</div>
       </div>
       <div class="team-tokens-grid">${tokensHtml}</div>
       ${completeSummaryHtml}
@@ -7021,7 +7012,7 @@ function renderStatsDetail(view) {
   detailEl.style.display = '';
   detailEl.dataset.view  = view;
 
-  const titles = { completions:'Fully Complete Jobs', qc:'QC Verified', perperson:'Per Person', changes:'Spec Changes', scrap:'Scrap Log', cpar:'Issues (CPARs)' };
+  const titles = { completions:'Fully Complete Jobs', qc:'QC Verified', perperson:'Per Person', changes:'Spec Changes', scrap:'Scrap Log', cpar:'Issues (CPARs)', team: statsTeamFilter };
   document.getElementById('stats-detail-title').textContent = titles[view] || view;
   document.getElementById('stats-detail-body').innerHTML    = '';
 
@@ -7032,6 +7023,136 @@ function renderStatsDetail(view) {
   else if (view === 'changes')     renderDetailChanges();
   else if (view === 'scrap')       renderDetailScrap();
   else if (view === 'cpar')        renderDetailCPAR();
+  else if (view === 'team')        renderDetailTeamToken();
+}
+
+function renderDetailTeamToken() {
+  const team  = statsTeamFilter;
+  const body  = document.getElementById('stats-detail-body');
+  const today = new Date(); today.setHours(0,0,0,0);
+  const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
+
+  // Build date filter based on teamTokenPeriod
+  function inPeriod(c) {
+    const raw = c.fields.CompletedDate || '';
+    // Parse dd/mm/yyyy or yyyy-mm-dd
+    let d;
+    if (/^\d{2}\/\d{2}\/\d{4}/.test(raw)) {
+      const [dd, mm, yyyy] = raw.split('/');
+      d = new Date(+yyyy, +mm - 1, +dd);
+    } else {
+      d = new Date(raw);
+    }
+    if (isNaN(d)) return false;
+    d.setHours(0,0,0,0);
+    if (teamTokenPeriod === 'today')     return d.getTime() === today.getTime();
+    if (teamTokenPeriod === 'yesterday') return d.getTime() === yesterday.getTime();
+    if (teamTokenPeriod === 'week') {
+      const ref = statsRefDate(); ref.setHours(0,0,0,0);
+      return isoWeekNumber(d) === isoWeekNumber(ref) && isoWeekYear(d) === isoWeekYear(ref);
+    }
+    if (teamTokenPeriod === 'month') {
+      const ref = statsRefDate();
+      return d.getMonth() === ref.getMonth() && d.getFullYear() === ref.getFullYear();
+    }
+    return false;
+  }
+
+  const allComp = STATS_COMPLETIONS.filter(c => c.fields.Team === team && inPeriod(c));
+  const hasSubs = team === 'Woodmill' || team === 'Upholstery';
+
+  // Group by person
+  const byPerson = {};
+  allComp.forEach(c => {
+    const init = c.fields.Initials || '?';
+    const name = STATS_OPERATORS[team]?.[init] ?? init;
+    if (!byPerson[init]) byPerson[init] = { name, initials: init, count: 0, subs: {}, jobs: [] };
+    byPerson[init].count++;
+    if (hasSubs) {
+      const sub = c.fields.SubTeam || 'Other';
+      byPerson[init].subs[sub] = (byPerson[init].subs[sub] || 0) + 1;
+    }
+    byPerson[init].jobs.push(c);
+  });
+
+  const people = Object.values(byPerson).sort((a, b) => b.count - a.count);
+  const total  = allComp.length;
+
+  // Period label
+  const periodLabels = {
+    today:     'Today — ' + today.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' }),
+    yesterday: 'Yesterday — ' + yesterday.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' }),
+    week:      'This Week (' + statsNavLabel() + ')',
+    month:     'This Month (' + statsNavLabel() + ')',
+  };
+
+  const teamColors = { Cutting:'#d97706', Sewing:'#7c3aed', Foam:'#0e7490', Woodmill:'#14a1e9', Upholstery:'#059669', Assembly:'#0e023a' };
+  const tc = teamColors[team] || '#14a1e9';
+
+  const filterBtns = ['today','yesterday','week','month'].map(p => {
+    const lbl = p === 'today' ? 'Today' : p === 'yesterday' ? 'Yesterday' : p === 'week' ? 'This Week' : 'This Month';
+    const active = teamTokenPeriod === p;
+    return `<button onclick="teamTokenPeriod='${p}';renderDetailTeamToken()"
+      style="padding:5px 14px;border-radius:20px;border:1.5px solid ${active ? tc : 'var(--border2)'};
+             background:${active ? tc : 'var(--bg3)'};color:${active ? '#fff' : 'var(--text2)'};
+             font-size:12px;font-weight:${active ? 700 : 500};cursor:pointer;transition:all .12s">${lbl}</button>`;
+  }).join('');
+
+  // Person cards
+  const personCardsHtml = people.length === 0
+    ? `<div style="grid-column:1/-1;text-align:center;padding:32px;color:var(--repose-grey);font-size:14px">No completions recorded for ${periodLabels[teamTokenPeriod]}</div>`
+    : people.map((p, i) => {
+        const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '';
+        const pct   = total ? Math.round(p.count / total * 100) : 0;
+        const subsHtml = hasSubs ? `
+          <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+            ${['Arms','Backs','Seats'].map(s => p.subs[s]
+              ? `<span style="background:${tc}18;color:${tc};border-radius:8px;padding:2px 8px;font-size:11px;font-weight:600">${s}: ${p.subs[s]}</span>`
+              : '').join('')}
+          </div>` : '';
+        return `<div style="background:#fff;border-radius:14px;border:1.5px solid var(--border);padding:16px;position:relative;overflow:hidden">
+          <div style="position:absolute;top:0;left:0;right:0;height:3px;background:${tc}"></div>
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+            <div>
+              <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--repose-grey)">${medal} ${escHtml(p.name)}</div>
+              <div style="font-size:34px;font-weight:800;color:${tc};line-height:1.1;margin-top:2px">${p.count}</div>
+              <div style="font-size:11px;color:var(--repose-grey)">${hasSubs ? 'parts' : 'jobs'} · ${pct}% of team</div>
+            </div>
+            <div style="width:38px;height:38px;border-radius:50%;background:${tc}18;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:${tc};flex-shrink:0">${escHtml(p.initials)}</div>
+          </div>
+          ${subsHtml}
+        </div>`;
+      }).join('');
+
+  // Recent jobs list
+  const recentJobs = [...allComp]
+    .sort((a, b) => (b.fields.CompletedTime||'').localeCompare(a.fields.CompletedTime||''))
+    .slice(0, 40);
+
+  const jobListHtml = recentJobs.length === 0 ? '' : `
+    <div style="margin-top:18px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--repose-grey);margin-bottom:8px">Completed Jobs</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${recentJobs.map(c => {
+          const f = c.fields;
+          const name = STATS_OPERATORS[team]?.[f.Initials] ?? f.Initials ?? '—';
+          const subBadge = f.SubTeam ? `<span style="background:${tc}18;color:${tc};border-radius:6px;padding:1px 7px;font-size:10px;font-weight:600;margin-left:4px">${escHtml(f.SubTeam)}</span>` : '';
+          return `<div style="display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--border2);border-radius:10px;padding:8px 12px">
+            <div style="font-size:13px;font-weight:600;color:var(--text);flex:1">${escHtml(f.REP||'—')} ${subBadge}</div>
+            <div style="font-size:12px;color:var(--text2)">${escHtml(name)}</div>
+            <div style="font-size:11px;color:var(--repose-grey);font-family:'JetBrains Mono',monospace">${escHtml(f.CompletedTime||'—')}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+
+  body.innerHTML = `
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">${filterBtns}</div>
+    <div style="font-size:12px;color:var(--repose-grey);margin-bottom:14px">${escHtml(periodLabels[teamTokenPeriod])} · <strong style="color:var(--text)">${total} ${hasSubs ? 'parts' : 'jobs'}</strong> logged</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+      ${personCardsHtml}
+    </div>
+    ${jobListHtml}`;
 }
 
 // ── Completions detail ──────────────────────────
