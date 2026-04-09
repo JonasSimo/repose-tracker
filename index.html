@@ -2469,7 +2469,7 @@ const TEAM_OPERATORS = {
     { name: 'Craig Harris',    initials: 'CH' },
   ],
   'Assembly': [
-    { name: 'Justin Taylor',   initials: 'Justin Taylor' },
+    { name: 'Justin Taylor',   initials: 'JT' },
     { name: 'Joshua Shaw',     initials: 'JS' },
     { name: 'Darren Nock',     initials: 'DN' },
     { name: 'James Wilson',    initials: 'JW' },
@@ -3367,18 +3367,24 @@ async function unStartJob(ji) {
   const team = activeTeam, sub = activeSub, wc = activeWC, prep = activePrep;
   const s    = STATE[team]?.[sub]?.[wc]?.[prep]?.[ji];
   if (!s?.started) return;
-  const itemId    = s.startItemId;
-  s.started       = false;
-  s.startedBy     = '';
-  s.startedAt     = '';
-  s.startItemId   = null;
+  const itemId = s.startItemId;
+  // Snapshot state before optimistic clear (for rollback)
+  const prev = { started: s.started, startedBy: s.startedBy, startedAt: s.startedAt, startItemId: s.startItemId };
+  s.started = false; s.startedBy = ''; s.startedAt = ''; s.startItemId = null;
   renderJobs(); renderTeamSidebar();
   if (itemId) {
     try {
       const siteId = await getSpSiteId(), listId = await getSpListId(), token = await getGraphToken();
-      await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${itemId}`,
+      const res = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${itemId}`,
         { method:'DELETE', headers:{ Authorization:`Bearer ${token}` } });
-    } catch(e) { console.warn('unStartJob delete failed:', e.message); }
+      if (!res.ok && res.status !== 404) throw new Error(`HTTP ${res.status}`);
+    } catch(e) {
+      // Rollback — restore started state so SP and UI stay in sync
+      Object.assign(s, prev);
+      renderJobs(); renderTeamSidebar();
+      toast('Could not undo start — job still recorded. Try again.', 'u');
+      console.warn('unStartJob delete failed:', e.message);
+    }
   }
 }
 
@@ -3599,15 +3605,20 @@ function undoJob(team, sub, wc, prep, ji) {
 // ═══════════════════════════════════════════════
 let searchQuery   = '';
 let ovSearchQuery = '';
+let _searchTimer  = null;
+let _ovSearchTimer = null;
 
 function onSearch(val) {
-  searchQuery = val.trim().toUpperCase();
-  document.getElementById('search-clear-btn').style.display = searchQuery ? 'block' : 'none';
-  if (searchQuery) {
-    renderSearchResults();
-  } else {
-    renderJobs();
-  }
+  clearTimeout(_searchTimer);
+  _searchTimer = setTimeout(() => {
+    searchQuery = val.trim().toUpperCase();
+    document.getElementById('search-clear-btn').style.display = searchQuery ? 'block' : 'none';
+    if (searchQuery) {
+      renderSearchResults();
+    } else {
+      renderJobs();
+    }
+  }, 200);
 }
 
 function clearSearch() {
@@ -3664,8 +3675,11 @@ function renderSearchResults() {
 }
 
 function onOvSearch(val) {
-  ovSearchQuery = val.trim().replace(/\s/g,'').toUpperCase();
-  renderOverview();
+  clearTimeout(_ovSearchTimer);
+  _ovSearchTimer = setTimeout(() => {
+    ovSearchQuery = val.trim().replace(/\s/g,'').toUpperCase();
+    renderOverview();
+  }, 200);
 }
 
 let ovCustomerFilter = '';
@@ -3882,6 +3896,8 @@ const UK_BANK_HOLIDAYS = new Set([
 function localDateKey(d) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
+// Shorthand: today's local date as yyyy-mm-dd (avoids toISOString() UTC-vs-BST bug)
+function localDateStr(d = new Date()) { return localDateKey(d); }
 
 function addWorkdays(d, n) {
   const r = new Date(d);
@@ -4511,7 +4527,8 @@ async function loadCompletionsFromList() {
     // Apply each completion (and in-progress starts) from the list
     allItems.forEach(item => {
       const f = item.fields;
-      if (!f.IsComplete && !f.Initials) return; // skip empty/orphan records
+      if (!f.Team || !f.Week) return; // skip incomplete/orphan records missing required fields
+      if (!f.IsComplete && !f.Initials) return; // skip records with no actionable data
       if (!f.IsComplete) {
         // In-progress (started) record
         const team = f.Team, sub = f.SubTeam || 'all', wk = f.Week;
@@ -6092,7 +6109,7 @@ const STATS_OPERATORS = {
     'PA': 'Paul Adkins',     'KW': 'Keiron Wright',
   },
   Assembly: {
-    'Justin Taylor': 'Justin Taylor',
+    'JT': 'Justin Taylor',
     'JS': 'Joshua Shaw',     'DN': 'Darren Nock',     'JW': 'James Wilson',
     'RS': 'Robert Shaw',     'CH': 'Craig Harris',    'DS': 'Daniel Seymour',
     'LS': 'Luke Southall',   'CL': 'Corey Lloyd',     'RH': 'Richard Harper',
@@ -8842,15 +8859,20 @@ async function fetchCPARs() {
     updateTeamCounts();
   } catch(e) {
     console.warn('fetchCPARs:', e);
-    if (listEl) listEl.innerHTML = `<div class="issues-empty">Could not load issues — ${e.message}</div>`;
+    if (listEl) listEl.innerHTML = `<div class="issues-empty">Could not load issues — ${escHtml(e.message)}</div>`;
   }
 }
 
 function parseCPARDate(str) {
   if (!str) return new Date(0);
-  // ISO format from migration: 2024-01-15T00:00:00Z or 2024-01-15
-  if (/^\d{4}-\d{2}-\d{2}/.test(str)) { const d = new Date(str); return isNaN(d) ? new Date(0) : d; }
-  // App format: DD/MM/YYYY HH:MM
+  // Bare ISO date "2024-01-15" — parse as local midnight to avoid BST off-by-one
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    const [y, m, d] = str.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
+  // ISO with explicit time/timezone "2024-01-15T00:00:00Z" — native parser handles offset correctly
+  if (/^\d{4}-\d{2}-\d{2}T/.test(str)) { const d = new Date(str); return isNaN(d) ? new Date(0) : d; }
+  // App format: "DD/MM/YYYY HH:MM" — already constructs as local time
   const [datePart, timePart='00:00'] = str.split(' ');
   const [d,m,y] = datePart.split('/');
   if (!y) return new Date(0);
@@ -9304,6 +9326,7 @@ async function confirmCloseCPAR(id) {
   if (!causeBtn) { toast('Select a root cause first', 'u'); return; }
   const causeCode = causeBtn.dataset.cause;
   const action = (document.getElementById(`cpar-action-${id}`)?.value||'').trim();
+  if (!action) { toast('Corrective action description is required before closing a CPAR', 'u'); return; }
   const closeBtn = document.getElementById(`cpar-close-${id}`);
   if (!closeBtn) return;
   closeBtn.disabled = true; closeBtn.textContent = 'Saving…';
@@ -9696,7 +9719,7 @@ async function ocRunCheck() {
     const results = jobs.map(job => ({ ...job, validation: validateSpec(job.spec, ocKnownValues) }));
     renderOcResults(results);
   } catch(e) {
-    resultsEl.innerHTML = `<div class="oc-error">Failed to load ${weekName}: ${e.message}</div>`;
+    resultsEl.innerHTML = `<div class="oc-error">Failed to load ${escHtml(weekName)}: ${escHtml(e.message)}</div>`;
     summaryEl.textContent = '';
   }
 }
@@ -9971,7 +9994,7 @@ async function loadNearMisses() {
     NMS_ITEMS = await graphGetAll(url);
     renderNearMisses();
   } catch(e) {
-    el.innerHTML = `<div style="color:var(--red);text-align:center;padding:40px">Failed to load: ${e.message}</div>`;
+    el.innerHTML = `<div style="color:var(--red);text-align:center;padding:40px">Failed to load: ${escHtml(e.message)}</div>`;
   }
 }
 
@@ -10085,13 +10108,13 @@ async function closeOutNearMiss(itemId) {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ fields: {
           Actionstaken:             actions,
-          Actionclosedon:           closedOn || new Date().toISOString().slice(0,10),
+          Actionclosedon:           closedOn || localDateStr(),
           NearMissclosedout_x003f_: true,
         }})
       }
     );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const effectiveClosedOn = closedOn || new Date().toISOString().slice(0,10);
+    const effectiveClosedOn = closedOn || localDateStr();
     const idx = NMS_ITEMS.findIndex(i => i.id === itemId);
     if (idx >= 0) {
       NMS_ITEMS[idx].fields.NearMissclosedout_x003f_ = true;
