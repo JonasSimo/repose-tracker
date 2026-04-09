@@ -9634,10 +9634,33 @@ async function sendOpenCPARDigest() {
 
     const now = new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
 
+    // Previous working day (skip weekends)
+    const prevWorkDay = new Date();
+    prevWorkDay.setHours(0,0,0,0);
+    do { prevWorkDay.setDate(prevWorkDay.getDate() - 1); } while (prevWorkDay.getDay() === 0 || prevWorkDay.getDay() === 6);
+    const prevWorkDayEnd = new Date(prevWorkDay); prevWorkDayEnd.setHours(23,59,59,999);
+    const prevWorkDayLabel = prevWorkDay.toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long' });
+
+    const newItems = CPAR_ITEMS.filter(item => {
+      const f = item.fields || {};
+      const raised = f.RaisedAt ? new Date(f.RaisedAt) : (item.createdDateTime ? new Date(item.createdDateTime) : null);
+      return raised && raised >= prevWorkDay && raised <= prevWorkDayEnd;
+    });
+
     const rowColour = (s) => s === 'red' ? '#fff8f8' : s === 'amber' ? '#fffbeb' : '#f0f7ff';
     const statusLabel = (s) => s === 'red' ? '🔴 4+ days' : s === 'amber' ? '🟡 48h+' : '🔵 Open';
 
-    const rows = openItems.map(item => {
+    const cparTableHead = `<tr style="background:#0e023a;color:#fff">
+            <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Ref</th>
+            <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Raised By</th>
+            <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Source Dept</th>
+            <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Category</th>
+            <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Description</th>
+            <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Age</th>
+            <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Status</th>
+          </tr>`;
+
+    const buildRows = (items) => items.map(item => {
       const f = item.fields || {};
       const raised = f.RaisedAt ? new Date(f.RaisedAt) : (item.createdDateTime ? new Date(item.createdDateTime) : null);
       const age = raised ? Math.floor((Date.now() - raised) / 86400000) + 'd' : '—';
@@ -9653,22 +9676,21 @@ async function sendOpenCPARDigest() {
       </tr>`;
     }).join('');
 
+    const newSection = newItems.length
+      ? `<h3 style="margin:24px 0 6px;color:#0e023a">New CPARs raised ${prevWorkDayLabel} (${newItems.length})</h3>
+      <table style="width:100%;border-collapse:collapse;margin:0 0 20px">
+        <thead>${cparTableHead}</thead>
+        <tbody>${buildRows(newItems)}</tbody>
+      </table>`
+      : `<p style="color:#666;font-style:italic">No new CPARs were raised on ${prevWorkDayLabel}.</p>`;
+
     const html = `<div style="font-family:Calibri,Arial,sans-serif;font-size:11pt;color:#1f1f1f;line-height:1.5">
       <p><strong>Open CPAR Report — ${now}</strong></p>
-      <p>There are currently <strong>${openItems.length} open CPAR${openItems.length !== 1 ? 's' : ''}</strong> requiring attention:</p>
-      <table style="width:100%;border-collapse:collapse;margin:15px 0">
-        <thead>
-          <tr style="background:#0e023a;color:#fff">
-            <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Ref</th>
-            <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Raised By</th>
-            <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Source Dept</th>
-            <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Category</th>
-            <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Description</th>
-            <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Age</th>
-            <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Status</th>
-          </tr>
-        </thead>
-        <tbody>${rows}</tbody>
+      ${newSection}
+      <h3 style="margin:24px 0 6px;color:#0e023a">All open CPARs (${openItems.length})</h3>
+      <table style="width:100%;border-collapse:collapse;margin:0 0 20px">
+        <thead>${cparTableHead}</thead>
+        <tbody>${buildRows(openItems)}</tbody>
       </table>
       <p>Please ensure all open issues are investigated and closed out promptly.</p>
       <p style="color:#666;font-size:10pt">Sent from RepNet · Repose Production Tracker</p>
