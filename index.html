@@ -9710,9 +9710,10 @@ function renderNearMisses() {
     existingChips.forEach(c => c.remove());
     areas.forEach(area => {
       const label = area.replace(/^Repose\s*-\s*/i, '');
+      const openCount = NMS_ITEMS.filter(i => i.fields?.Locationofissue === area && !i.fields?.NearMissclosedout_x003f_).length;
       const btn = document.createElement('button');
       btn.className = 'safety-chip' + (nmsAreaFilter === area ? ' active' : '');
-      btn.textContent = label;
+      btn.innerHTML = openCount > 0 ? `${label} <span style="background:rgba(220,38,38,.15);color:#dc2626;border-radius:10px;padding:1px 6px;font-size:11px;font-weight:700;margin-left:2px">${openCount}</span>` : label;
       btn.onclick = () => setNmsAreaFilter(area, btn);
       areaBar.appendChild(btn);
     });
