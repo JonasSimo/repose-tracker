@@ -8851,52 +8851,50 @@ function updateCPARPeriodStats() {
 
   const now = new Date();
 
-  // Today start
-  const todayStart = new Date(now); todayStart.setHours(0,0,0,0);
+  // Boundaries
+  const todayStart   = new Date(now); todayStart.setHours(0,0,0,0);
 
-  // Previous working day start/end
   const prevWD = new Date(todayStart);
   do { prevWD.setDate(prevWD.getDate() - 1); } while (prevWD.getDay() === 0 || prevWD.getDay() === 6);
   const prevWDEnd = new Date(prevWD); prevWDEnd.setHours(23,59,59,999);
 
-  // This week start (Monday)
   const weekStart = new Date(todayStart);
   const dow = weekStart.getDay() === 0 ? 6 : weekStart.getDay() - 1;
   weekStart.setDate(weekStart.getDate() - dow);
 
-  // This month start
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthStart     = new Date(now.getFullYear(), now.getMonth(), 1);
+  const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const prevMonthEnd   = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
 
-  const raisedDate = item => {
-    const f = item.fields || {};
-    return f.RaisedAt ? new Date(f.RaisedAt) : (item.createdDateTime ? new Date(item.createdDateTime) : null);
+  const rd = item => { const f = item.fields||{}; return f.RaisedAt ? new Date(f.RaisedAt) : (item.createdDateTime ? new Date(item.createdDateTime) : null); };
+  const count = (from, to) => CPAR_ITEMS.filter(i => { const d = rd(i); return d && d >= from && (!to || d <= to); }).length;
+
+  const todayCount      = count(todayStart);
+  const prevWDCount     = count(prevWD, prevWDEnd);
+  const weekCount       = count(weekStart);
+  const monthCount      = count(monthStart);
+  const prevMonthCount  = count(prevMonthStart, prevMonthEnd);
+
+  const prevWDLabel     = prevWD.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
+  const weekLabel       = weekStart.toLocaleDateString('en-GB', { day:'numeric', month:'short' });
+  const monthLabel      = now.toLocaleDateString('en-GB', { month:'long' });
+  const prevMonthLabel  = prevMonthStart.toLocaleDateString('en-GB', { month:'long' });
+
+  const chip = (icon, label, sublabel, val) => {
+    const hot = val > 0;
+    return `<div style="display:flex;flex-direction:column;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:8px 14px;min-width:90px;gap:2px">
+      <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--text3,var(--text2));opacity:.7">${icon} ${label}</div>
+      ${sublabel ? `<div style="font-size:10px;color:var(--text2);opacity:.55;margin-top:-1px">${sublabel}</div>` : ''}
+      <div style="font-size:22px;font-weight:700;font-family:'JetBrains Mono',monospace;color:${hot ? 'var(--accent)' : 'var(--text2)'};line-height:1.15;margin-top:2px">${val}</div>
+    </div>`;
   };
 
-  const count = (from, to) => CPAR_ITEMS.filter(i => {
-    const d = raisedDate(i);
-    return d && d >= from && (!to || d <= to);
-  }).length;
-
-  const todayCount   = count(todayStart);
-  const prevWDCount  = count(prevWD, prevWDEnd);
-  const weekCount    = count(weekStart);
-  const monthCount   = count(monthStart);
-
-  const prevWDLabel  = prevWD.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
-  const weekLabel    = weekStart.toLocaleDateString('en-GB', { day:'numeric', month:'short' });
-  const monthLabel   = now.toLocaleDateString('en-GB', { month:'long' });
-
-  const chip = (label, val, colour) =>
-    `<div style="display:flex;align-items:center;gap:5px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:4px 10px;font-size:12px;color:var(--text2)">
-      <span>${label}</span>
-      <span style="font-weight:700;font-size:14px;color:${colour};font-family:'JetBrains Mono',monospace">${val}</span>
-    </div>`;
-
   el.innerHTML =
-    chip('Today', todayCount, todayCount > 0 ? 'var(--accent)' : 'var(--text2)') +
-    chip(prevWDLabel, prevWDCount, prevWDCount > 0 ? 'var(--accent)' : 'var(--text2)') +
-    chip('This week (from ' + weekLabel + ')', weekCount, weekCount > 0 ? 'var(--accent)' : 'var(--text2)') +
-    chip(monthLabel, monthCount, monthCount > 0 ? 'var(--accent)' : 'var(--text2)');
+    chip('📅', 'Today', '', todayCount) +
+    chip('⬅', prevWDLabel, 'prev working day', prevWDCount) +
+    chip('📆', 'This week', 'from ' + weekLabel, weekCount) +
+    chip('📊', monthLabel, 'this month', monthCount) +
+    chip('🗓', prevMonthLabel, 'previous month', prevMonthCount);
 }
 
 function renderIssuesList() {
