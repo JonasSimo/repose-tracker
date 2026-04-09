@@ -2509,7 +2509,9 @@ const QC_SHEET_NAME        = 'Data';
 let qcSyncInterval  = null;   // setInterval handle
 let qcLastSyncTime  = null;   // Date of last successful sync
 let qcSyncError     = false;  // true if last sync failed
-let qcSyncing       = false;  // true while a sync is in progress
+let qcSyncing           = false;  // true while a sync is in progress
+let _completionsSyncing = false;
+let _prodSyncing        = false;
 let qcCompletedReps = new Set(); // 7-digit REP numbers confirmed done by QC sheet
 
 const OV_TABS = [
@@ -2907,7 +2909,7 @@ function renderWeekList() {
   const curWkNum = currentISOWeek(); // e.g. 12
   const list = document.getElementById('weekList');
   list.innerHTML = WEEKS.map(wk => {
-    const wkNum = parseInt(wk.replace('WK ',''));
+    const wkNum = parseInt(wk.replace('WK ',''), 10);
     const diff  = wkNum - curWkNum;
     const tag   = diff === 0  ? '<span class="week-tag cur">Now</span>'
                 : diff === 1  ? '<span class="week-tag nxt">Next</span>'
@@ -4462,6 +4464,8 @@ function renderSpecAlerts() {
 }
 
 async function loadCompletionsFromList() {
+  if (_completionsSyncing) return;
+  _completionsSyncing = true;
   try {
     const siteId = await getSpSiteId();
     const listId = await getSpListId();
@@ -4547,6 +4551,10 @@ async function loadCompletionsFromList() {
       s.doneAt      = f.CompletedTime || '';
       s.doneDate    = f.CompletedDate || '';
       s.listItemId  = item.id;
+      // Restore MechSerial so Assembly completions remain accessible after reload
+      if (team === 'Assembly' && f.MechSerial) {
+        MECH_SERIALS.set(`${rep}__${wk}__${prep}`, f.MechSerial);
+      }
     });
 
     // Re-apply in-flight ticks that weren't in SharePoint yet
@@ -4590,6 +4598,8 @@ async function loadCompletionsFromList() {
     if (document.getElementById('view-production')?.classList.contains('active')) renderProductionPlan();
   } catch(e) {
     console.warn('loadCompletionsFromList failed:', e.message);
+  } finally {
+    _completionsSyncing = false;
   }
 }
 
@@ -5131,7 +5141,8 @@ async function getGraphToken() {
     const res = await msalInstance.acquireTokenSilent({ scopes: GRAPH_SCOPES, account: accounts[0] });
     graphAccount = res.account;
     return res.accessToken;
-  } catch {
+  } catch(e) {
+    if (!(e instanceof msal.InteractionRequiredAuthError)) throw e;
     if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
       msalInstance.acquireTokenRedirect({ scopes: GRAPH_SCOPES });
       throw new Error('Redirecting for authentication');
@@ -5304,8 +5315,10 @@ function distributeIntoPreps(jobs) {
 
 async function loadProductionFromSharePoint() {
   if (!GRAPH_READY) return;
+  if (_prodSyncing) return;
+  _prodSyncing = true;
   const token = await getGraphToken().catch(() => null);
-  if (!token) { toast('Sign in first to load live data', 'u'); return; }
+  if (!token) { _prodSyncing = false; toast('Sign in first to load live data', 'u'); return; }
 
   const pill   = document.getElementById('prod-sync-pill');
   const lbl    = document.getElementById('prod-sync-lbl');
@@ -5400,6 +5413,8 @@ async function loadProductionFromSharePoint() {
     console.error('Production load failed', e);
     _setProdSyncUI('error', 'Sync failed');
     toast('Failed to load: ' + e.message.slice(0,60), 'u');
+  } finally {
+    _prodSyncing = false;
   }
 }
 
@@ -5489,6 +5504,17 @@ function ovToggle(dayLabel, ri, dept) {
 
 async function logMechQCCompletion(repId) {
   try {
+    // Find which week/prep this rep belongs to
+    let foundWk = '', foundPrep = '';
+    const baseRep = mechBaseRep(repId);
+    outer: for (const wk of WEEKS) {
+      for (const prep of [1,2,3,4,5,'express']) {
+        const jobs = PROD[wk]?.[prep] || [];
+        if (jobs.some(j => j.rep === baseRep || j.itemNo === repId)) {
+          foundWk = wk; foundPrep = String(prep); break outer;
+        }
+      }
+    }
     const token  = await getGraphToken();
     const siteId = await getSpSiteId();
     const listId = await getListIdByName('ProductionCompletions');
@@ -5499,7 +5525,9 @@ async function logMechQCCompletion(repId) {
       body: JSON.stringify({ fields: {
         Team:          'QC',
         SubTeam:       '',
-        REP:           mechBaseRep(repId),
+        Week:          foundWk,
+        Prep:          foundPrep,
+        REP:           baseRep,
         Initials:      'QC',
         CompletedTime: now.toTimeString().slice(0,5),
         CompletedDate: now.toLocaleDateString('en-GB'),
@@ -6029,7 +6057,7 @@ function loadMechQCDone() {
   try { return new Set(JSON.parse(localStorage.getItem(MECH_QC_KEY) || '[]')); } catch { return new Set(); }
 }
 function saveMechQCDone(set) {
-  localStorage.setItem(MECH_QC_KEY, JSON.stringify([...set]));
+  try { localStorage.setItem(MECH_QC_KEY, JSON.stringify([...set])); } catch(e) { console.warn('saveMechQCDone quota:', e.message); }
 }
 let mechQCDone = loadMechQCDone();
 
@@ -6039,7 +6067,7 @@ function loadAccQCDone() {
   try { return new Set(JSON.parse(localStorage.getItem(ACC_QC_KEY) || '[]')); } catch { return new Set(); }
 }
 function saveAccQCDone(set) {
-  localStorage.setItem(ACC_QC_KEY, JSON.stringify([...set]));
+  try { localStorage.setItem(ACC_QC_KEY, JSON.stringify([...set])); } catch(e) { console.warn('saveAccQCDone quota:', e.message); }
 }
 let accQCDone = loadAccQCDone();
 
@@ -6103,6 +6131,11 @@ function statsDestroyCharts() {
   if (statsSparkTimer !== null) { clearTimeout(statsSparkTimer); statsSparkTimer = null; }
   Object.values(statsCharts).forEach(c => { try { c.destroy(); } catch(e){} });
   statsCharts = {};
+  // Also destroy any Chart instance that escaped the registry (e.g. from a concurrent render)
+  document.querySelectorAll('canvas[id^="ch-"]').forEach(canvas => {
+    const existing = Chart.getChart(canvas);
+    if (existing) { try { existing.destroy(); } catch(e){} }
+  });
 }
 
 function statsRefDate() {
@@ -7690,7 +7723,7 @@ function renderDetailCPAR() {
   const rftQCCPARs = cparStatTeam
     ? allPeriodQCCPARs.filter(c => normaliseTeam(c.fields?.SourceDept||'') === cparStatTeam)
     : allPeriodQCCPARs;
-  const rftDefects  = rftQCCPARs.reduce((s, c) => s + (parseInt(c.fields?.QTY)||1), 0);
+  const rftDefects  = rftQCCPARs.reduce((s, c) => s + (parseInt(c.fields?.QTY, 10)||1), 0);
   // Denominator = New Chairs QC'd this period (join QC to completions by REP to apply team filter)
   const qcNewChairs  = statsFilteredQC().filter(q => q.type === 'New Chair');
   const compTeamMap  = new Map(statsFilteredCompletions().map(c => [String(c.fields.REP||'').replace(/\D/g,''), c.fields.Team]));
@@ -8752,7 +8785,7 @@ async function submitCPAR() {
 }
 
 async function getNextCPARRef(siteId, listId) {
-  const stored = parseInt(localStorage.getItem('cpar_max_ref') || '3678');
+  const stored = parseInt(localStorage.getItem('cpar_max_ref') || '3678', 10);
   try {
     const items = await graphGetAll(
       `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields($select=Title)&$top=999`
@@ -8761,7 +8794,7 @@ async function getNextCPARRef(siteId, listId) {
     for (const item of items) {
       const m = (item.fields?.Title||'').match(/^RP-(\d{5})$/);
       if (m) {
-        const n = parseInt(m[1]);
+        const n = parseInt(m[1], 10);
         if (n < 50000) maxNum = Math.max(maxNum, n); // ignore timestamp-based fallback refs
       }
     }
