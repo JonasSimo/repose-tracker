@@ -9175,10 +9175,11 @@ function updateTeamCounts() {
   }
   document.querySelectorAll('.issues-team-chip').forEach(chip => {
     const team = chip.dataset.team;
+    const badge = n => `<span style="background:rgba(220,38,38,.15);color:#dc2626;border-radius:10px;padding:1px 6px;font-size:11px;font-weight:700;margin-left:3px">${n}</span>`;
     if (team === '') {
-      chip.textContent = `All Teams${openItems.length ? ` (${openItems.length})` : ''}`;
+      chip.innerHTML = `All Teams${openItems.length ? badge(openItems.length) : ''}`;
     } else {
-      chip.textContent = counts[team] ? `${team} (${counts[team]})` : team;
+      chip.innerHTML = counts[team] ? `${team}${badge(counts[team])}` : team;
     }
   });
 }
