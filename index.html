@@ -2090,10 +2090,11 @@ document.addEventListener('DOMContentLoaded', () => {
       <div class="stats-header">
         <div class="stats-title" id="stats-main-title">Production Statistics</div>
         <div class="stats-period-toggle">
-          <button class="stats-period-btn active" data-period="week"  onclick="setStatsPeriod('week',this)">Week</button>
-          <button class="stats-period-btn" data-period="month" onclick="setStatsPeriod('month',this)">Month</button>
-          <button class="stats-period-btn" data-period="year"  onclick="setStatsPeriod('year',this)">Year</button>
-          <button class="stats-period-btn" data-period="day"   onclick="setStatsPeriod('day',this)">Day</button>
+          <button class="stats-period-btn active" data-period="today"     onclick="setStatsPeriod('today',this)">Today</button>
+          <button class="stats-period-btn"         data-period="yesterday" onclick="setStatsPeriod('yesterday',this)">Yesterday</button>
+          <button class="stats-period-btn"         data-period="week"      onclick="setStatsPeriod('week',this)">Week</button>
+          <button class="stats-period-btn"         data-period="month"     onclick="setStatsPeriod('month',this)">Month</button>
+          <button class="stats-period-btn"         data-period="year"      onclick="setStatsPeriod('year',this)">Year</button>
         </div>
         <button class="stats-refresh-btn" id="stats-refresh-btn" onclick="refreshStatsData()">↻ Refresh</button>
         <!-- Send Digest button disabled until Mail.Send admin consent is granted
@@ -6077,7 +6078,7 @@ window.addEventListener('load', () => initGraph().catch(console.error));
 const STATS_PASSWORD = 'Repnetiscool';
 
 let statsUnlocked  = false;
-let statsPeriod    = 'week';   // 'week' | 'month' | 'year'
+let statsPeriod    = 'today';  // 'today' | 'yesterday' | 'week' | 'month' | 'year'
 let statsNavOffset = 0;        // 0 = current period, -1 = previous, etc.
 let ppPersonTeam   = '';       // '' = all teams
 let ppPersonDay    = '';       // '' = all days, or 'dd/mm/yyyy'
@@ -6185,18 +6186,18 @@ function statsDestroyCharts() {
 
 function statsRefDate() {
   const today = new Date();
-  if (statsPeriod === 'week') {
-    const d = new Date(today); d.setDate(d.getDate() + statsNavOffset * 7); return d;
-  }
+  if (statsPeriod === 'today')     return new Date(today);
+  if (statsPeriod === 'yesterday') { const d = new Date(today); d.setDate(d.getDate() - 1); return d; }
+  if (statsPeriod === 'week')  { const d = new Date(today); d.setDate(d.getDate() + statsNavOffset * 7); return d; }
   if (statsPeriod === 'month') return new Date(today.getFullYear(), today.getMonth() + statsNavOffset, 1);
-  if (statsPeriod === 'day') {
-    const d = new Date(today); d.setDate(d.getDate() + statsNavOffset); return d;
-  }
+  if (statsPeriod === 'day')   { const d = new Date(today); d.setDate(d.getDate() + statsNavOffset); return d; }
   return new Date(today.getFullYear() + statsNavOffset, 0, 1);
 }
 
 function statsNavLabel() {
   const ref = statsRefDate();
+  if (statsPeriod === 'today')     return 'Today — ' + ref.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
+  if (statsPeriod === 'yesterday') return 'Yesterday — ' + ref.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
   if (statsPeriod === 'week') {
     const wk  = isoWeekNumber(ref);
     const day = ref.getDay() || 7;
@@ -6219,17 +6220,12 @@ function statsUpdateNav() {
   const todayBtn = document.getElementById('stats-nav-today');
   if (!labelEl) return;
   labelEl.textContent = statsNavLabel();
-  if (nextBtn)  nextBtn.disabled = statsNavOffset >= 0;
-  if (todayBtn) todayBtn.style.display = statsNavOffset < 0 ? '' : 'none';
+  const isFixed = statsPeriod === 'today' || statsPeriod === 'yesterday';
+  if (prevBtn)  prevBtn.style.display  = isFixed ? 'none' : '';
+  if (nextBtn)  { nextBtn.style.display = isFixed ? 'none' : ''; nextBtn.disabled = statsNavOffset >= 0; }
+  if (todayBtn) todayBtn.style.display  = (!isFixed && statsNavOffset < 0) ? '' : 'none';
   const picker = document.getElementById('stats-day-picker');
-  if (picker) {
-    picker.style.display = statsPeriod === 'day' ? '' : 'none';
-    if (statsPeriod === 'day') {
-      const ref = statsRefDate();
-      const y = ref.getFullYear(), m = String(ref.getMonth()+1).padStart(2,'0'), d = String(ref.getDate()).padStart(2,'0');
-      document.getElementById('stats-day-input').value = `${y}-${m}-${d}`;
-    }
-  }
+  if (picker) picker.style.display = 'none'; // day-picker only used for manual day; not needed now
 }
 
 function statsNavPeriod(dir) {
@@ -6308,9 +6304,10 @@ function statsInPeriod(dateStr) {
   const d = parseDdmmyyyy(dateStr);
   if (!d) return false;
   const ref = statsRefDate();
+  if (statsPeriod === 'today' || statsPeriod === 'yesterday' || statsPeriod === 'day')
+    return d.getDate() === ref.getDate() && d.getMonth() === ref.getMonth() && d.getFullYear() === ref.getFullYear();
   if (statsPeriod === 'week')  return isoWeekNumber(d) === isoWeekNumber(ref) && isoWeekYear(d) === isoWeekYear(ref);
   if (statsPeriod === 'month') return d.getMonth() === ref.getMonth() && d.getFullYear() === ref.getFullYear();
-  if (statsPeriod === 'day')   return d.getDate() === ref.getDate() && d.getMonth() === ref.getMonth() && d.getFullYear() === ref.getFullYear();
   return d.getFullYear() === ref.getFullYear();
 }
 
@@ -6463,9 +6460,10 @@ function statsInPeriodCPAR(dateStr) {
   const d = parseCPARDate(dateStr);
   if (!d || d.getTime() === 0) return false;
   const ref = statsRefDate();
+  if (statsPeriod === 'today' || statsPeriod === 'yesterday' || statsPeriod === 'day')
+    return d.getDate() === ref.getDate() && d.getMonth() === ref.getMonth() && d.getFullYear() === ref.getFullYear();
   if (statsPeriod === 'week')  return isoWeekNumber(d) === isoWeekNumber(ref) && isoWeekYear(d) === isoWeekYear(ref);
   if (statsPeriod === 'month') return d.getMonth() === ref.getMonth() && d.getFullYear() === ref.getFullYear();
-  if (statsPeriod === 'day')   return d.getDate() === ref.getDate() && d.getMonth() === ref.getMonth() && d.getFullYear() === ref.getFullYear();
   return d.getFullYear() === ref.getFullYear();
 }
 function statsFilteredCPARs() {
@@ -6481,9 +6479,10 @@ function statsFilteredQC() {
   return STATS_QC.filter(q => {
     const d = q.date;
     if (!d) return false;
+    if (statsPeriod === 'today' || statsPeriod === 'yesterday' || statsPeriod === 'day')
+      return d.getDate() === ref.getDate() && d.getMonth() === ref.getMonth() && d.getFullYear() === ref.getFullYear();
     if (statsPeriod === 'week')  return isoWeekNumber(d) === isoWeekNumber(ref) && isoWeekYear(d) === isoWeekYear(ref);
     if (statsPeriod === 'month') return d.getMonth() === ref.getMonth() && d.getFullYear() === ref.getFullYear();
-    if (statsPeriod === 'day')   return d.getDate() === ref.getDate() && d.getMonth() === ref.getMonth() && d.getFullYear() === ref.getFullYear();
     return d.getFullYear() === ref.getFullYear();
   });
 }
@@ -6800,11 +6799,11 @@ function setStatsTeamFilter(team, btn) {
 }
 
 // Called from team token clicks on the dashboard — opens team detail view
-let dashTokenPeriod = 'today'; // 'today' | 'yesterday' — controls team token counts on main dashboard
 let teamTokenPeriod = 'today'; // 'today' | 'yesterday' | 'week' | 'month'
 function statsSetTeamFilter(team) {
-  statsTeamFilter  = team;
-  teamTokenPeriod  = dashTokenPeriod; // inherit whichever day the dashboard was showing
+  statsTeamFilter = team;
+  // Inherit current global period into the team detail view
+  teamTokenPeriod = (statsPeriod === 'today' || statsPeriod === 'yesterday') ? statsPeriod : 'today';
   renderStatsDetail('team');
 }
 
@@ -6877,27 +6876,12 @@ function renderStatsDashboard() {
     { name:'Assembly',   color:'#0e023a', hasSubs:false },
   ];
 
-  // Token counts always filtered by day (today or yesterday), independent of Week/Month selector
+  // Team token counts use the same global period as everything else
   const _today = new Date(); _today.setHours(0,0,0,0);
   const _yest  = new Date(_today); _yest.setDate(_yest.getDate() - 1);
-  const _dayTarget = dashTokenPeriod === 'yesterday' ? _yest : _today;
-  function inDashDay(c) {
-    const raw = c.fields.CompletedDate || '';
-    let d;
-    if (/^\d{2}\/\d{2}\/\d{4}/.test(raw)) { const [dd,mm,yyyy] = raw.split('/'); d = new Date(+yyyy, +mm-1, +dd); }
-    else d = new Date(raw);
-    if (isNaN(d)) return false;
-    d.setHours(0,0,0,0);
-    return d.getTime() === _dayTarget.getTime();
-  }
-  const dayComp = STATS_COMPLETIONS.filter(inDashDay);
-
-  const dayLabel = dashTokenPeriod === 'yesterday'
-    ? 'Yesterday — ' + _yest.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' })
-    : 'Today — '     + _today.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
 
   const tokensHtml = teamDef.map(t => {
-    const tc    = dayComp.filter(c => c.fields.Team === t.name);
+    const tc    = comp.filter(c => c.fields.Team === t.name);
     const count = tc.length;
     const isEmpty = count === 0;
     let partsHtml = '';
@@ -6937,22 +6921,11 @@ function renderStatsDashboard() {
       <div class="card-arrow">›</div>
     </div>`;
 
-  const _dayBtnStyle = (active) =>
-    `padding:4px 14px;border-radius:20px;font-size:12px;font-weight:${active?700:500};cursor:pointer;border:1.5px solid ${active?'var(--repose-navy)':'var(--border2)'};background:${active?'var(--repose-navy)':'var(--bg3)'};color:${active?'#fff':'var(--text2)'}`;
-
   document.getElementById('stats-dash-teams').innerHTML = `
     <div class="team-tokens-section">
       <div class="team-tokens-header">
-        <div>
-          <div class="team-tokens-title">Production</div>
-          <div style="font-size:11px;color:var(--repose-grey);margin-top:1px">${escHtml(dayLabel)}</div>
-        </div>
-        <div style="display:flex;gap:6px">
-          <button style="${_dayBtnStyle(dashTokenPeriod==='today')}"
-            onclick="dashTokenPeriod='today';renderStatsDashboard()">Today</button>
-          <button style="${_dayBtnStyle(dashTokenPeriod==='yesterday')}"
-            onclick="dashTokenPeriod='yesterday';renderStatsDashboard()">Yesterday</button>
-        </div>
+        <div class="team-tokens-title">Production — ${escHtml(statsNavLabel())}</div>
+        <div style="font-size:11px;color:var(--repose-grey)">Tap a team for breakdown</div>
       </div>
       <div class="team-tokens-grid">${tokensHtml}</div>
       ${completeSummaryHtml}
