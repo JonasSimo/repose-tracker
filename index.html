@@ -1881,6 +1881,7 @@ document.addEventListener('DOMContentLoaded', () => {
       <button class="safety-chip open-chip active" id="nms-chip-open" onclick="setNmsStatusFilter('open',this)">Open</button>
       <button class="safety-chip closed-chip" id="nms-chip-closed" onclick="setNmsStatusFilter('closed',this)">Closed</button>
       <button class="safety-chip" id="nms-chip-all" onclick="setNmsStatusFilter('all',this)">All</button>
+      <button class="safety-chip" id="nms-chip-overdue" onclick="setNmsStatusFilter('overdue',this)" style="background:rgba(220,38,38,.12);color:#dc2626;border-color:rgba(220,38,38,.3)">⏱ Overdue</button>
     </div>
     <div class="safety-filter-bar" id="safety-area-bar">
       <span class="safety-filter-label">Area</span>
@@ -10010,7 +10011,7 @@ function calcNmsClosureRate() {
 
 function setNmsStatusFilter(val, btn) {
   nmsStatusFilter = val;
-  ['nms-chip-open','nms-chip-closed','nms-chip-all'].forEach(id => document.getElementById(id)?.classList.remove('active'));
+  ['nms-chip-open','nms-chip-closed','nms-chip-all','nms-chip-overdue'].forEach(id => document.getElementById(id)?.classList.remove('active'));
   if (btn) btn.classList.add('active');
   renderNearMisses();
 }
@@ -10083,9 +10084,10 @@ function renderNearMisses() {
 
   // Apply filters
   let items = NMS_ITEMS;
-  if (nmsAreaFilter)             items = items.filter(i => i.fields?.Locationofissue === nmsAreaFilter);
+  if (nmsAreaFilter)                items = items.filter(i => i.fields?.Locationofissue === nmsAreaFilter);
   if (nmsStatusFilter === 'open')   items = items.filter(i => !i.fields?.NearMissclosedout_x003f_);
   if (nmsStatusFilter === 'closed') items = items.filter(i =>  i.fields?.NearMissclosedout_x003f_);
+  if (nmsStatusFilter === 'overdue') items = items.filter(i => nmsFailedIds.has(i.id));
 
   const open   = items.filter(i => !i.fields?.NearMissclosedout_x003f_);
   const closed = items.filter(i =>  i.fields?.NearMissclosedout_x003f_);
