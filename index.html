@@ -1861,10 +1861,15 @@ document.addEventListener('DOMContentLoaded', () => {
 ════════════════════════════════════════════════ -->
 <div class="view" id="view-safety">
   <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
-    <div style="padding:12px 16px;border-bottom:1px solid var(--border);background:var(--bg2);display:flex;align-items:center;gap:10px;flex-shrink:0">
+    <div style="padding:12px 16px;border-bottom:1px solid var(--border);background:var(--bg2);display:flex;align-items:center;gap:10px;flex-shrink:0;position:relative">
       <button class="stats-back-btn" onclick="navTo('team-select')">← Back</button>
       <div style="font-size:16px;font-weight:700;color:var(--text)">Near Miss Reports</div>
       <span id="safety-open-count" style="font-size:12px;font-weight:600;background:var(--rbg);color:var(--red);border:1px solid var(--rborder);border-radius:20px;padding:3px 10px">0 open</span>
+      <div style="position:absolute;left:50%;transform:translateX(-50%);text-align:center;pointer-events:none">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3)">On-Time Closure</div>
+        <div id="safety-closure-pct" style="font-size:22px;font-weight:700;color:var(--green)">—</div>
+        <div id="safety-closure-sub" style="font-size:10px;color:var(--text3)"></div>
+      </div>
       <div style="margin-left:auto;display:flex;gap:8px">
         <button style="padding:7px 14px;border-radius:8px;border:1px solid var(--border2);background:var(--bg3);font-size:12px;cursor:pointer;font-family:inherit;color:var(--text2)" onclick="loadNearMisses()">↻ Refresh</button>
         <button style="padding:7px 14px;border-radius:8px;border:none;background:#dc2626;color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit" onclick="openNmsModal()">⚠ Raise NMS</button>
@@ -9664,6 +9669,33 @@ let NMS_ITEMS = [];
 let nmsStatusFilter = 'open';
 let nmsAreaFilter   = '';
 
+function calcNmsClosureRate() {
+  const now = new Date();
+  const MS30 = 30 * 24 * 60 * 60 * 1000;
+  let success = 0, failed = 0;
+  NMS_ITEMS.forEach(item => {
+    const f = item.fields || {};
+    const raised = new Date(item.createdDateTime);
+    const isClosed = !!f.NearMissclosedout_x003f_;
+    if (isClosed) {
+      let closedDate = null;
+      if (f.Actionclosedon) {
+        closedDate = new Date(f.Actionclosedon);
+        if (isNaN(closedDate)) {
+          const p = f.Actionclosedon.split('/');
+          if (p.length === 3) closedDate = new Date(p[2], p[1]-1, p[0]);
+        }
+      }
+      const ms = closedDate && !isNaN(closedDate) ? closedDate - raised : now - raised;
+      if (ms <= MS30) success++; else failed++;
+    } else {
+      if (now - raised > MS30) failed++;
+    }
+  });
+  const total = success + failed;
+  return total === 0 ? null : { pct: Math.round(success / total * 100), success, failed, total };
+}
+
 function setNmsStatusFilter(val, btn) {
   nmsStatusFilter = val;
   ['nms-chip-open','nms-chip-closed','nms-chip-all'].forEach(id => document.getElementById(id)?.classList.remove('active'));
@@ -9701,6 +9733,22 @@ function renderNearMisses() {
   const allClosed = NMS_ITEMS.filter(i =>  i.fields?.NearMissclosedout_x003f_);
   const cntEl = document.getElementById('safety-open-count');
   if (cntEl) cntEl.textContent = `${allOpen.length} open`;
+
+  // Closure rate
+  const rate = calcNmsClosureRate();
+  const pctEl = document.getElementById('safety-closure-pct');
+  const subEl = document.getElementById('safety-closure-sub');
+  if (pctEl) {
+    if (rate === null) {
+      pctEl.textContent = '—';
+      pctEl.style.color = 'var(--text3)';
+      if (subEl) subEl.textContent = '';
+    } else {
+      pctEl.textContent = rate.pct + '%';
+      pctEl.style.color = rate.pct >= 80 ? 'var(--green)' : rate.pct >= 50 ? 'var(--amber)' : 'var(--red)';
+      if (subEl) subEl.textContent = `${rate.success} of ${rate.total} closed on time`;
+    }
+  }
 
   // Build area chips dynamically from unique locations
   const areaBar = document.getElementById('safety-area-bar');
