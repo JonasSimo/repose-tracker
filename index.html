@@ -9983,7 +9983,8 @@ let nmsAreaFilter   = '';
 function calcNmsClosureRate() {
   const now = new Date();
   const MS30 = 30 * 24 * 60 * 60 * 1000;
-  let success = 0, failed = 0;
+  let success = 0;
+  const failedIds = new Set();
   NMS_ITEMS.forEach(item => {
     const f = item.fields || {};
     const raised = new Date(item.createdDateTime);
@@ -9997,14 +9998,14 @@ function calcNmsClosureRate() {
         if (p.length === 3) closedDate = new Date(p[2], p[1]-1, p[0]);
       }
       if (!closedDate || isNaN(closedDate)) return;
-      if (closedDate - raised <= MS30) success++; else failed++;
+      if (closedDate - raised <= MS30) success++; else failedIds.add(item.id);
     } else {
       // Open items overdue (past 30 days) count as failed
-      if (now - raised > MS30) failed++;
+      if (now - raised > MS30) failedIds.add(item.id);
     }
   });
-  const total = success + failed;
-  return total === 0 ? null : { pct: Math.round(success / total * 100), success, failed, total };
+  const total = success + failedIds.size;
+  return total === 0 ? null : { pct: Math.round(success / total * 100), success, failed: failedIds.size, total, failedIds };
 }
 
 function setNmsStatusFilter(val, btn) {
@@ -10046,6 +10047,7 @@ function renderNearMisses() {
 
   // Closure rate
   const rate = calcNmsClosureRate();
+  const nmsFailedIds = rate?.failedIds || new Set();
   const pctEl = document.getElementById('safety-closure-pct');
   const subEl = document.getElementById('safety-closure-sub');
   if (pctEl) {
@@ -10056,7 +10058,7 @@ function renderNearMisses() {
     } else {
       pctEl.textContent = rate.pct + '%';
       pctEl.style.color = rate.pct >= 80 ? 'var(--green)' : rate.pct >= 50 ? 'var(--amber)' : 'var(--red)';
-      if (subEl) subEl.textContent = `${rate.success} of ${rate.total} closed on time`;
+      if (subEl) subEl.textContent = `${rate.success} of ${rate.total} closed on time · ${rate.failed} overdue`;
     }
   }
 
@@ -10091,12 +10093,16 @@ function renderNearMisses() {
   function cardHtml(item) {
     const f   = item.fields || {};
     const isclosed = !!f.NearMissclosedout_x003f_;
+    const isOverdue = nmsFailedIds.has(item.id);
     const ref  = f.Title || ('NMS-' + item.id.slice(0,6));
     const date = item.createdDateTime ? item.createdDateTime.slice(0,10) : '';
-    return `<div class="nms-card ${isclosed ? '' : 'open'}" id="nms-card-${item.id}">
+    const overdueBadge = isOverdue
+      ? `<span style="background:#dc2626;color:#fff;font-size:10px;font-weight:700;border-radius:20px;padding:2px 8px;white-space:nowrap">⏱ Overdue 30d</span>`
+      : '';
+    return `<div class="nms-card ${isclosed ? '' : 'open'}" id="nms-card-${item.id}" style="${isOverdue ? 'border-color:#dc2626;' : ''}">
       <div style="display:flex;align-items:flex-start;gap:10px">
         <div class="nms-card-meta" style="flex:1">
-          <div class="nms-ref">${ref} · ${date}</div>
+          <div class="nms-ref" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${ref} · ${date} ${overdueBadge}</div>
           <div class="nms-location-lbl">${escHtml(f.Locationofissue || '—')}</div>
           <div class="nms-issue-txt">${escHtml(f.Whatistheissue_x003f_ || '—')}</div>
           <div class="nms-raised-lbl">Raised by: ${escHtml(f.RaisedBy_x003a_ || '—')}${f.ActionOwners ? ' · Owner: ' + escHtml(f.ActionOwners) : ''}</div>
