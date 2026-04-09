@@ -6813,6 +6813,11 @@ function setStatsPeriod(period, btn) {
   document.querySelectorAll('.stats-period-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   statsUpdateNav();
+  // Sync detail sub-periods so they don't stay stale when global period changes
+  const detailPeriod = (period === 'today' || period === 'yesterday' || period === 'week' || period === 'month')
+    ? period : 'today';
+  nmsStatPeriod    = detailPeriod;
+  teamTokenPeriod  = detailPeriod;
   const detailEl = document.getElementById('stats-detail');
   if (detailEl.style.display !== 'none') {
     renderStatsDetail(detailEl.dataset.view);
@@ -10289,7 +10294,10 @@ function calcNmsClosureRate() {
       let closedDate = new Date(f.Actionclosedon);
       if (isNaN(closedDate)) {
         const p = f.Actionclosedon.split('/');
-        if (p.length === 3) closedDate = new Date(p[2], p[1]-1, p[0]);
+        if (p.length === 3) {
+          const dd = parseInt(p[0], 10), mm = parseInt(p[1], 10), yy = parseInt(p[2], 10);
+          if (dd > 0 && mm >= 1 && mm <= 12 && yy > 0) closedDate = new Date(yy, mm - 1, dd);
+        }
       }
       if (!closedDate || isNaN(closedDate)) return;
       if (closedDate - raised <= MS30) success++; else failedIds.add(item.id);
