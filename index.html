@@ -1572,6 +1572,7 @@ html.tablet-team .nav-menu { display: none !important; }
 body.tablet-mode {
   font-size: 16px;
 }
+body.tablet-mode .dsub { width: 28px; height: 28px; font-size: 10px; }
 /* Sidebar — weeks */
 body.tablet-mode .week-btn       { font-size: 16px; padding: 10px 11px; }
 body.tablet-mode .week-tag       { font-size: 12px; padding: 2px 7px; }
@@ -4915,7 +4916,7 @@ async function loadLoadPlanFromSharePoint() {
         : new Date(rawDate);
       if (!delivDate || isNaN(delivDate)) continue;
       delivDate.setHours(0,0,0,0);
-      const key = delivDate.toISOString().slice(0,10);
+      const key = `${delivDate.getFullYear()}-${String(delivDate.getMonth()+1).padStart(2,'0')}-${String(delivDate.getDate()).padStart(2,'0')}`;
 
       const colItems = [];
       for (let row = 3; row < values.length; row++) {
@@ -5354,7 +5355,7 @@ async function loadProductionFromSharePoint() {
     Object.assign(PROD, newPROD);
     WEEKS.length = 0;
     newWEEKS.forEach(w => WEEKS.push(w));
-    if (!activeWC || !newWEEKS.includes(activeWC)) activeWC = `WK ${now}`;
+    if (!activeWC || (activeWC !== 'PRIORITY' && !newWEEKS.includes(activeWC))) activeWC = `WK ${now}`;
     activeProdWC = `WK ${now}`;
 
     // Build EXPRESS_TYPE_MAP: rep7 → 'EXP'|'MFT'
@@ -6254,6 +6255,7 @@ async function loadStatsData() {
   }
 
   // Each list loaded independently so one failure doesn't block others
+  try {
   await Promise.allSettled([
     getListIdByName('ProductionCompletions').then(id =>
       graphGetAll(`${base}/${id}/items?$expand=fields&$top=999`)
@@ -6336,7 +6338,9 @@ async function loadStatsData() {
     if (document.getElementById('view-loadsheet')?.classList.contains('active')) renderLoadSheet();
   }
 
-  document.getElementById('stats-spinner').style.display = 'none';
+  } finally {
+    document.getElementById('stats-spinner').style.display = 'none';
+  }
   renderStatsDashboard();
 }
 
@@ -7620,11 +7624,15 @@ function renderDetailCPAR() {
       const targetYear = years[0];
       const currentYear = statsRefDate().getFullYear();
       if (targetYear !== currentYear) {
-        statsPeriod = 'year';
-        statsNavOffset = targetYear - new Date().getFullYear();
-        // Sync period toggle buttons
-        document.querySelectorAll('.stats-period-btn').forEach(b => b.classList.toggle('active', b.dataset.period === 'year'));
-        statsUpdateNav();
+        // Don't silently mutate global period — show a prompt instead
+        const body = document.getElementById('stats-detail-body');
+        if (body) body.innerHTML = `<div class="stats-empty" style="flex-direction:column;gap:12px">
+          <span>No CPARs in the current period. Most recent data is from ${targetYear}.</span>
+          <button class="issues-chip active" onclick="statsPeriod='year';statsNavOffset=${targetYear - new Date().getFullYear()};
+            document.querySelectorAll('.stats-period-btn').forEach(b=>b.classList.toggle('active',b.dataset.period==='year'));
+            statsUpdateNav()">Switch to ${targetYear} →</button>
+        </div>`;
+        return;
       }
     }
   }
@@ -9806,7 +9814,9 @@ async function sendOpenCPARDigest() {
 // NEAR MISS SYSTEM (NMS)
 // ═══════════════════════════════════════════════
 
+let _nmsCloseTimer = null;
 function openNmsModal() {
+  if (_nmsCloseTimer) { clearTimeout(_nmsCloseTimer); _nmsCloseTimer = null; }
   document.getElementById('nms-modal').style.display = 'flex';
   document.getElementById('nms-form-body').style.display = 'flex';
   document.getElementById('nms-success-body').style.display = 'none';
@@ -9833,7 +9843,7 @@ async function submitNearMiss() {
   const areaSafe     = document.getElementById('nms-area-safe').value;
   const stepsTaken   = document.getElementById('nms-steps-taken').value.trim();
   const fullyResolved = document.getElementById('nms-fully-resolved').value;
-  if (!raisedBy || !location || !issue || !areaSafe) {
+  if (!raisedBy || !location || !issue || !areaSafe || !stepsTaken || !fullyResolved) {
     alert('Please fill in all required fields.');
     return;
   }
@@ -9865,7 +9875,7 @@ async function submitNearMiss() {
     document.getElementById('nms-form-body').style.display = 'none';
     document.getElementById('nms-success-body').style.display = 'block';
     document.getElementById('nms-modal-footer').style.display = 'none';
-    setTimeout(closeNmsModal, 2800);
+    _nmsCloseTimer = setTimeout(closeNmsModal, 2800);
   } catch(e) {
     btn.disabled = false;
     btn.textContent = 'Submit Report';
