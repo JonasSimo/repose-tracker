@@ -6917,10 +6917,10 @@ function renderStatsDashboard() {
   // New chair loads: REPs that are not Mech/Serv/Acc suffixed
   const newChairLoads = todayLoads.filter(id => !isMechDelivery(id) && !/\bserv\b/i.test(id) && !/\bacc\b/i.test(id));
   const newChairTotal = newChairLoads.length;
-  // How many of those new chairs have been QC'd (mechQCDone holds 7-digit rep numbers)
+  // How many of those new chairs have been QC'd — check QC sheet (qcCompletedReps) and manual mech ticks (mechQCDone)
   const qcDoneCount = newChairLoads.filter(id => {
     const rep7 = mechBaseRep(id).replace(/\D/g, '');
-    return mechQCDone.has(rep7);
+    return qcCompletedReps.has(rep7) || mechQCDone.has(rep7);
   }).length;
   const qcPct2 = newChairTotal ? Math.round(qcDoneCount / newChairTotal * 100) : 0;
   const qcBarColor = qcPct2 === 100 ? '#059669' : qcPct2 >= 60 ? '#d97706' : '#dc2626';
