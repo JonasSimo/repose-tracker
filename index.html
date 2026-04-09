@@ -3321,8 +3321,8 @@ async function saveStartToList(team, sub, wk, prep, ji) {
     { method:'POST', headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
       body: JSON.stringify({ fields: {
         Team: team, SubTeam: sub === 'all' ? '' : sub, Week: wk,
-        WCDate: PROD[wk]?.wc || '', Prep: prep,
-        JobNo: job.itemNo, REP: job.rep,
+        WCDate: PROD[wk]?.wc || '', Prep: String(prep),
+        JobNo: String(job.itemNo), REP: job.rep,
         Initials: s.startedBy, CompletedTime: s.startedAt,
         CompletedDate: new Date().toLocaleDateString('en-GB'),
         IsComplete: false,
@@ -4576,8 +4576,8 @@ async function saveCompletionToList(team, sub, wk, prep, ji) {
       SubTeam:       sub === 'all' ? '' : sub,
       Week:          wk,
       WCDate:        PROD[wk]?.wc || '',
-      Prep:          prep,
-      JobNo:         job.itemNo,
+      Prep:          String(prep),
+      JobNo:         String(job.itemNo),
       REP:           job.rep,
       Initials:      s.initials,
       CompletedTime: s.doneAt,
@@ -6601,7 +6601,7 @@ async function toggleGluingFlag(wk, prep, ji, sub) {
         { method:'POST', headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
           body: JSON.stringify({ fields: {
             Team: 'Gluing', SubTeam: sub || '', Week: wk, WCDate: PROD[wk]?.wc || '',
-            Prep: String(prep), JobNo: job.itemNo, REP: job.rep,
+            Prep: String(prep), JobNo: String(job.itemNo), REP: job.rep,
             Initials: 'WM', CompletedTime: timeStr, CompletedDate: dateStr, IsComplete: false
           }}) }
       );
