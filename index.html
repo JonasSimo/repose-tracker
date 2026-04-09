@@ -1131,10 +1131,48 @@ html.tablet-team .nav-menu { display: none !important; }
 .stats-spinner-txt { font-size: 13px; color: var(--repose-grey); }
 
 /* Dashboard grids */
-.dash-top    { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
-.dash-bottom { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+.dash-bottom { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 14px; }
 .dash-issues { margin-top: 14px; }
-@media (max-width: 600px) { .dash-top, .dash-bottom { grid-template-columns: 1fr; } }
+@media (max-width: 800px) { .dash-bottom { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 500px) { .dash-bottom { grid-template-columns: 1fr; } }
+
+/* Team production tokens */
+.team-tokens-section { margin-bottom: 18px; }
+.team-tokens-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 10px;
+}
+.team-tokens-title {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--repose-grey);
+}
+.team-tokens-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+}
+@media (max-width: 700px) { .team-tokens-grid { grid-template-columns: repeat(2, 1fr); } }
+.team-token {
+  background: #fff; border-radius: 14px;
+  border: 1.5px solid var(--border);
+  padding: 14px 16px 12px;
+  cursor: pointer; position: relative; overflow: hidden;
+  transition: transform .13s, box-shadow .13s, border-color .13s;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.team-token:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,.08); border-color: var(--tc, #14a1e9); }
+.team-token::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: var(--tc, #14a1e9);
+}
+.team-token.active { border-color: var(--tc, #14a1e9); background: rgba(20,161,233,.04); }
+.tt-name  { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--repose-grey); }
+.tt-count { font-size: 32px; font-weight: 800; color: var(--tc, #14a1e9); line-height: 1.1; margin: 2px 0 0; }
+.tt-sub   { font-size: 11px; color: var(--repose-grey); margin-top: 1px; }
+.tt-parts { display: flex; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border2); }
+.tt-part  { flex: 1; text-align: center; }
+.tt-part-val { font-size: 16px; font-weight: 700; color: var(--tc, #14a1e9); }
+.tt-part-lbl { font-size: 10px; color: var(--repose-grey); margin-top: 1px; }
+.tt-zero { opacity: .45; }
+.tt-zero .tt-count { color: var(--repose-grey); }
 .cpar-stat-pills { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
 .cpar-stat-pill  { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 10px; }
 .cpar-stat-pill.open   { background: var(--bbg); color: var(--blue); }
@@ -2090,7 +2128,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     <!-- Dashboard -->
     <div id="stats-dashboard" class="stats-scroll">
-      <div class="dash-top" id="stats-dash-top"></div>
+      <div id="stats-dash-teams"></div>
       <div class="dash-bottom" id="stats-dash-bottom"></div>
       <div class="dash-issues" id="stats-dash-issues"></div>
     </div>
@@ -6288,7 +6326,7 @@ function statsInPeriod(dateStr) {
 }
 
 async function loadStatsData() {
-  document.getElementById('stats-dash-top').innerHTML     = '';
+  document.getElementById('stats-dash-teams').innerHTML   = '';
   document.getElementById('stats-dash-bottom').innerHTML  = '';
   document.getElementById('stats-spinner').style.display  = 'flex';
 
@@ -6772,6 +6810,12 @@ function setStatsTeamFilter(team, btn) {
   }
 }
 
+// Called from team token clicks on the dashboard — toggles filter and stays on dashboard
+function statsSetTeamFilter(team) {
+  statsTeamFilter = statsTeamFilter === team ? '' : team; // toggle off if already selected
+  renderStatsDashboard();
+}
+
 function setStatsPeriod(period, btn) {
   statsPeriod    = period;
   statsNavOffset = 0;
@@ -6825,81 +6869,75 @@ function renderStatsDashboard() {
   const persons  = statsCountByPerson(comp);
   const top3     = persons.slice(0, 3);
 
-  const fullyPct = allReps.length  ? Math.round(fullReps.length       / allReps.length   * 100) : 0;
   const qcPct    = fullReps.length ? Math.round(qcNewChairReps.length / fullReps.length  * 100) : 0;
-  const spark    = buildSparkData(comp, alerts, scrap, cpars);
 
   const top3Html = top3.map(p =>
     `<div class="top3-row"><span class="top3-name">${escHtml(p.name)}</span><span class="top3-count">${p.count}</span></div>`
   ).join('') || '<div style="font-size:12px;color:var(--repose-grey)">No data this period</div>';
 
-  // ── Team-filtered top card ──
-  let topCardHtml = '';
-  if (statsTeamFilter && (statsTeamFilter === 'Woodmill' || statsTeamFilter === 'Upholstery')) {
-    const hasSubs = true;
-    const tc = comp.filter(c => c.fields.Team === statsTeamFilter);
-    const tArms  = tc.filter(c => c.fields.SubTeam === 'Arms').length;
-    const tBacks = tc.filter(c => c.fields.SubTeam === 'Backs').length;
-    const tSeats = tc.filter(c => c.fields.SubTeam === 'Seats').length;
-    const tReps  = [...new Set(tc.map(c => c.fields.REP))];
-    const tComplete = tReps.filter(rep =>
-      ['Arms','Backs','Seats'].every(sub => tc.some(c => c.fields.REP === rep && c.fields.SubTeam === sub))
-    ).length;
-    topCardHtml = `
-    <div class="stat-card blue" onclick="renderStatsDetail('completions')">
-      <div class="card-label">${statsTeamFilter} Production</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:8px 0 4px">
-        <div style="text-align:center"><div style="font-size:22px;font-weight:700;color:var(--repose-blue)">${tArms}</div><div style="font-size:11px;color:var(--repose-grey)">Arms</div></div>
-        <div style="text-align:center"><div style="font-size:22px;font-weight:700;color:var(--repose-blue)">${tBacks}</div><div style="font-size:11px;color:var(--repose-grey)">Backs</div></div>
-        <div style="text-align:center"><div style="font-size:22px;font-weight:700;color:var(--repose-blue)">${tSeats}</div><div style="font-size:11px;color:var(--repose-grey)">Seats</div></div>
-      </div>
-      <div style="border-top:1px solid var(--border2);margin-top:4px;padding-top:8px;display:flex;justify-content:space-between;align-items:center">
-        <span style="font-size:13px;color:var(--repose-grey)">Complete jobs (all 3 parts)</span>
-        <span style="font-size:20px;font-weight:700;color:var(--repose-navy)">${tComplete}</span>
-      </div>
-      <div class="card-arrow">›</div>
-    </div>`;
-  } else if (statsTeamFilter) {
-    const tc = comp.filter(c => c.fields.Team === statsTeamFilter);
-    const tCount = tc.length;
-    const tReps  = [...new Set(tc.map(c => c.fields.REP))];
-    const tPct   = allReps.length ? Math.round(tReps.length / allReps.length * 100) : 0;
-    const tPersons = statsCountByPerson(tc);
-    const tTop3 = tPersons.slice(0, 3).map(p =>
-      `<div class="top3-row"><span class="top3-name">${escHtml(p.name)}</span><span class="top3-count">${p.count}</span></div>`
-    ).join('') || '<div style="font-size:12px;color:var(--repose-grey)">No data</div>';
-    topCardHtml = `
-    <div class="stat-card blue" onclick="renderStatsDetail('completions')">
-      <div class="card-label">${statsTeamFilter} Completions</div>
-      <div class="card-row">
-        <div>
-          <div class="card-number">${tCount}</div>
-          <div class="card-sub">jobs completed this period</div>
-        </div>
-        <div class="card-chart"><canvas id="spark-complete"></canvas></div>
-      </div>
-      <div class="prog-bar"><div class="prog-fill" style="width:${tPct}%;background:var(--repose-blue)"></div></div>
-      <div style="font-size:11px;color:var(--repose-grey);margin-top:4px">${tReps.length} of ${allReps.length} REPs touched by ${statsTeamFilter}</div>
-      <div class="card-arrow">›</div>
-    </div>`;
-  } else {
-    topCardHtml = `
-    <div class="stat-card blue" onclick="renderStatsDetail('completions')">
-      <div class="card-label">Fully Complete Jobs</div>
-      <div class="card-row">
-        <div>
-          <div class="card-number">${fullReps.length}</div>
-          <div class="card-sub">all teams signed off, excl. QC</div>
-        </div>
-        <div class="card-chart"><canvas id="spark-complete"></canvas></div>
-      </div>
-      <div class="prog-bar"><div class="prog-fill" style="width:${fullyPct}%;background:var(--repose-blue)"></div></div>
-      <div style="font-size:11px;color:var(--repose-grey);margin-top:4px">${fullReps.length} of ${allReps.length} REPs in window complete</div>
-      <div class="card-arrow">›</div>
-    </div>`;
-  }
+  // ── Team production tokens ──
+  const teamDef = [
+    { name:'Cutting',    color:'#d97706', hasSubs:false },
+    { name:'Sewing',     color:'#7c3aed', hasSubs:false },
+    { name:'Foam',       color:'#0e7490', hasSubs:false },
+    { name:'Woodmill',   color:'#14a1e9', hasSubs:true  },
+    { name:'Upholstery', color:'#059669', hasSubs:true  },
+    { name:'Assembly',   color:'#0e023a', hasSubs:false },
+  ];
 
-  document.getElementById('stats-dash-top').innerHTML = topCardHtml + `
+  const periodLabel = statsNavLabel();
+  const tokensHtml = teamDef.map(t => {
+    const tc    = comp.filter(c => c.fields.Team === t.name);
+    const count = tc.length;
+    const isEmpty = count === 0;
+    let partsHtml = '';
+    if (t.hasSubs) {
+      const arms  = tc.filter(c => c.fields.SubTeam === 'Arms').length;
+      const backs = tc.filter(c => c.fields.SubTeam === 'Backs').length;
+      const seats = tc.filter(c => c.fields.SubTeam === 'Seats').length;
+      partsHtml = `<div class="tt-parts">
+        <div class="tt-part"><div class="tt-part-val">${arms}</div><div class="tt-part-lbl">Arms</div></div>
+        <div class="tt-part"><div class="tt-part-val">${backs}</div><div class="tt-part-lbl">Backs</div></div>
+        <div class="tt-part"><div class="tt-part-val">${seats}</div><div class="tt-part-lbl">Seats</div></div>
+      </div>`;
+    }
+    const isActive = statsTeamFilter === t.name;
+    return `<div class="team-token${isEmpty?' tt-zero':''}${isActive?' active':''}" style="--tc:${t.color}"
+        onclick="statsSetTeamFilter('${t.name}')">
+      <div class="tt-name">${t.name}</div>
+      <div class="tt-count">${count}</div>
+      <div class="tt-sub">${t.hasSubs ? 'parts' : 'jobs'}</div>
+      ${partsHtml}
+    </div>`;
+  }).join('');
+
+  // Fully complete row — summary across all teams
+  const fullyPct = allReps.length ? Math.round(fullReps.length / allReps.length * 100) : 0;
+  const completeSummaryHtml = `
+    <div style="margin-top:12px;background:#fff;border-radius:12px;border:1.5px solid var(--border);padding:12px 16px;display:flex;align-items:center;gap:16px;cursor:pointer" onclick="renderStatsDetail('completions')">
+      <div style="flex:1">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--repose-grey);margin-bottom:4px">Fully Complete Jobs</div>
+        <div class="prog-bar" style="margin:0"><div class="prog-fill" style="width:${fullyPct}%;background:var(--repose-blue)"></div></div>
+        <div style="font-size:11px;color:var(--repose-grey);margin-top:4px">${fullReps.length} of ${allReps.length} REPs all teams signed off</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <div style="font-size:28px;font-weight:800;color:var(--repose-navy);line-height:1">${fullReps.length}</div>
+        <div style="font-size:11px;color:var(--repose-grey)">${fullyPct}%</div>
+      </div>
+      <div class="card-arrow">›</div>
+    </div>`;
+
+  document.getElementById('stats-dash-teams').innerHTML = `
+    <div class="team-tokens-section">
+      <div class="team-tokens-header">
+        <div class="team-tokens-title">Production — ${escHtml(periodLabel)}</div>
+        ${statsTeamFilter ? `<button style="font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid var(--border2);background:var(--bg3);cursor:pointer;color:var(--text2)" onclick="statsSetTeamFilter('')">✕ Clear filter</button>` : ''}
+      </div>
+      <div class="team-tokens-grid">${tokensHtml}</div>
+      ${completeSummaryHtml}
+    </div>`;
+
+  document.getElementById('stats-dash-bottom').innerHTML = `
     <div class="stat-card teal" onclick="renderStatsDetail('qc')">
       <div class="card-label">QC Verified</div>
       <div class="card-row">
@@ -6907,14 +6945,11 @@ function renderStatsDashboard() {
           <div class="card-number">${qcNewChairReps.length}</div>
           <div class="card-sub">new chairs QC'd${(qcServiceCount+qcAccCount) ? ` · ${qcServiceCount+qcAccCount} service/acc` : ''}</div>
         </div>
-        <div class="card-chart"><canvas id="spark-qc"></canvas></div>
       </div>
       <div class="prog-bar"><div class="prog-fill" style="width:${qcPct}%;background:#0e7490"></div></div>
       <div style="font-size:11px;color:var(--repose-grey);margin-top:4px">${qcNewChairReps.length} of ${fullReps.length} complete jobs QC verified</div>
       <div class="card-arrow">›</div>
-    </div>`;
-
-  document.getElementById('stats-dash-bottom').innerHTML = `
+    </div>
     <div class="stat-card green" onclick="renderStatsDetail('perperson')">
       <div class="card-label">Per Person</div>
       <div class="card-top3">${top3Html}</div>
@@ -6927,7 +6962,6 @@ function renderStatsDashboard() {
           <div class="card-number sm">${alerts.length}</div>
           <div class="card-sub">plan changes detected</div>
         </div>
-        <div class="card-chart"><canvas id="spark-changes"></canvas></div>
       </div>
       <div class="card-arrow">›</div>
     </div>
@@ -6938,7 +6972,6 @@ function renderStatsDashboard() {
           <div class="card-number sm">${scrap.length}</div>
           <div class="card-sub">scrap entries logged</div>
         </div>
-        <div class="card-chart"><canvas id="spark-scrap"></canvas></div>
       </div>
       <div class="card-arrow">›</div>
     </div>`;
