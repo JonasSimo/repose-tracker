@@ -9666,7 +9666,7 @@ let nmsAreaFilter   = '';
 
 function setNmsStatusFilter(val, btn) {
   nmsStatusFilter = val;
-  document.querySelectorAll('#view-safety .safety-filter-bar:first-of-type .safety-chip').forEach(b => b.classList.remove('active'));
+  ['nms-chip-open','nms-chip-closed','nms-chip-all'].forEach(id => document.getElementById(id)?.classList.remove('active'));
   if (btn) btn.classList.add('active');
   renderNearMisses();
 }
