@@ -9683,17 +9683,17 @@ function calcNmsClosureRate() {
     const raised = new Date(item.createdDateTime);
     const isClosed = !!f.NearMissclosedout_x003f_;
     if (isClosed) {
-      let closedDate = null;
-      if (f.Actionclosedon) {
-        closedDate = new Date(f.Actionclosedon);
-        if (isNaN(closedDate)) {
-          const p = f.Actionclosedon.split('/');
-          if (p.length === 3) closedDate = new Date(p[2], p[1]-1, p[0]);
-        }
+      // Only count closed items where we have a close date — old Forms items won't have it
+      if (!f.Actionclosedon) return;
+      let closedDate = new Date(f.Actionclosedon);
+      if (isNaN(closedDate)) {
+        const p = f.Actionclosedon.split('/');
+        if (p.length === 3) closedDate = new Date(p[2], p[1]-1, p[0]);
       }
-      const ms = closedDate && !isNaN(closedDate) ? closedDate - raised : now - raised;
-      if (ms <= MS30) success++; else failed++;
+      if (!closedDate || isNaN(closedDate)) return;
+      if (closedDate - raised <= MS30) success++; else failed++;
     } else {
+      // Open items overdue (past 30 days) count as failed
       if (now - raised > MS30) failed++;
     }
   });
