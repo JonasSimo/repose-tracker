@@ -2050,10 +2050,10 @@ document.addEventListener('DOMContentLoaded', () => {
       <div class="stats-header">
         <div class="stats-title" id="stats-main-title">Production Statistics</div>
         <div class="stats-period-toggle">
-          <button class="stats-period-btn active" onclick="setStatsPeriod('week',this)">Week</button>
-          <button class="stats-period-btn" onclick="setStatsPeriod('month',this)">Month</button>
-          <button class="stats-period-btn" onclick="setStatsPeriod('year',this)">Year</button>
-          <button class="stats-period-btn" onclick="setStatsPeriod('day',this)">Day</button>
+          <button class="stats-period-btn active" data-period="week"  onclick="setStatsPeriod('week',this)">Week</button>
+          <button class="stats-period-btn" data-period="month" onclick="setStatsPeriod('month',this)">Month</button>
+          <button class="stats-period-btn" data-period="year"  onclick="setStatsPeriod('year',this)">Year</button>
+          <button class="stats-period-btn" data-period="day"   onclick="setStatsPeriod('day',this)">Day</button>
         </div>
         <button class="stats-refresh-btn" id="stats-refresh-btn" onclick="refreshStatsData()">↻ Refresh</button>
         <!-- Send Digest button disabled until Mail.Send admin consent is granted
@@ -3903,7 +3903,9 @@ function buildOvSlots(offset) {
     { date: addWorkdays(base, 3), label:'Tomorrow +2', cls: '' },
   ];
   slots.forEach(s => {
-    const key = s.date.toISOString().slice(0,10);
+    // Use local date parts for key — toISOString() shifts to UTC and breaks during BST
+    const d = s.date;
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     s.reps = (OV_RAW[key] || []).map(repId => ({ id: repId, s: { wm:[], fm:0, ct:0, sw:0, uh:[], as:0, qc:0 } }));
   });
   OV_DAYS.length = 0;
@@ -6660,11 +6662,12 @@ async function gluingMarkDone(key, btn) {
     const now = new Date();
     const timeStr = now.toTimeString().slice(0, 5);
     const dateStr = now.toLocaleDateString('en-GB');
-    await fetch(
+    const resMark = await fetch(
       `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${g.itemId}`,
       { method:'PATCH', headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
         body: JSON.stringify({ fields: { IsComplete: true, CompletedTime: timeStr, CompletedDate: dateStr } }) }
     );
+    if (!resMark.ok) throw new Error(`PATCH failed: ${resMark.status}`);
     g.done    = true;
     g.doneAt  = timeStr;
     g.doneDate= dateStr;
@@ -6685,11 +6688,12 @@ async function gluingUndoDone(key, btn) {
     const siteId = await getSpSiteId();
     const listId = await getSpListId();
     const token  = await getGraphToken();
-    await fetch(
+    const resUndo = await fetch(
       `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${g.itemId}`,
       { method:'PATCH', headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
         body: JSON.stringify({ fields: { IsComplete: false, CompletedTime: g.flaggedAt, CompletedDate: g.flaggedDate } }) }
     );
+    if (!resUndo.ok) throw new Error(`PATCH failed: ${resUndo.status}`);
     g.done = false;
     g.doneAt = '';
     g.doneDate = '';
@@ -8722,7 +8726,7 @@ async function submitCPAR() {
     CPAR_ITEMS.unshift({ id:created.id, fields:{
       Title:ref, RaisedByTeam:activeHasSubs ? activeTeam + ' ' + activeSub : activeTeam, PrimaryREP:s.rep, PrimaryJobNo:s.jobNo,
       PrimaryModel:s.model, PrimaryWeek:s.week, PrimaryPrep:s.prep === 'express' ? 'express' : String(parseInt(s.prep)||0), AffectedJobs:JSON.stringify(s.extraJobs),
-      TotalAffected:1+s.extraJobs.length, QTY:s.qty, SourceDept:sourceLabel,
+      TotalAffected:String(1+s.extraJobs.length), QTY:String(s.qty||1), SourceDept:sourceLabel,
       IssueCategory:s.category||'', CauseCode:s.causeCode||'', Description:s.desc.trim(), Status:'Open',
       LoggedAt:loggedAt, HasPhoto:!!s.photoFile,
     }});
@@ -9183,12 +9187,14 @@ async function sendDailyDigest(btn) {
         },
         saveToSentItems: true,
       };
-      const res = await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (res.ok) sent.push(team); else failed.push(team);
+      try {
+        const res = await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (res.ok) sent.push(team); else failed.push(team);
+      } catch { failed.push(team); }
     }
 
     // If no per-team emails were sent (no issues yesterday) OR as a summary:
@@ -9918,9 +9924,8 @@ async function loadNearMisses() {
   el.innerHTML = '<div style="color:var(--text3);text-align:center;padding:40px">Loading…</div>';
   try {
     const siteId = await getNmsSiteId();
-    const url = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${NMS_LIST_ID}/items?$expand=fields&$top=200&$orderby=createdDateTime desc`;
-    const res = await graphGet(url);
-    NMS_ITEMS = res.value || [];
+    const url = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${NMS_LIST_ID}/items?$expand=fields&$top=999&$orderby=createdDateTime desc`;
+    NMS_ITEMS = await graphGetAll(url);
     renderNearMisses();
   } catch(e) {
     el.innerHTML = `<div style="color:var(--red);text-align:center;padding:40px">Failed to load: ${e.message}</div>`;
@@ -9989,9 +9994,9 @@ function renderNearMisses() {
       <div style="display:flex;align-items:flex-start;gap:10px">
         <div class="nms-card-meta" style="flex:1">
           <div class="nms-ref">${ref} · ${date}</div>
-          <div class="nms-location-lbl">${f.Locationofissue || '—'}</div>
-          <div class="nms-issue-txt">${f.Whatistheissue_x003f_ || '—'}</div>
-          <div class="nms-raised-lbl">Raised by: ${f.RaisedBy_x003a_ || '—'}${f.ActionOwners ? ' · Owner: ' + f.ActionOwners : ''}</div>
+          <div class="nms-location-lbl">${escHtml(f.Locationofissue || '—')}</div>
+          <div class="nms-issue-txt">${escHtml(f.Whatistheissue_x003f_ || '—')}</div>
+          <div class="nms-raised-lbl">Raised by: ${escHtml(f.RaisedBy_x003a_ || '—')}${f.ActionOwners ? ' · Owner: ' + escHtml(f.ActionOwners) : ''}</div>
         </div>
         ${isclosed ? `<span class="nms-done-badge">Closed</span>` : ''}
       </div>
@@ -10043,11 +10048,12 @@ async function closeOutNearMiss(itemId) {
       }
     );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const effectiveClosedOn = closedOn || new Date().toISOString().slice(0,10);
     const idx = NMS_ITEMS.findIndex(i => i.id === itemId);
     if (idx >= 0) {
       NMS_ITEMS[idx].fields.NearMissclosedout_x003f_ = true;
       NMS_ITEMS[idx].fields.Actionstaken = actions;
-      NMS_ITEMS[idx].fields.Actionclosedon = closedOn;
+      NMS_ITEMS[idx].fields.Actionclosedon = effectiveClosedOn;
     }
     renderNearMisses();
   } catch(e) {
