@@ -6800,10 +6800,11 @@ function setStatsTeamFilter(team, btn) {
 }
 
 // Called from team token clicks on the dashboard — opens team detail view
+let dashTokenPeriod = 'today'; // 'today' | 'yesterday' — controls team token counts on main dashboard
 let teamTokenPeriod = 'today'; // 'today' | 'yesterday' | 'week' | 'month'
 function statsSetTeamFilter(team) {
   statsTeamFilter  = team;
-  teamTokenPeriod  = 'today'; // always reset to today when opening a new team
+  teamTokenPeriod  = dashTokenPeriod; // inherit whichever day the dashboard was showing
   renderStatsDetail('team');
 }
 
@@ -6876,9 +6877,27 @@ function renderStatsDashboard() {
     { name:'Assembly',   color:'#0e023a', hasSubs:false },
   ];
 
-  const periodLabel = statsNavLabel();
+  // Token counts always filtered by day (today or yesterday), independent of Week/Month selector
+  const _today = new Date(); _today.setHours(0,0,0,0);
+  const _yest  = new Date(_today); _yest.setDate(_yest.getDate() - 1);
+  const _dayTarget = dashTokenPeriod === 'yesterday' ? _yest : _today;
+  function inDashDay(c) {
+    const raw = c.fields.CompletedDate || '';
+    let d;
+    if (/^\d{2}\/\d{2}\/\d{4}/.test(raw)) { const [dd,mm,yyyy] = raw.split('/'); d = new Date(+yyyy, +mm-1, +dd); }
+    else d = new Date(raw);
+    if (isNaN(d)) return false;
+    d.setHours(0,0,0,0);
+    return d.getTime() === _dayTarget.getTime();
+  }
+  const dayComp = STATS_COMPLETIONS.filter(inDashDay);
+
+  const dayLabel = dashTokenPeriod === 'yesterday'
+    ? 'Yesterday — ' + _yest.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' })
+    : 'Today — '     + _today.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
+
   const tokensHtml = teamDef.map(t => {
-    const tc    = comp.filter(c => c.fields.Team === t.name);
+    const tc    = dayComp.filter(c => c.fields.Team === t.name);
     const count = tc.length;
     const isEmpty = count === 0;
     let partsHtml = '';
@@ -6918,11 +6937,22 @@ function renderStatsDashboard() {
       <div class="card-arrow">›</div>
     </div>`;
 
+  const _dayBtnStyle = (active) =>
+    `padding:4px 14px;border-radius:20px;font-size:12px;font-weight:${active?700:500};cursor:pointer;border:1.5px solid ${active?'var(--repose-navy)':'var(--border2)'};background:${active?'var(--repose-navy)':'var(--bg3)'};color:${active?'#fff':'var(--text2)'}`;
+
   document.getElementById('stats-dash-teams').innerHTML = `
     <div class="team-tokens-section">
       <div class="team-tokens-header">
-        <div class="team-tokens-title">Production — ${escHtml(periodLabel)}</div>
-        <div style="font-size:11px;color:var(--repose-grey)">Tap a team for breakdown</div>
+        <div>
+          <div class="team-tokens-title">Production</div>
+          <div style="font-size:11px;color:var(--repose-grey);margin-top:1px">${escHtml(dayLabel)}</div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button style="${_dayBtnStyle(dashTokenPeriod==='today')}"
+            onclick="dashTokenPeriod='today';renderStatsDashboard()">Today</button>
+          <button style="${_dayBtnStyle(dashTokenPeriod==='yesterday')}"
+            onclick="dashTokenPeriod='yesterday';renderStatsDashboard()">Yesterday</button>
+        </div>
       </div>
       <div class="team-tokens-grid">${tokensHtml}</div>
       ${completeSummaryHtml}
