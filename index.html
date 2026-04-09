@@ -9622,8 +9622,15 @@ async function sendOpenCPARDigest() {
   try {
     const accounts = msalInstance.getAllAccounts();
     if (!accounts.length) throw new Error('Not signed in');
-    const res = await msalInstance.acquireTokenSilent({ scopes: ['Mail.Send'], account: accounts[0] });
-    const token = res.accessToken;
+    let token;
+    try {
+      const res = await msalInstance.acquireTokenSilent({ scopes: ['Mail.Send'], account: accounts[0] });
+      token = res.accessToken;
+    } catch (e) {
+      // Consent not yet granted — show popup so user can approve Mail.Send
+      const res = await msalInstance.acquireTokenPopup({ scopes: ['Mail.Send'], account: accounts[0] });
+      token = res.accessToken;
+    }
 
     const now = new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
 
