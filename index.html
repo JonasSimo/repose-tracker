@@ -6958,6 +6958,27 @@ function renderStatsDashboard() {
       ${completeSummaryHtml}
     </div>`;
 
+  // Near miss counts for the bottom card — uses same Today/Yesterday as team tokens
+  const nmsToday = NMS_ITEMS.filter(i => {
+    const d = new Date(i.createdDateTime); d.setHours(0,0,0,0);
+    return d.getTime() === _today.getTime();
+  }).length;
+  const nmsYest = NMS_ITEMS.filter(i => {
+    const d = new Date(i.createdDateTime); d.setHours(0,0,0,0);
+    return d.getTime() === _yest.getTime();
+  }).length;
+  const nmsWeek = NMS_ITEMS.filter(i => {
+    const d = new Date(i.createdDateTime);
+    const ref = statsRefDate();
+    return isoWeekNumber(d) === isoWeekNumber(ref) && isoWeekYear(d) === isoWeekYear(ref);
+  }).length;
+  const nmsMonth = NMS_ITEMS.filter(i => {
+    const d = new Date(i.createdDateTime);
+    const ref = statsRefDate();
+    return d.getMonth() === ref.getMonth() && d.getFullYear() === ref.getFullYear();
+  }).length;
+  const nmsOpen = NMS_ITEMS.filter(i => !i.fields?.NearMissclosedout_x003f_).length;
+
   document.getElementById('stats-dash-bottom').innerHTML = `
     <div class="stat-card teal" onclick="renderStatsDetail('qc')">
       <div class="card-label">QC Verified</div>
@@ -6971,9 +6992,27 @@ function renderStatsDashboard() {
       <div style="font-size:11px;color:var(--repose-grey);margin-top:4px">${qcNewChairReps.length} of ${fullReps.length} complete jobs QC verified</div>
       <div class="card-arrow">›</div>
     </div>
-    <div class="stat-card green" onclick="renderStatsDetail('perperson')">
-      <div class="card-label">Per Person</div>
-      <div class="card-top3">${top3Html}</div>
+    <div class="stat-card" style="cursor:pointer;border-top:3px solid #f59e0b" onclick="renderStatsDetail('nms')">
+      <div class="card-label">Near Misses</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:8px 0 6px">
+        <div style="text-align:center;background:var(--bg2);border-radius:8px;padding:6px 4px">
+          <div style="font-size:20px;font-weight:800;color:#d97706">${nmsToday}</div>
+          <div style="font-size:10px;color:var(--repose-grey);font-weight:600">Today</div>
+        </div>
+        <div style="text-align:center;background:var(--bg2);border-radius:8px;padding:6px 4px">
+          <div style="font-size:20px;font-weight:800;color:var(--text)">${nmsYest}</div>
+          <div style="font-size:10px;color:var(--repose-grey);font-weight:600">Yesterday</div>
+        </div>
+        <div style="text-align:center;background:var(--bg2);border-radius:8px;padding:6px 4px">
+          <div style="font-size:20px;font-weight:800;color:var(--text)">${nmsWeek}</div>
+          <div style="font-size:10px;color:var(--repose-grey);font-weight:600">This Week</div>
+        </div>
+        <div style="text-align:center;background:var(--bg2);border-radius:8px;padding:6px 4px">
+          <div style="font-size:20px;font-weight:800;color:var(--text)">${nmsMonth}</div>
+          <div style="font-size:10px;color:var(--repose-grey);font-weight:600">This Month</div>
+        </div>
+      </div>
+      ${nmsOpen ? `<div style="font-size:11px;color:#dc2626;font-weight:600">${nmsOpen} open${nmsOpen===1?'':'s'}</div>` : `<div style="font-size:11px;color:#059669;font-weight:600">All closed ✓</div>`}
       <div class="card-arrow">›</div>
     </div>
     <div class="stat-card amber" onclick="renderStatsDetail('changes')">
@@ -7042,7 +7081,7 @@ function renderStatsDetail(view) {
   detailEl.style.display = '';
   detailEl.dataset.view  = view;
 
-  const titles = { completions:'Fully Complete Jobs', qc:'QC Verified', perperson:'Per Person', changes:'Spec Changes', scrap:'Scrap Log', cpar:'Issues (CPARs)', team: statsTeamFilter };
+  const titles = { completions:'Fully Complete Jobs', qc:'QC Verified', perperson:'Per Person', changes:'Spec Changes', scrap:'Scrap Log', cpar:'Issues (CPARs)', team: statsTeamFilter, nms:'Near Misses' };
   document.getElementById('stats-detail-title').textContent = titles[view] || view;
   document.getElementById('stats-detail-body').innerHTML    = '';
 
@@ -7054,6 +7093,7 @@ function renderStatsDetail(view) {
   else if (view === 'scrap')       renderDetailScrap();
   else if (view === 'cpar')        renderDetailCPAR();
   else if (view === 'team')        renderDetailTeamToken();
+  else if (view === 'nms')         renderDetailNMS();
 }
 
 function renderDetailTeamToken() {
@@ -7183,6 +7223,89 @@ function renderDetailTeamToken() {
       ${personCardsHtml}
     </div>
     ${jobListHtml}`;
+}
+
+// ── Near Miss detail ─────────────────────────────
+
+let nmsStatPeriod = 'today'; // 'today' | 'yesterday' | 'week' | 'month'
+
+function renderDetailNMS() {
+  const body  = document.getElementById('stats-detail-body');
+  const today = new Date(); today.setHours(0,0,0,0);
+  const yest  = new Date(today); yest.setDate(yest.getDate() - 1);
+
+  function inPeriod(item) {
+    const d = new Date(item.createdDateTime); d.setHours(0,0,0,0);
+    if (nmsStatPeriod === 'today')     return d.getTime() === today.getTime();
+    if (nmsStatPeriod === 'yesterday') return d.getTime() === yest.getTime();
+    if (nmsStatPeriod === 'week') {
+      const ref = statsRefDate();
+      return isoWeekNumber(d) === isoWeekNumber(ref) && isoWeekYear(d) === isoWeekYear(ref);
+    }
+    if (nmsStatPeriod === 'month') {
+      const ref = statsRefDate();
+      return d.getMonth() === ref.getMonth() && d.getFullYear() === ref.getFullYear();
+    }
+    return false;
+  }
+
+  const items = NMS_ITEMS.filter(inPeriod)
+    .sort((a, b) => new Date(b.createdDateTime) - new Date(a.createdDateTime));
+
+  const periodLabels = {
+    today:     'Today — '     + today.toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long' }),
+    yesterday: 'Yesterday — ' + yest.toLocaleDateString('en-GB',  { weekday:'long', day:'numeric', month:'long' }),
+    week:      'This Week (' + statsNavLabel() + ')',
+    month:     'This Month (' + statsNavLabel() + ')',
+  };
+
+  const filterBtns = ['today','yesterday','week','month'].map(p => {
+    const lbl = { today:'Today', yesterday:'Yesterday', week:'This Week', month:'This Month' }[p];
+    const active = nmsStatPeriod === p;
+    return `<button onclick="nmsStatPeriod='${p}';renderDetailNMS()"
+      style="padding:5px 14px;border-radius:20px;border:1.5px solid ${active?'#f59e0b':'var(--border2)'};
+             background:${active?'#f59e0b':'var(--bg3)'};color:${active?'#fff':'var(--text2)'};
+             font-size:12px;font-weight:${active?700:500};cursor:pointer;transition:all .12s">${lbl}</button>`;
+  }).join('');
+
+  if (!NMS_ITEMS.length) {
+    body.innerHTML = `
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">${filterBtns}</div>
+      <div style="text-align:center;padding:40px;color:var(--repose-grey)">
+        Near miss data not loaded yet — open the Safety tab first to fetch records.
+      </div>`;
+    return;
+  }
+
+  const listHtml = items.length === 0
+    ? `<div style="text-align:center;padding:40px;color:var(--repose-grey)">No near misses recorded for this period</div>`
+    : items.map(item => {
+        const f = item.fields || {};
+        const raisedDate = new Date(item.createdDateTime);
+        const dateStr = raisedDate.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
+        const timeStr = raisedDate.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' });
+        const isClosed = !!f.NearMissclosedout_x003f_;
+        const ref   = f.Title || ('NMS-' + item.id.slice(0,6));
+        const loc   = (f.Locationofissue || '').replace(/^Repose\s*-\s*/i, '');
+        return `<div style="background:#fff;border:1.5px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;gap:12px;align-items:flex-start">
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+              <span style="font-size:12px;font-weight:700;color:var(--repose-navy)">${escHtml(ref)}</span>
+              ${loc ? `<span style="font-size:11px;color:var(--repose-grey);background:var(--bg2);border-radius:6px;padding:1px 7px">${escHtml(loc)}</span>` : ''}
+              <span style="font-size:11px;color:var(--repose-grey);margin-left:auto">${dateStr} · ${timeStr}</span>
+            </div>
+            <div style="font-size:13px;color:var(--text);margin-bottom:4px">${escHtml(f.Whatistheissue_x003f_ || '—')}</div>
+            <div style="font-size:11px;color:var(--repose-grey)">Raised by: <strong>${escHtml(f.RaisedBy_x003a_ || '—')}</strong>${f.ActionOwners ? ' · Owner: ' + escHtml(f.ActionOwners) : ''}</div>
+            ${isClosed && f.Actionstaken ? `<div style="margin-top:6px;font-size:11px;color:#059669;font-weight:600">✓ Closed: <span style="font-weight:400;color:var(--text2)">${escHtml(f.Actionstaken)}</span></div>` : ''}
+          </div>
+          <span style="flex-shrink:0;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;${isClosed ? 'background:#dcfce7;color:#059669' : 'background:#fef3c7;color:#d97706'}">${isClosed ? 'Closed' : 'Open'}</span>
+        </div>`;
+      }).join('');
+
+  body.innerHTML = `
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">${filterBtns}</div>
+    <div style="font-size:12px;color:var(--repose-grey);margin-bottom:14px">${escHtml(periodLabels[nmsStatPeriod])} · <strong style="color:var(--text)">${items.length} report${items.length !== 1 ? 's' : ''}</strong></div>
+    <div style="display:flex;flex-direction:column;gap:8px">${listHtml}</div>`;
 }
 
 // ── Completions detail ──────────────────────────
