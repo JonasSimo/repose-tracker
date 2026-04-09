@@ -9637,6 +9637,7 @@ async function submitNearMiss() {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ fields: {
           RaisedBy_x003a_:          raisedBy,
+          SiteLocation_x003a_:      'Repose',
           Locationofissue:          location,
           Whatistheissue_x003f_:    issue,
           IsAreaSafe:               areaSafe,
