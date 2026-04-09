@@ -9734,14 +9734,14 @@ async function sendOpenCPARDigest() {
       const openForTeam = CPAR_ITEMS.filter(i => isOpenCPAR(i) && matchTeam(teamOf(i)));
       const newForTeam  = CPAR_ITEMS.filter(i => {
         const rd = raisedDate(i);
-        return rd && rd >= prevWorkDay && rd <= prevWorkDayEnd && matchTeam(teamOf(i));
+        return rd && rd >= prevWorkDay && matchTeam(teamOf(i)); // from prev working day up to now (includes today)
       });
 
       // Skip if nothing to report
       if (!openForTeam.length && !newForTeam.length) { skipped.push(canonTeam); continue; }
 
       const newSection = newForTeam.length
-        ? `<h3 style="margin:20px 0 6px;font-size:14px;color:#1e3a5f">Raised ${prevWorkDayLabel} (${newForTeam.length})</h3>
+        ? `<h3 style="margin:20px 0 6px;font-size:14px;color:#1e3a5f">Raised since ${prevWorkDayLabel} (${newForTeam.length})</h3>
            <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:18px">${tableHead}<tbody>${buildRows(newForTeam)}</tbody></table>`
         : `<p style="color:#059669;font-style:italic;margin:12px 0">No new CPARs raised on ${prevWorkDayLabel}.</p>`;
 
