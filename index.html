@@ -6562,7 +6562,11 @@ function renderGluingQueue() {
     <div class="gluing-card${isDone?' done-card':''}">
       <div class="gluing-card-info">
         <div class="gluing-card-rep">${escHtml(e.rep)} <span style="font-size:11px;font-weight:400;color:var(--repose-grey)">${escHtml(e.sub)}</span></div>
-        <div class="gluing-card-detail">Job ${escHtml(String(e.job.itemNo))} · ${escHtml(e.wk)} · Prep ${escHtml(String(e.prep))}</div>
+        <div class="gluing-card-detail">
+          <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:13px;color:var(--text);background:var(--bbg);border:1px solid var(--bborder);border-radius:5px;padding:1px 7px">Job ${escHtml(String(e.job.itemNo))}</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:13px;color:var(--text);background:var(--bg4);border:1px solid var(--border2);border-radius:5px;padding:1px 7px;margin-left:4px">${escHtml(e.wk)}</span>
+          <span style="font-size:12px;color:var(--text2);margin-left:4px">Prep ${escHtml(String(e.prep))}</span>
+        </div>
         <div class="gluing-card-time">${isDone ? `Glued ${escHtml(e.doneDate)} ${escHtml(e.doneAt)}` : `Flagged ${escHtml(e.flaggedDate)} ${escHtml(e.flaggedAt)}`}</div>
       </div>
       <div style="display:flex;flex-direction:column;gap:5px;flex-shrink:0">
