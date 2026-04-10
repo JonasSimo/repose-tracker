@@ -1820,7 +1820,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <button class="nav-item" data-view="loadsheet" onclick="navTo('loadsheet')">Delivery</button>
         <button class="nav-item" data-view="production" onclick="navTo('production')">Production Plan</button>
         <button class="nav-item" data-view="stats" onclick="navTo('stats')">Stats</button>
-        <button class="nav-item" data-view="issues" id="issues-tab-btn" onclick="navTo('issues')">Issues</button>
+        <button class="nav-item" data-view="issues" id="issues-tab-btn" onclick="navTo('issues')">CPARs</button>
         <button class="nav-item" data-view="safety" onclick="navTo('safety')">Near Misses</button>
         <!-- Order Check — work in progress, hidden until ready -->
         <!-- <button class="nav-item" data-view="ordercheck" onclick="navTo('ordercheck')">Order Check</button> -->
@@ -2608,7 +2608,7 @@ function showView(name) {
   } else {
     if (ppAutoSyncInterval) { clearInterval(ppAutoSyncInterval); ppAutoSyncInterval = null; }
   }
-  if (name === 'stats')       { openStatsView(); }
+  if (name === 'stats')       { openStatsView(); if (!NMS_ITEMS.length) loadNearMisses(); }
   if (name === 'issues')      { openIssuesView(); }
   if (name === 'safety')      { loadNearMisses(); }
   if (name === 'ordercheck')  { ocOnOpen(); }
