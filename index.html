@@ -2162,6 +2162,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <button class="issues-team-chip" data-team="Foam" onclick="setIssueTeam(this,'Foam')">Foam</button>
         <button class="issues-team-chip" data-team="Stores" onclick="setIssueTeam(this,'Stores')">Stores</button>
         <button class="issues-team-chip" data-team="QC" onclick="setIssueTeam(this,'QC')">QC</button>
+        <button class="issues-team-chip" data-team="Admin" onclick="setIssueTeam(this,'Admin')">Admin</button>
       </div>
     </div>
     <div class="issues-list-wrap" id="issues-list"></div>
@@ -6910,12 +6911,17 @@ function renderStatsDashboard() {
     </div>`;
   }).join('');
 
-  // QC vs loads due today — cross-reference OV_RAW with mechQCDone
-  const todayKey   = localDateKey(new Date());
-  const todayLoads = (OV_RAW[todayKey] || []);
-  const todayTotal = todayLoads.length;
+  // QC vs loads bar — use the specific selected date for today/yesterday/day, else always today
+  const _qcUsePeriod   = (statsPeriod === 'today' || statsPeriod === 'yesterday' || statsPeriod === 'day');
+  const _qcRefDate     = _qcUsePeriod ? statsRefDate() : new Date();
+  const _qcDateKey     = localDateKey(_qcRefDate);
+  const _qcLoads       = (OV_RAW[_qcDateKey] || []);
+  const _qcTotal       = _qcLoads.length;
+  const _qcPeriodLabel = statsPeriod === 'today' ? 'today' : statsPeriod === 'yesterday' ? 'yesterday'
+                       : statsPeriod === 'day' ? _qcRefDate.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' })
+                       : 'today';
   // New chair loads: REPs that are not Mech/Serv/Acc suffixed
-  const newChairLoads = todayLoads.filter(id => !isMechDelivery(id) && !/\bserv\b/i.test(id) && !/\bacc\b/i.test(id));
+  const newChairLoads = _qcLoads.filter(id => !isMechDelivery(id) && !/\bserv\b/i.test(id) && !/\bacc\b/i.test(id));
   const newChairTotal = newChairLoads.length;
   // How many of those new chairs have been QC'd — check QC sheet (qcCompletedReps) and manual mech ticks (mechQCDone)
   const qcDoneCount = newChairLoads.filter(id => {
@@ -6925,13 +6931,13 @@ function renderStatsDashboard() {
   const qcPct2 = newChairTotal ? Math.round(qcDoneCount / newChairTotal * 100) : 0;
   const qcBarColor = qcPct2 === 100 ? '#059669' : qcPct2 >= 60 ? '#d97706' : '#dc2626';
 
-  const completeSummaryHtml = todayTotal === 0
-    ? `<div style="margin-top:12px;background:#fff;border-radius:12px;border:1.5px solid var(--border);padding:12px 16px;font-size:12px;color:var(--repose-grey)">No loads scheduled for today in Load Plan — sync the load plan to update.</div>`
+  const completeSummaryHtml = _qcTotal === 0
+    ? `<div style="margin-top:12px;background:#fff;border-radius:12px;border:1.5px solid var(--border);padding:12px 16px;font-size:12px;color:var(--repose-grey)">No loads scheduled for ${_qcPeriodLabel} in Load Plan — sync the load plan to update.</div>`
     : `<div style="margin-top:12px;background:#fff;border-radius:12px;border:1.5px solid var(--border);padding:12px 16px;display:flex;align-items:center;gap:16px">
       <div style="flex:1">
         <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--repose-grey);margin-bottom:6px">Loads Cleared for Dispatch</div>
         <div class="prog-bar" style="margin:0;height:8px;border-radius:4px"><div class="prog-fill" style="width:${qcPct2}%;background:${qcBarColor};border-radius:4px"></div></div>
-        <div style="font-size:11px;color:var(--repose-grey);margin-top:5px">${qcDoneCount} of ${newChairTotal} new chairs QC'd · ${todayTotal} loads total today</div>
+        <div style="font-size:11px;color:var(--repose-grey);margin-top:5px">${qcDoneCount} of ${newChairTotal} new chairs QC'd · ${_qcTotal} loads total ${_qcPeriodLabel}</div>
       </div>
       <div style="text-align:right;flex-shrink:0">
         <div style="font-size:32px;font-weight:800;color:${qcBarColor};line-height:1">${qcPct2}%</div>
@@ -8687,6 +8693,7 @@ const TEAM_NAME_MAP = {
   'stores': 'Stores', 'stores room': 'Stores',
   'qc': 'QC', 'quality control': 'QC',
   'development': 'Development',
+  'admin': 'Admin',
 };
 function normaliseTeam(raw) {
   return TEAM_NAME_MAP[(raw||'').toLowerCase().trim()] || (raw||'').trim();
@@ -10095,7 +10102,7 @@ async function sendOpenCPARDigest() {
     const raisedDate = item => { const f = item.fields||{}; return f.RaisedAt ? new Date(f.RaisedAt) : (item.createdDateTime ? new Date(item.createdDateTime) : null); };
 
     const rowColour = (s) => s === 'red' ? '#fff8f8' : s === 'amber' ? '#fffbeb' : '#f0f7ff';
-    const statusLabel = (s) => s === 'red' ? '🔴 4+ days' : s === 'amber' ? '🟡 48h+' : '🔵 Open';
+    const statusLabel = (s) => s === 'red' ? '🔴 4+ days' : s === 'amber' ? '🟡 48h+' : s === 'closed' ? '✅ Closed' : '🔵 Open';
 
     const tableHead = `<thead><tr style="background:#1e3a5f;color:#fff">
       <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Ref</th>
