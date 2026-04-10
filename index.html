@@ -1821,7 +1821,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <button class="nav-item" data-view="production" onclick="navTo('production')">Production Plan</button>
         <button class="nav-item" data-view="stats" onclick="navTo('stats')">Stats</button>
         <button class="nav-item" data-view="issues" id="issues-tab-btn" onclick="navTo('issues')">Issues</button>
-        <button class="nav-item" data-view="safety" onclick="navTo('safety')">Safety</button>
+        <button class="nav-item" data-view="safety" onclick="navTo('safety')">Near Misses</button>
         <!-- Order Check — work in progress, hidden until ready -->
         <!-- <button class="nav-item" data-view="ordercheck" onclick="navTo('ordercheck')">Order Check</button> -->
       </div>
@@ -10371,19 +10371,19 @@ function renderNearMisses() {
     }
   }
 
-  // Build area chips dynamically from unique locations
+  // Build area chips dynamically from unique locations — deduplicate by normalised label
+  const normArea = a => (a || '').replace(/^Repose\s*-\s*/i, '').trim();
   const areaBar = document.getElementById('safety-area-bar');
   if (areaBar) {
-    const areas = [...new Set(NMS_ITEMS.map(i => i.fields?.Locationofissue).filter(Boolean))].sort();
+    const uniqueLabels = [...new Set(NMS_ITEMS.map(i => normArea(i.fields?.Locationofissue)).filter(Boolean))].sort();
     const existingChips = areaBar.querySelectorAll('.safety-chip:not(#nms-area-all)');
     existingChips.forEach(c => c.remove());
-    areas.forEach(area => {
-      const label = area.replace(/^Repose\s*-\s*/i, '');
-      const openCount = NMS_ITEMS.filter(i => i.fields?.Locationofissue === area && !i.fields?.NearMissclosedout_x003f_).length;
+    uniqueLabels.forEach(label => {
+      const openCount = NMS_ITEMS.filter(i => normArea(i.fields?.Locationofissue) === label && !i.fields?.NearMissclosedout_x003f_).length;
       const btn = document.createElement('button');
-      btn.className = 'safety-chip' + (nmsAreaFilter === area ? ' active' : '');
+      btn.className = 'safety-chip' + (nmsAreaFilter === label ? ' active' : '');
       btn.innerHTML = openCount > 0 ? `${label} <span style="background:rgba(220,38,38,.15);color:#dc2626;border-radius:10px;padding:1px 6px;font-size:11px;font-weight:700;margin-left:2px">${openCount}</span>` : label;
-      btn.onclick = () => setNmsAreaFilter(area, btn);
+      btn.onclick = () => setNmsAreaFilter(label, btn);
       areaBar.appendChild(btn);
     });
     const allBtn = document.getElementById('nms-area-all');
@@ -10392,7 +10392,7 @@ function renderNearMisses() {
 
   // Apply filters
   let items = NMS_ITEMS;
-  if (nmsAreaFilter)                items = items.filter(i => i.fields?.Locationofissue === nmsAreaFilter);
+  if (nmsAreaFilter)                items = items.filter(i => normArea(i.fields?.Locationofissue) === nmsAreaFilter);
   if (nmsStatusFilter === 'open')   items = items.filter(i => !i.fields?.NearMissclosedout_x003f_);
   if (nmsStatusFilter === 'closed') items = items.filter(i =>  i.fields?.NearMissclosedout_x003f_);
   if (nmsStatusFilter === 'overdue') items = items.filter(i => nmsFailedIds.has(i.id));
