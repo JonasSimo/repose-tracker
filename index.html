@@ -1792,6 +1792,67 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .tm-empty         { padding:32px; text-align:center; font-size:14px; color:var(--text2); }
 .tm-loading       { padding:32px; text-align:center; font-size:14px; color:var(--text2); }
 .tm-footer        { flex-shrink:0; padding:8px 14px; font-size:12px; color:var(--text2); border-top:1px solid var(--border); background:var(--bg2); }
+/* ── WOODMILL DASHBOARD ──────────────────────── */
+.wm-wrap        { display:flex; flex-direction:column; height:100%; overflow:hidden; }
+.wm-toolbar     { background:var(--bg2); border-bottom:1px solid var(--border); padding:10px 14px; display:flex; flex-direction:column; gap:8px; flex-shrink:0; }
+.wm-toolbar-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.wm-chips       { display:flex; gap:6px; }
+.wm-chip        { font-family:inherit; font-size:12px; font-weight:600; padding:5px 12px; border-radius:20px; border:1.5px solid var(--border2); background:var(--bg3); color:var(--text2); cursor:pointer; }
+.wm-chip:hover  { background:var(--bg4,#2a2a3a); color:var(--text1); }
+.wm-chip.active { background:var(--repose-blue); color:#fff; border-color:var(--repose-blue); }
+.wm-nav         { display:flex; align-items:center; gap:8px; margin-left:auto; }
+.wm-nav-btn     { font-family:inherit; font-size:16px; padding:4px 10px; border-radius:7px; border:1.5px solid var(--border2); background:var(--bg3); color:var(--text2); cursor:pointer; line-height:1; }
+.wm-nav-btn:hover { color:var(--text1); background:var(--bg4,#2a2a3a); }
+.wm-nav-label   { font-size:13px; font-weight:600; color:var(--text1); min-width:120px; text-align:center; }
+.wm-refresh-btn { font-family:inherit; font-size:13px; padding:4px 9px; border-radius:7px; border:1.5px solid var(--border2); background:var(--bg3); color:var(--text2); cursor:pointer; }
+.wm-body        { flex:1; overflow:auto; padding:12px 14px 20px; }
+.wm-legend      { display:flex; gap:14px; flex-wrap:wrap; margin-bottom:10px; }
+.wm-legend-item { display:flex; align-items:center; gap:5px; font-size:11px; color:var(--text2); }
+.wm-dot         { width:10px; height:10px; border-radius:3px; flex-shrink:0; }
+.wm-dot-pass    { background:#22c55e; }
+.wm-dot-fail    { background:#f59e0b; }
+.wm-dot-none    { background:var(--bg4,#2a2a3a); border:1px solid var(--border2); }
+.wm-table       { width:100%; border-collapse:collapse; min-width:500px; }
+.wm-table th    { font-size:11px; font-weight:700; color:var(--text2); text-transform:uppercase; letter-spacing:.05em; padding:5px 8px; border-bottom:1.5px solid var(--border); text-align:center; white-space:nowrap; }
+.wm-table th.wm-th-name { text-align:left; min-width:130px; }
+.wm-table td    { padding:5px 8px; border-bottom:1px solid var(--border); vertical-align:middle; }
+.wm-table tr.wm-group-hdr td { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--repose-blue); background:var(--bg2); padding:8px 8px 4px; border-bottom:none; }
+.wm-machine-name { font-size:13px; color:var(--text1); }
+.wm-cell        { display:flex; align-items:center; justify-content:center; }
+.wm-dot-cell    { width:28px; height:28px; border-radius:6px; cursor:pointer; transition:transform .1s; }
+.wm-dot-cell:hover { transform:scale(1.15); }
+.wm-dot-cell.pass { background:#22c55e; }
+.wm-dot-cell.fail { background:#f59e0b; }
+.wm-dot-cell.none { background:var(--bg3); border:1.5px solid var(--border2); }
+.wm-dot-cell.today-col { box-shadow:0 0 0 2px var(--repose-blue); }
+.wm-month-cell  { width:18px; height:18px; border-radius:4px; cursor:pointer; }
+.wm-month-cell.pass { background:#22c55e; }
+.wm-month-cell.fail { background:#f59e0b; }
+.wm-month-cell.none { background:var(--bg3); border:1px solid var(--border2); }
+.wm-loading     { padding:32px; text-align:center; font-size:14px; color:var(--text2); }
+.wm-footer      { flex-shrink:0; padding:6px 14px; font-size:11px; color:var(--text2); border-top:1px solid var(--border); background:var(--bg2); }
+
+/* ── Woodmill detail modal ───────────────────── */
+.wm-modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center; z-index:800; }
+.wm-modal-box   { background:var(--bg2); border-radius:12px; width:min(560px,95vw); max-height:82vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 8px 40px rgba(0,0,0,.5); }
+.wm-modal-head  { padding:14px 16px 12px; border-bottom:1px solid var(--border); display:flex; align-items:flex-start; gap:10px; flex-shrink:0; }
+.wm-modal-title { font-size:15px; font-weight:700; color:var(--text1); flex:1; }
+.wm-modal-sub   { font-size:11px; color:var(--text2); margin-top:3px; }
+.wm-modal-close { width:28px; height:28px; border-radius:50%; border:none; background:var(--bg4,#2a2a3a); font-size:14px; cursor:pointer; color:var(--text2); flex-shrink:0; }
+.wm-modal-body  { flex:1; overflow-y:auto; padding:14px 16px; }
+.wm-insp-card   { background:var(--bg3); border-radius:8px; padding:12px 14px; margin-bottom:10px; }
+.wm-insp-meta   { font-size:12px; color:var(--text2); margin-bottom:8px; display:flex; gap:10px; flex-wrap:wrap; }
+.wm-insp-meta strong { color:var(--text1); }
+.wm-insp-badge  { font-size:11px; font-weight:700; padding:2px 8px; border-radius:10px; }
+.wm-badge-pass  { background:#14532d; color:#4ade80; }
+.wm-badge-fail  { background:#451a03; color:#fb923c; }
+.wm-checks-list { display:flex; flex-direction:column; gap:4px; }
+.wm-check-row   { display:flex; align-items:center; gap:8px; font-size:12px; }
+.wm-check-icon  { font-size:12px; flex-shrink:0; }
+.wm-check-text  { color:var(--text2); }
+.wm-check-text.fail { color:#fb923c; }
+.wm-no-insp     { padding:24px; text-align:center; font-size:13px; color:var(--text2); }
+
 /* ── Timing detail modal ─────────────────────── */
 .tm-detail-overlay { position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center; z-index:800; }
 .tm-detail-box    { background:var(--bg2); border-radius:12px; width:min(640px,95vw); max-height:82vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 8px 40px rgba(0,0,0,.5); }
@@ -1966,6 +2027,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <button class="nav-item" data-view="stats" onclick="navTo('stats')">Stats</button>
         <button class="nav-item" data-view="issues" id="issues-tab-btn" onclick="navTo('issues')">CPARs</button>
         <button class="nav-item" data-view="timing" id="timing-tab-btn" onclick="navTo('timing')" style="display:none">Job Timing</button>
+        <button class="nav-item" data-view="woodmill" id="woodmill-tab-btn" onclick="navTo('woodmill')" style="display:none">Woodmill</button>
         <button class="nav-item" data-view="safety" onclick="navTo('safety')">Near Misses</button>
         <button class="nav-item" data-view="complaints" onclick="navTo('complaints')">Complaints</button>
         <!-- Order Check — work in progress, hidden until ready -->
@@ -2395,6 +2457,38 @@ document.addEventListener('DOMContentLoaded', () => {
       <div id="tm-loading" class="tm-loading" style="display:none">Loading…</div>
     </div>
     <div id="tm-footer" class="tm-footer"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     VIEW: WOODMILL INSPECTIONS
+════════════════════════════════════════════════ -->
+<div class="view" id="view-woodmill">
+  <div class="wm-wrap">
+    <div class="wm-toolbar">
+      <div class="wm-toolbar-row">
+        <div class="wm-chips" id="wm-view-chips">
+          <button class="wm-chip active" onclick="wmSetView(this,'week')">Week</button>
+          <button class="wm-chip"        onclick="wmSetView(this,'month')">Month</button>
+        </div>
+        <button class="wm-refresh-btn" onclick="wmOnOpen(true)" title="Refresh">↻</button>
+        <div class="wm-nav" id="wm-nav">
+          <button class="wm-nav-btn" onclick="wmStepBack()">‹</button>
+          <span class="wm-nav-label" id="wm-nav-label"></span>
+          <button class="wm-nav-btn" onclick="wmStepForward()">›</button>
+        </div>
+      </div>
+      <div class="wm-legend">
+        <div class="wm-legend-item"><div class="wm-dot wm-dot-pass"></div>All pass</div>
+        <div class="wm-legend-item"><div class="wm-dot wm-dot-fail"></div>Has failures</div>
+        <div class="wm-legend-item"><div class="wm-dot wm-dot-none"></div>Not inspected</div>
+      </div>
+    </div>
+    <div class="wm-body">
+      <div id="wm-loading" class="wm-loading" style="display:none">Loading…</div>
+      <div id="wm-grid"></div>
+    </div>
+    <div id="wm-footer" class="wm-footer"></div>
   </div>
 </div>
 
@@ -2844,7 +2938,7 @@ let ppAutoSyncInterval = null;
 // ═══════════════════════════════════════════════
 // ROUTING
 // ═══════════════════════════════════════════════
-const NAV_LABELS = { 'team-select':'Team View','tracker':'Team View','overview':'Load Plan','loadsheet':'Delivery','production':'Production Plan','stats':'Stats','issues':'Issues','safety':'Safety','ordercheck':'Order Check','timing':'Job Timing','complaints':'Complaints' };
+const NAV_LABELS = { 'team-select':'Team View','tracker':'Team View','overview':'Load Plan','loadsheet':'Delivery','production':'Production Plan','stats':'Stats','issues':'Issues','safety':'Safety','ordercheck':'Order Check','timing':'Job Timing','complaints':'Complaints','woodmill':'Woodmill' };
 function showView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   const activeView = name === 'tracker' ? 'team-select' : name;
@@ -2867,6 +2961,7 @@ function showView(name) {
   if (name === 'ordercheck')  { ocOnOpen(); }
   if (name === 'timing')      { tmOnOpen(); }
   if (name === 'complaints')  { cpOnOpen(); }
+  if (name === 'woodmill')    { wmOnOpen(); }
 }
 
 function toggleNavMenu() {
@@ -5764,6 +5859,8 @@ function updateAuthBadge() {
     const TIMING_ALLOWED = new Set(['jonas.simonaitis@reposefurniture.co.uk','richard.semmens@reposefurniture.co.uk']);
     const timingBtn = document.getElementById('timing-tab-btn');
     if (timingBtn) timingBtn.style.display = TIMING_ALLOWED.has(graphAccount.username.toLowerCase()) ? '' : 'none';
+    const woodmillBtn = document.getElementById('woodmill-tab-btn');
+    if (woodmillBtn) woodmillBtn.style.display = TIMING_ALLOWED.has(graphAccount.username.toLowerCase()) ? '' : 'none';
     cpIsManager = COMPLAINTS_MANAGERS.has(graphAccount.username.toLowerCase());
   } else {
     badge.innerHTML = `<span class="auth-dot off"></span><span class="auth-name">Sign in</span>`;
@@ -10768,6 +10865,20 @@ async function closeOutNearMiss(itemId) {
   <div class="spec-card" id="specCard"></div>
 </div>
 
+<!-- Woodmill Inspection Detail Modal -->
+<div id="wm-modal" class="wm-modal-overlay" style="display:none" onclick="if(event.target===this)wmCloseModal()">
+  <div class="wm-modal-box">
+    <div class="wm-modal-head">
+      <div style="flex:1">
+        <div class="wm-modal-title" id="wm-modal-title"></div>
+        <div class="wm-modal-sub"   id="wm-modal-sub"></div>
+      </div>
+      <button class="wm-modal-close" onclick="wmCloseModal()">✕</button>
+    </div>
+    <div class="wm-modal-body" id="wm-modal-body"></div>
+  </div>
+</div>
+
 <!-- Timing Detail Modal -->
 <div id="tm-detail-overlay" class="tm-detail-overlay" style="display:none" onclick="if(event.target===this)tmCloseDetail()">
   <div class="tm-detail-box">
@@ -11991,6 +12102,336 @@ async function cpSubmitManagerSignature() {
 function cpExportPdf() {
   window.print();
 }
+
+// ═══════════════════════════════════════════════
+// WOODMILL INSPECTIONS DASHBOARD
+// ═══════════════════════════════════════════════
+
+const WM_QUALITY_SITE  = '/sites/ReposeFurniture-Quality';
+const WM_LIST_ID       = '6edbe08b-b3a2-4693-afb2-e11531bcda7a';
+let _wmSiteId = null;
+
+async function wmGetSiteId() {
+  if (_wmSiteId) return _wmSiteId;
+  const res = await graphGet(`https://graph.microsoft.com/v1.0/sites/${SP_HOST}:${WM_QUALITY_SITE}`);
+  _wmSiteId = res.id;
+  return _wmSiteId;
+}
+
+const WM_MACHINES = [
+  { id:'bandsaw',        name:'Bandsaw',          group:'Saws'     },
+  { id:'panel-saw-1',    name:'Panel Saw 1',       group:'Saws'     },
+  { id:'panel-saw-2',    name:'Panel Saw 2',       group:'Saws'     },
+  { id:'crosscut-saw-1', name:'Crosscut Saw 1',    group:'Saws'     },
+  { id:'crosscut-saw-2', name:'Crosscut Saw 2',    group:'Saws'     },
+  { id:'pillar-drill',   name:'Pillar Drill',      group:'Machines' },
+  { id:'t-nut-1',        name:'T-Nut Machine 1',   group:'Machines' },
+  { id:'t-nut-2',        name:'T-Nut Machine 2',   group:'Machines' },
+  { id:'cnc-1',          name:'CNC Machine 1',     group:'Machines' },
+  { id:'cnc-2',          name:'CNC Machine 2',     group:'Machines' },
+  { id:'sander',         name:'Sander',            group:'Machines' },
+  { id:'bench-a',        name:'Bench A',           group:'Benches'  },
+  { id:'bench-b',        name:'Bench B',           group:'Benches'  },
+  { id:'bench-c',        name:'Bench C',           group:'Benches'  },
+  { id:'bench-d',        name:'Bench D',           group:'Benches'  },
+  { id:'bench-e',        name:'Bench E',           group:'Benches'  },
+];
+
+let wmInspections  = [];
+let wmByMachineDate = {}; // machineId → dateStr(YYYY-MM-DD) → [fields]
+let wmViewMode     = 'week';
+let wmWeekStart    = wmGetMonday(new Date()); // Monday of displayed week/month
+let wmLoaded       = false;
+
+function wmGetMonday(d) {
+  const date = new Date(d);
+  const day  = date.getDay();
+  date.setDate(date.getDate() - (day === 0 ? 6 : day - 1));
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function wmDateStr(d) {
+  return d.toISOString().substring(0, 10);
+}
+
+function wmFormatDay(d) {
+  return d.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
+}
+
+async function wmLoadData() {
+  document.getElementById('wm-loading').style.display = '';
+  try {
+    const siteId = await wmGetSiteId();
+    const items  = await graphGetAll(
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${WM_LIST_ID}/items?$expand=fields&$top=999`
+    );
+    wmInspections   = items;
+    wmByMachineDate = {};
+    for (const item of items) {
+      const f      = item.fields;
+      const mid    = (f.Title || '').trim();
+      const dateStr = f.InspectedAt ? f.InspectedAt.substring(0, 10) : '';
+      if (!mid || !dateStr) continue;
+      if (!wmByMachineDate[mid]) wmByMachineDate[mid] = {};
+      if (!wmByMachineDate[mid][dateStr]) wmByMachineDate[mid][dateStr] = [];
+      wmByMachineDate[mid][dateStr].push(f);
+    }
+    wmLoaded = true;
+  } catch(e) {
+    console.warn('wmLoadData:', e.message);
+  }
+  document.getElementById('wm-loading').style.display = 'none';
+}
+
+async function wmOnOpen(forceRefresh = false) {
+  if (!wmLoaded || forceRefresh) await wmLoadData();
+  wmRender();
+}
+
+function wmSetView(btn, mode) {
+  document.querySelectorAll('#wm-view-chips .wm-chip').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  wmViewMode = mode;
+  wmRender();
+}
+
+function wmStepBack() {
+  if (wmViewMode === 'week') {
+    wmWeekStart.setDate(wmWeekStart.getDate() - 7);
+  } else {
+    wmWeekStart.setMonth(wmWeekStart.getMonth() - 1);
+    wmWeekStart = wmGetMonday(new Date(wmWeekStart.getFullYear(), wmWeekStart.getMonth(), 1));
+  }
+  wmRender();
+}
+
+function wmStepForward() {
+  if (wmViewMode === 'week') {
+    wmWeekStart.setDate(wmWeekStart.getDate() + 7);
+  } else {
+    wmWeekStart = wmGetMonday(new Date(wmWeekStart.getFullYear(), wmWeekStart.getMonth() + 1, 1));
+  }
+  wmRender();
+}
+
+function wmStatus(machineId, dateStr) {
+  const insps = wmByMachineDate[machineId]?.[dateStr];
+  if (!insps || !insps.length) return 'none';
+  return insps.some(i => i.AnyFail) ? 'fail' : 'pass';
+}
+
+function wmRender() {
+  if (wmViewMode === 'week') wmRenderWeek();
+  else wmRenderMonth();
+}
+
+function wmRenderWeek() {
+  const grid    = document.getElementById('wm-grid');
+  const footer  = document.getElementById('wm-footer');
+  const today   = wmDateStr(new Date());
+
+  // Build 5 weekdays (Mon–Fri)
+  const days = [];
+  for (let i = 0; i < 5; i++) {
+    const d = new Date(wmWeekStart);
+    d.setDate(d.getDate() + i);
+    days.push(d);
+  }
+
+  // Nav label
+  const start = days[0], end = days[4];
+  document.getElementById('wm-nav-label').textContent =
+    `${start.toLocaleDateString('en-GB',{day:'numeric',month:'short'})} – ${end.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}`;
+
+  // Build table
+  let html = `<table class="wm-table"><thead><tr>
+    <th class="wm-th-name">Machine</th>
+    ${days.map(d => {
+      const ds = wmDateStr(d);
+      const isToday = ds === today;
+      return `<th style="${isToday?'color:var(--repose-blue)':''}">${d.toLocaleDateString('en-GB',{weekday:'short'})}<br>${d.toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</th>`;
+    }).join('')}
+  </tr></thead><tbody>`;
+
+  let lastGroup = '';
+  for (const m of WM_MACHINES) {
+    if (m.group !== lastGroup) {
+      html += `<tr class="wm-group-hdr"><td colspan="${days.length + 1}">${m.group}</td></tr>`;
+      lastGroup = m.group;
+    }
+    html += `<tr><td class="wm-machine-name">${m.name}</td>`;
+    for (const d of days) {
+      const ds     = wmDateStr(d);
+      const status = wmStatus(m.id, ds);
+      const isToday = ds === today;
+      html += `<td><div class="wm-cell"><div class="wm-dot-cell ${status}${isToday?' today-col':''}"
+        data-mid="${m.id}" data-date="${ds}" data-name="${m.name}"
+        onclick="wmOpenModal(this.dataset.mid,this.dataset.date,this.dataset.name)"
+        title="${m.name} · ${d.toLocaleDateString('en-GB')}"></div></div></td>`;
+    }
+    html += `</tr>`;
+  }
+  html += `</tbody></table>`;
+  grid.innerHTML = html;
+
+  // Footer stats
+  const totalCells  = WM_MACHINES.length * 5;
+  const passCells   = WM_MACHINES.reduce((n, m) => n + days.filter(d => wmStatus(m.id, wmDateStr(d)) === 'pass').length, 0);
+  const failCells   = WM_MACHINES.reduce((n, m) => n + days.filter(d => wmStatus(m.id, wmDateStr(d)) === 'fail').length, 0);
+  footer.textContent = `${passCells} inspected · ${failCells} with failures · ${totalCells - passCells - failCells} missing this week`;
+}
+
+function wmRenderMonth() {
+  const grid   = document.getElementById('wm-grid');
+  const footer = document.getElementById('wm-footer');
+  const today  = wmDateStr(new Date());
+  const year   = wmWeekStart.getFullYear();
+  const month  = wmWeekStart.getMonth();
+
+  document.getElementById('wm-nav-label').textContent =
+    new Date(year, month, 1).toLocaleDateString('en-GB', { month:'long', year:'numeric' });
+
+  // Collect all Mon-Fri days in this month
+  const days = [];
+  const d = new Date(year, month, 1);
+  while (d.getMonth() === month) {
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6) days.push(new Date(d));
+    d.setDate(d.getDate() + 1);
+  }
+
+  // Group days by week
+  const weeks = [];
+  let week = [];
+  for (const day of days) {
+    if (day.getDay() === 1 && week.length) { weeks.push(week); week = []; }
+    week.push(day);
+  }
+  if (week.length) weeks.push(week);
+
+  let html = `<table class="wm-table"><thead><tr>
+    <th class="wm-th-name">Machine</th>
+    ${weeks.map(w => `<th style="font-size:10px">Wk ${isoWeekNumber(w[0])}<br>${w[0].toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</th>`).join('')}
+  </tr></thead><tbody>`;
+
+  let lastGroup = '';
+  for (const m of WM_MACHINES) {
+    if (m.group !== lastGroup) {
+      html += `<tr class="wm-group-hdr"><td colspan="${weeks.length + 1}">${m.group}</td></tr>`;
+      lastGroup = m.group;
+    }
+    html += `<tr><td class="wm-machine-name">${m.name}</td>`;
+    for (const w of weeks) {
+      const dayStatuses = w.map(day => wmStatus(m.id, wmDateStr(day)));
+      const pass = dayStatuses.filter(s => s === 'pass').length;
+      const fail = dayStatuses.filter(s => s === 'fail').length;
+      const none = dayStatuses.filter(s => s === 'none').length;
+      const overallStatus = fail > 0 ? 'fail' : pass > 0 ? 'pass' : 'none';
+      const label = `${pass}/${w.length} days`;
+      html += `<td style="text-align:center">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
+          <div class="wm-dot-cell wm-month-cell ${overallStatus}"
+            data-mid="${m.id}" data-week="${wmDateStr(w[0])}" data-name="${m.name}"
+            onclick="wmOpenWeekModal(this.dataset.mid,this.dataset.week,this.dataset.name)"
+            title="${m.name} · Wk ${isoWeekNumber(w[0])}"></div>
+          <span style="font-size:9px;color:var(--text2)">${label}</span>
+        </div>
+      </td>`;
+    }
+    html += `</tr>`;
+  }
+  html += `</tbody></table>`;
+  grid.innerHTML = html;
+
+  const totalDays  = WM_MACHINES.length * days.length;
+  const passDays   = WM_MACHINES.reduce((n, m) => n + days.filter(d => wmStatus(m.id, wmDateStr(d)) === 'pass').length, 0);
+  const failDays   = WM_MACHINES.reduce((n, m) => n + days.filter(d => wmStatus(m.id, wmDateStr(d)) === 'fail').length, 0);
+  footer.textContent = `${new Date(year,month,1).toLocaleDateString('en-GB',{month:'long',year:'numeric'})} · ${passDays} inspected · ${failDays} with failures · ${totalDays-passDays-failDays} missing`;
+}
+
+function wmOpenModal(machineId, dateStr, machineName) {
+  const insps = wmByMachineDate[machineId]?.[dateStr] || [];
+  const date  = new Date(dateStr).toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+
+  document.getElementById('wm-modal-title').textContent = machineName;
+  document.getElementById('wm-modal-sub').textContent   = date;
+
+  const body = document.getElementById('wm-modal-body');
+  if (!insps.length) {
+    body.innerHTML = `<div class="wm-no-insp">No inspection recorded for this date</div>`;
+  } else {
+    body.innerHTML = insps.map(f => {
+      const time    = f.InspectedAt ? new Date(f.InspectedAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '';
+      const tool    = f.ToolName ? ` · ${f.ToolName}` : '';
+      const badge   = f.AnyFail
+        ? `<span class="wm-insp-badge wm-badge-fail">⚠ Has Failures</span>`
+        : `<span class="wm-insp-badge wm-badge-pass">✓ Passed</span>`;
+      let checks = '';
+      try {
+        const items = JSON.parse(f.ChecksDetail || '[]');
+        checks = `<div class="wm-checks-list">${items.map(c => `
+          <div class="wm-check-row">
+            <span class="wm-check-icon">${c.result === 'pass' ? '✓' : '✗'}</span>
+            <span class="wm-check-text ${c.result === 'fail' ? 'fail' : ''}">${escHtml(c.label)}</span>
+          </div>`).join('')}</div>`;
+      } catch {}
+      return `<div class="wm-insp-card">
+        <div class="wm-insp-meta">
+          <span><strong>${escHtml(f.InspectorName || '')}</strong></span>
+          <span>${time}${tool}</span>
+          ${badge}
+        </div>
+        ${checks}
+        ${f.Comments ? `<div style="margin-top:8px;font-size:12px;color:var(--text2);border-top:1px solid var(--border);padding-top:6px">💬 ${escHtml(f.Comments)}</div>` : ''}
+      </div>`;
+    }).join('');
+  }
+
+  document.getElementById('wm-modal').style.display = '';
+}
+
+function wmOpenWeekModal(machineId, weekStartStr, machineName) {
+  // Show all inspections for this machine in that week (Mon-Fri)
+  const weekStart = new Date(weekStartStr);
+  const days = [];
+  for (let i = 0; i < 5; i++) {
+    const d = new Date(weekStart);
+    d.setDate(d.getDate() + i);
+    days.push(d);
+  }
+  const label = `Week ${isoWeekNumber(weekStart)} · ${weekStart.toLocaleDateString('en-GB',{day:'numeric',month:'short'})}`;
+  document.getElementById('wm-modal-title').textContent = machineName;
+  document.getElementById('wm-modal-sub').textContent   = label;
+
+  const body = document.getElementById('wm-modal-body');
+  let html = '';
+  for (const d of days) {
+    const ds    = wmDateStr(d);
+    const insps = wmByMachineDate[machineId]?.[ds] || [];
+    const dayLabel = d.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
+    if (!insps.length) {
+      html += `<div style="font-size:12px;color:var(--text2);padding:6px 0;border-bottom:1px solid var(--border)">${dayLabel} — not inspected</div>`;
+    } else {
+      insps.forEach(f => {
+        const time = f.InspectedAt ? new Date(f.InspectedAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '';
+        const badge = f.AnyFail ? '⚠' : '✓';
+        html += `<div style="font-size:12px;padding:6px 0;border-bottom:1px solid var(--border);display:flex;gap:8px">
+          <span style="color:var(--text2);min-width:80px">${dayLabel}</span>
+          <span>${escHtml(f.InspectorName||'')} · ${time}</span>
+          <span>${badge}</span>
+        </div>`;
+      });
+    }
+  }
+  body.innerHTML = html || `<div class="wm-no-insp">No inspections this week</div>`;
+  document.getElementById('wm-modal').style.display = '';
+}
+
+function wmCloseModal() {
+  document.getElementById('wm-modal').style.display = 'none';
+}
+
 </script>
 </body>
 </html>
