@@ -2214,6 +2214,45 @@ document.addEventListener('DOMContentLoaded', () => {
   </div>
 </div>
 
+<!-- ═══════════════════════════════════════════════
+     VIEW: JOB TIMING
+════════════════════════════════════════════════ -->
+<div class="view" id="view-timing">
+  <div class="tm-wrap">
+    <div class="tm-toolbar">
+      <div class="tm-chips" id="tm-team-chips">
+        <button class="tm-chip active" data-team="Sewing"      onclick="tmSetTeam(this,'Sewing')">Sewing</button>
+        <button class="tm-chip"        data-team="Assembly"    onclick="tmSetTeam(this,'Assembly')">Assembly</button>
+        <button class="tm-chip"        data-team="Cutting"     onclick="tmSetTeam(this,'Cutting')">Cutting</button>
+        <button class="tm-chip"        data-team="Upholstery"  onclick="tmSetTeam(this,'Upholstery')">Upholstery</button>
+      </div>
+      <div class="tm-chips" id="tm-period-chips">
+        <button class="tm-chip"        data-period="today" onclick="tmSetPeriod(this,'today')">Today</button>
+        <button class="tm-chip active" data-period="week"  onclick="tmSetPeriod(this,'week')">This Week</button>
+        <button class="tm-chip"        data-period="month" onclick="tmSetPeriod(this,'month')">This Month</button>
+        <button class="tm-chip"        data-period="all"   onclick="tmSetPeriod(this,'all')">All Time</button>
+      </div>
+    </div>
+    <div class="tm-table-wrap">
+      <table class="tm-table" id="tm-table">
+        <thead>
+          <tr>
+            <th class="tm-th-model">Model</th>
+            <th class="tm-th-num">Jobs</th>
+            <th class="tm-th-num">Avg</th>
+            <th class="tm-th-num">Min</th>
+            <th class="tm-th-num">Max</th>
+          </tr>
+        </thead>
+        <tbody id="tm-tbody"></tbody>
+      </table>
+      <div id="tm-empty" class="tm-empty" style="display:none">No timed completions yet</div>
+      <div id="tm-loading" class="tm-loading" style="display:none">Loading…</div>
+    </div>
+    <div id="tm-footer" class="tm-footer"></div>
+  </div>
+</div>
+
 <div class="toasts" id="toasts"></div>
 
 <script>
