@@ -11252,7 +11252,7 @@ function tmRender() {
       ? `${r.count} <span style="opacity:.5;font-size:10px">(${cancelledCount} excluded)</span>`
       : `${r.count}`;
     return `
-    <tr class="tm-row-clickable" onclick="tmOpenDetail(${JSON.stringify(r.model)})">
+    <tr class="tm-row-clickable" data-model="${escHtml(r.model)}" onclick="tmOpenDetail(this.dataset.model)">
       <td>${escHtml(r.model)}</td>
       <td class="num">${jobLabel}</td>
       <td class="num">${tmFormatDuration(r.avg)}</td>
