@@ -1909,9 +1909,9 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
   .cp-back-btn, .cp-save-btn, .cp-pdf-btn, .cp-refresh-btn,
   .cp-chip, .cp-add-row-btn, .cp-rm-row-btn,
   .cp-sig-btns, #cp-filter-chips { display:none !important; }
-  .cp-print-logo-bar { display:flex !important; align-items:center; justify-content:space-between; background:#0e023a; padding:8pt 12pt; margin-bottom:10pt; border-radius:4pt; }
-  .cp-print-logo-bar img { height:28pt; width:auto; filter:brightness(0) invert(1); }
-  .cp-print-logo-bar span { color:#fff; font-size:10pt; font-weight:600; letter-spacing:.04em; }
+  .cp-print-logo-bar { display:flex !important; align-items:center; justify-content:space-between; border-bottom:2pt solid #14a1e9; padding-bottom:8pt; margin-bottom:10pt; }
+  .cp-print-logo-bar img { height:36pt; width:auto; }
+  .cp-print-logo-bar span { color:#0e023a; font-size:10pt; font-weight:700; letter-spacing:.04em; }
   .cp-section-ta { border:1px solid #ccc; min-height:40px; }
   .cp-sig-canvas { display:none; }
   .cp-sig-img    { max-width:200px; }
@@ -2395,33 +2395,6 @@ document.addEventListener('DOMContentLoaded', () => {
       <div id="tm-loading" class="tm-loading" style="display:none">Loading…</div>
     </div>
     <div id="tm-footer" class="tm-footer"></div>
-  </div>
-  <!-- Timing detail modal -->
-  <div id="tm-detail-overlay" class="tm-detail-overlay" style="display:none" onclick="if(event.target===this)tmCloseDetail()">
-    <div class="tm-detail-box">
-      <div class="tm-detail-head">
-        <div style="flex:1">
-          <div class="tm-detail-title" id="tm-detail-title"></div>
-          <div class="tm-detail-sub"   id="tm-detail-sub"></div>
-        </div>
-        <button class="tm-detail-close" onclick="tmCloseDetail()">✕</button>
-      </div>
-      <div class="tm-detail-body">
-        <table class="tm-detail-tbl">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>REP</th>
-              <th class="num">Start</th>
-              <th class="num">Done</th>
-              <th class="num">Duration</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody id="tm-detail-tbody"></tbody>
-        </table>
-      </div>
-    </div>
   </div>
 </div>
 
@@ -10795,6 +10768,34 @@ async function closeOutNearMiss(itemId) {
   <div class="spec-card" id="specCard"></div>
 </div>
 
+<!-- Timing Detail Modal -->
+<div id="tm-detail-overlay" class="tm-detail-overlay" style="display:none" onclick="if(event.target===this)tmCloseDetail()">
+  <div class="tm-detail-box">
+    <div class="tm-detail-head">
+      <div style="flex:1">
+        <div class="tm-detail-title" id="tm-detail-title"></div>
+        <div class="tm-detail-sub"   id="tm-detail-sub"></div>
+      </div>
+      <button class="tm-detail-close" onclick="tmCloseDetail()">✕</button>
+    </div>
+    <div class="tm-detail-body">
+      <table class="tm-detail-tbl">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>REP</th>
+            <th class="num">Start</th>
+            <th class="num">Done</th>
+            <th class="num">Duration</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="tm-detail-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <!-- CPAR Form Modal -->
 <div id="cpar-modal" class="cpar-modal-overlay" style="display:none" onclick="if(event.target===this)closeCPARModal()">
   <div class="cpar-modal-box" onclick="event.stopPropagation()">
@@ -11719,7 +11720,7 @@ function cpRenderForm(c) {
       <button class="cp-pdf-btn" onclick="cpExportPdf()">⬇ Export PDF</button>
     </div>
     <div class="cp-print-logo-bar" style="display:none">
-      <img src="./Repose_RGB_logo_WO_with_strapline_1500pxW.png" alt="Repose Furniture">
+      <img src="./Repose_RGB_logo_Colour_with_strapline_1500pxW.png" alt="Repose Furniture">
       <span>Customer Complaint Investigation</span>
     </div>
     <div class="cp-form-title">Issue Resolution Process — PHCIRP</div>
