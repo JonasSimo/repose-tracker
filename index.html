@@ -11705,8 +11705,8 @@ function cpRenderForm(c) {
   const sectionsHtml = [1,2,3,4,5,6,7].map(n => `
     <div class="cp-section">
       <div class="cp-section-title">${n}. ${SECTION_LABELS[n]}</div>
-      <textarea class="cp-section-ta" id="cp-f-s${n}"${ro}>${escHtml(inv['Section'+n]||'')}</textarea>
       ${n === 4 ? cpRenderFiveWhys(fiveWhys, editable) : ''}
+      <textarea class="cp-section-ta" id="cp-f-s${n}"${ro}>${escHtml(inv['Section'+n]||'')}</textarea>
     </div>`).join('');
 
   const actionsHeader  = editable
