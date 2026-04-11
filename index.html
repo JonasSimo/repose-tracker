@@ -11277,6 +11277,64 @@ async function cpOnOpen() {
   }
   cpRenderList();
 }
+
+function cpOpenAssignModal(ticketNo) {
+  cpActiveTicket = ticketNo;
+  document.getElementById('cp-assign-ticket').textContent = ticketNo;
+  document.getElementById('cp-assign-name').value  = '';
+  document.getElementById('cp-assign-email').value = '';
+  document.getElementById('cp-assign-modal').style.display = '';
+}
+
+function cpCloseAssignModal() {
+  document.getElementById('cp-assign-modal').style.display = 'none';
+  cpActiveTicket = null;
+}
+
+async function cpAssignInvestigator() {
+  const name  = document.getElementById('cp-assign-name').value.trim();
+  const email = document.getElementById('cp-assign-email').value.trim().toLowerCase();
+  if (!name)  { toast('Investigator name is required', 'e'); return; }
+  if (!email) { toast('Investigator email is required', 'e'); return; }
+  if (!cpActiveTicket) return;
+
+  const today  = new Date();
+  const dd     = String(today.getDate()).padStart(2, '0');
+  const mm     = String(today.getMonth() + 1).padStart(2, '0');
+  const yyyy   = today.getFullYear();
+  const dateStr = `${dd}/${mm}/${yyyy}`;
+
+  try {
+    const siteId = await getSpSiteId();
+    const listId = await getListIdByName('ComplaintInvestigations');
+    await graphPost(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`, {
+      fields: {
+        TicketNo:              cpActiveTicket,
+        Status:                'InProgress',
+        InvestigatorName:      name,
+        InvestigatorEmail:     email,
+        AssignedDate:          dateStr,
+        ConcernType:           '',
+        ReportedBy:            '',
+        Section1:              '', Section2: '', Section3: '', Section4: '',
+        Section5:              '', Section6: '', Section7: '',
+        FiveWhys:              JSON.stringify({
+          why1:'', why2:'', why3:'', why4:'', why5:'',
+          causes:[['','','',''],['','','',''],['','','',''],['','','',''],['','','','']]
+        }),
+        ActionsLog:            JSON.stringify([]),
+        InvestigatorSignature: '', InvestigatorSignedDate: '',
+        ManagerSignature:      '', ManagerSignedDate:      '',
+        ClosedDate:            '',
+      }
+    });
+    toast('Investigator assigned');
+    cpCloseAssignModal();
+    await cpOnOpen(); // reload list
+  } catch (e) {
+    toast('Error assigning investigator: ' + e.message, 'e');
+  }
+}
 </script>
 </body>
 </html>
