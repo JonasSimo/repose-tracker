@@ -10865,8 +10865,96 @@ function tmFormatDuration(min) {
   return m === 0 ? `${h}h` : `${h}h ${m}m`;
 }
 
-// Timing tab — stub (full implementation in later task)
-function tmOnOpen() {}
+function tmSetTeam(btn, team) {
+  document.querySelectorAll('#tm-team-chips .tm-chip').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  tmActiveTeam = team;
+  tmRender();
+}
+
+function tmSetPeriod(btn, period) {
+  document.querySelectorAll('#tm-period-chips .tm-chip').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  tmActivePeriod = period;
+  tmRender();
+}
+
+async function tmOnOpen() {
+  if (!STATS_COMPLETIONS.length) {
+    document.getElementById('tm-loading').style.display = '';
+    document.getElementById('tm-empty').style.display   = 'none';
+    document.getElementById('tm-tbody').innerHTML        = '';
+    document.getElementById('tm-footer').textContent     = '';
+    await loadStatsData();
+    document.getElementById('tm-loading').style.display = 'none';
+  }
+  tmRender();
+}
+
+function tmRender() {
+  const tbody   = document.getElementById('tm-tbody');
+  const empty   = document.getElementById('tm-empty');
+  const footer  = document.getElementById('tm-footer');
+
+  // Filter completions: correct team, correct period, has StartTime and Model, IsComplete
+  const records = STATS_COMPLETIONS.filter(c => {
+    const f = c.fields;
+    if (!f.IsComplete) return false;
+    if (!f.StartTime || !f.Model) return false;
+    // For Upholstery combine all sub-teams: Team field is 'Upholstery'
+    if (tmActiveTeam === 'Upholstery') {
+      if (f.Team !== 'Upholstery') return false;
+    } else {
+      if (f.Team !== tmActiveTeam) return false;
+    }
+    return tmInPeriod(f.CompletedDate);
+  });
+
+  // Compute duration per record, discard nulls
+  const timed = [];
+  for (const c of records) {
+    const f   = c.fields;
+    const dur = tmCalcDuration(f.StartTime, f.CompletedTime, f.CompletedDate);
+    if (dur === null) continue;
+    timed.push({ model: f.Model.trim(), dur });
+  }
+
+  if (!timed.length) {
+    tbody.innerHTML = '';
+    empty.style.display  = '';
+    footer.textContent   = '';
+    return;
+  }
+  empty.style.display = 'none';
+
+  // Group by model
+  const byModel = {};
+  for (const { model, dur } of timed) {
+    if (!byModel[model]) byModel[model] = [];
+    byModel[model].push(dur);
+  }
+
+  // Build rows sorted by job count descending
+  const rows = Object.entries(byModel)
+    .map(([model, durs]) => {
+      const avg = Math.round(durs.reduce((a, b) => a + b, 0) / durs.length);
+      const min = Math.min(...durs);
+      const max = Math.max(...durs);
+      return { model, count: durs.length, avg, min, max };
+    })
+    .sort((a, b) => b.count - a.count);
+
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td>${escHtml(r.model)}</td>
+      <td class="num">${r.count}</td>
+      <td class="num">${tmFormatDuration(r.avg)}</td>
+      <td class="num">${tmFormatDuration(r.min)}</td>
+      <td class="num">${tmFormatDuration(r.max)}</td>
+    </tr>`).join('');
+
+  footer.textContent = `Based on ${timed.length} timed completion${timed.length === 1 ? '' : 's'}`;
+}
 </script>
 </body>
 </html>
