@@ -11202,6 +11202,79 @@ async function cpLoadData() {
     return { ...row, inv, status: inv?.Status || 'Open' };
   });
 }
+
+function cpStatusBadge(status) {
+  const map    = { Open:'cp-badge-open', InProgress:'cp-badge-inprogress', PendingClosure:'cp-badge-pending', Closed:'cp-badge-closed' };
+  const labels = { Open:'Open', InProgress:'In Progress', PendingClosure:'Pending Sign-off', Closed:'Closed' };
+  return `<span class="cp-badge ${map[status]||''}">${labels[status]||status}</span>`;
+}
+
+function cpActionBtn(c) {
+  if (c.status === 'Open' && cpIsManager)
+    return `<button class="cp-action-btn" onclick="cpOpenAssignModal('${escHtml(c.TicketNo)}')">Investigate</button>`;
+  if (c.status === 'InProgress')
+    return `<button class="cp-action-btn" onclick="cpOpenInvestigation('${escHtml(c.TicketNo)}')">Open</button>`;
+  if (c.status === 'PendingClosure' && cpIsManager)
+    return `<button class="cp-action-btn cp-action-btn-green" onclick="cpOpenInvestigation('${escHtml(c.TicketNo)}')">Sign Off</button>`;
+  if (c.status === 'PendingClosure' || c.status === 'Closed')
+    return `<button class="cp-action-btn" onclick="cpOpenInvestigation('${escHtml(c.TicketNo)}')">View</button>`;
+  return '';
+}
+
+function cpRenderList() {
+  const me = (graphAccount?.username || '').toLowerCase();
+  let data  = cpComplaints.filter(c => {
+    if (cpActiveFilter === 'open')       return c.status === 'Open';
+    if (cpActiveFilter === 'inprogress') return c.status === 'InProgress';
+    if (cpActiveFilter === 'pending')    return c.status === 'PendingClosure';
+    if (cpActiveFilter === 'closed')     return c.status === 'Closed';
+    return true; // 'all'
+  });
+  // Non-managers see only their assigned investigations
+  if (!cpIsManager) {
+    data = data.filter(c => (c.inv?.InvestigatorEmail || '').toLowerCase() === me);
+  }
+
+  const tbody = document.getElementById('cp-tbody');
+  if (!data.length) {
+    tbody.innerHTML = `<tr><td colspan="6" class="cp-empty">No complaints found</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = data.map(c => `
+    <tr>
+      <td>${escHtml(c.TicketNo)}</td>
+      <td>${escHtml(c.Customer)}</td>
+      <td>${escHtml(c.Model)}</td>
+      <td>${escHtml(c.OpenDate)}</td>
+      <td>${cpStatusBadge(c.status)}</td>
+      <td>${cpActionBtn(c)}</td>
+    </tr>`).join('');
+}
+
+function cpSetFilter(btn, filter) {
+  document.querySelectorAll('#cp-filter-chips .cp-chip').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  cpActiveFilter = filter;
+  cpRenderList();
+}
+
+async function cpOnOpen() {
+  // Always show list view when tab opens / refreshes
+  document.getElementById('cp-list-view').style.display  = '';
+  document.getElementById('cp-form-view').style.display  = 'none';
+  cpActiveTicket = null;
+  document.getElementById('cp-tbody').innerHTML =
+    '<tr><td colspan="6" class="cp-empty">Loading…</td></tr>';
+  try {
+    await cpLoadData();
+  } catch (e) {
+    toast('Failed to load complaints: ' + e.message, 'e');
+    document.getElementById('cp-tbody').innerHTML =
+      `<tr><td colspan="6" class="cp-empty">Error loading data</td></tr>`;
+    return;
+  }
+  cpRenderList();
+}
 </script>
 </body>
 </html>
