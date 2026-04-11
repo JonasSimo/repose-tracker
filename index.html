@@ -11340,6 +11340,220 @@ async function cpAssignInvestigator() {
     toast('Error assigning investigator: ' + e.message, 'e');
   }
 }
+
+function cpRenderFiveWhys(fw, editable) {
+  const ro = editable ? '' : ' readonly';
+  const rows = [1,2,3,4,5].map(i => {
+    const causes = (fw.causes?.[i-1] || ['','','','']).map((cv, j) =>
+      `<td><input class="cp-why-cause" id="cp-why${i}-cause${j+1}" value="${escHtml(cv)}"${ro}></td>`
+    ).join('');
+    return `<tr>
+      <td><input class="cp-why-input" id="cp-why${i}" value="${escHtml(fw['why'+i]||'')}"${ro}></td>
+      ${causes}
+    </tr>`;
+  }).join('');
+  return `
+    <div class="cp-whys">
+      <div class="cp-whys-title">5 Whys Analysis</div>
+      <table class="cp-whys-table">
+        <thead><tr>
+          <th>Why</th>
+          <th>Probable Cause 1</th>
+          <th>Probable Cause 2</th>
+          <th>Probable Cause 3</th>
+          <th>Probable Cause 4</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+function cpActionsRow(row, i, editable) {
+  const ro  = editable ? '' : ' readonly';
+  const rmBtn = editable
+    ? `<td><button class="cp-rm-row-btn" onclick="cpRemoveActionsRow(this)">✕</button></td>`
+    : '';
+  return `<tr data-row="${i}">
+    <td><input class="cp-act-input" name="initiative"     value="${escHtml(row.initiative||'')}"    ${ro}></td>
+    <td><input class="cp-act-input" name="owner"          value="${escHtml(row.owner||'')}"          ${ro}></td>
+    <td><input class="cp-act-input" name="targetDate"     value="${escHtml(row.targetDate||'')}"     ${ro}></td>
+    <td><input class="cp-act-input" name="completionDate" value="${escHtml(row.completionDate||'')}" ${ro}></td>
+    <td><input class="cp-act-input" name="status"         value="${escHtml(row.status||'')}"         ${ro}></td>
+    ${rmBtn}
+  </tr>`;
+}
+
+function cpAddActionsRow() {
+  const tbody = document.getElementById('cp-actions-body');
+  const i     = tbody.rows.length;
+  const tr    = document.createElement('tr');
+  tr.dataset.row = i;
+  tr.innerHTML = `
+    <td><input class="cp-act-input" name="initiative"     value=""></td>
+    <td><input class="cp-act-input" name="owner"          value=""></td>
+    <td><input class="cp-act-input" name="targetDate"     value=""></td>
+    <td><input class="cp-act-input" name="completionDate" value=""></td>
+    <td><input class="cp-act-input" name="status"         value=""></td>
+    <td><button class="cp-rm-row-btn" onclick="cpRemoveActionsRow(this)">✕</button></td>`;
+  tbody.appendChild(tr);
+}
+
+function cpRemoveActionsRow(btn) {
+  btn.closest('tr').remove();
+}
+
+function cpRenderSignatureBlocks(c, inv, me) {
+  const isMyInv = (inv.InvestigatorEmail || '').toLowerCase() === me;
+
+  // Investigator block
+  let invBlock;
+  if (inv.InvestigatorSignature) {
+    invBlock = `
+      <div class="cp-sig-block">
+        <div class="cp-sig-label">Investigator: ${escHtml(inv.InvestigatorName||'')}</div>
+        <img class="cp-sig-img" src="${escHtml(inv.InvestigatorSignature)}" alt="Signature">
+        <div class="cp-sig-date">Signed: ${escHtml(inv.InvestigatorSignedDate||'')}</div>
+      </div>`;
+  } else if (c.status === 'InProgress' && isMyInv) {
+    invBlock = `
+      <div class="cp-sig-block">
+        <div class="cp-sig-label">Draw your signature below then click Submit</div>
+        <canvas id="cp-inv-sig-canvas" class="cp-sig-canvas" width="600" height="150"></canvas>
+        <div class="cp-sig-btns">
+          <button class="cp-sig-clear"  onclick="cpClearCanvas('cp-inv-sig-canvas')">Clear</button>
+          <button class="cp-sig-submit" onclick="cpSubmitInvestigatorSignature()">Submit Investigation</button>
+        </div>
+      </div>`;
+  } else {
+    invBlock = `<div class="cp-sig-pending">Investigator signature: Pending</div>`;
+  }
+
+  // Manager block
+  let mgrBlock = '';
+  if (inv.ManagerSignature) {
+    mgrBlock = `
+      <div class="cp-sig-block">
+        <div class="cp-sig-label">Approved by: Jonas Simonaitis</div>
+        <img class="cp-sig-img" src="${escHtml(inv.ManagerSignature)}" alt="Signature">
+        <div class="cp-sig-date">Signed: ${escHtml(inv.ManagerSignedDate||'')}</div>
+      </div>`;
+  } else if (c.status === 'PendingClosure' && cpIsManager) {
+    mgrBlock = `
+      <div class="cp-sig-block">
+        <div class="cp-sig-label">Manager sign-off</div>
+        <canvas id="cp-mgr-sig-canvas" class="cp-sig-canvas" width="600" height="150"></canvas>
+        <div class="cp-sig-btns">
+          <button class="cp-sig-clear"                    onclick="cpClearCanvas('cp-mgr-sig-canvas')">Clear</button>
+          <button class="cp-sig-submit cp-sig-close"      onclick="cpSubmitManagerSignature()">Sign &amp; Close</button>
+        </div>
+      </div>`;
+  } else if (c.status !== 'Closed') {
+    mgrBlock = `<div class="cp-sig-pending">Manager sign-off: Pending investigator submission</div>`;
+  }
+
+  return `
+    <div class="cp-section cp-sig-section">
+      <div class="cp-section-title">Signatures</div>
+      ${invBlock}
+      ${mgrBlock}
+    </div>`;
+}
+
+function cpRenderForm(c) {
+  const inv      = c.inv || {};
+  const locked   = c.status === 'PendingClosure' || c.status === 'Closed';
+  const me       = (graphAccount?.username || '').toLowerCase();
+  const isMyInv  = (inv.InvestigatorEmail || '').toLowerCase() === me;
+  const editable = !locked && isMyInv;
+  const ro       = editable ? '' : ' readonly';
+
+  // Parse stored JSON blobs
+  let fiveWhys = { why1:'',why2:'',why3:'',why4:'',why5:'',
+    causes:[['','','',''],['','','',''],['','','',''],['','','',''],['','','','']] };
+  try { Object.assign(fiveWhys, JSON.parse(inv.FiveWhys || 'null') || {}); } catch(e) {}
+
+  let actionsLog = [];
+  try { actionsLog = JSON.parse(inv.ActionsLog || '[]') || []; } catch(e) {}
+
+  const SECTION_LABELS = [
+    '',
+    'Problem Description',
+    'Immediate Response / Disposition',
+    'Containment Actions',
+    'Root Cause Analysis',
+    'Escape Points',
+    'Corrective Actions',
+    'Preventative Actions',
+  ];
+
+  const sectionsHtml = [1,2,3,4,5,6,7].map(n => `
+    <div class="cp-section">
+      <div class="cp-section-title">${n}. ${SECTION_LABELS[n]}</div>
+      <textarea class="cp-section-ta" id="cp-f-s${n}"${ro}>${escHtml(inv['Section'+n]||'')}</textarea>
+      ${n === 4 ? cpRenderFiveWhys(fiveWhys, editable) : ''}
+    </div>`).join('');
+
+  const actionsColspan = editable ? '6' : '5';
+  const actionsHeader  = editable
+    ? '<th>Initiative</th><th>Owner</th><th>Target Date</th><th>Completion Date</th><th>Status</th><th></th>'
+    : '<th>Initiative</th><th>Owner</th><th>Target Date</th><th>Completion Date</th><th>Status</th>';
+
+  document.getElementById('cp-form-inner').innerHTML = `
+    <div class="cp-form-back-row">
+      <button class="cp-back-btn" onclick="cpBackToList()">← Back</button>
+      ${editable ? `<button class="cp-save-btn" onclick="cpSaveForm()">💾 Save</button>` : ''}
+      <button class="cp-pdf-btn" onclick="cpExportPdf()">⬇ Export PDF</button>
+    </div>
+    <div class="cp-form-title">Issue Resolution Process — PHCIRP</div>
+    <div class="cp-form-meta">
+      <div class="cp-meta-row"><span class="cp-meta-label">IRP No</span><span>${escHtml(c.TicketNo)}</span></div>
+      <div class="cp-meta-row"><span class="cp-meta-label">Date Opened</span><span>${escHtml(c.OpenDate)}</span></div>
+      <div class="cp-meta-row"><span class="cp-meta-label">Customer</span><span>${escHtml(c.Customer)}</span></div>
+      <div class="cp-meta-row"><span class="cp-meta-label">REP No</span><span>${escHtml(c.RepNo)}</span></div>
+      <div class="cp-meta-row"><span class="cp-meta-label">Model</span><span>${escHtml(c.Model)}</span></div>
+      <div class="cp-meta-row"><span class="cp-meta-label">Concern Type</span>
+        <input class="cp-meta-input" id="cp-f-concern" value="${escHtml(inv.ConcernType||'')}"${ro}></div>
+      <div class="cp-meta-row"><span class="cp-meta-label">Reported By</span>
+        <input class="cp-meta-input" id="cp-f-reported-by" value="${escHtml(inv.ReportedBy||'')}"${ro}></div>
+      <div class="cp-meta-row cp-meta-desc"><span class="cp-meta-label">Description</span>
+        <span>${escHtml(c.Description)}</span></div>
+    </div>
+
+    ${sectionsHtml}
+
+    <div class="cp-section">
+      <div class="cp-section-title">Actions Log</div>
+      <table class="cp-actions-table">
+        <thead><tr>${actionsHeader}</tr></thead>
+        <tbody id="cp-actions-body">
+          ${actionsLog.map((row, i) => cpActionsRow(row, i, editable)).join('')}
+        </tbody>
+      </table>
+      ${editable ? `<button class="cp-add-row-btn" onclick="cpAddActionsRow()">+ Add Row</button>` : ''}
+    </div>
+
+    ${cpRenderSignatureBlocks(c, inv, me)}
+  `;
+
+  // Initialise signature canvas pads after DOM is ready
+  if (editable)                                     cpInitSignaturePad('cp-inv-sig-canvas');
+  if (cpIsManager && c.status === 'PendingClosure') cpInitSignaturePad('cp-mgr-sig-canvas');
+}
+
+function cpOpenInvestigation(ticketNo) {
+  const c = cpComplaints.find(x => x.TicketNo === ticketNo);
+  if (!c) return;
+  cpActiveTicket = ticketNo;
+  document.getElementById('cp-list-view').style.display = 'none';
+  document.getElementById('cp-form-view').style.display = '';
+  cpRenderForm(c);
+}
+
+function cpBackToList() {
+  document.getElementById('cp-list-view').style.display = '';
+  document.getElementById('cp-form-view').style.display = 'none';
+  cpActiveTicket = null;
+}
 </script>
 </body>
 </html>
