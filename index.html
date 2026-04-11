@@ -1840,6 +1840,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <button class="nav-item" data-view="issues" id="issues-tab-btn" onclick="navTo('issues')">CPARs</button>
         <button class="nav-item" data-view="timing" id="timing-tab-btn" onclick="navTo('timing')" style="display:none">Job Timing</button>
         <button class="nav-item" data-view="safety" onclick="navTo('safety')">Near Misses</button>
+        <button class="nav-item" data-view="complaints" onclick="navTo('complaints')">Complaints</button>
         <!-- Order Check — work in progress, hidden until ready -->
         <!-- <button class="nav-item" data-view="ordercheck" onclick="navTo('ordercheck')">Order Check</button> -->
       </div>
@@ -2587,6 +2588,14 @@ const SUB_SHORT = { 'Arms':'A', 'Backs':'B', 'Seats':'S' };
 // Column A = QC completed REP numbers (updated every minute)
 // Row 1 = week numbers · Row 6 = delivery dates · Rows 7+ = REP numbers per column
 const OV_LOAD_PLAN_URL   = 'https://reposefurniturelimited.sharepoint.com/:x:/s/ReposeFurniture-PlanningRepose/IQD9dpVpE09LQZxBDPGSZhjTAacK5LMWwZgyKBDfcUOJ2vM?e=8iqRn3';
+const CP_TICKETING_LOG_URL = 'https://reposefurniturelimited.sharepoint.com/:x:/s/ReposeFurniture-Service/IQCQUvM2uD-pQKc9xRkYAfPvAbOaZl0j9liSrWaggTqF60Y?e=6x2dNE';
+const COMPLAINTS_MANAGERS  = new Set(['jonas.simonaitis@reposefurniture.co.uk']);
+
+let cpComplaints    = [];       // joined Excel + SharePoint data, populated by cpLoadData()
+let cpActiveFilter  = 'all';   // 'all' | 'open' | 'inprogress' | 'pending' | 'closed'
+let cpActiveTicket  = null;    // TicketNo of currently open investigation form
+let cpIsManager     = false;   // true when signed-in user is in COMPLAINTS_MANAGERS
+
 const OV_LOAD_PLAN_SHEET = 'Load Sheet';
 
 // QC auto-sync reads column A of the same file
@@ -2648,7 +2657,7 @@ let ppAutoSyncInterval = null;
 // ═══════════════════════════════════════════════
 // ROUTING
 // ═══════════════════════════════════════════════
-const NAV_LABELS = { 'team-select':'Team View','tracker':'Team View','overview':'Load Plan','loadsheet':'Delivery','production':'Production Plan','stats':'Stats','issues':'Issues','safety':'Safety','ordercheck':'Order Check','timing':'Job Timing' };
+const NAV_LABELS = { 'team-select':'Team View','tracker':'Team View','overview':'Load Plan','loadsheet':'Delivery','production':'Production Plan','stats':'Stats','issues':'Issues','safety':'Safety','ordercheck':'Order Check','timing':'Job Timing','complaints':'Complaints' };
 function showView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   const activeView = name === 'tracker' ? 'team-select' : name;
@@ -2670,6 +2679,7 @@ function showView(name) {
   if (name === 'safety')      { loadNearMisses(); }
   if (name === 'ordercheck')  { ocOnOpen(); }
   if (name === 'timing')      { tmOnOpen(); }
+  if (name === 'complaints')  { cpOnOpen(); }
 }
 
 function toggleNavMenu() {
@@ -5548,6 +5558,7 @@ function updateAuthBadge() {
     const TIMING_ALLOWED = new Set(['jonas.simonaitis@reposefurniture.co.uk','richard.semmens@reposefurniture.co.uk']);
     const timingBtn = document.getElementById('timing-tab-btn');
     if (timingBtn) timingBtn.style.display = TIMING_ALLOWED.has(graphAccount.username.toLowerCase()) ? '' : 'none';
+    cpIsManager = COMPLAINTS_MANAGERS.has(graphAccount.username.toLowerCase());
   } else {
     badge.innerHTML = `<span class="auth-dot off"></span><span class="auth-name">Sign in</span>`;
     badge.onclick = graphSignIn;
