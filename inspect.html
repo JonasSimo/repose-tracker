@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Pre-Use Inspection · Repose Woodmill</title>
+  <style>
+    :root {
+      --blue:     #14a1e9;
+      --navy:     #0e023a;
+      --pass:     #16a34a;
+      --pass-bg:  #dcfce7;
+      --fail:     #dc2626;
+      --fail-bg:  #fee2e2;
+      --grey:     #706f6f;
+      --bg:       #f4f6f8;
+      --white:    #ffffff;
+      --border:   #e2e8f0;
+      --text:     #1a1a2e;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    /* ── Header ── */
+    .header { background: var(--navy); padding: 12px 16px; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 20; }
+    .header img { height: 28px; width: auto; }
+    .header-info { flex: 1; min-width: 0; }
+    .header-machine { color: #fff; font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .header-sub { color: var(--blue); font-size: 11px; margin-top: 1px; }
+
+    /* ── Progress bar ── */
+    .progress-bar { height: 4px; background: var(--border); }
+    .progress-fill { height: 100%; background: var(--blue); transition: width .25s; }
+
+    /* ── Offline banner ── */
+    .offline-banner { background: #fef3c7; border-bottom: 2px solid #f59e0b; padding: 8px 16px; font-size: 12px; font-weight: 600; color: #92400e; text-align: center; display: none; }
+    .offline-banner.show { display: block; }
+
+    /* ── Screens ── */
+    .screen { display: none; }
+    .screen.active { display: block; }
+
+    /* ── Form body ── */
+    .form-body { padding: 14px 14px 40px; max-width: 540px; margin: 0 auto; }
+
+    /* ── Card ── */
+    .card { background: var(--white); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.07); }
+
+    /* ── Field label ── */
+    .field-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--grey); margin-bottom: 8px; }
+
+    /* ── Select ── */
+    .field-select {
+      width: 100%; padding: 13px 14px; font-size: 16px; font-family: inherit;
+      border: 2px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text);
+      appearance: none; -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23706f6f' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 12px center; background-size: 16px;
+    }
+    .field-select:focus { outline: none; border-color: var(--blue); }
+    .field-select.error { border-color: var(--fail); }
+
+    /* ── Tool selector (bench only) ── */
+    .tool-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+    .tool-chip { flex: 1; min-width: 80px; padding: 11px 8px; border-radius: 8px; border: 2px solid var(--border); background: var(--bg); font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer; text-align: center; color: var(--grey); transition: all .15s; }
+    .tool-chip.active { border-color: var(--blue); background: #e8f5fd; color: var(--blue); }
+    .tool-chip:active { transform: scale(.97); }
+
+    /* ── Section header ── */
+    .section-hdr { font-size: 13px; font-weight: 700; color: var(--navy); margin: 16px 0 8px; display: flex; align-items: center; gap: 6px; }
+    .section-hdr::after { content: ''; flex: 1; height: 2px; background: var(--blue); border-radius: 1px; }
+
+    /* ── Check item ── */
+    .check-item { background: var(--white); border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.07); border: 2px solid transparent; transition: border-color .15s; }
+    .check-item.answered-pass { border-color: var(--pass); }
+    .check-item.answered-fail { border-color: var(--fail); }
+    .check-label { font-size: 14px; line-height: 1.45; color: var(--text); margin-bottom: 12px; }
+    .check-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .check-btn {
+      padding: 14px 8px; border-radius: 10px; border: 2px solid var(--border);
+      background: var(--bg); font-size: 15px; font-weight: 700; font-family: inherit;
+      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
+      color: #bbb; transition: all .12s; user-select: none;
+    }
+    .check-btn.sel-pass { border-color: var(--pass); background: var(--pass-bg); color: var(--pass); }
+    .check-btn.sel-fail { border-color: var(--fail); background: var(--fail-bg); color: var(--fail); }
+    .check-btn:active { transform: scale(.96); }
+
+    /* ── Comments ── */
+    .comments-ta {
+      width: 100%; min-height: 90px; font-size: 14px; font-family: inherit;
+      border: 2px solid var(--border); border-radius: 8px; padding: 10px 12px;
+      resize: vertical; color: var(--text); background: var(--bg);
+    }
+    .comments-ta:focus { outline: none; border-color: var(--blue); }
+    .comments-ta.error { border-color: var(--fail); }
+    .comments-req { font-size: 11px; color: var(--fail); margin-top: 4px; display: none; }
+    .comments-req.show { display: block; }
+
+    /* ── Submit ── */
+    .submit-btn {
+      width: 100%; padding: 18px; background: var(--blue); color: #fff;
+      border: none; border-radius: 12px; font-size: 17px; font-weight: 700;
+      font-family: inherit; cursor: pointer; margin-top: 4px;
+    }
+    .submit-btn:active { background: #0d8fd4; transform: scale(.99); }
+    .submit-btn:disabled { background: #aaa; cursor: default; transform: none; }
+
+    /* ── Success screen ── */
+    .success-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: calc(100vh - 80px); padding: 32px 24px; text-align: center; }
+    .success-icon { font-size: 72px; margin-bottom: 12px; }
+    .success-title { font-size: 22px; font-weight: 700; color: var(--navy); margin-bottom: 6px; }
+    .success-meta { font-size: 14px; color: var(--grey); margin-bottom: 24px; line-height: 1.6; }
+    .success-queued { background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 10px 14px; margin-bottom: 20px; font-size: 13px; color: #92400e; max-width: 360px; }
+    .success-again { padding: 13px 28px; background: var(--blue); color: #fff; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer; }
+
+    /* ── Info / error screens ── */
+    .info-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: calc(100vh - 80px); padding: 32px 24px; text-align: center; }
+    .info-wrap h1 { font-size: 20px; color: var(--navy); margin: 12px 0 8px; }
+    .info-wrap p { font-size: 14px; color: var(--grey); line-height: 1.5; }
+    .info-wrap .big { font-size: 56px; }
+    .retry-btn { margin-top: 20px; padding: 12px 24px; background: var(--blue); color: #fff; border: none; border-radius: 8px; font-size: 14px; font-family: inherit; cursor: pointer; font-weight: 600; }
+  </style>
+</head>
+<body>
+
+<!-- ── SCREEN: Loading ── -->
+<div id="screen-loading" class="screen active">
+  <div class="info-wrap">
+    <div class="big">⏳</div>
+    <h1>Loading…</h1>
+  </div>
+</div>
+
+<!-- ── SCREEN: Unknown machine ── -->
+<div id="screen-unknown" class="screen">
+  <div class="info-wrap">
+    <div class="big">❓</div>
+    <h1>Unknown Machine</h1>
+    <p>This QR code doesn't match any registered machine.<br>Please contact your supervisor.</p>
+  </div>
+</div>
+
+<!-- ── SCREEN: Form ── -->
+<div id="screen-form" class="screen">
+  <div class="header">
+    <img src="./Repose_RGB_logo_WO_with_strapline_1500pxW.png" alt="Repose" onerror="this.style.display='none'">
+    <div class="header-info">
+      <div class="header-machine" id="hdr-machine"></div>
+      <div class="header-sub">Pre-Use Inspection</div>
+    </div>
+  </div>
+  <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+  <div class="offline-banner" id="offline-banner">⚡ You're offline — inspection will send when reconnected</div>
+  <div class="form-body">
+
+    <!-- Inspector name -->
+    <div class="card">
+      <div class="field-label">Your name</div>
+      <select class="field-select" id="inspector-select">
+        <option value="">— Select your name —</option>
+      </select>
+    </div>
+
+    <!-- Tool selector (blocking benches only) -->
+    <div class="card" id="tool-card" style="display:none">
+      <div class="field-label">Tool being inspected</div>
+      <div class="tool-chips" id="tool-chips"></div>
+    </div>
+
+    <!-- Checklist items -->
+    <div id="checklist-container"></div>
+
+    <!-- Comments -->
+    <div class="card">
+      <div class="field-label">
+        Comments
+        <span class="comments-req" id="comments-req-label">— required when any check fails</span>
+      </div>
+      <textarea class="comments-ta" id="comments-ta" placeholder="Describe any issues, damage or faults found…"></textarea>
+    </div>
+
+    <button class="submit-btn" id="submit-btn" onclick="handleSubmit()">Submit Inspection</button>
+  </div>
+</div>
+
+<!-- ── SCREEN: Success ── -->
+<div id="screen-success" class="screen">
+  <div class="header">
+    <img src="./Repose_RGB_logo_WO_with_strapline_1500pxW.png" alt="Repose" onerror="this.style.display='none'">
+    <div class="header-info">
+      <div class="header-machine" id="hdr-machine-s"></div>
+      <div class="header-sub">Pre-Use Inspection</div>
+    </div>
+  </div>
+  <div class="success-wrap">
+    <div class="success-icon" id="s-icon">✅</div>
+    <div class="success-title" id="s-title">Inspection Complete</div>
+    <div class="success-meta" id="s-meta"></div>
+    <div class="success-queued" id="s-queued" style="display:none">
+      📶 No connection — saved locally and will send automatically when you reconnect.
+    </div>
+    <button class="success-again" onclick="resetForm()">New Inspection</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ══════════════════════════════════════════════════════════════
+//  CONFIGURATION  — update these two sections
+// ══════════════════════════════════════════════════════════════
+
+// Power Automate HTTP trigger URL — paste after setting up the flow
+const WEBHOOK_URL = 'PASTE_POWER_AUTOMATE_URL_HERE';
+
+// Full names of woodmill workers
+const WORKERS = [
+  // Send Jonas the list and replace these placeholders
+  'Worker Name 1',
+  'Worker Name 2',
+  'Worker Name 3',
+];
+
+// ══════════════════════════════════════════════════════════════
+//  MACHINE DEFINITIONS
+// ══════════════════════════════════════════════════════════════
+
+const MACHINES = {
+  'bandsaw':         { name: 'Bandsaw',          type: 'saw'          },
+  'crosscut-saw-1':  { name: 'Crosscut Saw 1',   type: 'saw'          },
+  'crosscut-saw-2':  { name: 'Crosscut Saw 2',   type: 'saw'          },
+  'panel-saw-1':     { name: 'Panel Saw 1',       type: 'saw'          },
+  'panel-saw-2':     { name: 'Panel Saw 2',       type: 'saw'          },
+  'pillar-drill':    { name: 'Pillar Drill',      type: 'pillar-drill' },
+  't-nut-1':         { name: 'T-Nut Machine 1',   type: 't-nut'        },
+  't-nut-2':         { name: 'T-Nut Machine 2',   type: 't-nut'        },
+  'cnc-1':           { name: 'CNC Machine 1',     type: 'cnc'          },
+  'cnc-2':           { name: 'CNC Machine 2',     type: 'cnc'          },
+  'sander':          { name: 'Sander',            type: 'sander'       },
+  'bench-a':         { name: 'Blocking Bench A',  type: 'bench'        },
+  'bench-b':         { name: 'Blocking Bench B',  type: 'bench'        },
+  'bench-c':         { name: 'Blocking Bench C',  type: 'bench'        },
+  'bench-d':         { name: 'Blocking Bench D',  type: 'bench'        },
+  'bench-e':         { name: 'Blocking Bench E',  type: 'bench'        },
+};
+
+// ══════════════════════════════════════════════════════════════
+//  CHECKLISTS
+// ══════════════════════════════════════════════════════════════
+
+const CHECKLISTS = {
+  'saw': [
+    'All guards and guides are in place and functional',
+    'Emergency stops tested and working properly',
+    'Blade in good condition — no cracks, sharp enough, correct tension',
+    'No damaged cables or electrical components visible',
+    'No signs of damage around the machine',
+    'Machine is free from dust, inside and outside',
+    'Dust extraction is working properly',
+  ],
+  'pillar-drill': [
+    'Chuck guard and work guard are in place and secure',
+    'Emergency stop tested and working properly',
+    'Drill bit in good condition — no damage or excessive wear',
+    'No damaged cables or electrical components visible',
+    'No signs of damage to machine body or workbench area',
+    'Machine and table are free from dust and debris',
+    'Table lock and vice/clamp are secure and functioning',
+  ],
+  't-nut': [
+    'Machine is clean and free from debris',
+    'Emergency stop tested and working properly',
+    'All guards are in place and functional',
+    'No damaged cables or electrical components visible',
+    'T-nut feed/hopper operating correctly — no jams',
+    'Pressing mechanism shows no signs of damage or excessive wear',
+    'No signs of damage around the machine',
+  ],
+  'cnc': [
+    'Boost fan is working correctly',
+    'Air pressure (PSI) checked and within correct range',
+    'Bed pump is working correctly',
+    'Emergency stops tested and working properly',
+    'Safety matting is working correctly',
+    'No damaged cables or electrical components visible',
+    'Machine bed is clean and free from debris',
+  ],
+  'sander': [
+    'Air hose inspected for leaks, cracks, or wear',
+    'Air fittings and connections are tight and secure',
+    'Sander body inspected for cracks or damage',
+    'Sanding pad/disc inspected for wear or damage',
+    'Sanding pad/disc is securely attached',
+    'Sander has been oiled as required',
+  ],
+};
+
+// Blocking bench: worker picks the tool, same 7 checks apply to each
+const BENCH_TOOLS   = ['Staple Gun', 'Nail Gun', 'Pin Gun'];
+const BENCH_CHECKS  = [
+  'Air hose inspected for leaks, cracks, or wear',
+  'Air fittings and connections are tight and secure',
+  'Trigger operates smoothly — does not stick',
+  'No jams, damage, or debris — loads correctly',
+  'Safety tip / contact trip functions correctly (no firing without contact)',
+  'Tool is properly lubricated',
+  'Tool shows no visible damage or cracking',
+];
+
+// ══════════════════════════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════════════════════════
+
+let machineId  = '';
+let machine    = null;
+let answers    = {};   // key → 'pass' | 'fail'
+let totalItems = 0;
+let activeTool = '';   // bench only
+
+// ══════════════════════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════════════════════
+
+function init() {
+  const params = new URLSearchParams(location.search);
+  machineId = (params.get('m') || '').toLowerCase().trim();
+  machine   = MACHINES[machineId];
+
+  if (!machine) { showScreen('unknown'); return; }
+
+  // Worker dropdown
+  const sel = document.getElementById('inspector-select');
+  WORKERS.sort().forEach(name => {
+    const o = document.createElement('option');
+    o.value = o.textContent = name;
+    sel.appendChild(o);
+  });
+
+  // Header
+  document.getElementById('hdr-machine').textContent   = machine.name;
+  document.getElementById('hdr-machine-s').textContent = machine.name;
+
+  // Bench tool chips
+  if (machine.type === 'bench') {
+    document.getElementById('tool-card').style.display = '';
+    const chips = document.getElementById('tool-chips');
+    BENCH_TOOLS.forEach(tool => {
+      const btn = document.createElement('button');
+      btn.className   = 'tool-chip';
+      btn.textContent = tool;
+      btn.dataset.tool = tool;
+      btn.onclick = () => selectTool(tool);
+      chips.appendChild(btn);
+    });
+    // Don't build checklist yet — wait for tool selection
+    totalItems = BENCH_CHECKS.length;
+  } else {
+    buildChecklist();
+  }
+
+  // Offline events
+  window.addEventListener('offline', () => document.getElementById('offline-banner').classList.add('show'));
+  window.addEventListener('online',  () => { document.getElementById('offline-banner').classList.remove('show'); retryQueued(); });
+  if (!navigator.onLine) document.getElementById('offline-banner').classList.add('show');
+
+  // Retry any queued submissions from previous visits
+  retryQueued();
+
+  showScreen('form');
+}
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + id).classList.add('active');
+}
+
+// ══════════════════════════════════════════════════════════════
+//  BENCH TOOL SELECTION
+// ══════════════════════════════════════════════════════════════
+
+function selectTool(tool) {
+  activeTool = tool;
+  document.querySelectorAll('.tool-chip').forEach(c => c.classList.toggle('active', c.dataset.tool === tool));
+  answers = {};
+  buildChecklist();
+  updateProgress();
+}
+
+// ══════════════════════════════════════════════════════════════
+//  CHECKLIST
+// ══════════════════════════════════════════════════════════════
+
+function buildChecklist() {
+  const container = document.getElementById('checklist-container');
+  container.innerHTML = '';
+
+  const items = machine.type === 'bench' ? BENCH_CHECKS : (CHECKLISTS[machine.type] || []);
+  totalItems  = items.length;
+
+  items.forEach((label, i) => {
+    const key = `item-${i}`;
+    const div = document.createElement('div');
+    div.className = 'check-item';
+    div.id = 'ci-' + key;
+    div.innerHTML = `
+      <div class="check-label">${label}</div>
+      <div class="check-btns">
+        <button class="check-btn" id="pass-${key}" data-key="${key}" data-val="pass" onclick="setAnswer('${key}','pass')">✓&nbsp;Pass</button>
+        <button class="check-btn" id="fail-${key}" data-key="${key}" data-val="fail" onclick="setAnswer('${key}','fail')">✗&nbsp;Fail</button>
+      </div>`;
+    container.appendChild(div);
+  });
+}
+
+function setAnswer(key, val) {
+  answers[key] = val;
+
+  const item     = document.getElementById('ci-' + key);
+  const passBtn  = document.getElementById('pass-' + key);
+  const failBtn  = document.getElementById('fail-' + key);
+
+  item.className = 'check-item answered-' + val;
+  passBtn.className = 'check-btn' + (val === 'pass' ? ' sel-pass' : '');
+  failBtn.className = 'check-btn' + (val === 'fail' ? ' sel-fail' : '');
+
+  updateProgress();
+  updateCommentsLabel();
+}
+
+function updateProgress() {
+  const done = Object.keys(answers).length;
+  const pct  = totalItems > 0 ? Math.round(done / totalItems * 100) : 0;
+  document.getElementById('progress-fill').style.width = pct + '%';
+}
+
+function updateCommentsLabel() {
+  const hasAnyFail = Object.values(answers).includes('fail');
+  document.getElementById('comments-req-label').classList.toggle('show', hasAnyFail);
+}
+
+function hasAnyFail() {
+  return Object.values(answers).includes('fail');
+}
+
+// ══════════════════════════════════════════════════════════════
+//  SUBMIT
+// ══════════════════════════════════════════════════════════════
+
+async function handleSubmit() {
+  const inspector = document.getElementById('inspector-select').value;
+  const comments  = document.getElementById('comments-ta').value.trim();
+  let valid = true;
+
+  // Validate: name selected
+  if (!inspector) {
+    document.getElementById('inspector-select').classList.add('error');
+    alert('Please select your name.');
+    document.getElementById('inspector-select').focus();
+    return;
+  }
+  document.getElementById('inspector-select').classList.remove('error');
+
+  // Validate: bench tool selected
+  if (machine.type === 'bench' && !activeTool) {
+    alert('Please select which tool you are inspecting.');
+    return;
+  }
+
+  // Validate: all items answered
+  const unanswered = totalItems - Object.keys(answers).length;
+  if (unanswered > 0) {
+    alert(`${unanswered} check${unanswered > 1 ? 's' : ''} still need a Pass or Fail — please scroll up and complete them.`);
+    // Scroll to first unanswered
+    for (let i = 0; i < totalItems; i++) {
+      if (!answers['item-' + i]) {
+        document.getElementById('ci-item-' + i)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        break;
+      }
+    }
+    return;
+  }
+
+  // Validate: comments required if any fail
+  if (hasAnyFail() && !comments) {
+    document.getElementById('comments-ta').classList.add('error');
+    alert('Please describe the issue(s) found in the Comments field before submitting.');
+    document.getElementById('comments-ta').focus();
+    return;
+  }
+  document.getElementById('comments-ta').classList.remove('error');
+
+  const btn = document.getElementById('submit-btn');
+  btn.disabled    = true;
+  btn.textContent = 'Submitting…';
+
+  const payload = buildPayload(inspector, comments);
+
+  if (!navigator.onLine) {
+    queuePayload(payload);
+    showSuccess(inspector, true);
+    return;
+  }
+
+  try {
+    const resp = await fetch(WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    showSuccess(inspector, false);
+  } catch (err) {
+    console.error('Submit failed:', err);
+    queuePayload(payload);
+    showSuccess(inspector, true); // queued
+  }
+}
+
+function buildPayload(inspector, comments) {
+  const checks = [];
+  const labels = machine.type === 'bench' ? BENCH_CHECKS : (CHECKLISTS[machine.type] || []);
+  labels.forEach((label, i) => {
+    checks.push({ label, result: answers['item-' + i] || 'pass' });
+  });
+
+  return {
+    machineId:     machineId,
+    machineName:   machine.name,
+    machineType:   machine.type,
+    toolName:      machine.type === 'bench' ? activeTool : null,
+    inspectorName: inspector,
+    inspectedAt:   new Date().toISOString(),
+    checks,
+    anyFail:       hasAnyFail(),
+    failCount:     Object.values(answers).filter(v => v === 'fail').length,
+    comments,
+  };
+}
+
+function showSuccess(inspector, queued) {
+  document.getElementById('s-icon').textContent  = hasAnyFail() ? '⚠️' : '✅';
+  document.getElementById('s-title').textContent = hasAnyFail() ? 'Inspection Recorded — Failures Noted' : 'Inspection Passed';
+
+  const time = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  const tool = machine.type === 'bench' ? ` · ${activeTool}` : '';
+  document.getElementById('s-meta').textContent = `${inspector} · ${machine.name}${tool} · ${time}`;
+  document.getElementById('s-queued').style.display = queued ? '' : 'none';
+
+  showScreen('success');
+}
+
+function resetForm() {
+  document.getElementById('inspector-select').value = '';
+  document.getElementById('comments-ta').value      = '';
+  const btn = document.getElementById('submit-btn');
+  btn.disabled    = false;
+  btn.textContent = 'Submit Inspection';
+  answers     = {};
+  activeTool  = '';
+
+  if (machine.type === 'bench') {
+    document.querySelectorAll('.tool-chip').forEach(c => c.classList.remove('active'));
+    document.getElementById('checklist-container').innerHTML = '';
+  } else {
+    buildChecklist();
+  }
+
+  updateProgress();
+  document.getElementById('comments-req-label').classList.remove('show');
+  showScreen('form');
+  window.scrollTo(0, 0);
+}
+
+// ══════════════════════════════════════════════════════════════
+//  OFFLINE QUEUE
+// ══════════════════════════════════════════════════════════════
+
+const QUEUE_KEY = 'repnet_wm_insp_queue';
+
+function queuePayload(payload) {
+  const q = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]');
+  q.push(payload);
+  localStorage.setItem(QUEUE_KEY, JSON.stringify(q));
+}
+
+async function retryQueued() {
+  const q = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]');
+  if (!q.length || WEBHOOK_URL === 'PASTE_POWER_AUTOMATE_URL_HERE') return;
+  const failed = [];
+  for (const p of q) {
+    try {
+      const r = await fetch(WEBHOOK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+    } catch { failed.push(p); }
+  }
+  localStorage.setItem(QUEUE_KEY, JSON.stringify(failed));
+}
+
+// ══════════════════════════════════════════════════════════════
+//  GO
+// ══════════════════════════════════════════════════════════════
+
+init();
+</script>
+</body>
+</html>
