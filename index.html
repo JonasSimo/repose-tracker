@@ -1772,6 +1772,23 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .nms-close-submit:hover { background:#047857; }
 .nms-close-submit:disabled { background:var(--text3); cursor:not-allowed; }
 .nms-done-badge { font-size:11px; font-weight:600; background:var(--gbg); color:var(--green); border:1px solid var(--gborder); border-radius:6px; padding:2px 8px; }
+/* ── JOB TIMING ──────────────────────────────── */
+.tm-wrap          { display:flex; flex-direction:column; height:100%; overflow:hidden; }
+.tm-toolbar       { background:var(--bg2); border-bottom:1px solid var(--border); padding:10px 14px; display:flex; flex-direction:column; gap:8px; flex-shrink:0; }
+.tm-chips         { display:flex; gap:6px; flex-wrap:wrap; }
+.tm-chip          { font-family:inherit; font-size:12px; font-weight:600; padding:5px 12px; border-radius:20px; border:1.5px solid var(--border2); background:var(--bg3); color:var(--text2); cursor:pointer; }
+.tm-chip:hover    { background:var(--bg4,#2a2a3a); color:var(--text1); }
+.tm-chip.active   { background:var(--repose-blue); color:#fff; border-color:var(--repose-blue); }
+.tm-table-wrap    { flex:1; overflow-y:auto; padding:10px 14px; }
+.tm-table         { width:100%; border-collapse:collapse; }
+.tm-table th      { font-size:11px; font-weight:700; color:var(--text2); text-transform:uppercase; letter-spacing:.05em; padding:6px 8px; border-bottom:1.5px solid var(--border); text-align:left; }
+.tm-th-num        { text-align:right; }
+.tm-table td      { font-size:13px; color:var(--text1); padding:8px 8px; border-bottom:1px solid var(--border); }
+.tm-table td.num  { text-align:right; font-family:'JetBrains Mono',monospace; font-size:12px; }
+.tm-table tbody tr:hover { background:var(--bg2); }
+.tm-empty         { padding:32px; text-align:center; font-size:14px; color:var(--text2); }
+.tm-loading       { padding:32px; text-align:center; font-size:14px; color:var(--text2); }
+.tm-footer        { flex-shrink:0; padding:8px 14px; font-size:12px; color:var(--text2); border-top:1px solid var(--border); background:var(--bg2); }
 </style>
 <script src="/msal-browser.min.js" defer></script>
 <script src="/chart.umd.min.js"></script>
