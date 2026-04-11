@@ -1821,6 +1821,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <button class="nav-item" data-view="production" onclick="navTo('production')">Production Plan</button>
         <button class="nav-item" data-view="stats" onclick="navTo('stats')">Stats</button>
         <button class="nav-item" data-view="issues" id="issues-tab-btn" onclick="navTo('issues')">CPARs</button>
+        <button class="nav-item" data-view="timing" id="timing-tab-btn" onclick="navTo('timing')" style="display:none">Job Timing</button>
         <button class="nav-item" data-view="safety" onclick="navTo('safety')">Near Misses</button>
         <!-- Order Check — work in progress, hidden until ready -->
         <!-- <button class="nav-item" data-view="ordercheck" onclick="navTo('ordercheck')">Order Check</button> -->
@@ -2591,7 +2592,7 @@ let ppAutoSyncInterval = null;
 // ═══════════════════════════════════════════════
 // ROUTING
 // ═══════════════════════════════════════════════
-const NAV_LABELS = { 'team-select':'Team View','tracker':'Team View','overview':'Load Plan','loadsheet':'Delivery','production':'Production Plan','stats':'Stats','issues':'Issues','safety':'Safety','ordercheck':'Order Check' };
+const NAV_LABELS = { 'team-select':'Team View','tracker':'Team View','overview':'Load Plan','loadsheet':'Delivery','production':'Production Plan','stats':'Stats','issues':'Issues','safety':'Safety','ordercheck':'Order Check','timing':'Job Timing' };
 function showView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   const activeView = name === 'tracker' ? 'team-select' : name;
@@ -2612,6 +2613,7 @@ function showView(name) {
   if (name === 'issues')      { openIssuesView(); }
   if (name === 'safety')      { loadNearMisses(); }
   if (name === 'ordercheck')  { ocOnOpen(); }
+  if (name === 'timing')      { tmOnOpen(); }
 }
 
 function toggleNavMenu() {
@@ -5487,6 +5489,9 @@ function updateAuthBadge() {
     const isJonas = graphAccount.username.toLowerCase() === 'jonas.simonaitis@reposefurniture.co.uk';
     const emailBtn = document.getElementById('cpar-email-btn');
     if (emailBtn) emailBtn.style.display = isJonas ? 'inline-flex' : 'none';
+    const TIMING_ALLOWED = new Set(['jonas.simonaitis@reposefurniture.co.uk','richard.semmens@reposefurniture.co.uk']);
+    const timingBtn = document.getElementById('timing-tab-btn');
+    if (timingBtn) timingBtn.style.display = TIMING_ALLOWED.has(graphAccount.username.toLowerCase()) ? '' : 'none';
   } else {
     badge.innerHTML = `<span class="auth-dot off"></span><span class="auth-name">Sign in</span>`;
     badge.onclick = graphSignIn;
@@ -10703,6 +10708,9 @@ async function closeOutNearMiss(itemId) {
   // Establish baseline ETag on load (after a short delay so the page is settled)
   setTimeout(checkVersion, 5000);
 })();
+
+// Timing tab — stub (full implementation in later task)
+function tmOnOpen() {}
 </script>
 </body>
 </html>
