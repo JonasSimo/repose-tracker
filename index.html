@@ -2407,6 +2407,8 @@ document.addEventListener('DOMContentLoaded', () => {
             <th>Ticket</th>
             <th>Customer</th>
             <th>Model</th>
+            <th>Category</th>
+            <th>Action</th>
             <th>Opened</th>
             <th>Status</th>
             <th></th>
@@ -11208,6 +11210,8 @@ async function cpLoadData() {
       Model:       String(row[11] || '').trim(),
       Description: String(row[13] || '').trim(),
       OpenDate:    openDate.toLocaleDateString('en-GB'),
+      Action:      String(row[16] || '').trim(),
+      Category:    String(row[23] || '').trim(),
     });
   }
   console.log('[cp] Excel rows scanned:', values.length, '| "Inside 30" matches:', cpDebugInside30, '| after date filter:', excelRows.length);
@@ -11267,7 +11271,7 @@ function cpRenderList() {
 
   const tbody = document.getElementById('cp-tbody');
   if (!data.length) {
-    tbody.innerHTML = `<tr><td colspan="6" class="cp-empty">No complaints found</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="cp-empty">No complaints found</td></tr>`;
     return;
   }
   tbody.innerHTML = data.map(c => `
@@ -11275,6 +11279,8 @@ function cpRenderList() {
       <td>${escHtml(c.TicketNo)}</td>
       <td>${escHtml(c.Customer)}</td>
       <td>${escHtml(c.Model)}</td>
+      <td>${escHtml(c.Category)}</td>
+      <td>${escHtml(c.Action)}</td>
       <td>${escHtml(c.OpenDate)}</td>
       <td>${cpStatusBadge(c.status)}</td>
       <td>${cpActionBtn(c)}</td>
