@@ -2271,6 +2271,64 @@ document.addEventListener('DOMContentLoaded', () => {
   </div>
 </div>
 
+<!-- ═══════════════════════════════════════════════
+     VIEW: COMPLAINTS
+════════════════════════════════════════════════ -->
+<div class="view" id="view-complaints">
+  <!-- LIST SUBVIEW -->
+  <div id="cp-list-view" class="cp-list-wrap">
+    <div class="cp-list-header">
+      <div class="cp-title">Customer Complaints</div>
+      <div class="cp-chips" id="cp-filter-chips">
+        <button class="cp-chip active" onclick="cpSetFilter(this,'all')">All</button>
+        <button class="cp-chip" onclick="cpSetFilter(this,'open')">Open</button>
+        <button class="cp-chip" onclick="cpSetFilter(this,'inprogress')">In Progress</button>
+        <button class="cp-chip" onclick="cpSetFilter(this,'pending')">Pending</button>
+        <button class="cp-chip" onclick="cpSetFilter(this,'closed')">Closed</button>
+        <button class="cp-refresh-btn" onclick="cpOnOpen()" title="Refresh">↻</button>
+      </div>
+    </div>
+    <div class="cp-table-wrap">
+      <table class="cp-table">
+        <thead>
+          <tr>
+            <th>Ticket</th>
+            <th>Customer</th>
+            <th>Model</th>
+            <th>Opened</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="cp-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+  <!-- FORM SUBVIEW -->
+  <div id="cp-form-view" class="cp-form-wrap" style="display:none">
+    <div id="cp-form-inner"></div>
+  </div>
+</div>
+
+<!-- Assign investigator modal -->
+<div id="cp-assign-modal" class="cp-modal-overlay" style="display:none" onclick="if(event.target===this)cpCloseAssignModal()">
+  <div class="cp-modal-box">
+    <div class="cp-modal-title">Assign Investigator — <span id="cp-assign-ticket"></span></div>
+    <div class="cp-modal-field">
+      <label class="cp-modal-label">Investigator Name</label>
+      <input id="cp-assign-name" class="cp-modal-input" type="text" placeholder="Full name">
+    </div>
+    <div class="cp-modal-field">
+      <label class="cp-modal-label">Investigator Email</label>
+      <input id="cp-assign-email" class="cp-modal-input" type="email" placeholder="email@reposefurniture.co.uk">
+    </div>
+    <div class="cp-modal-actions">
+      <button class="cp-modal-cancel" onclick="cpCloseAssignModal()">Cancel</button>
+      <button class="cp-modal-confirm" onclick="cpAssignInvestigator()">Assign</button>
+    </div>
+  </div>
+</div>
+
 <div class="toasts" id="toasts"></div>
 
 <script>
