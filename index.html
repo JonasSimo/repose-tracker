@@ -11345,8 +11345,8 @@ async function cpAssignInvestigator() {
   const dateStr = `${dd}/${mm}/${yyyy}`;
 
   try {
-    const siteId = await getSpSiteId();
-    const listId = await getListIdByName('ComplaintInvestigations');
+    const siteId = await cpGetSiteId();
+    const listId = await getListIdByNameOnSite(siteId, 'ComplaintInvestigations');
     await graphPost(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`, {
       fields: {
         TicketNo:              cpActiveTicket,
@@ -11637,8 +11637,8 @@ async function cpSaveForm() {
   if (!c.inv._id) { toast('No SharePoint ID for this investigation', 'e'); return; }
 
   try {
-    const siteId = await getSpSiteId();
-    const listId = await getListIdByName('ComplaintInvestigations');
+    const siteId = await cpGetSiteId();
+    const listId = await getListIdByNameOnSite(siteId, 'ComplaintInvestigations');
     const token  = await getGraphToken();
     const res = await fetch(
       `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${c.inv._id}/fields`,
@@ -11728,8 +11728,8 @@ async function cpSubmitInvestigatorSignature() {
   try {
     // Save form content first so nothing is lost
     await cpSaveForm();
-    const siteId = await getSpSiteId();
-    const listId = await getListIdByName('ComplaintInvestigations');
+    const siteId = await cpGetSiteId();
+    const listId = await getListIdByNameOnSite(siteId, 'ComplaintInvestigations');
     const token  = await getGraphToken();
     const res = await fetch(
       `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${c.inv._id}/fields`,
@@ -11781,8 +11781,8 @@ async function cpSubmitManagerSignature() {
   const mgrBtn = document.querySelector('.cp-sig-submit');
   if (mgrBtn) mgrBtn.disabled = true;
   try {
-    const siteId = await getSpSiteId();
-    const listId = await getListIdByName('ComplaintInvestigations');
+    const siteId = await cpGetSiteId();
+    const listId = await getListIdByNameOnSite(siteId, 'ComplaintInvestigations');
     const token  = await getGraphToken();
     const res = await fetch(
       `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${c.inv._id}/fields`,
