@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Woodmill Pre-Use Inspection — QR Codes</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f4f6f8;
+      padding: 20px;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 18px;
+      color: #0e023a;
+      margin-bottom: 6px;
+    }
+    .page-sub {
+      text-align: center;
+      font-size: 13px;
+      color: #706f6f;
+      margin-bottom: 20px;
+    }
+    .print-btn {
+      display: block;
+      margin: 0 auto 24px;
+      padding: 10px 28px;
+      background: #14a1e9;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+    }
+    .print-btn:hover { background: #0d8fd4; }
+
+    /* Grid — 2 columns on screen, 2 on print */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    /* Card */
+    .card {
+      background: #fff;
+      border: 2.5px solid #0e023a;
+      border-radius: 10px;
+      padding: 16px 16px 12px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .card-logo { height: 28px; width: auto; }
+
+    .card-qr { line-height: 0; }
+    .card-qr img, .card-qr canvas { width: 180px !important; height: 180px !important; }
+
+    .card-group {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      color: #14a1e9;
+    }
+
+    .card-name {
+      font-size: 18px;
+      font-weight: 800;
+      color: #0e023a;
+      line-height: 1.2;
+    }
+
+    .card-sub {
+      font-size: 10px;
+      color: #706f6f;
+      line-height: 1.4;
+    }
+
+    .card-url {
+      font-size: 8px;
+      color: #aaa;
+      word-break: break-all;
+    }
+
+    /* ── PRINT ── */
+    @media print {
+      @page { size: A4 portrait; margin: 10mm; }
+
+      body { background: #fff; padding: 0; }
+      h1, .page-sub, .print-btn { display: none; }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8mm;
+        max-width: 100%;
+        margin: 0;
+      }
+
+      .card {
+        page-break-inside: avoid;
+        break-inside: avoid;
+        border: 2px solid #0e023a;
+        border-radius: 6px;
+        padding: 10px;
+        gap: 6px;
+      }
+
+      .card-qr img, .card-qr canvas { width: 150px !important; height: 150px !important; }
+      .card-name { font-size: 16px; }
+      .card-url { display: block; }
+
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    }
+  </style>
+</head>
+<body>
+
+<h1>Woodmill Pre-Use Inspection — QR Codes</h1>
+<p class="page-sub">Print and laminate. Affix each card to the corresponding machine or bench.</p>
+<button class="print-btn" onclick="window.print()">🖨 Print QR Codes</button>
+
+<div class="grid" id="grid"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+const BASE_URL = 'https://JonasSimo.github.io/repose-tracker/inspect.html?m=';
+
+const MACHINES = [
+  { id: 'bandsaw',         name: 'Bandsaw',          group: 'Saws'     },
+  { id: 'panel-saw-1',     name: 'Panel Saw 1',       group: 'Saws'     },
+  { id: 'panel-saw-2',     name: 'Panel Saw 2',       group: 'Saws'     },
+  { id: 'crosscut-saw-1',  name: 'Crosscut Saw 1',    group: 'Saws'     },
+  { id: 'crosscut-saw-2',  name: 'Crosscut Saw 2',    group: 'Saws'     },
+  { id: 'pillar-drill',    name: 'Pillar Drill',      group: 'Machines' },
+  { id: 't-nut-1',         name: 'T-Nut Machine 1',   group: 'Machines' },
+  { id: 't-nut-2',         name: 'T-Nut Machine 2',   group: 'Machines' },
+  { id: 'cnc-1',           name: 'CNC Machine 1',     group: 'Machines' },
+  { id: 'cnc-2',           name: 'CNC Machine 2',     group: 'Machines' },
+  { id: 'sander',          name: 'Sander',            group: 'Machines' },
+  { id: 'bench-a',         name: 'Blocking Bench A',  group: 'Benches'  },
+  { id: 'bench-b',         name: 'Blocking Bench B',  group: 'Benches'  },
+  { id: 'bench-c',         name: 'Blocking Bench C',  group: 'Benches'  },
+  { id: 'bench-d',         name: 'Blocking Bench D',  group: 'Benches'  },
+  { id: 'bench-e',         name: 'Blocking Bench E',  group: 'Benches'  },
+];
+
+const grid = document.getElementById('grid');
+
+MACHINES.forEach(m => {
+  const url = BASE_URL + m.id;
+
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <img class="card-logo"
+      src="./Repose_RGB_logo_Colour_with_strapline_1500pxW.png"
+      alt="Repose Furniture"
+      onerror="this.style.display='none'">
+    <div class="card-group">${m.group}</div>
+    <div class="card-qr" id="qr-${m.id}"></div>
+    <div class="card-name">${m.name}</div>
+    <div class="card-sub">Scan to complete<br>pre-use inspection</div>
+    <div class="card-url">${url}</div>
+  `;
+  grid.appendChild(card);
+
+  new QRCode(document.getElementById('qr-' + m.id), {
+    text:           url,
+    width:          180,
+    height:         180,
+    colorDark:      '#0e023a',
+    colorLight:     '#ffffff',
+    correctLevel:   QRCode.CorrectLevel.M,
+  });
+});
+</script>
+</body>
+</html>
