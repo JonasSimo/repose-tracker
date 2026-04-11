@@ -4553,6 +4553,14 @@ async function getListIdByName(name) {
   return res.id;
 }
 
+async function getListIdByNameOnSite(siteId, name) {
+  const cacheKey = `${siteId}::${name}`;
+  if (_spListIdCache[cacheKey]) return _spListIdCache[cacheKey];
+  const res = await graphGet(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${name}`);
+  _spListIdCache[cacheKey] = res.id;
+  return res.id;
+}
+
 // ═══════════════════════════════════════════════
 // SPEC CHANGE DETECTION & ALERTS
 // ═══════════════════════════════════════════════
@@ -11195,7 +11203,7 @@ async function cpLoadData() {
 
   // ── 2. Read ComplaintInvestigations list ──────
   const siteId = await cpGetSiteId();
-  const listId = await getListIdByName('ComplaintInvestigations');
+  const listId = await getListIdByNameOnSite(siteId, 'ComplaintInvestigations');
   const items  = await graphGetAll(
     `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999`
   );
