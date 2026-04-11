@@ -11553,6 +11553,67 @@ function cpBackToList() {
   document.getElementById('cp-form-view').style.display = 'none';
   cpActiveTicket = null;
 }
+
+async function cpSaveForm() {
+  const c = cpComplaints.find(x => x.TicketNo === cpActiveTicket);
+  if (!c || !c.inv) { toast('No active investigation', 'e'); return; }
+
+  // Collect 5 Whys
+  const fiveWhys = {
+    why1: document.getElementById('cp-why1')?.value || '',
+    why2: document.getElementById('cp-why2')?.value || '',
+    why3: document.getElementById('cp-why3')?.value || '',
+    why4: document.getElementById('cp-why4')?.value || '',
+    why5: document.getElementById('cp-why5')?.value || '',
+    causes: [1,2,3,4,5].map(i =>
+      [1,2,3,4].map(j => document.getElementById(`cp-why${i}-cause${j}`)?.value || '')
+    ),
+  };
+
+  // Collect Actions Log rows
+  const actionsLog = Array.from(
+    document.getElementById('cp-actions-body')?.rows || []
+  ).map(tr => ({
+    initiative:     tr.querySelector('[name=initiative]')?.value     || '',
+    owner:          tr.querySelector('[name=owner]')?.value          || '',
+    targetDate:     tr.querySelector('[name=targetDate]')?.value     || '',
+    completionDate: tr.querySelector('[name=completionDate]')?.value || '',
+    status:         tr.querySelector('[name=status]')?.value         || '',
+  }));
+
+  const fields = {
+    Section1:    document.getElementById('cp-f-s1')?.value          || '',
+    Section2:    document.getElementById('cp-f-s2')?.value          || '',
+    Section3:    document.getElementById('cp-f-s3')?.value          || '',
+    Section4:    document.getElementById('cp-f-s4')?.value          || '',
+    Section5:    document.getElementById('cp-f-s5')?.value          || '',
+    Section6:    document.getElementById('cp-f-s6')?.value          || '',
+    Section7:    document.getElementById('cp-f-s7')?.value          || '',
+    ConcernType: document.getElementById('cp-f-concern')?.value     || '',
+    ReportedBy:  document.getElementById('cp-f-reported-by')?.value || '',
+    FiveWhys:    JSON.stringify(fiveWhys),
+    ActionsLog:  JSON.stringify(actionsLog),
+  };
+
+  try {
+    const siteId = await getSpSiteId();
+    const listId = await getListIdByName('ComplaintInvestigations');
+    const token  = await getGraphToken();
+    await fetch(
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${c.inv._id}/fields`,
+      {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(fields),
+      }
+    );
+    // Update local cache so re-render doesn't lose edits
+    Object.assign(c.inv, fields);
+    toast('Saved');
+  } catch (e) {
+    toast('Save failed: ' + e.message, 'e');
+  }
+}
 </script>
 </body>
 </html>
