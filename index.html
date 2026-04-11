@@ -11294,9 +11294,13 @@ function cpCloseAssignModal() {
 async function cpAssignInvestigator() {
   const name  = document.getElementById('cp-assign-name').value.trim();
   const email = document.getElementById('cp-assign-email').value.trim().toLowerCase();
-  if (!name)  { toast('Investigator name is required', 'e'); return; }
-  if (!email) { toast('Investigator email is required', 'e'); return; }
+  if (!name)             { toast('Investigator name is required', 'e'); return; }
+  if (!email)            { toast('Investigator email is required', 'e'); return; }
+  if (!email.includes('@')) { toast('Enter a valid email address', 'e'); return; }
   if (!cpActiveTicket) return;
+
+  const confirmBtn = document.querySelector('#cp-assign-modal .cp-modal-confirm');
+  if (confirmBtn) confirmBtn.disabled = true;
 
   const today  = new Date();
   const dd     = String(today.getDate()).padStart(2, '0');
@@ -11332,6 +11336,7 @@ async function cpAssignInvestigator() {
     cpCloseAssignModal();
     await cpOnOpen(); // reload list
   } catch (e) {
+    if (confirmBtn) confirmBtn.disabled = false;
     toast('Error assigning investigator: ' + e.message, 'e');
   }
 }
