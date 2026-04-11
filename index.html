@@ -11174,9 +11174,8 @@ async function cpLoadData() {
   const driveItem  = await graphGet(`https://graph.microsoft.com/v1.0/shares/${encoded}/driveItem`);
   const driveId    = driveItem.parentReference.driveId;
   const itemId     = driveItem.id;
-  const wsName     = encodeURIComponent('TICKET LOG');
   const range      = await graphGet(
-    `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/worksheets('${wsName}')/usedRange?$select=values`
+    `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/worksheets('TICKET LOG')/usedRange?$select=values`
   );
   const values = range.values || [];
 
