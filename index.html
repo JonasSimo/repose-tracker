@@ -11137,6 +11137,71 @@ function tmRender() {
 
   footer.textContent = `Based on ${timed.length} timed completion${timed.length === 1 ? '' : 's'}`;
 }
+
+// ═══════════════════════════════════════════════
+// COMPLAINTS
+// ═══════════════════════════════════════════════
+
+// Fetches all "Inside 30" rows from REPO-Q006 Excel (from 01/04/2026) and all
+// ComplaintInvestigations SharePoint list items, then joins them by TicketNo.
+// Result is stored in cpComplaints — each entry: { TicketNo, Customer, RepNo,
+// Model, Description, OpenDate, status, inv } where inv is the SharePoint record or null.
+async function cpLoadData() {
+  if (!graphAccount) return;
+  cpComplaints = [];
+
+  // ── 1. Read Excel via Graph API ───────────────
+  const encoded    = encodeSharingUrl(CP_TICKETING_LOG_URL);
+  const driveItem  = await graphGet(`https://graph.microsoft.com/v1.0/shares/${encoded}/driveItem`);
+  const driveId    = driveItem.parentReference.driveId;
+  const itemId     = driveItem.id;
+  const wsName     = encodeURIComponent('TICKET LOG');
+  const range      = await graphGet(
+    `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/worksheets('${wsName}')/usedRange?$select=values`
+  );
+  const values = range.values || [];
+
+  // Column indices (0-based): B=1, G=6, H=7, J=9, L=11, N=13, O=14
+  const cutoff = new Date(2026, 3, 1); // 2026-04-01
+  const excelRows = [];
+  for (let i = 0; i < values.length; i++) {
+    const row      = values[i];
+    const ticketNo = String(row[6] || '').trim();
+    if (!ticketNo) continue; // skip header/empty rows
+    const colB = String(row[1] || '').trim().toLowerCase();
+    if (colB !== 'inside 30') continue;
+    const openDate = parseDdmmyyyy(String(row[14] || ''));
+    if (!openDate || openDate < cutoff) continue;
+    excelRows.push({
+      TicketNo:    ticketNo,
+      Customer:    String(row[7]  || '').trim(),
+      RepNo:       String(row[9]  || '').trim(),
+      Model:       String(row[11] || '').trim(),
+      Description: String(row[13] || '').trim(),
+      OpenDate:    String(row[14] || '').trim(),
+    });
+  }
+
+  // ── 2. Read ComplaintInvestigations list ──────
+  const siteId = await getSpSiteId();
+  const listId = await getListIdByName('ComplaintInvestigations');
+  const items  = await graphGetAll(
+    `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999`
+  );
+
+  // Build lookup by TicketNo
+  const invMap = {};
+  for (const item of items) {
+    const f = item.fields;
+    invMap[String(f.TicketNo || '').trim()] = { _id: item.id, ...f };
+  }
+
+  // ── 3. Join ───────────────────────────────────
+  cpComplaints = excelRows.map(row => {
+    const inv = invMap[row.TicketNo] || null;
+    return { ...row, inv, status: inv?.Status || 'Open' };
+  });
+}
 </script>
 </body>
 </html>
