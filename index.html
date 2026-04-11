@@ -11181,14 +11181,25 @@ async function cpLoadData() {
 
   // Column indices (0-based): B=1, G=6, H=7, J=9, L=11, N=13, O=14
   const cutoff = new Date(2026, 3, 1); // 2026-04-01
+  // Helper: parse either DD/MM/YYYY string or Excel serial number into a JS Date
+  function cpParseDate(v) {
+    if (!v && v !== 0) return null;
+    if (typeof v === 'number') {
+      // Excel serial: days since Dec 30, 1899 (accounting for Excel's 1900 leap-year bug)
+      return new Date(Math.round((v - 25569) * 86400 * 1000));
+    }
+    return parseDdmmyyyy(String(v));
+  }
   const excelRows = [];
+  let cpDebugInside30 = 0;
   for (let i = 0; i < values.length; i++) {
     const row      = values[i];
     const ticketNo = String(row[6] || '').trim();
     if (!ticketNo) continue; // skip header/empty rows
     const colB = String(row[1] || '').trim().toLowerCase();
+    if (colB === 'inside 30') cpDebugInside30++;
     if (colB !== 'inside 30') continue;
-    const openDate = parseDdmmyyyy(String(row[14] || ''));
+    const openDate = cpParseDate(row[14]);
     if (!openDate || openDate < cutoff) continue;
     excelRows.push({
       TicketNo:    ticketNo,
@@ -11196,9 +11207,10 @@ async function cpLoadData() {
       RepNo:       String(row[9]  || '').trim(),
       Model:       String(row[11] || '').trim(),
       Description: String(row[13] || '').trim(),
-      OpenDate:    String(row[14] || '').trim(),
+      OpenDate:    openDate.toLocaleDateString('en-GB'),
     });
   }
+  console.log('[cp] Excel rows scanned:', values.length, '| "Inside 30" matches:', cpDebugInside30, '| after date filter:', excelRows.length);
 
   // ── 2. Read ComplaintInvestigations list ──────
   const siteId = await cpGetSiteId();
