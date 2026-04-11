@@ -6490,6 +6490,7 @@ async function refreshStatsData() {
   STATS_QC          = [];
   STATS_CPARS       = [];
   await loadStatsData();
+  if (document.getElementById('view-timing')?.classList.contains('active')) tmRender();
 }
 
 // ── Aggregation helpers ─────────────────────────
