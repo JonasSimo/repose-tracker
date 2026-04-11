@@ -11147,8 +11147,8 @@ function tmRender() {
 // Result is stored in cpComplaints — each entry: { TicketNo, Customer, RepNo,
 // Model, Description, OpenDate, status, inv } where inv is the SharePoint record or null.
 async function cpLoadData() {
-  if (!graphAccount) return;
   cpComplaints = [];
+  if (!graphAccount) return;
 
   // ── 1. Read Excel via Graph API ───────────────
   const encoded    = encodeSharingUrl(CP_TICKETING_LOG_URL);
@@ -11193,7 +11193,7 @@ async function cpLoadData() {
   const invMap = {};
   for (const item of items) {
     const f = item.fields;
-    invMap[String(f.TicketNo || '').trim()] = { _id: item.id, ...f };
+    invMap[String(f.TicketNo || '').trim()] = { ...f, _id: item.id };
   }
 
   // ── 3. Join ───────────────────────────────────
