@@ -11595,11 +11595,13 @@ async function cpSaveForm() {
     ActionsLog:  JSON.stringify(actionsLog),
   };
 
+  if (!c.inv._id) { toast('No SharePoint ID for this investigation', 'e'); return; }
+
   try {
     const siteId = await getSpSiteId();
     const listId = await getListIdByName('ComplaintInvestigations');
     const token  = await getGraphToken();
-    await fetch(
+    const res = await fetch(
       `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${c.inv._id}/fields`,
       {
         method: 'PATCH',
@@ -11607,6 +11609,7 @@ async function cpSaveForm() {
         body: JSON.stringify(fields),
       }
     );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     // Update local cache so re-render doesn't lose edits
     Object.assign(c.inv, fields);
     toast('Saved');
