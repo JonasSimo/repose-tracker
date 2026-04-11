@@ -11493,7 +11493,6 @@ function cpRenderForm(c) {
       ${n === 4 ? cpRenderFiveWhys(fiveWhys, editable) : ''}
     </div>`).join('');
 
-  const actionsColspan = editable ? '6' : '5';
   const actionsHeader  = editable
     ? '<th>Initiative</th><th>Owner</th><th>Target Date</th><th>Completion Date</th><th>Status</th><th></th>'
     : '<th>Initiative</th><th>Owner</th><th>Target Date</th><th>Completion Date</th><th>Status</th>';
