@@ -11617,6 +11617,148 @@ async function cpSaveForm() {
     toast('Save failed: ' + e.message, 'e');
   }
 }
+
+// Attaches mouse + touch drawing listeners to a canvas element.
+// Must be called after the canvas is in the DOM.
+function cpInitSignaturePad(canvasId) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  let drawing = false;
+  ctx.strokeStyle = '#000080'; // dark navy — visible on white print background
+  ctx.lineWidth   = 2;
+  ctx.lineCap     = 'round';
+  ctx.lineJoin    = 'round';
+
+  function getPos(e) {
+    const rect   = canvas.getBoundingClientRect();
+    const scaleX = canvas.width  / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const src    = e.touches ? e.touches[0] : e;
+    return { x: (src.clientX - rect.left) * scaleX, y: (src.clientY - rect.top) * scaleY };
+  }
+
+  canvas.addEventListener('mousedown',  e => { drawing = true; ctx.beginPath(); const p = getPos(e); ctx.moveTo(p.x, p.y); });
+  canvas.addEventListener('mousemove',  e => { if (!drawing) return; const p = getPos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); });
+  canvas.addEventListener('mouseup',    () => { drawing = false; });
+  canvas.addEventListener('mouseleave', () => { drawing = false; });
+  canvas.addEventListener('touchstart', e => { e.preventDefault(); drawing = true; ctx.beginPath(); const p = getPos(e); ctx.moveTo(p.x, p.y); }, { passive:false });
+  canvas.addEventListener('touchmove',  e => { e.preventDefault(); if (!drawing) return; const p = getPos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); }, { passive:false });
+  canvas.addEventListener('touchend',   () => { drawing = false; });
+}
+
+function cpClearCanvas(canvasId) {
+  const canvas = document.getElementById(canvasId);
+  if (canvas) canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+}
+
+// Returns true if the canvas has no drawn pixels (all alpha=0)
+function cpIsCanvasEmpty(canvas) {
+  const data = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+  for (let i = 3; i < data.length; i += 4) {
+    if (data[i] !== 0) return false;
+  }
+  return true;
+}
+
+async function cpSubmitInvestigatorSignature() {
+  const canvas = document.getElementById('cp-inv-sig-canvas');
+  if (!canvas || cpIsCanvasEmpty(canvas)) {
+    toast('Please draw your signature first', 'e');
+    return;
+  }
+
+  const c = cpComplaints.find(x => x.TicketNo === cpActiveTicket);
+  if (!c || !c.inv) return;
+  if (!c.inv._id) { toast('No SharePoint ID for this investigation', 'e'); return; }
+
+  const sigData = canvas.toDataURL('image/png');
+  const now     = new Date();
+  const sigDate = [
+    String(now.getDate()).padStart(2,'0'),
+    String(now.getMonth()+1).padStart(2,'0'),
+    now.getFullYear(),
+  ].join('/') + ' ' + [
+    String(now.getHours()).padStart(2,'0'),
+    String(now.getMinutes()).padStart(2,'0'),
+  ].join(':');
+
+  try {
+    // Save form content first so nothing is lost
+    await cpSaveForm();
+    const siteId = await getSpSiteId();
+    const listId = await getListIdByName('ComplaintInvestigations');
+    const token  = await getGraphToken();
+    const res = await fetch(
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${c.inv._id}/fields`,
+      {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ Status:'PendingClosure', InvestigatorSignature:sigData, InvestigatorSignedDate:sigDate }),
+      }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    Object.assign(c.inv, { Status:'PendingClosure', InvestigatorSignature:sigData, InvestigatorSignedDate:sigDate });
+    c.status = 'PendingClosure';
+    toast('Investigation submitted — awaiting manager sign-off');
+    cpRenderForm(c); // re-render: form locks, manager slot appears
+  } catch (e) {
+    toast('Submit failed: ' + e.message, 'e');
+  }
+}
+
+async function cpSubmitManagerSignature() {
+  const canvas = document.getElementById('cp-mgr-sig-canvas');
+  if (!canvas || cpIsCanvasEmpty(canvas)) {
+    toast('Please draw your signature first', 'e');
+    return;
+  }
+
+  const c = cpComplaints.find(x => x.TicketNo === cpActiveTicket);
+  if (!c || !c.inv) return;
+  if (!c.inv._id) { toast('No SharePoint ID for this investigation', 'e'); return; }
+
+  const sigData    = canvas.toDataURL('image/png');
+  const now        = new Date();
+  const sigDate    = [
+    String(now.getDate()).padStart(2,'0'),
+    String(now.getMonth()+1).padStart(2,'0'),
+    now.getFullYear(),
+  ].join('/') + ' ' + [
+    String(now.getHours()).padStart(2,'0'),
+    String(now.getMinutes()).padStart(2,'0'),
+  ].join(':');
+  const closedDate = [
+    String(now.getDate()).padStart(2,'0'),
+    String(now.getMonth()+1).padStart(2,'0'),
+    now.getFullYear(),
+  ].join('/');
+
+  try {
+    const siteId = await getSpSiteId();
+    const listId = await getListIdByName('ComplaintInvestigations');
+    const token  = await getGraphToken();
+    const res = await fetch(
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${c.inv._id}/fields`,
+      {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ Status:'Closed', ManagerSignature:sigData, ManagerSignedDate:sigDate, ClosedDate:closedDate }),
+      }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    Object.assign(c.inv, { Status:'Closed', ManagerSignature:sigData, ManagerSignedDate:sigDate, ClosedDate:closedDate });
+    c.status = 'Closed';
+    toast('Complaint closed');
+    cpRenderForm(c); // re-render: both signatures now show as images
+  } catch (e) {
+    toast('Sign-off failed: ' + e.message, 'e');
+  }
+}
+
+function cpExportPdf() {
+  window.print();
+}
 </script>
 </body>
 </html>
