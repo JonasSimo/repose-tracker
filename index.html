@@ -11542,6 +11542,9 @@ function cpRenderForm(c) {
 function cpOpenInvestigation(ticketNo) {
   const c = cpComplaints.find(x => x.TicketNo === ticketNo);
   if (!c) return;
+  const me = (graphAccount?.username || '').toLowerCase();
+  const isMine = (c.inv?.InvestigatorEmail || '').toLowerCase() === me;
+  if (!cpIsManager && !isMine) { toast('Not authorised to view this investigation', 'e'); return; }
   cpActiveTicket = ticketNo;
   document.getElementById('cp-list-view').style.display = 'none';
   document.getElementById('cp-form-view').style.display = '';
@@ -11615,6 +11618,7 @@ async function cpSaveForm() {
     toast('Saved');
   } catch (e) {
     toast('Save failed: ' + e.message, 'e');
+    throw e;
   }
 }
 
@@ -11683,6 +11687,8 @@ async function cpSubmitInvestigatorSignature() {
     String(now.getMinutes()).padStart(2,'0'),
   ].join(':');
 
+  const invBtn = document.querySelector('.cp-sig-submit');
+  if (invBtn) invBtn.disabled = true;
   try {
     // Save form content first so nothing is lost
     await cpSaveForm();
@@ -11703,6 +11709,8 @@ async function cpSubmitInvestigatorSignature() {
     toast('Investigation submitted — awaiting manager sign-off');
     cpRenderForm(c); // re-render: form locks, manager slot appears
   } catch (e) {
+    const invBtn2 = document.querySelector('.cp-sig-submit');
+    if (invBtn2) invBtn2.disabled = false;
     toast('Submit failed: ' + e.message, 'e');
   }
 }
@@ -11734,6 +11742,8 @@ async function cpSubmitManagerSignature() {
     now.getFullYear(),
   ].join('/');
 
+  const mgrBtn = document.querySelector('.cp-sig-submit');
+  if (mgrBtn) mgrBtn.disabled = true;
   try {
     const siteId = await getSpSiteId();
     const listId = await getListIdByName('ComplaintInvestigations');
@@ -11752,6 +11762,8 @@ async function cpSubmitManagerSignature() {
     toast('Complaint closed');
     cpRenderForm(c); // re-render: both signatures now show as images
   } catch (e) {
+    const mgrBtn2 = document.querySelector('.cp-sig-submit');
+    if (mgrBtn2) mgrBtn2.disabled = false;
     toast('Sign-off failed: ' + e.message, 'e');
   }
 }
