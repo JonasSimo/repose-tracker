@@ -2448,7 +2448,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // UTILITY
 // ═══════════════════════════════════════════════
 function escHtml(s) {
-  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 // ═══════════════════════════════════════════════
@@ -11263,6 +11263,8 @@ async function cpOnOpen() {
   document.getElementById('cp-list-view').style.display  = '';
   document.getElementById('cp-form-view').style.display  = 'none';
   cpActiveTicket = null;
+  cpActiveFilter = 'all';
+  document.querySelectorAll('#cp-filter-chips .cp-chip').forEach((b,i) => b.classList.toggle('active', i === 0));
   document.getElementById('cp-tbody').innerHTML =
     '<tr><td colspan="6" class="cp-empty">Loading…</td></tr>';
   try {
