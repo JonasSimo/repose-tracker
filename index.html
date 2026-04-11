@@ -10833,8 +10833,12 @@ function tmCalcDuration(startTimeStr, completedTimeStr, completedDateStr) {
   } else {
     // Cross-day: started previous working day
     const startDate = tmPrevWorkingDay(doneDate);
-    // Remaining working minutes on start day (from startMin to end of that day)
     const startDayEnd = tmWorkDayEndMin(startDate);
+    // Guard: start time must be within factory hours
+    if (startMin > startDayEnd) return null;
+    // Guard: completion time must be after factory opens
+    if (doneMin < 420) return null;
+    // Remaining working minutes on start day (from startMin to end of that day)
     let total = startDayEnd - startMin;
     // Full working days in between
     const d = new Date(startDate);
