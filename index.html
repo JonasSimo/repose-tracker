@@ -1787,9 +1787,29 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .tm-table td      { font-size:13px; color:var(--text1); padding:8px 8px; border-bottom:1px solid var(--border); }
 .tm-table td.num  { text-align:right; font-family:'JetBrains Mono',monospace; font-size:12px; }
 .tm-table tbody tr:hover { background:var(--bg2); }
+.tm-table tbody tr.tm-row-clickable { cursor:pointer; }
+.tm-table tbody tr.tm-row-clickable:hover { background:var(--bbg,#0d2137); }
 .tm-empty         { padding:32px; text-align:center; font-size:14px; color:var(--text2); }
 .tm-loading       { padding:32px; text-align:center; font-size:14px; color:var(--text2); }
 .tm-footer        { flex-shrink:0; padding:8px 14px; font-size:12px; color:var(--text2); border-top:1px solid var(--border); background:var(--bg2); }
+/* ── Timing detail modal ─────────────────────── */
+.tm-detail-overlay { position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center; z-index:800; }
+.tm-detail-box    { background:var(--bg2); border-radius:12px; width:min(640px,95vw); max-height:82vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 8px 40px rgba(0,0,0,.5); }
+.tm-detail-head   { padding:14px 16px 12px; border-bottom:1px solid var(--border); display:flex; align-items:flex-start; gap:10px; flex-shrink:0; }
+.tm-detail-title  { font-size:15px; font-weight:700; color:var(--text1); flex:1; }
+.tm-detail-sub    { font-size:11px; color:var(--text2); margin-top:3px; }
+.tm-detail-close  { width:28px; height:28px; border-radius:50%; border:none; background:var(--bg4,#2a2a3a); font-size:14px; cursor:pointer; color:var(--text2); flex-shrink:0; }
+.tm-detail-body   { flex:1; overflow-y:auto; }
+.tm-detail-tbl    { width:100%; border-collapse:collapse; }
+.tm-detail-tbl th { font-size:11px; font-weight:700; color:var(--text2); text-transform:uppercase; letter-spacing:.05em; padding:7px 10px; border-bottom:1.5px solid var(--border); text-align:left; position:sticky; top:0; background:var(--bg2); }
+.tm-detail-tbl th.num { text-align:right; }
+.tm-detail-tbl td { font-size:12px; color:var(--text1); padding:8px 10px; border-bottom:1px solid var(--border); }
+.tm-detail-tbl td.num { text-align:right; font-family:'JetBrains Mono',monospace; }
+.tm-detail-tbl tr.tm-rec-cancelled td { opacity:.38; text-decoration:line-through; }
+.tm-cancel-btn    { font-family:inherit; font-size:11px; font-weight:600; padding:3px 9px; border-radius:5px; border:1.5px solid #ef4444; background:transparent; color:#ef4444; cursor:pointer; white-space:nowrap; }
+.tm-cancel-btn:hover { background:#ef4444; color:#fff; }
+.tm-restore-btn   { font-family:inherit; font-size:11px; font-weight:600; padding:3px 9px; border-radius:5px; border:1.5px solid var(--border2); background:transparent; color:var(--text2); cursor:pointer; white-space:nowrap; }
+.tm-restore-btn:hover { background:var(--bg4,#2a2a3a); color:var(--text1); }
 
 /* ─── COMPLAINTS ─────────────────────────────── */
 .cp-list-wrap       { display:flex; flex-direction:column; height:100%; overflow:hidden; }
@@ -1889,14 +1909,9 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
   .cp-back-btn, .cp-save-btn, .cp-pdf-btn, .cp-refresh-btn,
   .cp-chip, .cp-add-row-btn, .cp-rm-row-btn,
   .cp-sig-btns, #cp-filter-chips { display:none !important; }
-  .cp-form-title::before {
-    content:'REPOSE FURNITURE\A';
-    white-space:pre;
-    display:block;
-    font-size:14pt;
-    font-weight:700;
-    margin-bottom:4pt;
-  }
+  .cp-print-logo-bar { display:flex !important; align-items:center; justify-content:space-between; background:#0e023a; padding:8pt 12pt; margin-bottom:10pt; border-radius:4pt; }
+  .cp-print-logo-bar img { height:28pt; width:auto; filter:brightness(0) invert(1); }
+  .cp-print-logo-bar span { color:#fff; font-size:10pt; font-weight:600; letter-spacing:.04em; }
   .cp-section-ta { border:1px solid #ccc; min-height:40px; }
   .cp-sig-canvas { display:none; }
   .cp-sig-img    { max-width:200px; }
@@ -2381,6 +2396,33 @@ document.addEventListener('DOMContentLoaded', () => {
     </div>
     <div id="tm-footer" class="tm-footer"></div>
   </div>
+  <!-- Timing detail modal -->
+  <div id="tm-detail-overlay" class="tm-detail-overlay" style="display:none" onclick="if(event.target===this)tmCloseDetail()">
+    <div class="tm-detail-box">
+      <div class="tm-detail-head">
+        <div style="flex:1">
+          <div class="tm-detail-title" id="tm-detail-title"></div>
+          <div class="tm-detail-sub"   id="tm-detail-sub"></div>
+        </div>
+        <button class="tm-detail-close" onclick="tmCloseDetail()">✕</button>
+      </div>
+      <div class="tm-detail-body">
+        <table class="tm-detail-tbl">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>REP</th>
+              <th class="num">Start</th>
+              <th class="num">Done</th>
+              <th class="num">Duration</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="tm-detail-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- ═══════════════════════════════════════════════
@@ -2761,7 +2803,7 @@ const SUB_SHORT = { 'Arms':'A', 'Backs':'B', 'Seats':'S' };
 // Row 1 = week numbers · Row 6 = delivery dates · Rows 7+ = REP numbers per column
 const OV_LOAD_PLAN_URL   = 'https://reposefurniturelimited.sharepoint.com/:x:/s/ReposeFurniture-PlanningRepose/IQD9dpVpE09LQZxBDPGSZhjTAacK5LMWwZgyKBDfcUOJ2vM?e=8iqRn3';
 const CP_TICKETING_LOG_URL = 'https://reposefurniturelimited.sharepoint.com/:x:/s/ReposeFurniture-Service/IQCQUvM2uD-pQKc9xRkYAfPvAbOaZl0j9liSrWaggTqF60Y?e=6x2dNE';
-const COMPLAINTS_MANAGERS  = new Set(['jonas.simonaitis@reposefurniture.co.uk']);
+const COMPLAINTS_MANAGERS  = new Set(['jonas.simonaitis@reposefurniture.co.uk','richard.semmens@reposefurniture.co.uk']);
 
 let cpComplaints    = [];       // joined Excel + SharePoint data, populated by cpLoadData()
 let cpActiveFilter  = 'all';   // 'all' | 'open' | 'inprogress' | 'pending' | 'closed'
@@ -10977,6 +11019,41 @@ const TIMING_TEAMS = ['Sewing','Assembly','Cutting','Upholstery'];
 let tmActiveTeam   = 'Sewing';
 let tmActivePeriod = 'week'; // 'today' | 'week' | 'month' | 'all'
 
+// Cancelled record IDs — persisted to SharePoint (cross-device) with localStorage as fast cache
+const TM_CANCELLED_KEY   = 'repnet_tm_cancelled';
+const TM_EXCLUSIONS_LIST = 'TimingExclusions';
+let tmCancelledIds     = new Set(JSON.parse(localStorage.getItem(TM_CANCELLED_KEY) || '[]'));
+let tmExclusionItemIds = {}; // productionRecord id → SP list item id (needed for DELETE)
+
+function tmSaveCancelled() {
+  localStorage.setItem(TM_CANCELLED_KEY, JSON.stringify([...tmCancelledIds]));
+}
+
+async function tmLoadExclusions() {
+  try {
+    const siteId = await getSpSiteId();
+    const listId = await getListIdByName(TM_EXCLUSIONS_LIST);
+    const items  = await graphGetAll(
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999`
+    );
+    tmCancelledIds     = new Set();
+    tmExclusionItemIds = {};
+    for (const item of items) {
+      const recId = String(item.fields.Title || '').trim();
+      if (recId) {
+        tmCancelledIds.add(recId);
+        tmExclusionItemIds[recId] = item.id;
+      }
+    }
+    tmSaveCancelled(); // keep local cache in sync
+  } catch (e) {
+    console.warn('TimingExclusions load failed, using localStorage cache:', e.message);
+  }
+}
+
+// All timed records from the last render (used by detail modal)
+let tmLastTimedAll = [];
+
 // Returns total working minutes in a given Date (Mon-Thu=540, Fri=300, Sat/Sun=0)
 function tmWorkDayMins(date) {
   const dow = date.getDay(); // 0=Sun,1=Mon,...,6=Sat
@@ -11083,14 +11160,19 @@ function tmSetPeriod(btn, period) {
 }
 
 async function tmOnOpen() {
-  if (!STATS_COMPLETIONS.length) {
+  const loadNeeded = !STATS_COMPLETIONS.length;
+  if (loadNeeded) {
     document.getElementById('tm-loading').style.display = '';
     document.getElementById('tm-empty').style.display   = 'none';
     document.getElementById('tm-tbody').innerHTML        = '';
     document.getElementById('tm-footer').textContent     = '';
-    await loadStatsData();
-    document.getElementById('tm-loading').style.display = 'none';
   }
+  // Load exclusions from SharePoint and completions data in parallel
+  await Promise.all([
+    tmLoadExclusions(),
+    loadNeeded ? loadStatsData() : Promise.resolve(),
+  ]);
+  if (loadNeeded) document.getElementById('tm-loading').style.display = 'none';
   tmRender();
 }
 
@@ -11113,16 +11195,25 @@ function tmRender() {
     return tmInPeriod(f.CompletedDate);
   });
 
-  // Compute duration per record, discard nulls
-  const timed = [];
+  // Compute duration per record (all records, track cancelled status)
+  tmLastTimedAll = [];
   for (const c of records) {
     const f   = c.fields;
     const dur = tmCalcDuration(f.StartTime, f.CompletedTime, f.CompletedDate);
     if (dur === null) continue;
-    timed.push({ model: f.Model.trim(), dur });
+    tmLastTimedAll.push({
+      id:        c.id,
+      model:     f.Model.trim(),
+      dur,
+      fields:    f,
+      cancelled: tmCancelledIds.has(c.id),
+    });
   }
 
-  if (!timed.length) {
+  // Only non-cancelled records count toward averages
+  const timed = tmLastTimedAll.filter(r => !r.cancelled);
+
+  if (!timed.length && !tmLastTimedAll.length) {
     tbody.innerHTML = '';
     empty.style.display  = '';
     footer.textContent   = '';
@@ -11130,33 +11221,121 @@ function tmRender() {
   }
   empty.style.display = 'none';
 
-  // Group by model
+  // Group by model (active records only for averages)
   const byModel = {};
   for (const { model, dur } of timed) {
     if (!byModel[model]) byModel[model] = [];
     byModel[model].push(dur);
   }
 
-  // Build rows sorted by job count descending
+  // Count total records per model (including cancelled) for the Jobs column
+  const totalByModel = {};
+  for (const r of tmLastTimedAll) {
+    totalByModel[r.model] = (totalByModel[r.model] || 0) + 1;
+  }
+
+  // Build rows sorted by active job count descending
   const rows = Object.entries(byModel)
     .map(([model, durs]) => {
-      const avg = Math.round(durs.reduce((a, b) => a + b, 0) / durs.length);
-      const min = Math.min(...durs);
-      const max = Math.max(...durs);
-      return { model, count: durs.length, avg, min, max };
+      const avg   = Math.round(durs.reduce((a, b) => a + b, 0) / durs.length);
+      const min   = Math.min(...durs);
+      const max   = Math.max(...durs);
+      const total = totalByModel[model] || durs.length;
+      return { model, count: durs.length, total, avg, min, max };
     })
     .sort((a, b) => b.count - a.count);
 
-  tbody.innerHTML = rows.map(r => `
-    <tr>
+  tbody.innerHTML = rows.map(r => {
+    const cancelledCount = r.total - r.count;
+    const jobLabel = cancelledCount > 0
+      ? `${r.count} <span style="opacity:.5;font-size:10px">(${cancelledCount} excluded)</span>`
+      : `${r.count}`;
+    return `
+    <tr class="tm-row-clickable" onclick="tmOpenDetail(${JSON.stringify(r.model)})">
       <td>${escHtml(r.model)}</td>
-      <td class="num">${r.count}</td>
+      <td class="num">${jobLabel}</td>
       <td class="num">${tmFormatDuration(r.avg)}</td>
       <td class="num">${tmFormatDuration(r.min)}</td>
       <td class="num">${tmFormatDuration(r.max)}</td>
+    </tr>`;
+  }).join('');
+
+  const cancelledTotal = tmLastTimedAll.filter(r => r.cancelled).length;
+  const cancelNote = cancelledTotal > 0 ? ` · ${cancelledTotal} excluded` : '';
+  footer.textContent = `Based on ${timed.length} timed completion${timed.length === 1 ? '' : 's'}${cancelNote} — click a row to inspect`;
+}
+
+function tmOpenDetail(model) {
+  const records = tmLastTimedAll.filter(r => r.model === model);
+  const activeCount = records.filter(r => !r.cancelled).length;
+
+  document.getElementById('tm-detail-title').textContent = model;
+  document.getElementById('tm-detail-sub').textContent =
+    `${activeCount} of ${records.length} record${records.length !== 1 ? 's' : ''} included in averages`;
+
+  document.getElementById('tm-detail-tbody').innerHTML = records.map(r => `
+    <tr class="${r.cancelled ? 'tm-rec-cancelled' : ''}">
+      <td>${escHtml(r.fields.CompletedDate || '')}</td>
+      <td>${escHtml(r.fields.REP || '')}</td>
+      <td class="num">${escHtml(r.fields.StartTime || '')}</td>
+      <td class="num">${escHtml(r.fields.CompletedTime || '')}</td>
+      <td class="num">${tmFormatDuration(r.dur)}</td>
+      <td>${r.cancelled
+        ? `<button class="tm-restore-btn" onclick="tmRestoreRecord('${r.id}');event.stopPropagation()">Restore</button>`
+        : `<button class="tm-cancel-btn"  onclick="tmCancelRecord('${r.id}');event.stopPropagation()">Cancel</button>`
+      }</td>
     </tr>`).join('');
 
-  footer.textContent = `Based on ${timed.length} timed completion${timed.length === 1 ? '' : 's'}`;
+  document.getElementById('tm-detail-overlay').style.display = '';
+}
+
+function tmCloseDetail() {
+  document.getElementById('tm-detail-overlay').style.display = 'none';
+}
+
+async function tmCancelRecord(id) {
+  tmCancelledIds.add(id);
+  tmSaveCancelled();
+  tmRender();
+  tmOpenDetail(_tmDetailCurrentModel());
+  // Persist to SharePoint so all devices see the exclusion
+  try {
+    const siteId  = await getSpSiteId();
+    const listId  = await getListIdByName(TM_EXCLUSIONS_LIST);
+    const created = await graphPost(
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`,
+      { fields: { Title: String(id) } }
+    );
+    tmExclusionItemIds[id] = created.id;
+  } catch (e) {
+    console.warn('TimingExclusions: cancel persist failed:', e.message);
+  }
+}
+
+async function tmRestoreRecord(id) {
+  tmCancelledIds.delete(id);
+  tmSaveCancelled();
+  tmRender();
+  tmOpenDetail(_tmDetailCurrentModel());
+  // Remove from SharePoint
+  const spItemId = tmExclusionItemIds[id];
+  if (!spItemId) return;
+  try {
+    const siteId = await getSpSiteId();
+    const listId = await getListIdByName(TM_EXCLUSIONS_LIST);
+    const token  = await getGraphToken();
+    await fetch(
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${spItemId}`,
+      { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }
+    );
+    delete tmExclusionItemIds[id];
+  } catch (e) {
+    console.warn('TimingExclusions: restore delete failed:', e.message);
+  }
+}
+
+function _tmDetailCurrentModel() {
+  return document.getElementById('tm-detail-title').textContent;
 }
 
 // ═══════════════════════════════════════════════
@@ -11538,6 +11717,10 @@ function cpRenderForm(c) {
       <button class="cp-back-btn" onclick="cpBackToList()">← Back</button>
       ${editable ? `<button class="cp-save-btn" onclick="cpSaveForm()">💾 Save</button>` : ''}
       <button class="cp-pdf-btn" onclick="cpExportPdf()">⬇ Export PDF</button>
+    </div>
+    <div class="cp-print-logo-bar" style="display:none">
+      <img src="./Repose_RGB_logo_WO_with_strapline_1500pxW.png" alt="Repose Furniture">
+      <span>Customer Complaint Investigation</span>
     </div>
     <div class="cp-form-title">Issue Resolution Process — PHCIRP</div>
     <div class="cp-form-meta">
