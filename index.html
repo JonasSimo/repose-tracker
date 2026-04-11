@@ -10765,6 +10765,102 @@ async function closeOutNearMiss(itemId) {
   setTimeout(checkVersion, 5000);
 })();
 
+// ═══════════════════════════════════════════════
+// JOB TIMING
+// ═══════════════════════════════════════════════
+
+const TIMING_TEAMS = ['Sewing','Assembly','Cutting','Upholstery'];
+
+let tmActiveTeam   = 'Sewing';
+let tmActivePeriod = 'week'; // 'today' | 'week' | 'month' | 'all'
+
+// Returns total working minutes in a given Date (Mon-Thu=540, Fri=300, Sat/Sun=0)
+function tmWorkDayMins(date) {
+  const dow = date.getDay(); // 0=Sun,1=Mon,...,6=Sat
+  if (dow === 0 || dow === 6) return 0;
+  return dow === 5 ? 300 : 540;
+}
+
+// Returns end-of-working-day in minutes from midnight (Fri=720, else=960)
+function tmWorkDayEndMin(date) {
+  return date.getDay() === 5 ? 720 : 960;
+}
+
+// Steps back from a Date to the previous Mon-Fri working day
+function tmPrevWorkingDay(date) {
+  const d = new Date(date);
+  do { d.setDate(d.getDate() - 1); } while (d.getDay() === 0 || d.getDay() === 6);
+  return d;
+}
+
+// Returns true if record CompletedDate falls within the active timing period
+function tmInPeriod(dateStr) {
+  const d = parseDdmmyyyy(dateStr);
+  if (!d) return false;
+  const now = new Date();
+  if (tmActivePeriod === 'today') {
+    return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  }
+  if (tmActivePeriod === 'week') {
+    return isoWeekNumber(d) === isoWeekNumber(now) && isoWeekYear(d) === isoWeekYear(now);
+  }
+  if (tmActivePeriod === 'month') {
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  }
+  return true; // 'all'
+}
+
+// Parses 'HH:MM' → integer minutes from midnight. Returns null on bad input.
+function tmParseTime(str) {
+  if (!str || typeof str !== 'string') return null;
+  const [h, m] = str.split(':').map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+  return h * 60 + m;
+}
+
+// Calculates working-hours duration in minutes between StartTime and CompletedTime.
+// completedDateStr is DD/MM/YYYY. Returns null if inputs are invalid or result is implausible.
+function tmCalcDuration(startTimeStr, completedTimeStr, completedDateStr) {
+  const startMin = tmParseTime(startTimeStr);
+  const doneMin  = tmParseTime(completedTimeStr);
+  const doneDate = parseDdmmyyyy(completedDateStr);
+  if (startMin === null || doneMin === null || !doneDate) return null;
+
+  let duration;
+  if (doneMin >= startMin) {
+    // Same day
+    duration = doneMin - startMin;
+  } else {
+    // Cross-day: started previous working day
+    const startDate = tmPrevWorkingDay(doneDate);
+    // Remaining working minutes on start day (from startMin to end of that day)
+    const startDayEnd = tmWorkDayEndMin(startDate);
+    let total = startDayEnd - startMin;
+    // Full working days in between
+    const d = new Date(startDate);
+    d.setDate(d.getDate() + 1);
+    while (d.getTime() < doneDate.getTime()) {
+      total += tmWorkDayMins(d);
+      d.setDate(d.getDate() + 1);
+    }
+    // Minutes into completion day from 07:00
+    total += doneMin - 420; // 420 = 7*60
+    duration = total;
+  }
+
+  // Discard implausible durations
+  if (duration < 1 || duration > 1440) return null;
+  return duration;
+}
+
+// Formats integer minutes as '43m' or '1h 12m'
+function tmFormatDuration(min) {
+  if (min < 60) return `${min}m`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m === 0 ? `${h}h` : `${h}h ${m}m`;
+}
+
 // Timing tab — stub (full implementation in later task)
 function tmOnOpen() {}
 </script>
