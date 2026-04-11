@@ -94,17 +94,50 @@ New "Timing" button added to the nav bar, injected only for allowed users after 
 
 ## 6. Duration Calculation
 
+Jobs can span overnight (e.g. started 15:45 Monday, completed 08:20 Tuesday). Duration is calculated in **working minutes**, not raw clock time.
+
+### 6.1 Working hours
+
+| Day | Start | End |
+|---|---|---|
+| Monday–Thursday | 07:00 | 16:00 |
+| Friday | 07:00 | 12:00 |
+| Saturday–Sunday | Non-working (skip) |
+
+### 6.2 Same-day vs cross-day detection
+
+The `StartDate` is not stored — only `CompletedDate` (DD/MM/YYYY) is available. Start date is inferred:
+
+- If `CompletedTime >= StartTime` → started and completed **same day** as `CompletedDate`
+- If `CompletedTime < StartTime` → started on the **previous working day** before `CompletedDate`
+
+"Previous working day" steps back from `CompletedDate`, skipping Saturday and Sunday.
+
+### 6.3 Working minutes algorithm
+
+**Same day:**
 ```
-durationMin = CompletedTime(minutes) − StartTime(minutes)
+durationMin = timeToMin(CompletedTime) − timeToMin(StartTime)
 ```
 
-Where `HH:MM` → minutes = `H * 60 + M`.
+**Cross-day:**
+```
+durationMin =
+  workDayEndMin(startDate) − timeToMin(StartTime)     // remaining mins on start day
+  + Σ workDayMins(d) for each full working day between start and end
+  + timeToMin(CompletedTime) − 7*60                   // mins into end day from 07:00
+```
 
-**Filtering rules — exclude a record if:**
+Where:
+- `workDayEndMin(d)` = 720 (12:00) if Friday, else 960 (16:00)
+- `workDayMins(d)` = 300 if Friday, else 540 for Mon–Thu; 0 for Sat/Sun
+
+### 6.4 Filtering rules — exclude a record if:
+
 - `StartTime` is empty (job was not started via Start button)
 - `Model` is empty
-- Calculated duration ≤ 0 (negative — data anomaly)
-- Calculated duration > 540 (9 hours — implausible for a single job)
+- Calculated duration < 1 minute
+- Calculated duration > 1440 minutes (24 working hours — implausible, likely a forgotten start tap)
 
 Records passing all filters are grouped by `fields.Model` to compute avg / min / max.
 
@@ -146,6 +179,9 @@ Upholstery sub-teams are stored in the completions list as `Team: 'Upholstery'` 
 | `tmRender()` | Reads active team + period chips, filters `STATS_COMPLETIONS`, computes stats, renders table. |
 | `tmFormatDuration(min)` | Formats integer minutes as `43m` or `1h 12m`. |
 | `tmPeriodFilter(record)` | Returns true if record's `CompletedDate` falls within the active period. |
+| `tmCalcDuration(startTimeStr, completedTimeStr, completedDateStr)` | Returns working minutes between start and completion, handling cross-day jobs. Returns null if invalid. |
+| `tmPrevWorkingDay(date)` | Returns the Date of the previous Mon–Fri working day before the given date. |
+| `tmWorkDayMins(date)` | Returns total working minutes for a given date (540 Mon–Thu, 300 Fri, 0 Sat/Sun). |
 
 ---
 
