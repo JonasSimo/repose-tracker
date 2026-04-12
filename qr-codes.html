@@ -8,118 +8,151 @@
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: #f4f6f8;
-      padding: 20px;
+      background: #eef2f5;
+      padding: 24px;
     }
 
-    h1 {
-      text-align: center;
-      font-size: 18px;
-      color: #0e023a;
-      margin-bottom: 6px;
-    }
-    .page-sub {
-      text-align: center;
-      font-size: 13px;
-      color: #706f6f;
-      margin-bottom: 20px;
-    }
+    /* Screen header */
+    .page-header { text-align: center; margin-bottom: 28px; }
+    h1 { font-size: 22px; font-weight: 800; color: #0e023a; margin-bottom: 4px; }
+    .page-sub { font-size: 13px; color: #706f6f; }
     .print-btn {
-      display: block;
-      margin: 0 auto 24px;
+      display: inline-block; margin-top: 16px;
       padding: 10px 28px;
-      background: #14a1e9;
-      color: #fff;
-      border: none;
-      border-radius: 8px;
-      font-size: 14px;
-      font-weight: 600;
-      font-family: inherit;
-      cursor: pointer;
+      background: #14a1e9; color: #fff;
+      border: none; border-radius: 8px;
+      font-size: 14px; font-weight: 600;
+      font-family: inherit; cursor: pointer;
     }
     .print-btn:hover { background: #0d8fd4; }
 
-    /* Grid — 2 columns on screen, 2 on print */
+    /* Grid — 2 columns */
     .grid {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
-      gap: 16px;
-      max-width: 800px;
+      gap: 20px;
+      max-width: 780px;
       margin: 0 auto;
     }
 
     /* Card */
     .card {
       background: #fff;
-      border: 2.5px solid #0e023a;
-      border-radius: 10px;
-      padding: 16px 16px 12px;
-      text-align: center;
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 4px 16px rgba(14,2,58,0.12);
       display: flex;
       flex-direction: column;
-      align-items: center;
-      gap: 10px;
     }
 
-    .card-logo { height: 28px; width: auto; }
-
-    .card-qr { line-height: 0; }
-    .card-qr img, .card-qr canvas { width: 180px !important; height: 180px !important; }
-
-    .card-group {
+    /* Navy top bar with logo + group badge */
+    .card-header {
+      background: #0e023a;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .card-logo {
+      height: 22px;
+      width: auto;
+      filter: brightness(0) invert(1);
+    }
+    .card-group-badge {
       font-size: 9px;
       font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: .1em;
+      letter-spacing: .12em;
       color: #14a1e9;
+      border: 1px solid rgba(20,161,233,.6);
+      border-radius: 20px;
+      padding: 3px 9px;
+      white-space: nowrap;
     }
 
+    /* Body */
+    .card-body {
+      padding: 18px 18px 14px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      flex: 1;
+    }
+
+    /* QR code framed */
+    .card-qr {
+      line-height: 0;
+      border: 4px solid #0e023a;
+      border-radius: 10px;
+      padding: 8px;
+      background: #fff;
+    }
+    .card-qr img,
+    .card-qr canvas { width: 160px !important; height: 160px !important; }
+
+    /* Machine name */
     .card-name {
-      font-size: 18px;
+      font-size: 22px;
       font-weight: 800;
       color: #0e023a;
-      line-height: 1.2;
+      text-align: center;
+      line-height: 1.1;
+      letter-spacing: -.01em;
     }
 
+    /* Instruction line */
     .card-sub {
-      font-size: 10px;
+      font-size: 11px;
       color: #706f6f;
-      line-height: 1.4;
+      text-align: center;
+      line-height: 1.5;
     }
 
+    /* URL (hidden on screen, visible on print) */
     .card-url {
-      font-size: 8px;
-      color: #aaa;
+      font-size: 7.5px;
+      color: #bbb;
       word-break: break-all;
+      text-align: center;
+      padding: 0 8px 10px;
+      display: none;
+    }
+
+    /* Blue bottom accent */
+    .card-footer-bar {
+      height: 5px;
+      background: linear-gradient(90deg, #0e023a 0%, #14a1e9 100%);
     }
 
     /* ── PRINT ── */
     @media print {
-      @page { size: A4 portrait; margin: 10mm; }
+      @page { size: A4 portrait; margin: 12mm; }
 
       body { background: #fff; padding: 0; }
-      h1, .page-sub, .print-btn { display: none; }
+      .page-header { display: none; }
 
       .grid {
-        display: grid;
         grid-template-columns: repeat(2, 1fr);
-        gap: 8mm;
+        gap: 10mm;
         max-width: 100%;
         margin: 0;
       }
 
       .card {
-        page-break-inside: avoid;
+        box-shadow: none;
+        border: 1.5px solid #ddd;
+        border-radius: 8px;
         break-inside: avoid;
-        border: 2px solid #0e023a;
-        border-radius: 6px;
-        padding: 10px;
-        gap: 6px;
+        page-break-inside: avoid;
       }
 
-      .card-qr img, .card-qr canvas { width: 150px !important; height: 150px !important; }
-      .card-name { font-size: 16px; }
-      .card-url { display: block; }
+      .card-qr img,
+      .card-qr canvas { width: 148px !important; height: 148px !important; }
+
+      .card-name { font-size: 20px; }
+      .card-url  { display: block; }
 
       * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     }
@@ -127,9 +160,11 @@
 </head>
 <body>
 
-<h1>Woodmill Pre-Use Inspection — QR Codes</h1>
-<p class="page-sub">Print and laminate. Affix each card to the corresponding machine or bench.</p>
-<button class="print-btn" onclick="window.print()">🖨 Print QR Codes</button>
+<div class="page-header">
+  <h1>Woodmill Pre-Use Inspection</h1>
+  <p class="page-sub">Print and laminate — affix each card to the corresponding machine or bench.</p>
+  <button class="print-btn" onclick="window.print()">Print QR Codes</button>
+</div>
 
 <div class="grid" id="grid"></div>
 
@@ -164,22 +199,27 @@ MACHINES.forEach(m => {
   const card = document.createElement('div');
   card.className = 'card';
   card.innerHTML = `
-    <img class="card-logo"
-      src="./Repose_RGB_logo_Colour_with_strapline_1500pxW.png"
-      alt="Repose Furniture"
-      onerror="this.style.display='none'">
-    <div class="card-group">${m.group}</div>
-    <div class="card-qr" id="qr-${m.id}"></div>
-    <div class="card-name">${m.name}</div>
-    <div class="card-sub">Scan to complete<br>pre-use inspection</div>
+    <div class="card-header">
+      <img class="card-logo"
+        src="./Repose_RGB_logo_Colour_with_strapline_1500pxW.png"
+        alt="Repose Furniture"
+        onerror="this.style.display='none'">
+      <span class="card-group-badge">${m.group}</span>
+    </div>
+    <div class="card-body">
+      <div class="card-qr" id="qr-${m.id}"></div>
+      <div class="card-name">${m.name}</div>
+      <div class="card-sub">Scan to complete<br>pre-use inspection</div>
+    </div>
     <div class="card-url">${url}</div>
+    <div class="card-footer-bar"></div>
   `;
   grid.appendChild(card);
 
   new QRCode(document.getElementById('qr-' + m.id), {
     text:           url,
-    width:          180,
-    height:         180,
+    width:          160,
+    height:         160,
     colorDark:      '#0e023a',
     colorLight:     '#ffffff',
     correctLevel:   QRCode.CorrectLevel.M,
