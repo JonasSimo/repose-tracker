@@ -2012,13 +2012,24 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .cp-modal-confirm   { font-family:inherit; font-size:13px; font-weight:600; padding:6px 16px; border-radius:7px; border:none; background:var(--repose-blue); color:#fff; cursor:pointer; }
 
 /* ─── PRINT (PDF EXPORT) ─────────────────────── */
+
+/* Replaced elements created by cpExportPdf() — styled here for screen+print */
+.cp-print-ta {
+  white-space: pre-wrap; word-break: break-word;
+  font-family: inherit; font-size: 13px; color: var(--text1);
+  background: var(--bg3); border: 1px solid var(--border2);
+  border-radius: 6px; padding: 8px; display: none; /* shown only during print via JS */
+}
+.cp-print-val {
+  font-family: inherit; font-size: 12px; color: var(--text1);
+  word-break: break-word; display: none;
+}
+
 @media print {
   @page { size:A4 portrait; margin:14mm 12mm; }
 
-  /* Hide every top-level sibling except the complaints view */
+  /* Hide every top-level sibling — let complaints view flow normally */
   body > *:not(#view-complaints) { display:none !important; }
-
-  /* Let the complaints view flow normally so it paginates correctly */
   #view-complaints {
     display:block !important; position:static !important;
     width:100% !important; background:#fff !important; color:#000 !important;
@@ -2027,91 +2038,72 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
   #cp-list-view { display:none !important; }
   #cp-form-view {
     display:block !important; overflow:visible !important;
-    height:auto !important; position:static !important;
-    padding:0 !important;
+    height:auto !important; position:static !important; padding:0 !important;
   }
 
   /* Hide interactive controls */
   .cp-back-btn, .cp-save-btn, .cp-pdf-btn, .cp-refresh-btn,
   .cp-chip, .cp-add-row-btn, .cp-rm-row-btn,
-  .cp-sig-btns, #cp-filter-chips,
-  .cp-form-back-row { display:none !important; }
+  .cp-sig-btns, #cp-filter-chips, .cp-form-back-row { display:none !important; }
+
+  /* Show JS-injected print elements */
+  .cp-print-ta  { display:block !important; font-size:8pt !important; padding:3pt 5pt !important; border:0.75pt solid #bbb !important; background:transparent !important; min-height:16pt; }
+  .cp-print-val { display:inline !important; font-size:7.5pt !important; }
 
   /* Logo bar */
   .cp-print-logo-bar {
-    display:flex !important; align-items:center;
-    justify-content:space-between;
-    border-bottom:2pt solid #14a1e9;
-    padding-bottom:7pt; margin-bottom:10pt;
+    display:flex !important; align-items:center; justify-content:space-between;
+    border-bottom:2pt solid #14a1e9; padding-bottom:7pt; margin-bottom:10pt;
   }
   .cp-print-logo-bar img { height:32pt; width:auto; }
   .cp-print-logo-bar span { color:#0e023a; font-size:9.5pt; font-weight:700; letter-spacing:.04em; }
 
   /* Form title + meta */
-  .cp-form-title  { font-size:12pt !important; margin-bottom:8pt !important; padding-bottom:5pt !important; }
-  .cp-form-meta   { gap:4pt 14pt !important; margin-bottom:12pt !important; font-size:8pt !important; }
-  .cp-meta-label  { font-size:7.5pt !important; font-weight:700; min-width:70pt; }
-  .cp-meta-input  { font-size:8pt !important; border:none !important; background:transparent !important; padding:0 !important; }
+  .cp-form-title { font-size:12pt !important; margin-bottom:8pt !important; padding-bottom:5pt !important; }
+  .cp-form-meta  { gap:4pt 14pt !important; margin-bottom:12pt !important; font-size:8pt !important; }
+  .cp-meta-label { font-size:7.5pt !important; font-weight:700; min-width:70pt; }
 
-  /* Section blocks */
-  .cp-section       { margin-bottom:10pt !important; page-break-inside:avoid; break-inside:avoid; }
+  /* Section blocks — avoid splitting mid-section where possible */
+  .cp-section       { margin-bottom:8pt !important; page-break-inside:avoid; break-inside:avoid; }
   .cp-section-title { font-size:8.5pt !important; margin-bottom:3pt !important; }
 
-  /* Text areas — show all content, thin border */
-  .cp-section-ta {
-    font-size:8pt !important; min-height:24pt !important; height:auto !important;
-    resize:none !important; border:0.75pt solid #bbb !important;
-    background:transparent !important; padding:3pt 5pt !important;
-    overflow:visible !important;
-  }
+  /* Hide original textarea (replaced by .cp-print-ta via JS) */
+  .cp-section-ta { display:none !important; }
 
   /* ── 5 Whys table ── */
-  .cp-whys { margin-top:6pt !important; }
+  .cp-whys       { margin-top:4pt !important; }
   .cp-whys-title { font-size:7.5pt !important; margin-bottom:3pt !important; }
   .cp-whys-table {
     width:100% !important; table-layout:fixed !important;
-    border-collapse:collapse !important; font-size:7pt !important;
-    word-break:break-word !important;
+    border-collapse:collapse !important; word-break:break-word !important;
   }
   .cp-whys-table th,
-  .cp-whys-table td   { padding:2pt 3pt !important; border:0.5pt solid #999 !important; vertical-align:top; }
-  .cp-whys-table th   { background:#f0f4f8 !important; font-size:6.5pt !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-  /* Why col wider, 4 cause cols equal */
-  .cp-whys-table colgroup, .cp-whys-table col { display:none; }
+  .cp-whys-table td { padding:2pt 3pt !important; border:0.5pt solid #999 !important; vertical-align:top; font-size:7pt !important; }
+  .cp-whys-table th { background:#f0f4f8 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   .cp-whys-table th:nth-child(1), .cp-whys-table td:nth-child(1) { width:26% !important; }
-  .cp-whys-table th:nth-child(2), .cp-whys-table td:nth-child(2),
-  .cp-whys-table th:nth-child(3), .cp-whys-table td:nth-child(3),
-  .cp-whys-table th:nth-child(4), .cp-whys-table td:nth-child(4),
-  .cp-whys-table th:nth-child(5), .cp-whys-table td:nth-child(5) { width:18.5% !important; }
-  .cp-why-input, .cp-why-cause {
-    font-size:7pt !important; background:transparent !important;
-    border:none !important; padding:0 !important; width:100% !important;
-  }
+  .cp-whys-table th:nth-child(n+2), .cp-whys-table td:nth-child(n+2) { width:18.5% !important; }
 
   /* ── Actions Log table ── */
   .cp-actions-table {
     width:100% !important; table-layout:fixed !important;
-    border-collapse:collapse !important; font-size:7.5pt !important;
-    word-break:break-word !important; margin-bottom:6pt !important;
+    border-collapse:collapse !important; word-break:break-word !important; margin-bottom:6pt !important;
   }
   .cp-actions-table th,
-  .cp-actions-table td { padding:2pt 3pt !important; border:0.5pt solid #999 !important; vertical-align:top; }
-  .cp-actions-table th { background:#f0f4f8 !important; font-size:7pt !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-  /* Initiative wider, dates narrow */
+  .cp-actions-table td { padding:2pt 3pt !important; border:0.5pt solid #999 !important; vertical-align:top; font-size:7.5pt !important; }
+  .cp-actions-table th { background:#f0f4f8 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   .cp-actions-table th:nth-child(1), .cp-actions-table td:nth-child(1) { width:36% !important; }
   .cp-actions-table th:nth-child(2), .cp-actions-table td:nth-child(2) { width:19% !important; }
   .cp-actions-table th:nth-child(3), .cp-actions-table td:nth-child(3) { width:14% !important; }
   .cp-actions-table th:nth-child(4), .cp-actions-table td:nth-child(4) { width:16% !important; }
   .cp-actions-table th:nth-child(5), .cp-actions-table td:nth-child(5) { width:15% !important; }
-  .cp-act-input {
-    font-size:7.5pt !important; background:transparent !important;
-    border:none !important; padding:0 !important; width:100% !important;
-  }
 
   /* Signatures */
-  .cp-sig-section  { page-break-inside:avoid; break-inside:avoid; }
-  .cp-sig-canvas   { display:none !important; }
-  .cp-sig-img      { max-width:150pt !important; border:0.5pt solid #ccc !important; }
+  .cp-sig-section { page-break-inside:avoid; break-inside:avoid; margin-top:10pt !important; }
+  .cp-sig-label   { font-size:8pt !important; }
+  .cp-sig-date    { font-size:7.5pt !important; }
+  .cp-sig-canvas  { display:none !important; }
+  .cp-sig-img     { max-width:150pt !important; border:0.5pt solid #ccc !important; display:block !important; }
+  .cp-sig-pending { font-size:8pt !important; }
 
   * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
 }
@@ -12323,7 +12315,59 @@ async function cpSubmitManagerSignature() {
 }
 
 function cpExportPdf() {
+  const form = document.getElementById('cp-form-view');
+  const restore = [];
+
+  // 1. Textareas → plain div (auto-height, no clipping)
+  form.querySelectorAll('.cp-section-ta').forEach(ta => {
+    const div = document.createElement('div');
+    div.className = 'cp-print-ta';
+    div.textContent = ta.value;
+    ta.after(div);
+    ta.style.display = 'none';
+    restore.push(() => { ta.style.display = ''; div.remove(); });
+  });
+
+  // 2. Table inputs → plain span (value visible, no fixed-height box)
+  form.querySelectorAll('.cp-why-input, .cp-why-cause, .cp-act-input').forEach(inp => {
+    const span = document.createElement('span');
+    span.className = 'cp-print-val';
+    span.textContent = inp.value;
+    inp.after(span);
+    inp.style.display = 'none';
+    restore.push(() => { inp.style.display = ''; span.remove(); });
+  });
+
+  // 3. Meta inputs → plain span
+  form.querySelectorAll('.cp-meta-input').forEach(inp => {
+    const span = document.createElement('span');
+    span.className = 'cp-print-val';
+    span.textContent = inp.value;
+    inp.after(span);
+    inp.style.display = 'none';
+    restore.push(() => { inp.style.display = ''; span.remove(); });
+  });
+
+  // 4. Signature canvases → capture to img if drawn on
+  form.querySelectorAll('canvas.cp-sig-canvas').forEach(canvas => {
+    try {
+      const ctx2d = canvas.getContext('2d');
+      const px = ctx2d.getImageData(0, 0, canvas.width, canvas.height).data;
+      const hasInk = Array.prototype.some.call(px, (v, i) => i % 4 === 3 && v > 10);
+      if (hasInk) {
+        const img = document.createElement('img');
+        img.src = canvas.toDataURL('image/png');
+        img.className = 'cp-sig-img';
+        canvas.after(img);
+        canvas.style.display = 'none';
+        restore.push(() => { canvas.style.display = ''; img.remove(); });
+      }
+    } catch (e) { /* tainted canvas — skip */ }
+  });
+
   window.print();
+
+  setTimeout(() => { restore.forEach(fn => fn()); }, 300);
 }
 
 // ═══════════════════════════════════════════════
