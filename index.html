@@ -5088,7 +5088,7 @@ async function saveCompletionToList(team, sub, wk, prep, ji) {
       CompletedDate: s.doneDate,
       IsComplete:    true,
       StartTime:     s.startedAt || '',
-      Model:         job.spec?.model?.trim() || '',
+      Model:         job.spec?.model?.trim() || job.rep || '',
       ...(team === 'Assembly' ? { MechSerial: MECH_SERIALS.get(`${job.rep}__${wk}__${prep}`) || '' } : {}),
     };
     // If the job was "started" and saved to SP, PATCH that record rather than creating a new one
