@@ -2358,6 +2358,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <button class="stats-period-btn"         data-period="week"      onclick="setStatsPeriod('week',this)">Week</button>
           <button class="stats-period-btn"         data-period="month"     onclick="setStatsPeriod('month',this)">Month</button>
           <button class="stats-period-btn"         data-period="year"      onclick="setStatsPeriod('year',this)">Year</button>
+          <button class="stats-period-btn"         data-period="day"       onclick="setStatsPeriod('day',this)">Pick Day</button>
         </div>
         <button class="stats-refresh-btn" id="stats-refresh-btn" onclick="refreshStatsData()">↻ Refresh</button>
         <!-- Send Digest button disabled until Mail.Send admin consent is granted
@@ -6677,7 +6678,7 @@ function statsUpdateNav() {
   if (nextBtn)  { nextBtn.style.display = isFixed ? 'none' : ''; nextBtn.disabled = statsNavOffset >= 0; }
   if (todayBtn) todayBtn.style.display  = (!isFixed && statsNavOffset < 0) ? '' : 'none';
   const picker = document.getElementById('stats-day-picker');
-  if (picker) picker.style.display = 'none'; // day-picker only used for manual day; not needed now
+  if (picker) picker.style.display = statsPeriod === 'day' ? '' : 'none';
 }
 
 function statsNavPeriod(dir) {
