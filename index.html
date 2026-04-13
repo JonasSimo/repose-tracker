@@ -132,8 +132,10 @@ body {
 .nav-item:last-child { border-bottom: none; }
 .nav-item:hover { background: rgba(255,255,255,.08); color: #fff; }
 .nav-item.active { color: var(--repose-blue); background: rgba(20,161,233,.1); }
-/* Tablet/team lock — hide nav menu entirely (only one view available) */
-html.tablet-team .nav-menu { display: none !important; }
+/* Tablet/team lock — hide nav menu and sign-in badge (one view, no auth needed) */
+html.tablet-team .nav-menu   { display: none !important; }
+html.tablet-team .auth-badge { display: none !important; }
+html.tablet-team .nms-raise-btn { display: none !important; }
 
 /* ─── VIEWS ─── */
 .view { display: none; flex: 1; overflow: hidden; flex-direction: column; }
