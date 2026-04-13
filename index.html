@@ -3042,6 +3042,10 @@ function showView(name) {
   if (name === 'loadsheet')   { renderLoadSheet(); }
   if (name === 'production')  {
     renderProductionPlan();
+    if (ppAutoSyncInterval) clearInterval(ppAutoSyncInterval);
+    ppAutoSyncInterval = setInterval(() => loadProductionFromSharePoint(), 60000);
+  } else {
+    if (ppAutoSyncInterval) { clearInterval(ppAutoSyncInterval); ppAutoSyncInterval = null; }
   }
   if (name === 'stats')       { openStatsView(); if (!NMS_ITEMS.length) loadNearMisses(); }
   if (name === 'issues')      { openIssuesView(); }
@@ -5348,7 +5352,9 @@ function renderQCSyncBar() {
 
 function startQCAutoSync() {
   if (!QC_SHEET_SHARING_URL) return;
-  autoSyncQCCompletions(); // immediate first run only — no recurring interval
+  stopQCAutoSync();
+  autoSyncQCCompletions();
+  qcSyncInterval = setInterval(autoSyncQCCompletions, 60000);
 }
 
 function stopQCAutoSync() {
@@ -5632,6 +5638,8 @@ async function graphSignIn() {
     loadMechSerials().catch(console.warn);
     startQCAutoSync();
     fetchSpecAlerts().catch(console.warn);
+    if (!_refreshInterval)     _refreshInterval     = setInterval(refreshCompletions, 60 * 1000);
+    if (!_fullRefreshInterval) _fullRefreshInterval = setInterval(fullRefresh, 10 * 60 * 1000);
   } catch(e) {
     console.error('Sign-in failed', e);
     toast('Sign-in failed — check Azure app config', 'u');
@@ -5985,6 +5993,8 @@ async function initGraph() {
     loadMechSerials().catch(console.warn);
     startQCAutoSync();
     fetchSpecAlerts().catch(console.warn);
+    if (!_refreshInterval)     _refreshInterval     = setInterval(refreshCompletions, 60 * 1000);
+    if (!_fullRefreshInterval) _fullRefreshInterval = setInterval(fullRefresh, 10 * 60 * 1000);
   }
 }
 
