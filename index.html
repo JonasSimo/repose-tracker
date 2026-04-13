@@ -4775,7 +4775,7 @@ async function checkForSpecChanges() {
       const ov = (oldSpec[key] || '').trim();
       const nv = (newSpec[key] || '').trim();
       if (!ov || !nv || ov === nv) return;
-      if (/DELIVERED|ORDERED/i.test(ov) || /DELIVERED|ORDERED/i.test(nv)) return;
+      if (/DELIVERED|ORDERED|STOCK/i.test(ov) || /DELIVERED|ORDERED|STOCK/i.test(nv)) return;
       const cacheKey = `${rep}__${key}`;
       if (SPEC_ALERT_SENT.has(cacheKey)) return;
       toAlert.push({ rep, itemNo: newSpec._itemNo, wk: newSpec._wk, prep: String(newSpec._prep), fieldKey: key, fieldLabel: SPEC_FIELD_LABELS[key], oldVal: ov, newVal: nv, cacheKey });
@@ -4918,8 +4918,9 @@ async function logScrapAndDismiss(alertId, btn) {
 function renderSpecAlerts() {
   const area = document.getElementById('specAlertArea');
   if (!area) return;
-  if (!SPEC_ALERTS.length) { area.innerHTML = ''; return; }
-  area.innerHTML = SPEC_ALERTS.map(a => `
+  const visible = SPEC_ALERTS.filter(a => !specAlertIsNoise(a));
+  if (!visible.length) { area.innerHTML = ''; return; }
+  area.innerHTML = visible.map(a => `
     <div class="spec-alert-card">
       <div class="spec-alert-hdr">
         <span class="spec-alert-rep">⚠ ${escHtml(a.rep)}</span>
@@ -6902,8 +6903,14 @@ function isRepFullyComplete(rep, completions) {
 function statsFilteredCompletions() {
   return STATS_COMPLETIONS.filter(c => statsInPeriod(c.fields.CompletedDate));
 }
+const SPEC_NOISE = /DELIVERED|ORDERED|STOCK/i;
+function specAlertIsNoise(a) {
+  const f = a.fields || a;
+  return SPEC_NOISE.test(f.OldValue || '') || SPEC_NOISE.test(f.NewValue || '');
+}
+
 function statsFilteredAlerts() {
-  const raw = STATS_ALERTS.filter(a => statsInPeriod(a.fields.DetectedAt));
+  const raw = STATS_ALERTS.filter(a => statsInPeriod(a.fields.DetectedAt) && !specAlertIsNoise(a));
   // Deduplicate: same REP + field + old→new value = one change logged by multiple tablets
   const seen = new Set();
   return raw.filter(a => {
