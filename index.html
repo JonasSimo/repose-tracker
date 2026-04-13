@@ -132,10 +132,8 @@ body {
 .nav-item:last-child { border-bottom: none; }
 .nav-item:hover { background: rgba(255,255,255,.08); color: #fff; }
 .nav-item.active { color: var(--repose-blue); background: rgba(20,161,233,.1); }
-/* Tablet/team lock — hide nav menu and NMS button (one view available) */
-html.tablet-team .nav-menu      { display: none !important; }
-html.tablet-team .nms-raise-btn { display: none !important; }
-/* Keep auth-badge visible — gluing queue needs sign-in to mark jobs done */
+/* Tablet/team lock — hide nav menu only */
+html.tablet-team .nav-menu { display: none !important; }
 
 /* ─── VIEWS ─── */
 .view { display: none; flex: 1; overflow: hidden; flex-direction: column; }
