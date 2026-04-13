@@ -5924,7 +5924,7 @@ function updateAuthBadge() {
     const isJonas = graphAccount.username.toLowerCase() === 'jonas.simonaitis@reposefurniture.co.uk';
     const emailBtn = document.getElementById('cpar-email-btn');
     if (emailBtn) emailBtn.style.display = isJonas ? 'inline-flex' : 'none';
-    const TIMING_ALLOWED = new Set(['jonas.simonaitis@reposefurniture.co.uk','richard.semmens@reposefurniture.co.uk']);
+    const TIMING_ALLOWED = new Set(['jonas.simonaitis@reposefurniture.co.uk','richard.semmens@reposefurniture.co.uk','paul.jenkins@reposefurniture.co.uk','mitch@reposefurniture.co.uk']);
     const timingBtn = document.getElementById('timing-tab-btn');
     if (timingBtn) timingBtn.style.display = TIMING_ALLOWED.has(graphAccount.username.toLowerCase()) ? '' : 'none';
     const woodmillBtn = document.getElementById('woodmill-tab-btn');
