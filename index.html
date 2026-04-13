@@ -1853,8 +1853,11 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .wm-dot-cell.pass { background:#22c55e; color:#fff; }
 .wm-dot-cell.fail { background:#f59e0b; color:#fff; }
 .wm-dot-cell.none { background:var(--bg4); border:1.5px solid var(--border2); color:var(--border2); }
+.wm-dot-cell.downtime { background:var(--bg3); border:1.5px dashed var(--border2); color:var(--border2); cursor:default; }
+.wm-dot-cell.downtime:hover { transform:none; box-shadow:none; }
 .wm-dot-cell.today-col { box-shadow:0 0 0 2.5px var(--repose-blue); }
 .wm-dot-cell.today-col:hover { box-shadow:0 0 0 2.5px var(--repose-blue), 0 3px 10px rgba(0,0,0,.15); }
+.wm-dot-cell.downtime.today-col { box-shadow:0 0 0 2.5px var(--border2); }
 
 /* Month view cells */
 .wm-month-cell  { width:24px; height:24px; border-radius:6px; cursor:pointer;
@@ -1864,6 +1867,14 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .wm-month-cell.pass { background:#22c55e; color:#fff; }
 .wm-month-cell.fail { background:#f59e0b; color:#fff; }
 .wm-month-cell.none { background:var(--bg4); border:1px solid var(--border2); color:var(--border2); }
+.wm-month-cell.downtime { background:var(--bg3); border:1px dashed var(--border2); color:var(--border2); cursor:default; }
+
+/* Downtime toggle button on machine row */
+.wm-downtime-btn { font-family:inherit; font-size:10px; font-weight:700; padding:2px 7px;
+                   border-radius:12px; border:1.5px solid var(--border2); background:transparent;
+                   color:var(--text2); cursor:pointer; white-space:nowrap; margin-left:auto; }
+.wm-downtime-btn:hover { background:var(--bg4); }
+.wm-downtime-btn.active { background:#f1f5f9; border-color:#94a3b8; color:#475569; }
 
 .wm-loading     { padding:32px; text-align:center; font-size:14px; color:var(--text2); }
 .wm-footer      { flex-shrink:0; padding:7px 14px; font-size:11px; color:var(--text2); border-top:1px solid var(--border); background:var(--bg2); }
@@ -2522,6 +2533,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="wm-legend-item"><div class="wm-legend-swatch pass">✓</div>All pass</div>
         <div class="wm-legend-item"><div class="wm-legend-swatch fail">⚠</div>Has failures</div>
         <div class="wm-legend-item"><div class="wm-legend-swatch none">–</div>Not inspected</div>
+        <div class="wm-legend-item"><div class="wm-legend-swatch" style="background:var(--bg3);border:1.5px dashed var(--border2);color:var(--border2)">○</div>Not in use</div>
       </div>
       <div id="wm-grid"></div>
     </div>
@@ -5628,6 +5640,13 @@ async function graphPost(url, body) {
   return r.json();
 }
 
+async function graphDelete(url) {
+  const token = await getGraphToken();
+  if (!token) throw new Error('Not authenticated');
+  const r = await fetch(url, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+  if (!r.ok) throw new Error(`Graph ${r.status}: ${await r.text()}`);
+}
+
 async function graphGetAll(url) {
   let items = [];
   let nextUrl = url;
@@ -5898,6 +5917,7 @@ function updateAuthBadge() {
     if (timingBtn) timingBtn.style.display = TIMING_ALLOWED.has(graphAccount.username.toLowerCase()) ? '' : 'none';
     const woodmillBtn = document.getElementById('woodmill-tab-btn');
     if (woodmillBtn) woodmillBtn.style.display = TIMING_ALLOWED.has(graphAccount.username.toLowerCase()) ? '' : 'none';
+    wmIsManager = TIMING_ALLOWED.has(graphAccount.username.toLowerCase());
     cpIsManager = COMPLAINTS_MANAGERS.has(graphAccount.username.toLowerCase());
   } else {
     badge.innerHTML = `<span class="auth-dot off"></span><span class="auth-name">Sign in</span>`;
@@ -12172,13 +12192,17 @@ const WM_MACHINES = [
   { id:'bench-c',        name:'Bench C',           group:'Benches'  },
   { id:'bench-d',        name:'Bench D',           group:'Benches'  },
   { id:'bench-e',        name:'Bench E',           group:'Benches'  },
+  { id:'bench-f',        name:'Bench F',           group:'Benches'  },
 ];
 
-let wmInspections  = [];
+let wmInspections   = [];
 let wmByMachineDate = {}; // machineId → dateStr(YYYY-MM-DD) → [fields]
-let wmViewMode     = 'week';
-let wmWeekStart    = wmGetMonday(new Date()); // Monday of displayed week/month
-let wmLoaded       = false;
+let wmDowntime      = {}; // machineId → Set<dateStr>  (not-in-use markings)
+let wmDowntimeIds   = {}; // `${machineId}|${dateStr}` → SharePoint item id
+let wmViewMode      = 'week';
+let wmWeekStart     = wmGetMonday(new Date());
+let wmLoaded        = false;
+let wmIsManager     = false;
 
 function wmGetMonday(d) {
   const date = new Date(d);
@@ -12189,7 +12213,11 @@ function wmGetMonday(d) {
 }
 
 function wmDateStr(d) {
-  return d.toISOString().substring(0, 10);
+  // Use local date (not UTC) to avoid timezone day-shift for UK BST users
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 function wmFormatDay(d) {
@@ -12200,20 +12228,43 @@ async function wmLoadData() {
   document.getElementById('wm-loading').style.display = '';
   try {
     const siteId = await wmGetSiteId();
-    const items  = await graphGetAll(
+
+    // Load inspection records
+    const items = await graphGetAll(
       `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${WM_LIST_ID}/items?$expand=fields&$top=999`
     );
     wmInspections   = items;
     wmByMachineDate = {};
     for (const item of items) {
-      const f      = item.fields;
-      const mid    = (f.Title || '').trim();
-      const dateStr = f.InspectedAt ? f.InspectedAt.substring(0, 10) : '';
+      const f   = item.fields;
+      // MachineId column preferred; fall back to Title if flow used that instead
+      const mid = (f.MachineId || f.machineId || f.Title || '').trim();
+      // Parse stored UTC datetime into local date
+      const dateStr = f.InspectedAt ? wmDateStr(new Date(f.InspectedAt)) : '';
       if (!mid || !dateStr) continue;
       if (!wmByMachineDate[mid]) wmByMachineDate[mid] = {};
       if (!wmByMachineDate[mid][dateStr]) wmByMachineDate[mid][dateStr] = [];
       wmByMachineDate[mid][dateStr].push(f);
     }
+
+    // Load "not in use" downtime markings
+    wmDowntime    = {};
+    wmDowntimeIds = {};
+    try {
+      const dtItems = await graphGetAll(
+        `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/WMDowntime/items?$expand=fields&$top=999`
+      );
+      for (const item of dtItems) {
+        const f   = item.fields;
+        const mid = (f.Title || '').trim();
+        const ds  = (f.DowntimeDate || '').trim();
+        if (!mid || !ds) continue;
+        if (!wmDowntime[mid]) wmDowntime[mid] = new Set();
+        wmDowntime[mid].add(ds);
+        wmDowntimeIds[`${mid}|${ds}`] = item.id;
+      }
+    } catch { /* WMDowntime list not yet created — silently skip */ }
+
     wmLoaded = true;
   } catch(e) {
     console.warn('wmLoadData:', e.message);
@@ -12253,9 +12304,41 @@ function wmStepForward() {
 }
 
 function wmStatus(machineId, dateStr) {
+  if (wmDowntime[machineId]?.has(dateStr)) return 'downtime';
   const insps = wmByMachineDate[machineId]?.[dateStr];
   if (!insps || !insps.length) return 'none';
   return insps.some(i => i.AnyFail) ? 'fail' : 'pass';
+}
+
+async function wmToggleDowntime(machineId) {
+  const today = wmDateStr(new Date());
+  const key   = `${machineId}|${today}`;
+  const name  = WM_MACHINES.find(m => m.id === machineId)?.name || machineId;
+  try {
+    const siteId = await wmGetSiteId();
+    if (wmDowntimeIds[key]) {
+      // Remove: DELETE the SharePoint item
+      await graphDelete(
+        `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/WMDowntime/items/${wmDowntimeIds[key]}`
+      );
+      delete wmDowntimeIds[key];
+      wmDowntime[machineId]?.delete(today);
+    } else {
+      // Add: POST a new item
+      const markedBy = graphAccount?.name || graphAccount?.username || 'Manager';
+      const item = await graphPost(
+        `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/WMDowntime/items`,
+        { fields: { Title: machineId, DowntimeDate: today, MarkedBy: markedBy } }
+      );
+      wmDowntimeIds[key] = item.id;
+      if (!wmDowntime[machineId]) wmDowntime[machineId] = new Set();
+      wmDowntime[machineId].add(today);
+    }
+  } catch(e) {
+    alert(`Could not update downtime for ${name}.\n\nMake sure the WMDowntime list exists in SharePoint (Quality site).\n\nError: ${e.message}`);
+    return;
+  }
+  wmRender();
 }
 
 function wmRender() {
@@ -12287,9 +12370,11 @@ function wmRenderWeek() {
   // Stats strip — show today's counts if today is in this week
   const todayInWeek = days.some(d => wmDateStr(d) === today);
   if (todayInWeek) {
-    const todayPass = WM_MACHINES.filter(m => wmStatus(m.id, today) === 'pass').length;
-    const todayFail = WM_MACHINES.filter(m => wmStatus(m.id, today) === 'fail').length;
-    const todayNone = WM_MACHINES.length - todayPass - todayFail;
+    const todayStatuses = WM_MACHINES.map(m => wmStatus(m.id, today));
+    const todayPass     = todayStatuses.filter(s => s === 'pass').length;
+    const todayFail     = todayStatuses.filter(s => s === 'fail').length;
+    const todayDT       = todayStatuses.filter(s => s === 'downtime').length;
+    const todayNone     = WM_MACHINES.length - todayPass - todayFail - todayDT;
     stats.style.display = '';
     stats.innerHTML = `
       <div class="wm-stat">
@@ -12303,7 +12388,11 @@ function wmRenderWeek() {
       <div class="wm-stat">
         <div class="wm-stat-icon" style="color:var(--border2)">–</div>
         <div><div class="wm-stat-val">${todayNone}</div><div class="wm-stat-label">Not done today</div></div>
-      </div>`;
+      </div>
+      ${todayDT > 0 ? `<div class="wm-stat">
+        <div class="wm-stat-icon" style="color:var(--border2)">○</div>
+        <div><div class="wm-stat-val">${todayDT}</div><div class="wm-stat-label">Not in use today</div></div>
+      </div>` : ''}`;
   } else {
     stats.style.display = 'none';
   }
@@ -12328,19 +12417,26 @@ function wmRenderWeek() {
       lastGroup = m.group;
     }
     const gcolor = WM_GROUP_COLOR[m.group] || 'var(--repose-blue)';
+    const isDowntimeToday = todayInWeek && wmDowntime[m.id]?.has(today);
+    const dtBtnHtml = wmIsManager && todayInWeek
+      ? `<button class="wm-downtime-btn${isDowntimeToday ? ' active' : ''}"
+           onclick="wmToggleDowntime('${m.id}')" title="${isDowntimeToday ? 'Remove not-in-use marking' : 'Mark as not in use today'}"
+           >${isDowntimeToday ? '● Not in use' : '○ Not in use'}</button>`
+      : '';
     html += `<tr>
       <td><div class="wm-machine-name">
-        <div class="wm-m-indicator" style="background:${gcolor}"></div>${m.name}
+        <div class="wm-m-indicator" style="background:${gcolor}"></div>${m.name}${dtBtnHtml}
       </div></td>`;
     for (const d of days) {
       const ds     = wmDateStr(d);
       const status = wmStatus(m.id, ds);
       const isToday = ds === today;
-      const icon = status === 'pass' ? '✓' : status === 'fail' ? '⚠' : '–';
+      const icon   = status === 'pass' ? '✓' : status === 'fail' ? '⚠' : status === 'downtime' ? '○' : '–';
+      const clickable = status !== 'downtime';
       html += `<td><div class="wm-cell"><div class="wm-dot-cell ${status}${isToday?' today-col':''}"
-        data-mid="${m.id}" data-date="${ds}" data-name="${m.name}"
-        onclick="wmOpenModal(this.dataset.mid,this.dataset.date,this.dataset.name)"
-        title="${m.name} · ${d.toLocaleDateString('en-GB')}">${icon}</div></div></td>`;
+        ${clickable ? `data-mid="${m.id}" data-date="${ds}" data-name="${m.name}"
+        onclick="wmOpenModal(this.dataset.mid,this.dataset.date,this.dataset.name)"` : ''}
+        title="${m.name} · ${d.toLocaleDateString('en-GB')}${status === 'downtime' ? ' — Not in use' : ''}">${icon}</div></div></td>`;
     }
     html += `</tr>`;
   }
@@ -12348,10 +12444,12 @@ function wmRenderWeek() {
   grid.innerHTML = html;
 
   // Footer stats
-  const totalCells  = WM_MACHINES.length * 5;
-  const passCells   = WM_MACHINES.reduce((n, m) => n + days.filter(d => wmStatus(m.id, wmDateStr(d)) === 'pass').length, 0);
-  const failCells   = WM_MACHINES.reduce((n, m) => n + days.filter(d => wmStatus(m.id, wmDateStr(d)) === 'fail').length, 0);
-  footer.textContent = `Week total: ${passCells} inspected · ${failCells} with failures · ${totalCells - passCells - failCells} missing`;
+  const allStatuses  = WM_MACHINES.flatMap(m => days.map(d => wmStatus(m.id, wmDateStr(d))));
+  const passCells    = allStatuses.filter(s => s === 'pass').length;
+  const failCells    = allStatuses.filter(s => s === 'fail').length;
+  const dtCells      = allStatuses.filter(s => s === 'downtime').length;
+  const noneCells    = allStatuses.filter(s => s === 'none').length;
+  footer.textContent = `Week: ${passCells} inspected · ${failCells} with failures · ${noneCells} missing · ${dtCells} not in use`;
 }
 
 function wmRenderMonth() {
@@ -12403,17 +12501,20 @@ function wmRenderMonth() {
         <div class="wm-m-indicator" style="background:${gcolor}"></div>${m.name}
       </div></td>`;
     for (const w of weeks) {
-      const dayStatuses = w.map(day => wmStatus(m.id, wmDateStr(day)));
-      const pass = dayStatuses.filter(s => s === 'pass').length;
-      const fail = dayStatuses.filter(s => s === 'fail').length;
-      const overallStatus = fail > 0 ? 'fail' : pass > 0 ? 'pass' : 'none';
-      const icon = overallStatus === 'pass' ? '✓' : overallStatus === 'fail' ? '⚠' : '–';
-      const label = pass > 0 || fail > 0 ? `${pass + fail}/${w.length}d` : '';
+      const dayStatuses   = w.map(day => wmStatus(m.id, wmDateStr(day)));
+      const pass          = dayStatuses.filter(s => s === 'pass').length;
+      const fail          = dayStatuses.filter(s => s === 'fail').length;
+      const dt            = dayStatuses.filter(s => s === 'downtime').length;
+      const working       = w.length - dt; // exclude downtime days
+      const overallStatus = fail > 0 ? 'fail' : pass > 0 ? 'pass' : dt === w.length ? 'downtime' : 'none';
+      const icon          = overallStatus === 'pass' ? '✓' : overallStatus === 'fail' ? '⚠' : overallStatus === 'downtime' ? '○' : '–';
+      const label         = pass > 0 || fail > 0 ? `${pass + fail}/${working}d` : '';
+      const clickable     = overallStatus !== 'downtime';
       html += `<td style="text-align:center">
         <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
           <div class="wm-dot-cell wm-month-cell ${overallStatus}"
-            data-mid="${m.id}" data-week="${wmDateStr(w[0])}" data-name="${m.name}"
-            onclick="wmOpenWeekModal(this.dataset.mid,this.dataset.week,this.dataset.name)"
+            ${clickable ? `data-mid="${m.id}" data-week="${wmDateStr(w[0])}" data-name="${m.name}"
+            onclick="wmOpenWeekModal(this.dataset.mid,this.dataset.week,this.dataset.name)"` : ''}
             title="${m.name} · Wk ${isoWeekNumber(w[0])}">${icon}</div>
           ${label ? `<span style="font-size:9px;color:var(--text2)">${label}</span>` : ''}
         </div>
