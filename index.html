@@ -12307,7 +12307,7 @@ function wmStatus(machineId, dateStr) {
   if (wmDowntime[machineId]?.has(dateStr)) return 'downtime';
   const insps = wmByMachineDate[machineId]?.[dateStr];
   if (!insps || !insps.length) return 'none';
-  return insps.some(i => i.AnyFail) ? 'fail' : 'pass';
+  return insps.some(i => i.AnyFail === true || i.AnyFail === 'true' || i.AnyFail === 1) ? 'fail' : 'pass';
 }
 
 async function wmToggleDowntime(machineId) {
@@ -12544,7 +12544,8 @@ function wmOpenModal(machineId, dateStr, machineName) {
     body.innerHTML = insps.map(f => {
       const time    = f.InspectedAt ? new Date(f.InspectedAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '';
       const tool    = f.ToolName ? ` · ${f.ToolName}` : '';
-      const badge   = f.AnyFail
+      const isFail  = f.AnyFail === true || f.AnyFail === 'true' || f.AnyFail === 1;
+      const badge   = isFail
         ? `<span class="wm-insp-badge wm-badge-fail">⚠ Has Failures</span>`
         : `<span class="wm-insp-badge wm-badge-pass">✓ Passed</span>`;
       let checks = '';
@@ -12595,7 +12596,7 @@ function wmOpenWeekModal(machineId, weekStartStr, machineName) {
     } else {
       insps.forEach(f => {
         const time = f.InspectedAt ? new Date(f.InspectedAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '';
-        const badge = f.AnyFail ? '⚠' : '✓';
+        const badge = (f.AnyFail === true || f.AnyFail === 'true' || f.AnyFail === 1) ? '⚠' : '✓';
         html += `<div style="font-size:12px;padding:6px 0;border-bottom:1px solid var(--border);display:flex;gap:8px">
           <span style="color:var(--text2);min-width:80px">${dayLabel}</span>
           <span>${escHtml(f.InspectorName||'')} · ${time}</span>
