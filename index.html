@@ -6482,6 +6482,8 @@ function toast(msg, type='s') {
   setTimeout(()=>el.remove(), 4000);
 }
 
+let GLUING_QUEUE = {}; // must be declared before init block (TDZ guard)
+
 // ─── Init ───
 if (TABLET_TEAM) {
   // Auto-open the locked team and hide the team-select screen
@@ -6521,7 +6523,7 @@ let statsCharts    = {};
 let statsSparkTimer = null;
 let cparStatTeam   = '';       // '' = all teams; team name = filter to that team
 let statsTeamFilter = '';      // '' = all teams; team name = filter stats to that team
-let GLUING_QUEUE   = {};       // { key: { rep, wk, prep, ji, jobNo, itemId, flaggedAt, flaggedDate, done, doneAt, doneDate } }
+// GLUING_QUEUE declared above init block to avoid TDZ
 
 function gluingKey(wk, prep, rep, sub) { return `${wk}__${prep}__${rep}__${sub || 'all'}`; }
 const GLU_SUB_FULL = { A:'Arms', B:'Backs', S:'Seats' };
