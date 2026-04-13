@@ -2080,6 +2080,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <button class="nav-item" data-view="issues" id="issues-tab-btn" onclick="navTo('issues')">CPARs</button>
         <button class="nav-item" data-view="timing" id="timing-tab-btn" onclick="navTo('timing')" style="display:none">Job Timing</button>
         <button class="nav-item" data-view="woodmill" id="woodmill-tab-btn" onclick="navTo('woodmill')" style="display:none">Woodmill</button>
+        <button class="nav-item" data-view="seats" id="seats-tab-btn" onclick="navTo('seats')" style="display:none">Seats</button>
         <button class="nav-item" data-view="safety" onclick="navTo('safety')">Near Misses</button>
         <button class="nav-item" data-view="complaints" onclick="navTo('complaints')">Complaints</button>
         <!-- Order Check — work in progress, hidden until ready -->
@@ -2546,6 +2547,40 @@ document.addEventListener('DOMContentLoaded', () => {
       <div id="wm-grid"></div>
     </div>
     <div id="wm-footer" class="wm-footer"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     VIEW: SEATS INSPECTION
+════════════════════════════════════════════════ -->
+<div class="view" id="view-seats">
+  <div class="wm-wrap">
+    <div class="wm-toolbar">
+      <div class="wm-toolbar-row">
+        <div class="wm-chips" id="sm-view-chips">
+          <button class="wm-chip active" onclick="smSetView(this,'week')">Week</button>
+          <button class="wm-chip"        onclick="smSetView(this,'month')">Month</button>
+        </div>
+        <button class="wm-refresh-btn" onclick="smOnOpen(true)" title="Refresh">↻</button>
+        <div class="wm-nav" id="sm-nav">
+          <button class="wm-nav-btn" onclick="smStepBack()">‹</button>
+          <span class="wm-nav-label" id="sm-nav-label"></span>
+          <button class="wm-nav-btn" onclick="smStepForward()">›</button>
+        </div>
+      </div>
+    </div>
+    <div class="wm-stats" id="sm-stats" style="display:none"></div>
+    <div class="wm-body">
+      <div id="sm-loading" class="wm-loading" style="display:none">Loading…</div>
+      <div class="wm-legend">
+        <div class="wm-legend-item"><div class="wm-legend-swatch pass">✓</div>All pass</div>
+        <div class="wm-legend-item"><div class="wm-legend-swatch fail">⚠</div>Has failures</div>
+        <div class="wm-legend-item"><div class="wm-legend-swatch none">–</div>Not inspected</div>
+        <div class="wm-legend-item"><div class="wm-legend-swatch" style="background:var(--bg3);border:1.5px dashed var(--border2);color:var(--border2)">○</div>Not in use</div>
+      </div>
+      <div id="sm-grid"></div>
+    </div>
+    <div id="sm-footer" class="wm-footer"></div>
   </div>
 </div>
 
@@ -3019,6 +3054,7 @@ function showView(name) {
   if (name === 'timing')      { tmOnOpen(); }
   if (name === 'complaints')  { cpOnOpen(); }
   if (name === 'woodmill')    { wmOnOpen(); }
+  if (name === 'seats')       { smOnOpen(); }
 }
 
 function toggleNavMenu() {
@@ -5925,6 +5961,8 @@ function updateAuthBadge() {
     if (timingBtn) timingBtn.style.display = TIMING_ALLOWED.has(graphAccount.username.toLowerCase()) ? '' : 'none';
     const woodmillBtn = document.getElementById('woodmill-tab-btn');
     if (woodmillBtn) woodmillBtn.style.display = TIMING_ALLOWED.has(graphAccount.username.toLowerCase()) ? '' : 'none';
+    const seatsBtn = document.getElementById('seats-tab-btn');
+    if (seatsBtn) seatsBtn.style.display = TIMING_ALLOWED.has(graphAccount.username.toLowerCase()) ? '' : 'none';
     wmIsManager = TIMING_ALLOWED.has(graphAccount.username.toLowerCase());
     cpIsManager = COMPLAINTS_MANAGERS.has(graphAccount.username.toLowerCase());
   } else {
@@ -12443,40 +12481,79 @@ async function wmToggleDowntime(machineId) {
   wmRender();
 }
 
+const WM_SEATS_MACHINES = [{ id:'bench-f', name:'Seats', group:'Benches' }];
+
+let smViewMode  = 'week';
+let smWeekStart = wmGetMonday(new Date());
+
+function smOnOpen(forceRefresh = false) {
+  if (!wmLoaded || forceRefresh) return wmLoadData().then(() => smRender());
+  smRender();
+}
+function smRender() {
+  if (smViewMode === 'week') wmRenderWeek({ pfx:'sm', machines:WM_SEATS_MACHINES, weekStart:smWeekStart, viewMode:smViewMode });
+  else wmRenderMonth({ pfx:'sm', machines:WM_SEATS_MACHINES, weekStart:smWeekStart, viewMode:smViewMode });
+}
+function smSetView(btn, mode) {
+  document.querySelectorAll('#sm-view-chips .wm-chip').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  smViewMode = mode;
+  smRender();
+}
+function smStepBack() {
+  if (smViewMode === 'week') {
+    smWeekStart = new Date(smWeekStart); smWeekStart.setDate(smWeekStart.getDate() - 7);
+  } else {
+    smWeekStart = wmGetMonday(new Date(smWeekStart.getFullYear(), smWeekStart.getMonth() - 1, 1));
+  }
+  smRender();
+}
+function smStepForward() {
+  if (smViewMode === 'week') {
+    smWeekStart = new Date(smWeekStart); smWeekStart.setDate(smWeekStart.getDate() + 7);
+  } else {
+    smWeekStart = wmGetMonday(new Date(smWeekStart.getFullYear(), smWeekStart.getMonth() + 1, 1));
+  }
+  smRender();
+}
+
 function wmRender() {
-  if (wmViewMode === 'week') wmRenderWeek();
-  else wmRenderMonth();
+  if (wmViewMode === 'week') wmRenderWeek({});
+  else wmRenderMonth({});
 }
 
 const WM_GROUP_COLOR = { 'Saws':'#14a1e9', 'Machines':'#a78bfa', 'Benches':'#2dd4bf' };
 
-function wmRenderWeek() {
-  const grid    = document.getElementById('wm-grid');
-  const footer  = document.getElementById('wm-footer');
-  const stats   = document.getElementById('wm-stats');
+function wmRenderWeek(ctx) {
+  const pfx      = ctx.pfx || 'wm';
+  const machines = ctx.machines || WM_MACHINES;
+  const weekStart = ctx.weekStart || wmWeekStart;
+  const grid    = document.getElementById(`${pfx}-grid`);
+  const footer  = document.getElementById(`${pfx}-footer`);
+  const stats   = document.getElementById(`${pfx}-stats`);
   const today   = wmDateStr(new Date());
 
   // Build 5 weekdays (Mon–Fri)
   const days = [];
   for (let i = 0; i < 5; i++) {
-    const d = new Date(wmWeekStart);
+    const d = new Date(weekStart);
     d.setDate(d.getDate() + i);
     days.push(d);
   }
 
   // Nav label
   const start = days[0], end = days[4];
-  document.getElementById('wm-nav-label').textContent =
+  document.getElementById(`${pfx}-nav-label`).textContent =
     `${start.toLocaleDateString('en-GB',{day:'numeric',month:'short'})} – ${end.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}`;
 
   // Stats strip — show today's counts if today is in this week
   const todayInWeek = days.some(d => wmDateStr(d) === today);
   if (todayInWeek) {
-    const todayStatuses = WM_MACHINES.map(m => wmStatus(m.id, today));
+    const todayStatuses = machines.map(m => wmStatus(m.id, today));
     const todayPass     = todayStatuses.filter(s => s === 'pass').length;
     const todayFail     = todayStatuses.filter(s => s === 'fail').length;
     const todayDT       = todayStatuses.filter(s => s === 'downtime').length;
-    const todayNone     = WM_MACHINES.length - todayPass - todayFail - todayDT;
+    const todayNone     = machines.length - todayPass - todayFail - todayDT;
     stats.style.display = '';
     stats.innerHTML = `
       <div class="wm-stat">
@@ -12513,7 +12590,7 @@ function wmRenderWeek() {
   </tr></thead><tbody>`;
 
   let lastGroup = '';
-  for (const m of WM_MACHINES) {
+  for (const m of machines) {
     if (m.group !== lastGroup) {
       html += `<tr class="wm-group-hdr"><td colspan="${days.length + 1}">${m.group}</td></tr>`;
       lastGroup = m.group;
@@ -12546,7 +12623,7 @@ function wmRenderWeek() {
   grid.innerHTML = html;
 
   // Footer stats
-  const allStatuses  = WM_MACHINES.flatMap(m => days.map(d => wmStatus(m.id, wmDateStr(d))));
+  const allStatuses  = machines.flatMap(m => days.map(d => wmStatus(m.id, wmDateStr(d))));
   const passCells    = allStatuses.filter(s => s === 'pass').length;
   const failCells    = allStatuses.filter(s => s === 'fail').length;
   const dtCells      = allStatuses.filter(s => s === 'downtime').length;
@@ -12554,15 +12631,18 @@ function wmRenderWeek() {
   footer.textContent = `Week: ${passCells} inspected · ${failCells} with failures · ${noneCells} missing · ${dtCells} not in use`;
 }
 
-function wmRenderMonth() {
-  const grid   = document.getElementById('wm-grid');
-  const footer = document.getElementById('wm-footer');
-  const stats  = document.getElementById('wm-stats');
+function wmRenderMonth(ctx) {
+  const pfx      = ctx.pfx || 'wm';
+  const machines = ctx.machines || WM_MACHINES;
+  const weekStart = ctx.weekStart || wmWeekStart;
+  const grid   = document.getElementById(`${pfx}-grid`);
+  const footer = document.getElementById(`${pfx}-footer`);
+  const stats  = document.getElementById(`${pfx}-stats`);
   const today  = wmDateStr(new Date());
-  const year   = wmWeekStart.getFullYear();
-  const month  = wmWeekStart.getMonth();
+  const year   = weekStart.getFullYear();
+  const month  = weekStart.getMonth();
 
-  document.getElementById('wm-nav-label').textContent =
+  document.getElementById(`${pfx}-nav-label`).textContent =
     new Date(year, month, 1).toLocaleDateString('en-GB', { month:'long', year:'numeric' });
 
   // Hide today stats strip in month view
@@ -12592,7 +12672,7 @@ function wmRenderMonth() {
   </tr></thead><tbody>`;
 
   let lastGroup = '';
-  for (const m of WM_MACHINES) {
+  for (const m of machines) {
     if (m.group !== lastGroup) {
       html += `<tr class="wm-group-hdr"><td colspan="${weeks.length + 1}">${m.group}</td></tr>`;
       lastGroup = m.group;
@@ -12627,9 +12707,9 @@ function wmRenderMonth() {
   html += `</tbody></table>`;
   grid.innerHTML = html;
 
-  const totalDays  = WM_MACHINES.length * days.length;
-  const passDays   = WM_MACHINES.reduce((n, m) => n + days.filter(d => wmStatus(m.id, wmDateStr(d)) === 'pass').length, 0);
-  const failDays   = WM_MACHINES.reduce((n, m) => n + days.filter(d => wmStatus(m.id, wmDateStr(d)) === 'fail').length, 0);
+  const totalDays  = machines.length * days.length;
+  const passDays   = machines.reduce((n, m) => n + days.filter(d => wmStatus(m.id, wmDateStr(d)) === 'pass').length, 0);
+  const failDays   = machines.reduce((n, m) => n + days.filter(d => wmStatus(m.id, wmDateStr(d)) === 'fail').length, 0);
   footer.textContent = `${new Date(year,month,1).toLocaleDateString('en-GB',{month:'long',year:'numeric'})} · ${passDays} inspected · ${failDays} with failures · ${totalDays-passDays-failDays} missing`;
 }
 
