@@ -3042,10 +3042,6 @@ function showView(name) {
   if (name === 'loadsheet')   { renderLoadSheet(); }
   if (name === 'production')  {
     renderProductionPlan();
-    if (ppAutoSyncInterval) clearInterval(ppAutoSyncInterval);
-    ppAutoSyncInterval = setInterval(() => loadProductionFromSharePoint(), 60000);
-  } else {
-    if (ppAutoSyncInterval) { clearInterval(ppAutoSyncInterval); ppAutoSyncInterval = null; }
   }
   if (name === 'stats')       { openStatsView(); if (!NMS_ITEMS.length) loadNearMisses(); }
   if (name === 'issues')      { openIssuesView(); }
@@ -5352,9 +5348,7 @@ function renderQCSyncBar() {
 
 function startQCAutoSync() {
   if (!QC_SHEET_SHARING_URL) return;
-  stopQCAutoSync();
-  autoSyncQCCompletions();                            // immediate first run
-  qcSyncInterval = setInterval(autoSyncQCCompletions, 60000); // then every 60 s
+  autoSyncQCCompletions(); // immediate first run only — no recurring interval
 }
 
 function stopQCAutoSync() {
