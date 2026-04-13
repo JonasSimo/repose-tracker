@@ -244,13 +244,13 @@ const MACHINES = {
   't-nut-2':         { name: 'T-Nut Machine 2',   type: 't-nut'        },
   'cnc-1':           { name: 'CNC Machine 1',     type: 'cnc'          },
   'cnc-2':           { name: 'CNC Machine 2',     type: 'cnc'          },
-  'sander':          { name: 'Sander',            type: 'sander'       },
+  'sander':          { name: 'Sander',            type: 'bench'        },
   'bench-a':         { name: 'Blocking Bench A',  type: 'bench'        },
   'bench-b':         { name: 'Blocking Bench B',  type: 'bench'        },
   'bench-c':         { name: 'Blocking Bench C',  type: 'bench'        },
   'bench-d':         { name: 'Blocking Bench D',  type: 'bench'        },
   'bench-e':         { name: 'Blocking Bench E',  type: 'bench'        },
-  'bench-f':         { name: 'Blocking Bench F',  type: 'bench'        },
+  'bench-f':         { name: 'Seats',             type: 'bench'        },
 };
 
 // ══════════════════════════════════════════════════════════════
@@ -305,7 +305,7 @@ const CHECKLISTS = {
 };
 
 // Blocking bench: worker picks the tool, same 7 checks apply to each
-const BENCH_TOOLS   = ['Staple Gun', 'Nail Gun', 'Pin Gun'];
+const BENCH_TOOLS   = ['Staple Gun', 'Nail Gun', 'Pin Gun', 'Sander'];
 const BENCH_CHECKS  = [
   'Air hose inspected for leaks, cracks, or wear',
   'Air fittings and connections are tight and secure',
@@ -353,7 +353,7 @@ function init() {
 
   // Update submit button label for bench
   if (machine.type === 'bench') {
-    document.getElementById('submit-btn').textContent = `Submit All ${BENCH_TOOLS.length} Tool Inspections`;
+    document.getElementById('submit-btn').textContent = `Submit All ${BENCH_TOOLS.length} Inspections`;
   }
 
   // Offline events
