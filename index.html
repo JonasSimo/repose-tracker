@@ -3093,8 +3093,9 @@ function openTeam(name, hasSubs) {
 function renderTeamSidebar() {
   const list = document.getElementById('teamList');
   let html = '';
+  const _tabletTeamName = TABLET_TEAM.toLowerCase() === 'seats' ? 'woodmill' : TABLET_TEAM.toLowerCase();
   const visibleTeams = TABLET_TEAM
-    ? TEAMS_CFG.filter(t => t.name.toLowerCase() === TABLET_TEAM.toLowerCase())
+    ? TEAMS_CFG.filter(t => t.name.toLowerCase() === _tabletTeamName)
     : TEAMS_CFG;
   visibleTeams.forEach(t => {
     const isActive = t.name === activeTeam;
@@ -3119,8 +3120,9 @@ function renderTeamSidebar() {
     </button>`;
 
     if (isActive && t.hasSubs) {
+      const visibleSubs = TABLET_TEAM.toLowerCase() === 'seats' ? ['Seats'] : SUBS;
       html += `<div class="sub-btns">`;
-      SUBS.forEach(s => {
+      visibleSubs.forEach(s => {
         const jobs = PROD[activeWC]?.[activePrep] || [];
         let sd=0;
         jobs.forEach((_,ji) => { if(STATE[t.name][s]?.[activeWC]?.[activePrep]?.[ji]?.done) sd++; });
@@ -6536,7 +6538,8 @@ if (TABLET_TEAM) {
   if (TABLET_TEAM.toLowerCase() === 'gluing') {
     openGluingQueue();
   } else if (TABLET_TEAM.toLowerCase() === 'seats') {
-    navTo('seats');
+    openTeam('Woodmill', true);
+    activeSub = 'Seats';
   } else {
     const cfg = TEAMS_CFG.find(t => t.name.toLowerCase() === TABLET_TEAM.toLowerCase());
     if (cfg) openTeam(cfg.name, cfg.hasSubs);
