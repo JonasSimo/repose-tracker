@@ -2013,21 +2013,107 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 
 /* ─── PRINT (PDF EXPORT) ─────────────────────── */
 @media print {
-  @page { size:A4; margin:15mm; }
-  body * { visibility:hidden; }
-  #view-complaints, #view-complaints * { visibility:visible; }
-  #view-complaints { position:fixed; left:0; top:0; width:100%; background:#fff; color:#000; }
+  @page { size:A4 portrait; margin:14mm 12mm; }
+
+  /* Hide every top-level sibling except the complaints view */
+  body > *:not(#view-complaints) { display:none !important; }
+
+  /* Let the complaints view flow normally so it paginates correctly */
+  #view-complaints {
+    display:block !important; position:static !important;
+    width:100% !important; background:#fff !important; color:#000 !important;
+    overflow:visible !important; height:auto !important;
+  }
   #cp-list-view { display:none !important; }
-  #cp-form-view { display:block !important; overflow:visible; }
+  #cp-form-view {
+    display:block !important; overflow:visible !important;
+    height:auto !important; position:static !important;
+    padding:0 !important;
+  }
+
+  /* Hide interactive controls */
   .cp-back-btn, .cp-save-btn, .cp-pdf-btn, .cp-refresh-btn,
   .cp-chip, .cp-add-row-btn, .cp-rm-row-btn,
-  .cp-sig-btns, #cp-filter-chips { display:none !important; }
-  .cp-print-logo-bar { display:flex !important; align-items:center; justify-content:space-between; border-bottom:2pt solid #14a1e9; padding-bottom:8pt; margin-bottom:10pt; }
-  .cp-print-logo-bar img { height:36pt; width:auto; }
-  .cp-print-logo-bar span { color:#0e023a; font-size:10pt; font-weight:700; letter-spacing:.04em; }
-  .cp-section-ta { border:1px solid #ccc; min-height:40px; }
-  .cp-sig-canvas { display:none; }
-  .cp-sig-img    { max-width:200px; }
+  .cp-sig-btns, #cp-filter-chips,
+  .cp-form-back-row { display:none !important; }
+
+  /* Logo bar */
+  .cp-print-logo-bar {
+    display:flex !important; align-items:center;
+    justify-content:space-between;
+    border-bottom:2pt solid #14a1e9;
+    padding-bottom:7pt; margin-bottom:10pt;
+  }
+  .cp-print-logo-bar img { height:32pt; width:auto; }
+  .cp-print-logo-bar span { color:#0e023a; font-size:9.5pt; font-weight:700; letter-spacing:.04em; }
+
+  /* Form title + meta */
+  .cp-form-title  { font-size:12pt !important; margin-bottom:8pt !important; padding-bottom:5pt !important; }
+  .cp-form-meta   { gap:4pt 14pt !important; margin-bottom:12pt !important; font-size:8pt !important; }
+  .cp-meta-label  { font-size:7.5pt !important; font-weight:700; min-width:70pt; }
+  .cp-meta-input  { font-size:8pt !important; border:none !important; background:transparent !important; padding:0 !important; }
+
+  /* Section blocks */
+  .cp-section       { margin-bottom:10pt !important; page-break-inside:avoid; break-inside:avoid; }
+  .cp-section-title { font-size:8.5pt !important; margin-bottom:3pt !important; }
+
+  /* Text areas — show all content, thin border */
+  .cp-section-ta {
+    font-size:8pt !important; min-height:24pt !important; height:auto !important;
+    resize:none !important; border:0.75pt solid #bbb !important;
+    background:transparent !important; padding:3pt 5pt !important;
+    overflow:visible !important;
+  }
+
+  /* ── 5 Whys table ── */
+  .cp-whys { margin-top:6pt !important; }
+  .cp-whys-title { font-size:7.5pt !important; margin-bottom:3pt !important; }
+  .cp-whys-table {
+    width:100% !important; table-layout:fixed !important;
+    border-collapse:collapse !important; font-size:7pt !important;
+    word-break:break-word !important;
+  }
+  .cp-whys-table th,
+  .cp-whys-table td   { padding:2pt 3pt !important; border:0.5pt solid #999 !important; vertical-align:top; }
+  .cp-whys-table th   { background:#f0f4f8 !important; font-size:6.5pt !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  /* Why col wider, 4 cause cols equal */
+  .cp-whys-table colgroup, .cp-whys-table col { display:none; }
+  .cp-whys-table th:nth-child(1), .cp-whys-table td:nth-child(1) { width:26% !important; }
+  .cp-whys-table th:nth-child(2), .cp-whys-table td:nth-child(2),
+  .cp-whys-table th:nth-child(3), .cp-whys-table td:nth-child(3),
+  .cp-whys-table th:nth-child(4), .cp-whys-table td:nth-child(4),
+  .cp-whys-table th:nth-child(5), .cp-whys-table td:nth-child(5) { width:18.5% !important; }
+  .cp-why-input, .cp-why-cause {
+    font-size:7pt !important; background:transparent !important;
+    border:none !important; padding:0 !important; width:100% !important;
+  }
+
+  /* ── Actions Log table ── */
+  .cp-actions-table {
+    width:100% !important; table-layout:fixed !important;
+    border-collapse:collapse !important; font-size:7.5pt !important;
+    word-break:break-word !important; margin-bottom:6pt !important;
+  }
+  .cp-actions-table th,
+  .cp-actions-table td { padding:2pt 3pt !important; border:0.5pt solid #999 !important; vertical-align:top; }
+  .cp-actions-table th { background:#f0f4f8 !important; font-size:7pt !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  /* Initiative wider, dates narrow */
+  .cp-actions-table th:nth-child(1), .cp-actions-table td:nth-child(1) { width:36% !important; }
+  .cp-actions-table th:nth-child(2), .cp-actions-table td:nth-child(2) { width:19% !important; }
+  .cp-actions-table th:nth-child(3), .cp-actions-table td:nth-child(3) { width:14% !important; }
+  .cp-actions-table th:nth-child(4), .cp-actions-table td:nth-child(4) { width:16% !important; }
+  .cp-actions-table th:nth-child(5), .cp-actions-table td:nth-child(5) { width:15% !important; }
+  .cp-act-input {
+    font-size:7.5pt !important; background:transparent !important;
+    border:none !important; padding:0 !important; width:100% !important;
+  }
+
+  /* Signatures */
+  .cp-sig-section  { page-break-inside:avoid; break-inside:avoid; }
+  .cp-sig-canvas   { display:none !important; }
+  .cp-sig-img      { max-width:150pt !important; border:0.5pt solid #ccc !important; }
+
+  * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
 }
 </style>
 <script src="/msal-browser.min.js" defer></script>
@@ -9069,6 +9155,16 @@ function saveMechSerial() {
   writeMechSerialToExcel(ctx.rep, ctx.wk, code).catch(e => console.warn('Excel serial write-back:', e.message));
 }
 
+function saveFixedChairSerial() {
+  const ctx = _mechSerialCtx || {};
+  closeMechSerialModal();
+  const key = `${ctx.rep}__${ctx.wk}__${ctx.prep}`;
+  MECH_SERIALS.set(key, 'FIXED');
+  renderJobs();
+  toast('Fixed chair recorded — now mark the job complete', 's');
+  writeMechSerialToExcel(ctx.rep, ctx.wk, 'FIXED').catch(e => console.warn('Excel serial write-back:', e.message));
+}
+
 // Write the mechanism serial into column BJ of the matching REP row in the production plan
 async function writeMechSerialToExcel(rep, wk, serial) {
   try {
@@ -11236,6 +11332,9 @@ async function closeOutNearMiss(itemId) {
       <button class="msk-btn dash" onclick="mechSerialKey('-')">–</button>
       <button class="msk-btn" onclick="mechSerialKey('0')">0</button>
       <button class="msk-btn del" onclick="mechSerialKey('del')">⌫</button>
+    </div>
+    <div style="margin-top:12px">
+      <button class="modal-cancel" style="width:100%;padding:12px;font-size:15px;font-weight:700;background:#e8f5e9;color:#2e7d32;border:2px solid #a5d6a7;border-radius:10px" onclick="saveFixedChairSerial()">Fixed Chair (no mechanism)</button>
     </div>
     <div class="modal-actions" style="margin-top:8px">
       <button class="modal-cancel" onclick="mechSerialKey('clear')">Clear</button>
