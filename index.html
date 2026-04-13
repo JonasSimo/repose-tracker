@@ -12248,6 +12248,7 @@ async function wmLoadData() {
     }
 
     // Load "not in use" downtime markings
+    // Title format: "machineId|YYYY-MM-DD"  (no extra columns needed)
     wmDowntime    = {};
     wmDowntimeIds = {};
     try {
@@ -12255,9 +12256,8 @@ async function wmLoadData() {
         `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/WMDowntime/items?$expand=fields&$top=999`
       );
       for (const item of dtItems) {
-        const f   = item.fields;
-        const mid = (f.Title || '').trim();
-        const ds  = (f.DowntimeDate || '').trim();
+        const title = (item.fields?.Title || '').trim();
+        const [mid, ds] = title.split('|');
         if (!mid || !ds) continue;
         if (!wmDowntime[mid]) wmDowntime[mid] = new Set();
         wmDowntime[mid].add(ds);
@@ -12325,10 +12325,9 @@ async function wmToggleDowntime(machineId) {
       wmDowntime[machineId]?.delete(today);
     } else {
       // Add: POST a new item
-      const markedBy = graphAccount?.name || graphAccount?.username || 'Manager';
       const item = await graphPost(
         `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/WMDowntime/items`,
-        { fields: { Title: machineId, DowntimeDate: today, MarkedBy: markedBy } }
+        { fields: { Title: `${machineId}|${today}` } }
       );
       wmDowntimeIds[key] = item.id;
       if (!wmDowntime[machineId]) wmDowntime[machineId] = new Set();
