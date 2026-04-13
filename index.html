@@ -2013,16 +2013,37 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 
 /* ─── PRINT (PDF EXPORT) ─────────────────────── */
 
-/* Replaced elements created by cpExportPdf() — styled here for screen+print */
-.cp-print-ta {
-  white-space: pre-wrap; word-break: break-word;
-  font-family: inherit; font-size: 13px; color: var(--text1);
-  background: var(--bg3); border: 1px solid var(--border2);
-  border-radius: 6px; padding: 8px; display: none; /* shown only during print via JS */
-}
-.cp-print-val {
-  font-family: inherit; font-size: 12px; color: var(--text1);
-  word-break: break-word; display: none;
+/* Replaced elements created by cpExportPdf() — hidden on screen, shown in print */
+.cp-print-ta, .cp-print-val, .cp-print-whys-table { display: none; }
+
+@media print {
+  /* Section textarea replacement */
+  .cp-print-ta {
+    display: block !important; white-space: pre-wrap; word-break: break-word;
+    font-family: inherit; font-size: 8pt; color: #000;
+    border: 0.75pt solid #bbb; padding: 3pt 5pt; min-height: 16pt;
+    background: transparent;
+  }
+  /* Inline input replacement */
+  .cp-print-val { display: inline !important; font-size: 7.5pt; color: #000; word-break: break-word; }
+
+  /* 2-column 5 Whys table */
+  .cp-print-whys-table {
+    display: table !important; width: 100%; table-layout: fixed;
+    border-collapse: collapse; margin: 4pt 0 6pt;
+    word-break: break-word;
+  }
+  .cp-pwhy-hdr {
+    padding: 3pt 5pt; border: 0.5pt solid #999;
+    background: #e8eef5; font-size: 7pt; font-weight: 700; text-align: left;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  .cp-pwhy-cell {
+    padding: 3pt 5pt; border: 0.5pt solid #999;
+    font-size: 7.5pt; vertical-align: top; color: #000;
+  }
+  .cp-pwhy-cause { margin-bottom: 2pt; }
+  .cp-pwhy-cause:last-child { margin-bottom: 0; }
 }
 
 @media print {
@@ -2067,21 +2088,9 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
   .cp-section       { margin-bottom:8pt !important; page-break-inside:avoid; break-inside:avoid; }
   .cp-section-title { font-size:8.5pt !important; margin-bottom:3pt !important; }
 
-  /* Hide original textarea (replaced by .cp-print-ta via JS) */
+  /* Hide original form elements (replaced by JS) */
   .cp-section-ta { display:none !important; }
-
-  /* ── 5 Whys table ── */
-  .cp-whys       { margin-top:4pt !important; }
-  .cp-whys-title { font-size:7.5pt !important; margin-bottom:3pt !important; }
-  .cp-whys-table {
-    width:100% !important; table-layout:fixed !important;
-    border-collapse:collapse !important; word-break:break-word !important;
-  }
-  .cp-whys-table th,
-  .cp-whys-table td { padding:2pt 3pt !important; border:0.5pt solid #999 !important; vertical-align:top; font-size:7pt !important; }
-  .cp-whys-table th { background:#f0f4f8 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-  .cp-whys-table th:nth-child(1), .cp-whys-table td:nth-child(1) { width:26% !important; }
-  .cp-whys-table th:nth-child(n+2), .cp-whys-table td:nth-child(n+2) { width:18.5% !important; }
+  .cp-whys-table { display:none !important; }
 
   /* ── Actions Log table ── */
   .cp-actions-table {
@@ -12317,56 +12326,76 @@ async function cpSubmitManagerSignature() {
 function cpExportPdf() {
   const form = document.getElementById('cp-form-view');
   const restore = [];
+  const addAfter = (ref, el) => { ref.after(el); restore.push(() => el.remove()); };
+  const hide     = el => { el.style.display = 'none'; restore.push(() => { el.style.display = ''; }); };
 
-  // 1. Textareas → plain div (auto-height, no clipping)
+  // 1. Textareas → auto-height div (no height clipping)
   form.querySelectorAll('.cp-section-ta').forEach(ta => {
     const div = document.createElement('div');
     div.className = 'cp-print-ta';
     div.textContent = ta.value;
-    ta.after(div);
-    ta.style.display = 'none';
-    restore.push(() => { ta.style.display = ''; div.remove(); });
+    addAfter(ta, div);
+    hide(ta);
   });
 
-  // 2. Table inputs → plain span (value visible, no fixed-height box)
-  form.querySelectorAll('.cp-why-input, .cp-why-cause, .cp-act-input').forEach(inp => {
+  // 2. Replace 5 Whys table with a 2-column print layout (Why | Causes)
+  //    The original 5-column table is too cramped on A4 portrait
+  const whysTable = form.querySelector('.cp-whys-table');
+  if (whysTable) {
+    const whysRows = Array.from(whysTable.querySelectorAll('tbody tr')).map(tr => ({
+      why:    tr.querySelector('.cp-why-input')?.value || '',
+      causes: Array.from(tr.querySelectorAll('.cp-why-cause')).map(c => c.value.trim()).filter(Boolean),
+    }));
+    const pt = document.createElement('table');
+    pt.className = 'cp-print-whys-table';
+    pt.innerHTML = `
+      <thead><tr>
+        <th class="cp-pwhy-hdr" style="width:38%">Why</th>
+        <th class="cp-pwhy-hdr" style="width:62%">Probable Causes</th>
+      </tr></thead>
+      <tbody>${whysRows.map(r => `<tr>
+        <td class="cp-pwhy-cell">${escHtml(r.why)}</td>
+        <td class="cp-pwhy-cell">${r.causes.length ? r.causes.map(c => `<div class="cp-pwhy-cause">${escHtml(c)}</div>`).join('') : ''}</td>
+      </tr>`).join('')}</tbody>`;
+    addAfter(whysTable, pt);
+    hide(whysTable);
+  }
+
+  // 3. Actions Log inputs → plain spans
+  form.querySelectorAll('.cp-act-input').forEach(inp => {
     const span = document.createElement('span');
     span.className = 'cp-print-val';
     span.textContent = inp.value;
-    inp.after(span);
-    inp.style.display = 'none';
-    restore.push(() => { inp.style.display = ''; span.remove(); });
+    addAfter(inp, span);
+    hide(inp);
   });
 
-  // 3. Meta inputs → plain span
+  // 4. Meta inputs → plain spans
   form.querySelectorAll('.cp-meta-input').forEach(inp => {
     const span = document.createElement('span');
     span.className = 'cp-print-val';
     span.textContent = inp.value;
-    inp.after(span);
-    inp.style.display = 'none';
-    restore.push(() => { inp.style.display = ''; span.remove(); });
+    addAfter(inp, span);
+    hide(inp);
   });
 
-  // 4. Signature canvases → capture to img if drawn on
+  // 5. Drawn signature canvases → data-URL image
   form.querySelectorAll('canvas.cp-sig-canvas').forEach(canvas => {
     try {
       const ctx2d = canvas.getContext('2d');
-      const px = ctx2d.getImageData(0, 0, canvas.width, canvas.height).data;
+      const px    = ctx2d.getImageData(0, 0, canvas.width, canvas.height).data;
       const hasInk = Array.prototype.some.call(px, (v, i) => i % 4 === 3 && v > 10);
       if (hasInk) {
         const img = document.createElement('img');
         img.src = canvas.toDataURL('image/png');
         img.className = 'cp-sig-img';
-        canvas.after(img);
-        canvas.style.display = 'none';
-        restore.push(() => { canvas.style.display = ''; img.remove(); });
+        addAfter(canvas, img);
+        hide(canvas);
       }
     } catch (e) { /* tainted canvas — skip */ }
   });
 
   window.print();
-
   setTimeout(() => { restore.forEach(fn => fn()); }, 300);
 }
 
