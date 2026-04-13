@@ -7584,8 +7584,8 @@ function renderStatsDashboard() {
       <div class="card-label">Spec Changes</div>
       <div class="card-row">
         <div>
-          <div class="card-number sm">${alerts.length}</div>
-          <div class="card-sub">plan changes detected</div>
+          <div class="card-number sm">${new Set(alerts.map(a => a.fields.Title)).size}</div>
+          <div class="card-sub">jobs with plan changes</div>
         </div>
       </div>
       <div class="card-arrow">›</div>
