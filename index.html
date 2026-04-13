@@ -380,6 +380,8 @@ html.tablet-team .nav-menu { display: none !important; }
 .gluing-sync-btn { padding:6px 14px; border-radius:8px; border:1px solid var(--border2); background:var(--bg3); color:var(--text2); font-family:inherit; font-size:12px; font-weight:600; cursor:pointer; transition:.12s; }
 .gluing-sync-btn:hover:not(:disabled) { background:var(--repose-blue); color:#fff; border-color:var(--repose-blue); }
 .gluing-sync-btn:disabled { opacity:.5; cursor:default; }
+.gluing-completed-btn { padding:6px 14px; border-radius:8px; border:1px solid var(--gborder); background:var(--gbg); color:var(--green); font-family:inherit; font-size:12px; font-weight:600; cursor:pointer; transition:.12s; }
+.gluing-completed-btn.active { background:var(--green); color:#fff; border-color:var(--green); }
 .gluing-header-title { font-size:17px; font-weight:700; color:var(--text); }
 .gluing-count { background:#fff7ed; border:1px solid #f97316; color:#ea580c; font-size:11px; font-weight:700; padding:2px 8px; border-radius:99px; }
 .gluing-body { flex:1; overflow-y:auto; padding:14px 16px; display:flex; flex-direction:column; gap:10px; }
@@ -2148,6 +2150,7 @@ document.addEventListener('DOMContentLoaded', () => {
       <div class="gluing-header-title">🔩 Gluing Queue</div>
       <div style="display:flex;align-items:center;gap:8px">
         <span class="gluing-count" id="gluing-pending-count">0</span>
+        <button class="gluing-completed-btn" id="gluing-completed-btn" onclick="toggleGluingCompleted()" title="Show completed jobs">✓ Completed <span id="gluing-done-count">0</span></button>
         <button class="gluing-sync-btn" id="gluing-sync-btn" onclick="syncGluingQueue(this)" title="Sync jobs">↻ Sync</button>
       </div>
     </div>
@@ -6488,6 +6491,7 @@ function toast(msg, type='s') {
 }
 
 let GLUING_QUEUE = {}; // must be declared before init block (TDZ guard)
+let gluingShowCompleted = false;
 
 // ─── Init ───
 if (TABLET_TEAM) {
@@ -7061,11 +7065,22 @@ function statsBarChart(id, labels, data, color) {
 // ═══════════════════════════════════════════════
 
 function updateGluingBadge() {
-  const pending = Object.values(GLUING_QUEUE).filter(g => !g.done).length;
+  const all     = Object.values(GLUING_QUEUE);
+  const pending = all.filter(g => !g.done).length;
+  const done    = all.filter(g => g.done).length;
   const el = document.getElementById('tc-gluing-sub');
   if (el) el.textContent = pending ? `${pending} job${pending!==1?'s':''} waiting` : 'Foam — gluing jobs';
   const cnt = document.getElementById('gluing-pending-count');
   if (cnt) cnt.textContent = pending;
+  const dc = document.getElementById('gluing-done-count');
+  if (dc) dc.textContent = done;
+  const cb = document.getElementById('gluing-completed-btn');
+  if (cb) cb.classList.toggle('active', gluingShowCompleted);
+}
+
+function toggleGluingCompleted() {
+  gluingShowCompleted = !gluingShowCompleted;
+  renderGluingQueue();
 }
 
 function openGluingQueue() {
@@ -7133,11 +7148,12 @@ function renderGluingQueue() {
   const sections = ['Arms','Backs','Seats'].map(sub => {
     const pending = sortByDate(allEntries.filter(e => e.sub === sub && !e.done));
     const done    = sortByDate(allEntries.filter(e => e.sub === sub && e.done));
-    if (!pending.length && !done.length) return '';
+    const visibleDone = gluingShowCompleted ? done : [];
+    if (!pending.length && !visibleDone.length) return '';
     return `<div style="margin-bottom:18px">
-      <div class="gluing-section-head">${sub} — ${pending.length} pending · ${done.length} done</div>
+      <div class="gluing-section-head">${sub} — ${pending.length} pending${gluingShowCompleted && done.length ? ` · ${done.length} done` : ''}</div>
       ${pending.map(e => cardHtml(e, false)).join('')}
-      ${done.map(e => cardHtml(e, true)).join('')}
+      ${visibleDone.map(e => cardHtml(e, true)).join('')}
     </div>`;
   }).join('');
 
