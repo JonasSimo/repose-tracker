@@ -11262,65 +11262,6 @@ async function closeOutNearMiss(itemId) {
 </div>
 
 <script>
-// ── Auto-refresh on deploy ────────────────────────────────────────────────
-// Polls the page ETag every 60 s. When a new deploy lands, Azure updates the
-// ETag. If no modal/form is open we show a brief toast then reload; otherwise
-// we wait until all modals are closed before reloading.
-(function () {
-  const MODAL_IDS   = ['modal-initials', 'cpar-modal', 'nms-modal', 'specModal'];
-  const POLL_MS     = 60_000;
-  const COUNTDOWN_S = 5;
-
-  let knownEtag     = null;
-  let reloadPending = false;
-
-  function anyModalOpen() {
-    return MODAL_IDS.some(id => {
-      const el = document.getElementById(id);
-      return el && el.style.display !== 'none';
-    });
-  }
-
-  function doReload() {
-    // Show a countdown toast then reload
-    const wrap = document.getElementById('toasts');
-    let secs = COUNTDOWN_S;
-    const el = document.createElement('div');
-    el.className = 'toast';
-    el.style.cssText = 'background:#0e023a;color:#fff';
-    const tick = () => {
-      el.textContent = `↻ New version — refreshing in ${secs}s`;
-      if (secs-- <= 0) { clearInterval(iv); location.reload(); }
-    };
-    tick();
-    const iv = setInterval(tick, 1000);
-    if (wrap) wrap.appendChild(el);
-  }
-
-  function maybeReload() {
-    if (!reloadPending) return;
-    if (anyModalOpen()) return;      // defer — check again on next poll tick
-    reloadPending = false;
-    doReload();
-  }
-
-  async function checkVersion() {
-    try {
-      const res = await fetch(location.pathname + '?_=' + Date.now(), { method: 'HEAD', cache: 'no-store' });
-      const etag = res.headers.get('etag') || res.headers.get('last-modified');
-      if (!etag) return;
-      if (knownEtag === null) { knownEtag = etag; return; }  // first poll — baseline
-      if (etag === knownEtag) return;                         // no change
-      knownEtag = etag;
-      reloadPending = true;
-      maybeReload();
-    } catch { /* offline / network hiccup — try again next tick */ }
-  }
-
-  setInterval(() => { checkVersion(); maybeReload(); }, POLL_MS);
-  // Establish baseline ETag on load (after a short delay so the page is settled)
-  setTimeout(checkVersion, 5000);
-})();
 
 // ═══════════════════════════════════════════════
 // JOB TIMING
