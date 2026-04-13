@@ -5638,8 +5638,6 @@ async function graphSignIn() {
     loadMechSerials().catch(console.warn);
     startQCAutoSync();
     fetchSpecAlerts().catch(console.warn);
-    if (!_refreshInterval)     _refreshInterval     = setInterval(refreshCompletions, 60 * 1000);
-    if (!_fullRefreshInterval) _fullRefreshInterval = setInterval(fullRefresh, 10 * 60 * 1000);
   } catch(e) {
     console.error('Sign-in failed', e);
     toast('Sign-in failed — check Azure app config', 'u');
@@ -5993,8 +5991,6 @@ async function initGraph() {
     loadMechSerials().catch(console.warn);
     startQCAutoSync();
     fetchSpecAlerts().catch(console.warn);
-    if (!_refreshInterval)     _refreshInterval     = setInterval(refreshCompletions, 60 * 1000);
-    if (!_fullRefreshInterval) _fullRefreshInterval = setInterval(fullRefresh, 10 * 60 * 1000);
   }
 }
 
