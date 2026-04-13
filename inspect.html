@@ -162,11 +162,8 @@
       </select>
     </div>
 
-    <!-- Tool selector (blocking benches only) -->
-    <div class="card" id="tool-card" style="display:none">
-      <div class="field-label">Tool being inspected</div>
-      <div class="tool-chips" id="tool-chips"></div>
-    </div>
+    <!-- Tool selector (blocking benches only — legacy, hidden) -->
+    <div class="card" id="tool-card" style="display:none"></div>
 
     <!-- Checklist items -->
     <div id="checklist-container"></div>
@@ -326,7 +323,6 @@ let machineId  = '';
 let machine    = null;
 let answers    = {};   // key → 'pass' | 'fail'
 let totalItems = 0;
-let activeTool = '';   // bench only
 
 // ══════════════════════════════════════════════════════════════
 //  INIT
@@ -351,22 +347,12 @@ function init() {
   document.getElementById('hdr-machine').textContent   = machine.name;
   document.getElementById('hdr-machine-s').textContent = machine.name;
 
-  // Bench tool chips
+  // Bench: build all-tools checklist immediately, no selection step needed
+  buildChecklist();
+
+  // Update submit button label for bench
   if (machine.type === 'bench') {
-    document.getElementById('tool-card').style.display = '';
-    const chips = document.getElementById('tool-chips');
-    BENCH_TOOLS.forEach(tool => {
-      const btn = document.createElement('button');
-      btn.className   = 'tool-chip';
-      btn.textContent = tool;
-      btn.dataset.tool = tool;
-      btn.onclick = () => selectTool(tool);
-      chips.appendChild(btn);
-    });
-    // Don't build checklist yet — wait for tool selection
-    totalItems = BENCH_CHECKS.length;
-  } else {
-    buildChecklist();
+    document.getElementById('submit-btn').textContent = `Submit All ${BENCH_TOOLS.length} Tool Inspections`;
   }
 
   // Offline events
@@ -386,18 +372,6 @@ function showScreen(id) {
 }
 
 // ══════════════════════════════════════════════════════════════
-//  BENCH TOOL SELECTION
-// ══════════════════════════════════════════════════════════════
-
-function selectTool(tool) {
-  activeTool = tool;
-  document.querySelectorAll('.tool-chip').forEach(c => c.classList.toggle('active', c.dataset.tool === tool));
-  answers = {};
-  buildChecklist();
-  updateProgress();
-}
-
-// ══════════════════════════════════════════════════════════════
 //  CHECKLIST
 // ══════════════════════════════════════════════════════════════
 
@@ -405,22 +379,46 @@ function buildChecklist() {
   const container = document.getElementById('checklist-container');
   container.innerHTML = '';
 
-  const items = machine.type === 'bench' ? BENCH_CHECKS : (CHECKLISTS[machine.type] || []);
-  totalItems  = items.length;
+  if (machine.type === 'bench') {
+    // One section per tool — all on the same form
+    totalItems = BENCH_TOOLS.length * BENCH_CHECKS.length;
+    BENCH_TOOLS.forEach((tool, ti) => {
+      const hdr = document.createElement('div');
+      hdr.className = 'section-hdr';
+      hdr.textContent = tool;
+      container.appendChild(hdr);
 
-  items.forEach((label, i) => {
-    const key = `item-${i}`;
-    const div = document.createElement('div');
-    div.className = 'check-item';
-    div.id = 'ci-' + key;
-    div.innerHTML = `
-      <div class="check-label">${label}</div>
-      <div class="check-btns">
-        <button class="check-btn" id="pass-${key}" data-key="${key}" data-val="pass" onclick="setAnswer('${key}','pass')">✓&nbsp;Pass</button>
-        <button class="check-btn" id="fail-${key}" data-key="${key}" data-val="fail" onclick="setAnswer('${key}','fail')">✗&nbsp;Fail</button>
-      </div>`;
-    container.appendChild(div);
-  });
+      BENCH_CHECKS.forEach((label, ci) => {
+        const key = `t${ti}-${ci}`;
+        const div = document.createElement('div');
+        div.className = 'check-item';
+        div.id = 'ci-' + key;
+        div.innerHTML = `
+          <div class="check-label">${label}</div>
+          <div class="check-btns">
+            <button class="check-btn" id="pass-${key}" data-key="${key}" data-val="pass" onclick="setAnswer('${key}','pass')">✓&nbsp;Pass</button>
+            <button class="check-btn" id="fail-${key}" data-key="${key}" data-val="fail" onclick="setAnswer('${key}','fail')">✗&nbsp;Fail</button>
+          </div>`;
+        container.appendChild(div);
+      });
+    });
+  } else {
+    const items = CHECKLISTS[machine.type] || [];
+    totalItems  = items.length;
+    items.forEach((label, i) => {
+      const key = `item-${i}`;
+      const div = document.createElement('div');
+      div.className = 'check-item';
+      div.id = 'ci-' + key;
+      div.innerHTML = `
+        <div class="check-label">${label}</div>
+        <div class="check-btns">
+          <button class="check-btn" id="pass-${key}" data-key="${key}" data-val="pass" onclick="setAnswer('${key}','pass')">✓&nbsp;Pass</button>
+          <button class="check-btn" id="fail-${key}" data-key="${key}" data-val="fail" onclick="setAnswer('${key}','fail')">✗&nbsp;Fail</button>
+        </div>`;
+      container.appendChild(div);
+    });
+  }
 }
 
 function setAnswer(key, val) {
@@ -471,21 +469,26 @@ async function handleSubmit() {
   }
   document.getElementById('inspector-select').classList.remove('error');
 
-  // Validate: bench tool selected
-  if (machine.type === 'bench' && !activeTool) {
-    alert('Please select which tool you are inspecting.');
-    return;
-  }
-
   // Validate: all items answered
   const unanswered = totalItems - Object.keys(answers).length;
   if (unanswered > 0) {
     alert(`${unanswered} check${unanswered > 1 ? 's' : ''} still need a Pass or Fail — please scroll up and complete them.`);
     // Scroll to first unanswered
-    for (let i = 0; i < totalItems; i++) {
-      if (!answers['item-' + i]) {
-        document.getElementById('ci-item-' + i)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        break;
+    if (machine.type === 'bench') {
+      outer: for (let ti = 0; ti < BENCH_TOOLS.length; ti++) {
+        for (let ci = 0; ci < BENCH_CHECKS.length; ci++) {
+          if (!answers[`t${ti}-${ci}`]) {
+            document.getElementById(`ci-t${ti}-${ci}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            break outer;
+          }
+        }
+      }
+    } else {
+      for (let i = 0; i < totalItems; i++) {
+        if (!answers['item-' + i]) {
+          document.getElementById('ci-item-' + i)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          break;
+        }
       }
     }
     return;
@@ -504,57 +507,62 @@ async function handleSubmit() {
   btn.disabled    = true;
   btn.textContent = 'Submitting…';
 
-  const payload = buildPayload(inspector, comments);
+  const payloads = buildPayloads(inspector, comments);
 
   if (!navigator.onLine) {
-    queuePayload(payload);
+    payloads.forEach(queuePayload);
     showSuccess(inspector, true);
     return;
   }
 
   try {
-    const resp = await fetch(WEBHOOK_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    showSuccess(inspector, false);
+    const results = await Promise.allSettled(payloads.map(p =>
+      fetch(WEBHOOK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) })
+        .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); })
+    ));
+    const anyQueued = results.some(r => r.status === 'rejected');
+    results.forEach((r, i) => { if (r.status === 'rejected') queuePayload(payloads[i]); });
+    showSuccess(inspector, anyQueued);
   } catch (err) {
     console.error('Submit failed:', err);
-    queuePayload(payload);
-    showSuccess(inspector, true); // queued
+    payloads.forEach(queuePayload);
+    showSuccess(inspector, true);
   }
 }
 
-function buildPayload(inspector, comments) {
-  const checks = [];
-  const labels = machine.type === 'bench' ? BENCH_CHECKS : (CHECKLISTS[machine.type] || []);
-  labels.forEach((label, i) => {
-    checks.push({ label, result: answers['item-' + i] || 'pass' });
-  });
-
-  return {
-    machineId:     machineId,
-    machineName:   machine.name,
-    machineType:   machine.type,
-    toolName:      machine.type === 'bench' ? activeTool : null,
-    inspectorName: inspector,
-    inspectedAt:   new Date().toISOString(),
-    checks,
-    anyFail:       hasAnyFail(),
-    failCount:     Object.values(answers).filter(v => v === 'fail').length,
+function buildPayloads(inspector, comments) {
+  const now = new Date().toISOString();
+  if (machine.type === 'bench') {
+    return BENCH_TOOLS.map((tool, ti) => {
+      const checks = BENCH_CHECKS.map((label, ci) => ({
+        label, result: answers[`t${ti}-${ci}`] || 'pass'
+      }));
+      const anyFail   = checks.some(c => c.result === 'fail');
+      const failCount = checks.filter(c => c.result === 'fail').length;
+      return { machineId, machineName: machine.name, machineType: machine.type,
+               toolName: tool, inspectorName: inspector, inspectedAt: now,
+               checks, anyFail, failCount, comments };
+    });
+  }
+  const labels = CHECKLISTS[machine.type] || [];
+  const checks = labels.map((label, i) => ({ label, result: answers['item-' + i] || 'pass' }));
+  return [{
+    machineId, machineName: machine.name, machineType: machine.type,
+    toolName: null, inspectorName: inspector, inspectedAt: now,
+    checks, anyFail: hasAnyFail(),
+    failCount: Object.values(answers).filter(v => v === 'fail').length,
     comments,
-  };
+  }];
 }
 
 function showSuccess(inspector, queued) {
-  document.getElementById('s-icon').textContent  = hasAnyFail() ? '⚠️' : '✅';
-  document.getElementById('s-title').textContent = hasAnyFail() ? 'Inspection Recorded — Failures Noted' : 'Inspection Passed';
+  const anyFail = hasAnyFail();
+  document.getElementById('s-icon').textContent  = anyFail ? '⚠️' : '✅';
+  document.getElementById('s-title').textContent = anyFail ? 'Inspection Recorded — Failures Noted' : 'Inspection Passed';
 
   const time = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-  const tool = machine.type === 'bench' ? ` · ${activeTool}` : '';
-  document.getElementById('s-meta').textContent = `${inspector} · ${machine.name}${tool} · ${time}`;
+  const toolLine = machine.type === 'bench' ? ` · ${BENCH_TOOLS.join(', ')}` : '';
+  document.getElementById('s-meta').textContent = `${inspector} · ${machine.name}${toolLine} · ${time}`;
   document.getElementById('s-queued').style.display = queued ? '' : 'none';
 
   showScreen('success');
@@ -566,15 +574,8 @@ function resetForm() {
   const btn = document.getElementById('submit-btn');
   btn.disabled    = false;
   btn.textContent = 'Submit Inspection';
-  answers     = {};
-  activeTool  = '';
-
-  if (machine.type === 'bench') {
-    document.querySelectorAll('.tool-chip').forEach(c => c.classList.remove('active'));
-    document.getElementById('checklist-container').innerHTML = '';
-  } else {
-    buildChecklist();
-  }
+  answers = {};
+  buildChecklist();
 
   updateProgress();
   document.getElementById('comments-req-label').classList.remove('show');
