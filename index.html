@@ -6940,7 +6940,15 @@ function statsFilteredCompletions() {
   return STATS_COMPLETIONS.filter(c => statsInPeriod(c.fields.CompletedDate));
 }
 function statsFilteredAlerts() {
-  return STATS_ALERTS.filter(a => statsInPeriod(a.fields.DetectedAt));
+  const raw = STATS_ALERTS.filter(a => statsInPeriod(a.fields.DetectedAt));
+  // Deduplicate: same REP + field + old→new value = one change logged by multiple tablets
+  const seen = new Set();
+  return raw.filter(a => {
+    const key = `${a.fields.Title}||${a.fields.FieldKey}||${a.fields.OldValue}||${a.fields.NewValue}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 function statsFilteredScrap() {
   return STATS_SCRAP.filter(s => statsInPeriod(s.fields.LoggedAt));
@@ -7584,8 +7592,8 @@ function renderStatsDashboard() {
       <div class="card-label">Spec Changes</div>
       <div class="card-row">
         <div>
-          <div class="card-number sm">${new Set(alerts.map(a => a.fields.Title)).size}</div>
-          <div class="card-sub">jobs with plan changes</div>
+          <div class="card-number sm">${alerts.length}</div>
+          <div class="card-sub">plan changes detected</div>
         </div>
       </div>
       <div class="card-arrow">›</div>
