@@ -6535,6 +6535,8 @@ if (TABLET_TEAM) {
   // Auto-open the locked team and hide the team-select screen
   if (TABLET_TEAM.toLowerCase() === 'gluing') {
     openGluingQueue();
+  } else if (TABLET_TEAM.toLowerCase() === 'seats') {
+    navTo('seats');
   } else {
     const cfg = TEAMS_CFG.find(t => t.name.toLowerCase() === TABLET_TEAM.toLowerCase());
     if (cfg) openTeam(cfg.name, cfg.hasSubs);
