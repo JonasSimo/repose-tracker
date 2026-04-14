@@ -141,7 +141,9 @@ body {
 /* Tablet/team lock — hide nav menu only */
 html.tablet-team .nav-menu { display: none !important; }
 /* Prevent browser pull-to-refresh gesture on tablets */
-html.tablet-team body { overscroll-behavior-y: none; }
+html.tablet-team .job-list-area,
+html.tablet-team .week-list,
+html.tablet-team .team-list { overscroll-behavior: none; }
 /* Show tablet sync button, hide on non-tablet */
 .tablet-sync-btn { display: none; }
 html.tablet-team .tablet-sync-btn { display: inline-flex; }
@@ -3818,7 +3820,8 @@ function startJob(ji) {
   document.getElementById('modal-title').textContent = 'Who is starting this job?';
   document.getElementById('modal-rep-label').textContent = job.rep;
 
-  // Always single-select for start
+  // Multi-select for start
+  modalSelectedOps = [];
   const operators = TEAM_OPERATORS[`${snapTeam} ${snapSub}`] || TEAM_OPERATORS[snapTeam];
   const opsSection   = document.getElementById('modal-ops-section');
   const inputSection = document.getElementById('modal-input-section');
@@ -3826,19 +3829,22 @@ function startJob(ji) {
   const opsActions   = document.querySelector('#modal-ops-section .modal-actions');
 
   if (operators) {
-    subLabel.textContent = 'Select your name';
+    subLabel.textContent = 'Select your name(s)';
     opsSection.style.display   = '';
     inputSection.style.display = 'none';
     const opsList = document.getElementById('modal-ops-list');
     opsList.style.maxHeight = '52vh';
     opsList.style.overflowY = 'auto';
     opsList.innerHTML = operators.map(op =>
-      `<button class="modal-op-btn" onclick="modalSelectOperator('${escHtml(op.initials)}')">
+      `<button class="modal-op-btn" data-initials="${escHtml(op.initials)}" onclick="toggleModalOperator('${escHtml(op.initials)}',this)">
         ${op.initials !== op.name ? `<span class="modal-op-initials">${escHtml(op.initials)}</span>` : ''}
         <span>${escHtml(op.name)}</span>
       </button>`
     ).join('');
-    opsActions.innerHTML = `<button class="modal-cancel" onclick="modalCancel()">Cancel</button>`;
+    opsActions.innerHTML = `
+      <button class="modal-cancel" onclick="modalCancel()">Cancel</button>
+      <button class="modal-confirm" id="modal-multi-confirm" onclick="modalMultiConfirm()" disabled style="opacity:.4">Start Job</button>
+    `;
   } else {
     subLabel.textContent = 'Enter your initials';
     opsSection.style.display   = 'none';
