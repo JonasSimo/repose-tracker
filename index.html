@@ -14,6 +14,12 @@
     document.documentElement.classList.add('tablet-team');
     sessionStorage.setItem('tabletTeam', tp);
   }
+  var tv = new URLSearchParams(location.search).get('tab')
+        || sessionStorage.getItem('tabletTab');
+  if (tv) {
+    document.documentElement.classList.add('tablet-team'); // hide nav
+    sessionStorage.setItem('tabletTab', tv);
+  }
 })();
 </script>
 <meta name="theme-color" content="#0e023a">
@@ -5653,6 +5659,13 @@ const _paramTeam = new URLSearchParams(window.location.search).get('team') || ''
 if (_paramTeam) sessionStorage.setItem('tabletTeam', _paramTeam);
 const TABLET_TEAM = _paramTeam || sessionStorage.getItem('tabletTeam') || '';
 
+// Single-tab lock — add ?tab=production (or any view name) to the URL
+// to lock the app to that tab only, hiding the nav menu
+// Preserve tab across MSAL redirect
+const _paramTab = new URLSearchParams(window.location.search).get('tab') || '';
+if (_paramTab) sessionStorage.setItem('tabletTab', _paramTab);
+const TABLET_TAB = _paramTab || sessionStorage.getItem('tabletTab') || '';
+
 let msalInstance = null;
 let graphAccount  = null;
 let _refreshInterval = null;
@@ -6604,6 +6617,11 @@ if (TABLET_TEAM) {
   // Add tablet class for large-font scaling — only for Samsung tablet teams, not PC teams like Cutting
   const TABLET_FONT_TEAMS = ['woodmill','sewing','assembly'];
   if (TABLET_FONT_TEAMS.includes(TABLET_TEAM.toLowerCase())) document.body.classList.add('tablet-mode');
+}
+if (TABLET_TAB && !TABLET_TEAM) {
+  // Auto-open the locked tab and hide the nav menu
+  showView(TABLET_TAB);
+  // Nav menu hidden via CSS (html.tablet-team .nav-menu) — class added in inline <script>
 }
 renderTeamSidebar();
 renderWeekList();
