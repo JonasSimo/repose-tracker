@@ -5692,7 +5692,7 @@ async function graphSignIn() {
   if (!msalInstance) { toast('Auth library not ready — please try again', 'u'); return; }
   // iOS/Android blocks popups — use redirect; desktop always uses popup even with ?team=
   if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-    try { msalInstance.loginRedirect({ scopes: GRAPH_SCOPES }); } catch(e) { toast('Sign-in failed: ' + e.message, 'u'); }
+    msalInstance.loginRedirect({ scopes: GRAPH_SCOPES }).catch(e => toast('Sign-in failed: ' + e.message, 'u'));
     return;
   }
   try {
@@ -6620,7 +6620,7 @@ if (TABLET_TEAM) {
 }
 if (TABLET_TAB && !TABLET_TEAM) {
   // Auto-open the locked tab and hide the nav menu
-  showView(TABLET_TAB);
+  try { showView(TABLET_TAB); } catch(e) { console.error('TABLET_TAB showView failed:', e); }
   // Nav menu hidden via CSS (html.tablet-team .nav-menu) — class added in inline <script>
 }
 renderTeamSidebar();
