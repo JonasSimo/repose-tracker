@@ -140,6 +140,11 @@ body {
 .nav-item.active { color: var(--repose-blue); background: rgba(20,161,233,.1); }
 /* Tablet/team lock — hide nav menu only */
 html.tablet-team .nav-menu { display: none !important; }
+/* Prevent browser pull-to-refresh gesture on tablets */
+html.tablet-team body { overscroll-behavior-y: none; }
+/* Show tablet sync button, hide on non-tablet */
+.tablet-sync-btn { display: none; }
+html.tablet-team .tablet-sync-btn { display: inline-flex; }
 
 /* ─── VIEWS ─── */
 .view { display: none; flex: 1; overflow: hidden; flex-direction: column; }
@@ -2320,7 +2325,8 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="jh-title" id="jh-title">Select a week and prep</div>
             <div class="jh-sub" id="jh-sub">Choose from the panel on the left</div>
           </div>
-          <button style="margin-left:auto;padding:6px 12px;border-radius:8px;border:1.5px solid var(--border2);background:var(--bg3);font-size:12px;cursor:pointer;font-family:inherit;color:var(--text2)" onclick="showView('team-select')">← Teams</button>
+          <button class="tablet-sync-btn" style="margin-left:auto;padding:7px 14px;border-radius:8px;border:1.5px solid var(--repose-blue);background:rgba(20,161,233,.12);font-size:13px;cursor:pointer;font-family:inherit;color:var(--repose-blue);font-weight:600;align-items:center;gap:6px" onclick="refreshCompletions().then(()=>toast('Synced','s'))">↻ Sync</button>
+          <button style="margin-left:8px;padding:6px 12px;border-radius:8px;border:1.5px solid var(--border2);background:var(--bg3);font-size:12px;cursor:pointer;font-family:inherit;color:var(--text2)" onclick="showView('team-select')">← Teams</button>
         </div>
         <div class="jh-stats" id="jh-stats" style="display:none">
           <div class="sc scb"><div class="sl">Total</div><div class="sv" id="stat-total">0</div><div class="pbar"><div class="pfill" id="stat-bar" style="width:0%"></div></div></div>
