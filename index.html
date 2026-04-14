@@ -5040,8 +5040,25 @@ async function loadCompletionsFromList() {
     const siteId = await getSpSiteId();
     const listId = await getSpListId();
 
-    let url = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999`;
+    // Filter to current 4-week window only — dramatically reduces items fetched.
+    // Requires 'Week' column to be indexed in SharePoint; falls back to full fetch if not.
+    const weekFilter = WEEKS.map(wk => `fields/Week eq '${wk}'`).join(' or ');
+    const filteredUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999&$filter=${encodeURIComponent(weekFilter)}`;
+    const fullUrl     = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999`;
+
+    let firstUrl = filteredUrl;
+    let firstRes;
+    try {
+      firstRes = await graphGet(filteredUrl);
+    } catch(e) {
+      // Week column not indexed or filter unsupported — fall back to full fetch
+      firstRes = await graphGet(fullUrl);
+      firstUrl = fullUrl;
+    }
+
     const allItems = [];
+    (firstRes.value || []).forEach(i => allItems.push(i));
+    let url = firstRes['@odata.nextLink'] || null;
     while (url) {
       const res = await graphGet(url);
       (res.value || []).forEach(i => allItems.push(i));
