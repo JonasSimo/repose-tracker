@@ -2113,6 +2113,49 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .ivn-score-table th { font-size:11px; font-weight:700; color:var(--text2); text-transform:uppercase; padding:6px 8px; border-bottom:1.5px solid var(--border); text-align:left; }
 .ivn-score-table td { font-size:13px; color:var(--text1); padding:8px; border-bottom:1px solid var(--border); }
 .ivn-score-table tbody tr:hover { background:var(--bg2); }
+/* Status summary bar */
+.ivn-status-bar    { display:flex; gap:6px; overflow-x:auto; padding-bottom:2px; -webkit-overflow-scrolling:touch; }
+.ivn-stat-pill     { flex:0 0 auto; display:flex; flex-direction:column; align-items:center; justify-content:center;
+                     background:var(--bg3); border:2px solid transparent; border-radius:10px;
+                     padding:8px 14px; cursor:pointer; min-width:64px; transition:border-color .15s,background .15s; }
+.ivn-stat-pill:hover  { background:var(--bg4,#2a2a3a); }
+.ivn-stat-pill.active { background:var(--bg4,#1e2033); }
+.ivn-stat-pill-num { font-size:20px; font-weight:700; line-height:1.1; }
+.ivn-stat-pill-lbl { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; margin-top:3px; color:var(--text2); white-space:nowrap; }
+.ivn-pill-all .ivn-stat-pill-num     { color:var(--repose-blue); }
+.ivn-pill-all.active                 { border-color:var(--repose-blue); }
+.ivn-pill-pending .ivn-stat-pill-num { color:#f59e0b; }
+.ivn-pill-pending.active             { border-color:#f59e0b; }
+.ivn-pill-accepted .ivn-stat-pill-num{ color:#60a5fa; }
+.ivn-pill-accepted.active            { border-color:#60a5fa; }
+.ivn-pill-progress .ivn-stat-pill-num{ color:#38bdf8; }
+.ivn-pill-progress.active            { border-color:#38bdf8; }
+.ivn-pill-overdue .ivn-stat-pill-num { color:#f87171; }
+.ivn-pill-overdue.active             { border-color:#f87171; }
+.ivn-pill-completed .ivn-stat-pill-num{ color:#4ade80; }
+.ivn-pill-completed.active           { border-color:#4ade80; }
+.ivn-pill-rejected .ivn-stat-pill-num{ color:#9ca3af; }
+.ivn-pill-rejected.active            { border-color:#9ca3af; }
+
+/* Cards with colored left border by status */
+.ivn-card-pending  { border-left:4px solid #f59e0b !important; }
+.ivn-card-accepted { border-left:4px solid #60a5fa !important; }
+.ivn-card-progress { border-left:4px solid #38bdf8 !important; }
+.ivn-card-overdue  { border-left:4px solid #f87171 !important; }
+.ivn-card-completed{ border-left:4px solid #4ade80 !important; opacity:.75; }
+.ivn-card-rejected { border-left:4px solid #9ca3af !important; opacity:.5; }
+.ivn-card-bottom   { display:flex; align-items:center; justify-content:space-between; margin-top:8px; flex-wrap:wrap; gap:6px; }
+.ivn-card-tags     { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+.ivn-card-tag      { font-size:11px; color:var(--text2); background:var(--bg3); border-radius:6px; padding:2px 8px; white-space:nowrap; }
+.ivn-card-owner    { font-size:11px; font-weight:700; color:var(--text1); background:rgba(20,161,233,.14); border-radius:6px; padding:3px 9px; }
+.ivn-card-due-ok   { font-size:11px; color:#38bdf8; background:#0c2d4a; border-radius:6px; padding:2px 8px; }
+.ivn-card-due-warn { font-size:11px; font-weight:700; color:#f87171; background:#3b0000; border-radius:6px; padding:2px 8px; }
+
+/* Scorecard charts */
+.ivn-chart-row     { display:flex; gap:14px; margin-bottom:20px; flex-wrap:wrap; }
+.ivn-chart-box     { background:var(--bg2); border:1.5px solid var(--border); border-radius:10px; padding:14px 16px; flex:1; min-width:220px; }
+.ivn-chart-title   { font-size:12px; font-weight:700; color:var(--text2); text-transform:uppercase; letter-spacing:.05em; margin-bottom:12px; }
+.ivn-chart-canvas  { position:relative; }
 .ivn-score-section-title { font-size:13px; font-weight:700; color:#a78bfa; margin:20px 0 8px; }
 
 /* ─── PRINT (PDF EXPORT) ─────────────────────── */
@@ -2797,15 +2840,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <button class="ivn-score-btn" id="ivn-score-btn" onclick="ivnShowScorecard()" style="display:none">Scorecard</button>
         <button class="ivn-refresh-btn" onclick="ivnOnOpen()" title="Refresh">↻</button>
       </div>
-      <div class="ivn-chips" id="ivn-filter-chips">
-        <button class="ivn-chip active" onclick="ivnSetFilter(this,'all')">All</button>
-        <button class="ivn-chip" onclick="ivnSetFilter(this,'pending')">Pending</button>
-        <button class="ivn-chip" onclick="ivnSetFilter(this,'accepted')">Accepted</button>
-        <button class="ivn-chip" onclick="ivnSetFilter(this,'progress')">In Progress</button>
-        <button class="ivn-chip" onclick="ivnSetFilter(this,'overdue')">Overdue</button>
-        <button class="ivn-chip" onclick="ivnSetFilter(this,'completed')">Completed</button>
-        <button class="ivn-chip" onclick="ivnSetFilter(this,'rejected')">Rejected</button>
-      </div>
+      <div class="ivn-status-bar" id="ivn-status-bar"></div>
     </div>
     <div class="ivn-list" id="ivn-list-body">
       <div class="ivn-loading">Loading ideas…</div>
@@ -5871,6 +5906,22 @@ async function graphSignIn() {
   }
 }
 
+async function graphSignOut() {
+  if (!msalInstance) return;
+  const account = graphAccount || msalInstance.getAllAccounts()[0];
+  graphAccount = null;
+  clearInterval(_refreshInterval);
+  clearInterval(_fullRefreshInterval);
+  _refreshInterval = null;
+  _fullRefreshInterval = null;
+  updateAuthBadge();
+  if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+    msalInstance.logoutRedirect({ account }).catch(console.error);
+  } else {
+    msalInstance.logoutPopup({ account }).catch(console.error);
+  }
+}
+
 async function getGraphToken() {
   if (!msalInstance) throw new Error('Not authenticated');
   const accounts = msalInstance.getAllAccounts();
@@ -6177,8 +6228,8 @@ function updateAuthBadge() {
   if (graphAccount) {
     const name = graphAccount.name || graphAccount.username.split('@')[0];
     badge.innerHTML = `<span class="auth-dot on"></span><span class="auth-name">${escHtml(name)}</span>`;
-    badge.onclick = null;
-    badge.title = `Signed in as ${graphAccount.username}`;
+    badge.onclick = graphSignOut;
+    badge.title = `Signed in as ${graphAccount.username} · Click to sign out`;
     if (pill) { pill.className = 'sync-pill'; lbl.textContent = 'Ready to sync'; }
     const isJonas = graphAccount.username.toLowerCase() === 'jonas.simonaitis@reposefurniture.co.uk';
     const emailBtn = document.getElementById('cpar-email-btn');
@@ -13298,7 +13349,36 @@ function ivnVisibleItems() {
   return items.filter(i => ivnStatus(i) === ivnFilter);
 }
 
+function ivnRenderStatusBar() {
+  const counts = { all: ivnItems.length, pending:0, accepted:0, progress:0, overdue:0, completed:0, rejected:0 };
+  if (!ivnIsFullAccess) {
+    // count only own items
+    ivnItems.filter(i => (i.fields[IVN_F.assigneeEmail]||'').toLowerCase() === ivnUserEmail)
+      .forEach(i => counts[ivnStatus(i)]++);
+    counts.all = Object.entries(counts).filter(([k])=>k!=='all').reduce((s,[,v])=>s+v,0);
+  } else {
+    ivnItems.forEach(i => counts[ivnStatus(i)]++);
+  }
+  const pills = [
+    { key:'all',       label:'All',        num: counts.all },
+    { key:'pending',   label:'Pending',    num: counts.pending },
+    { key:'accepted',  label:'Accepted',   num: counts.accepted },
+    { key:'progress',  label:'In Progress',num: counts.progress },
+    { key:'overdue',   label:'Overdue',    num: counts.overdue },
+    { key:'completed', label:'Done',       num: counts.completed },
+    { key:'rejected',  label:'Rejected',   num: counts.rejected },
+  ].filter(p => p.key === 'all' || p.num > 0);
+  const bar = document.getElementById('ivn-status-bar');
+  if (!bar) return;
+  bar.innerHTML = pills.map(p => `
+    <div class="ivn-stat-pill ivn-pill-${p.key}${ivnFilter===p.key?' active':''}" onclick="ivnSetFilter('${p.key}')">
+      <div class="ivn-stat-pill-num">${p.num}</div>
+      <div class="ivn-stat-pill-lbl">${p.label}</div>
+    </div>`).join('');
+}
+
 function ivnRenderList() {
+  ivnRenderStatusBar();
   const items = ivnVisibleItems();
   const body = document.getElementById('ivn-list-body');
   if (!items.length) {
@@ -13314,30 +13394,44 @@ function ivnRenderCard(item) {
   const idea = escHtml(f[IVN_F.suggestion] || f[IVN_F.title] || '(No title)');
   const submittedBy = escHtml(f[IVN_F.title] || '');
   const date = ivnFmtDate(f[IVN_F.dateSubmit] || item.createdDateTime);
-  const assignee = f[IVN_F.assigneeEmail] ? escHtml(ivnStaffName(f[IVN_F.assigneeEmail])) : null;
-  const deadline = f[IVN_F.deadline] ? ivnFmtDate(f[IVN_F.deadline]) : null;
+  const assigneeEmail = f[IVN_F.assigneeEmail] || '';
+  const assigneeName = assigneeEmail ? escHtml(ivnStaffName(assigneeEmail)) : null;
+
+  // Deadline chip
+  let dueChip = '';
+  if (f[IVN_F.deadline] && s !== 'completed' && s !== 'rejected') {
+    const dl = new Date(f[IVN_F.deadline]);
+    const today = new Date(); today.setHours(0,0,0,0);
+    const daysLeft = Math.ceil((dl - today) / 86400000);
+    const dueStr = ivnFmtDate(f[IVN_F.deadline]);
+    dueChip = daysLeft < 0
+      ? `<span class="ivn-card-due-warn">Overdue ${dueStr}</span>`
+      : daysLeft <= 7
+        ? `<span class="ivn-card-due-warn">Due ${dueStr}</span>`
+        : `<span class="ivn-card-due-ok">Due ${dueStr}</span>`;
+  }
+
   return `
-    <div class="ivn-card" onclick="ivnOpenDetail(${item.id})">
-      <div class="ivn-card-top">
-        <div class="ivn-card-idea">${idea}</div>
-        <span class="ivn-status ivn-status-${s}">${ivnStatusLabel(s)}</span>
-      </div>
-      <div class="ivn-card-meta">
-        ${submittedBy ? `<span>✉ ${submittedBy}</span>` : ''}
-        <span>📅 ${date}</span>
-        ${assignee ? `<span>👤 ${assignee}</span>` : ''}
-        ${deadline ? `<span>⏰ ${deadline}</span>` : ''}
+    <div class="ivn-card ivn-card-${s}" onclick="ivnOpenDetail(${item.id})">
+      <div class="ivn-card-idea">${idea}</div>
+      <div class="ivn-card-bottom">
+        <div class="ivn-card-tags">
+          ${submittedBy ? `<span class="ivn-card-tag">From: ${submittedBy}</span>` : ''}
+          <span class="ivn-card-tag">${date}</span>
+          ${dueChip}
+        </div>
+        ${assigneeName ? `<span class="ivn-card-owner">${assigneeName}</span>` : `<span class="ivn-status ivn-status-${s}">${ivnStatusLabel(s)}</span>`}
       </div>
     </div>`;
 }
 
-function ivnSetFilter(btn, f) {
-  ivnFilter = f;
-  document.querySelectorAll('#ivn-filter-chips .ivn-chip').forEach(c => c.classList.toggle('active', c === btn));
+function ivnSetFilter(key) {
+  ivnFilter = key;
   ivnRenderList();
 }
 
 function ivnShowSubview(which) {
+  if (which !== 'score') ivnDestroyCharts();
   document.getElementById('ivn-list-view').style.display   = which === 'list'   ? '' : 'none';
   document.getElementById('ivn-detail-view').style.display = which === 'detail' ? '' : 'none';
   document.getElementById('ivn-score-view').style.display  = which === 'score'  ? '' : 'none';
@@ -13569,72 +13663,135 @@ async function ivnPatchField(item, fields) {
 
 // ─── SCORECARD ──────────────────────────────────────────────────────────────
 
+let _ivnCharts = {};
+
+function ivnDestroyCharts() {
+  Object.values(_ivnCharts).forEach(c => { try { c.destroy(); } catch(e){} });
+  _ivnCharts = {};
+}
+
 function ivnShowScorecard() {
+  ivnDestroyCharts();
   ivnShowSubview('score');
   ivnRenderScorecard();
 }
 
 function ivnRenderScorecard() {
   const all = ivnItems;
-  const total   = all.length;
-  const accepted = all.filter(i => ivnStatus(i) !== 'pending' && ivnStatus(i) !== 'rejected').length;
-  const rejected = all.filter(i => ivnStatus(i) === 'rejected').length;
+  const pending   = all.filter(i => ivnStatus(i) === 'pending').length;
+  const accepted  = all.filter(i => ivnStatus(i) === 'accepted').length;
+  const inProg    = all.filter(i => ivnStatus(i) === 'progress').length;
+  const overdue   = all.filter(i => ivnStatus(i) === 'overdue').length;
   const completed = all.filter(i => ivnStatus(i) === 'completed').length;
-  const inProgress = all.filter(i => ['progress','overdue'].includes(ivnStatus(i))).length;
-  const overdue = all.filter(i => ivnStatus(i) === 'overdue').length;
-  const pending  = all.filter(i => ivnStatus(i) === 'pending').length;
+  const rejected  = all.filter(i => ivnStatus(i) === 'rejected').length;
+  const total     = all.length;
 
-  // Per-person scorecard
+  // Per-person data
   const byPerson = {};
   all.forEach(item => {
     const s = ivnStatus(item);
-    if (s === 'pending' || s === 'rejected') return; // no assignee
+    if (s === 'pending' || s === 'rejected') return;
     const email = (item.fields[IVN_F.assigneeEmail]||'').toLowerCase();
     if (!email) return;
-    if (!byPerson[email]) byPerson[email] = { name: ivnStaffName(email), assigned:0, progress:0, overdue:0, completed:0 };
-    byPerson[email].assigned++;
-    if (s === 'progress')   byPerson[email].progress++;
-    if (s === 'overdue')    byPerson[email].overdue++;
-    if (s === 'completed')  byPerson[email].completed++;
+    if (!byPerson[email]) byPerson[email] = { name: ivnStaffName(email), progress:0, overdue:0, completed:0 };
+    if (s === 'progress')  byPerson[email].progress++;
+    if (s === 'overdue')   byPerson[email].overdue++;
+    if (s === 'completed') byPerson[email].completed++;
   });
-
-  const personRows = Object.values(byPerson).sort((a,b) => b.assigned - a.assigned).map(p => `
-    <tr>
-      <td>${escHtml(p.name)}</td>
-      <td style="text-align:center">${p.assigned}</td>
-      <td style="text-align:center">${p.progress}</td>
-      <td style="text-align:center;color:${p.overdue?'#f87171':''}">${p.overdue || '—'}</td>
-      <td style="text-align:center;color:#4ade80">${p.completed || '—'}</td>
-    </tr>`).join('');
+  const persons = Object.values(byPerson).sort((a,b) => (b.progress+b.overdue+b.completed) - (a.progress+a.overdue+a.completed));
 
   const html = `
     <button class="ivn-score-back" onclick="ivnBackScorecard()">← Back to Ideas</button>
     <div class="ivn-score-title">Innovation Scorecard</div>
 
-    <div class="ivn-score-summary">
-      <div class="ivn-score-kpi"><div class="ivn-score-kpi-val">${total}</div><div class="ivn-score-kpi-lbl">Total Ideas</div></div>
-      <div class="ivn-score-kpi"><div class="ivn-score-kpi-val">${pending}</div><div class="ivn-score-kpi-lbl">Pending Review</div></div>
-      <div class="ivn-score-kpi"><div class="ivn-score-kpi-val">${accepted}</div><div class="ivn-score-kpi-lbl">Accepted</div></div>
-      <div class="ivn-score-kpi"><div class="ivn-score-kpi-val" style="color:#f87171">${overdue}</div><div class="ivn-score-kpi-lbl">Overdue</div></div>
-      <div class="ivn-score-kpi"><div class="ivn-score-kpi-val" style="color:#4ade80">${completed}</div><div class="ivn-score-kpi-lbl">Completed</div></div>
-      <div class="ivn-score-kpi"><div class="ivn-score-kpi-val" style="color:#9ca3af">${rejected}</div><div class="ivn-score-kpi-lbl">Rejected</div></div>
+    <div class="ivn-chart-row">
+      <div class="ivn-chart-box" style="max-width:280px">
+        <div class="ivn-chart-title">Status Breakdown</div>
+        <div class="ivn-chart-canvas" style="height:220px">
+          <canvas id="ivn-ch-donut"></canvas>
+        </div>
+      </div>
+      <div class="ivn-chart-box" style="flex:2;min-width:260px">
+        <div class="ivn-chart-title">Summary</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="ivn-score-kpi"><div class="ivn-score-kpi-val">${total}</div><div class="ivn-score-kpi-lbl">Total Ideas</div></div>
+          <div class="ivn-score-kpi"><div class="ivn-score-kpi-val" style="color:#f59e0b">${pending}</div><div class="ivn-score-kpi-lbl">Pending Review</div></div>
+          <div class="ivn-score-kpi"><div class="ivn-score-kpi-val" style="color:#f87171">${overdue}</div><div class="ivn-score-kpi-lbl">Overdue</div></div>
+          <div class="ivn-score-kpi"><div class="ivn-score-kpi-val" style="color:#4ade80">${completed}</div><div class="ivn-score-kpi-lbl">Completed</div></div>
+          <div class="ivn-score-kpi"><div class="ivn-score-kpi-val" style="color:#38bdf8">${inProg}</div><div class="ivn-score-kpi-lbl">In Progress</div></div>
+          <div class="ivn-score-kpi"><div class="ivn-score-kpi-val" style="color:#9ca3af">${rejected}</div><div class="ivn-score-kpi-lbl">Rejected</div></div>
+        </div>
+      </div>
     </div>
 
-    ${Object.keys(byPerson).length ? `
-    <div class="ivn-score-section-title">By Action Owner</div>
-    <table class="ivn-score-table">
-      <thead><tr>
-        <th>Person</th><th style="text-align:center">Assigned</th>
-        <th style="text-align:center">In Progress</th><th style="text-align:center">Overdue</th>
-        <th style="text-align:center">Completed</th>
-      </tr></thead>
-      <tbody>${personRows}</tbody>
-    </table>` : '<div style="color:var(--text2);font-size:13px">No assignments yet.</div>'}`;
+    ${persons.length ? `
+    <div class="ivn-chart-box" style="margin-bottom:20px">
+      <div class="ivn-chart-title">Action Owners — Progress</div>
+      <div class="ivn-chart-canvas" style="height:${Math.max(180, persons.length * 44)}px">
+        <canvas id="ivn-ch-person"></canvas>
+      </div>
+    </div>` : ''}`;
 
   document.getElementById('ivn-score-inner').innerHTML = html;
+
+  // Draw charts after DOM update
+  setTimeout(() => {
+    if (typeof Chart === 'undefined') return;
+
+    // Doughnut — status breakdown
+    const donutEl = document.getElementById('ivn-ch-donut');
+    if (donutEl && (pending+accepted+inProg+overdue+completed+rejected) > 0) {
+      _ivnCharts['donut'] = new Chart(donutEl.getContext('2d'), {
+        type: 'doughnut',
+        data: {
+          labels: ['Pending','Accepted','In Progress','Overdue','Completed','Rejected'],
+          datasets: [{
+            data: [pending, accepted, inProg, overdue, completed, rejected],
+            backgroundColor: ['#f59e0b','#60a5fa','#38bdf8','#f87171','#4ade80','#6b7280'],
+            borderWidth: 0,
+          }],
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          cutout: '60%',
+          plugins: {
+            legend: { position: 'bottom', labels: { boxWidth: 10, padding: 10, font: { size: 11 } } },
+          },
+        },
+      });
+    }
+
+    // Horizontal stacked bar — per person
+    const personEl = document.getElementById('ivn-ch-person');
+    if (personEl && persons.length) {
+      _ivnCharts['person'] = new Chart(personEl.getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: persons.map(p => p.name),
+          datasets: [
+            { label: 'Completed',   data: persons.map(p=>p.completed), backgroundColor: '#4ade80', borderRadius: 4 },
+            { label: 'In Progress', data: persons.map(p=>p.progress),  backgroundColor: '#38bdf8', borderRadius: 4 },
+            { label: 'Overdue',     data: persons.map(p=>p.overdue),   backgroundColor: '#f87171', borderRadius: 4 },
+          ],
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { boxWidth: 10, padding: 12, font: { size: 11 } } },
+          },
+          scales: {
+            x: { stacked: true, grid: { color: 'rgba(255,255,255,.06)' }, ticks: { stepSize: 1 } },
+            y: { stacked: true, grid: { display: false } },
+          },
+        },
+      });
+    }
+  }, 0);
 }
 
 function ivnBackScorecard() {
+  ivnDestroyCharts();
   ivnShowSubview('list');
   ivnRenderList();
 }
