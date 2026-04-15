@@ -704,6 +704,22 @@ html.tablet-team .tablet-sync-btn { display: inline-flex; }
 .pp-col-title { font-size: 11px; font-weight: 700; color: var(--repose-navy); }
 .pp-col-head.express .pp-col-title { color: #92400e; }
 .pp-col-sub { font-size: 9px; color: var(--text3); margin-top: 1px; }
+/* Outstanding panel */
+.pp-ost           { flex-shrink:0; border-bottom:1px solid #fde68a; background:#fffbeb; }
+.pp-ost-head      { display:flex; align-items:center; gap:8px; padding:7px 14px; cursor:pointer; user-select:none; }
+.pp-ost-title     { font-size:11px; font-weight:700; color:#92400e; flex:1; }
+.pp-ost-toggle    { font-size:10px; color:#b45309; font-weight:600; }
+.pp-ost-body      { padding:0 14px 10px; overflow-x:auto; }
+.pp-ost-table     { border-collapse:collapse; width:100%; }
+.pp-ost-table th  { padding:4px 8px; font-size:10px; font-weight:700; color:var(--repose-grey); text-align:center; border-bottom:1px solid var(--border); white-space:nowrap; }
+.pp-ost-table th.pc { text-align:left; }
+.pp-ost-table td  { padding:4px 8px; text-align:center; border-bottom:1px solid var(--border2); }
+.pp-ost-table td.pc { text-align:left; font-size:10px; font-weight:600; color:var(--repose-grey); white-space:nowrap; }
+.pp-ost-cell      { display:inline-block; min-width:20px; border-radius:5px; padding:1px 5px; font-size:11px; font-weight:700; }
+.pp-ost-cell.red  { background:#fee2e2; color:#dc2626; }
+.pp-ost-cell.amb  { background:#fef3c7; color:#b45309; }
+.pp-ost-cell.nil  { color:var(--border); }
+.pp-miss-badge    { display:inline-block; background:#fef3c7; color:#b45309; border:1px solid #fde68a; border-radius:8px; font-size:9px; font-weight:700; padding:1px 5px; margin-left:5px; vertical-align:middle; line-height:14px; }
 /* Compact job rows */
 .pp-job {
   display: flex; flex-direction: column; gap: 3px;
@@ -2426,6 +2442,7 @@ document.addEventListener('DOMContentLoaded', () => {
     </div>
     <div id="pp-week-bar" class="pp-week-bar"></div>
     <div id="pp-team-bar" class="pp-team-bar"></div>
+    <div id="pp-outstanding"></div>
     <div id="pp-area" class="pp-area"></div>
   </div>
 </div>
@@ -3091,8 +3108,10 @@ let activeHasSubs = false;
 let activeSub = 'all';
 let activeWC = 'WK 12'; // default to current week
 let activePrep = 1;
-let activeProdWC   = null;
-let activeProdTeam = null; // team key being highlighted (e.g. 'wm')
+let activeProdWC        = null;
+let activeProdTeam      = null; // team key being highlighted (e.g. 'wm')
+let ppOutstandingOpen   = true;
+function togglePPOutstanding() { ppOutstandingOpen = !ppOutstandingOpen; renderProductionPlan(); }
 let ppAutoSyncInterval = null;
 
 // ═══════════════════════════════════════════════
@@ -6317,6 +6336,80 @@ function renderProductionPlan() {
   }
 
   const wkData = PROD[activeProdWC] || {};
+
+  // ── Outstanding jobs: preps that have already passed this week ──
+  const _wc = PROD[activeProdWC]?.wc || '';
+  const pastPreps = [];
+  if (_wc) {
+    const [_dd, _mm, _yyyy] = _wc.split('/');
+    const _monday = new Date(+_yyyy, +_mm - 1, +_dd);
+    const _today  = new Date(); _today.setHours(0,0,0,0);
+    for (let p = 1; p <= 5; p++) {
+      const pd = new Date(_monday); pd.setDate(_monday.getDate() + p - 1); pd.setHours(0,0,0,0);
+      if (pd < _today) pastPreps.push(p);
+    }
+  }
+  const PP_OST_TEAMS = OV_DEPTS.filter(d => d.k !== 'qc');
+  const ostData  = {}; // prepNum → { teamKey: missedCount }
+  const ostJobs  = {}; // prepNum → jobs with ≥1 team outstanding
+  pastPreps.forEach(p => {
+    const jobs = wkData[p] || [];
+    const counts = {}; PP_OST_TEAMS.forEach(d => counts[d.k] = 0);
+    jobs.forEach((_, ji) => {
+      const s = getPPJobTeamStatus(p, ji);
+      PP_OST_TEAMS.forEach(d => {
+        const val  = s[d.k];
+        const done = d.hasSubs ? (Array.isArray(val) && val.length === 3) : !!val;
+        if (!done) counts[d.k]++;
+      });
+    });
+    ostData[p] = counts;
+    ostJobs[p] = jobs.filter((_, ji) => {
+      const s = getPPJobTeamStatus(p, ji);
+      return !PP_OST_TEAMS.every(d => {
+        const val = s[d.k];
+        return d.hasSubs ? (Array.isArray(val) && val.length === 3) : !!val;
+      });
+    }).length;
+  });
+  const ostPrepsWithMissing = pastPreps.filter(p => Object.values(ostData[p]).some(c => c > 0));
+  const hasOutstanding = ostPrepsWithMissing.length > 0;
+
+  // Build outstanding panel HTML
+  const ostPanelHtml = hasOutstanding ? `
+    <div class="pp-ost">
+      <div class="pp-ost-head" onclick="togglePPOutstanding()">
+        <span style="font-size:13px">⚠️</span>
+        <span class="pp-ost-title">Outstanding — ${ostPrepsWithMissing.length} prep${ostPrepsWithMissing.length > 1 ? 's' : ''} with incomplete jobs</span>
+        <span class="pp-ost-toggle">${ppOutstandingOpen ? '▲ Collapse' : '▼ Show'}</span>
+      </div>
+      ${ppOutstandingOpen ? `
+      <div class="pp-ost-body">
+        <table class="pp-ost-table">
+          <thead><tr>
+            <th class="pc"></th>
+            ${PP_OST_TEAMS.map(d => `<th>${d.lbl}</th>`).join('')}
+          </tr></thead>
+          <tbody>
+            ${pastPreps.filter(p => Object.values(ostData[p]).some(c => c > 0)).map(p => {
+              const dayName = ['Mon','Tue','Wed','Thu','Fri'][p - 1];
+              return `<tr>
+                <td class="pc">Prep ${p} · ${dayName}</td>
+                ${PP_OST_TEAMS.map(d => {
+                  const c = ostData[p][d.k] || 0;
+                  const cls = c >= 3 ? 'red' : c > 0 ? 'amb' : 'nil';
+                  return `<td><span class="pp-ost-cell ${cls}">${c || '—'}</span></td>`;
+                }).join('')}
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>` : ''}
+    </div>` : '';
+
+  const ostEl = document.getElementById('pp-outstanding');
+  if (ostEl) ostEl.innerHTML = ostPanelHtml;
+
   const gridCols = PP_COLS.map(col => {
     const jobs = wkData[col.key] || [];
     const headCls = col.express ? 'pp-col-head express' : 'pp-col-head';
@@ -6391,9 +6484,14 @@ function renderProductionPlan() {
         ? `${lpNewCt} new · ${lpServCt} SERV`
         : `${total} job${total!==1?'s':''}`;
 
+    const isPastPrep  = typeof col.key === 'number' && pastPreps.includes(col.key);
+    const missCount   = isPastPrep ? (ostJobs[col.key] || 0) : 0;
+    const missBadge   = missCount > 0 ? `<span class="pp-miss-badge">⚠ ${missCount}</span>` : '';
+    const headStyle   = isPastPrep && missCount > 0 ? ' style="background:#fffbeb;border-bottom-color:#fde68a"' : '';
+
     return `<div class="pp-col">
-      <div class="${headCls}">
-        <div class="pp-col-title">${col.title}</div>
+      <div class="${headCls}"${headStyle}>
+        <div class="pp-col-title">${col.title}${missBadge}</div>
         <div class="pp-col-sub">${col.day} · ${subLine}</div>
       </div>
       ${jobRows}
