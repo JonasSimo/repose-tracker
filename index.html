@@ -3336,9 +3336,24 @@ function renderTeamSidebar() {
   const list = document.getElementById('teamList');
   let html = '';
   const _tabletTeamName = TABLET_TEAM.toLowerCase() === 'seats' ? 'woodmill' : TABLET_TEAM.toLowerCase();
-  const visibleTeams = TABLET_TEAM
-    ? TEAMS_CFG.filter(t => t.name.toLowerCase() === _tabletTeamName)
-    : TEAMS_CFG;
+  let visibleTeams;
+  if (TABLET_TEAM) {
+    visibleTeams = TEAMS_CFG.filter(t => t.name.toLowerCase() === _tabletTeamName);
+  } else {
+    const email = graphAccount ? graphAccount.username.toLowerCase() : null;
+    if (!email || TEAM_VIEW_FULL_ACCESS.has(email)) {
+      visibleTeams = TEAMS_CFG;
+    } else {
+      const allowed = TEAM_VIEW_ACCESS[email] || [];
+      visibleTeams = TEAMS_CFG.filter(t => allowed.includes(t.name));
+    }
+  }
+  // Auto-select first visible team if current activeTeam is not in the visible list
+  if (visibleTeams.length && !visibleTeams.find(t => t.name === activeTeam)) {
+    activeTeam = visibleTeams[0].name;
+    activeHasSubs = visibleTeams[0].hasSubs;
+    activeSub = activeHasSubs ? 'Arms' : 'all';
+  }
   visibleTeams.forEach(t => {
     const isActive = t.name === activeTeam;
     const subKeys = t.hasSubs ? SUBS : ['all'];
@@ -6273,6 +6288,7 @@ function updateAuthBadge() {
     if (ivnBtn) ivnBtn.style.display = ivnIsFullAccess ? '' : 'none';
     const ivnScoreBtn = document.getElementById('ivn-score-btn');
     if (ivnScoreBtn) ivnScoreBtn.style.display = ivnIsFullAccess ? '' : 'none';
+    renderTeamSidebar();
   } else {
     badge.innerHTML = `<span class="auth-dot off"></span><span class="auth-name">Sign in</span>`;
     badge.onclick = graphSignIn;
@@ -6917,6 +6933,22 @@ window.addEventListener('load', () => initGraph().catch(console.error));
 // ═══════════════════════════════════════════════
 
 const STATS_PASSWORD = 'Repnetiscool';
+
+// Team view access — who can see all teams vs. only their own
+const TEAM_VIEW_FULL_ACCESS = new Set([
+  'jonas.simonaitis@reposefurniture.co.uk',
+  'mitch@reposefurniture.co.uk',
+  'richard.semmens@reposefurniture.co.uk',
+]);
+const TEAM_VIEW_ACCESS = {
+  'mark@reposefurniture.co.uk':              ['Cutting'],
+  'sewingroom@reposefurniture.co.uk':        ['Sewing'],
+  'woodmill@reposefurniture.co.uk':          ['Woodmill'],
+  'paul.jenkins@reposefurniture.co.uk':      ['Woodmill'],
+  'daniel.seymour@reposefurniture.co.uk':    ['Upholstery', 'Assembly'],
+  'weronika.hathaway@reposefurniture.co.uk': ['QC'],
+  'foam@reposefurniture.co.uk':              ['Foam'],
+};
 
 // Team-level access: auto-unlock but restrict to their team(s) only
 const STATS_TEAM_ACCESS = {
