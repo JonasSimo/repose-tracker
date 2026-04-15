@@ -704,22 +704,10 @@ html.tablet-team .tablet-sync-btn { display: inline-flex; }
 .pp-col-title { font-size: 11px; font-weight: 700; color: var(--repose-navy); }
 .pp-col-head.express .pp-col-title { color: #92400e; }
 .pp-col-sub { font-size: 9px; color: var(--text3); margin-top: 1px; }
-/* Outstanding panel */
-.pp-ost           { flex-shrink:0; border-bottom:1px solid #fde68a; background:#fffbeb; }
-.pp-ost-head      { display:flex; align-items:center; gap:8px; padding:7px 14px; cursor:pointer; user-select:none; }
-.pp-ost-title     { font-size:11px; font-weight:700; color:#92400e; flex:1; }
-.pp-ost-toggle    { font-size:10px; color:#b45309; font-weight:600; }
-.pp-ost-body      { padding:0 14px 10px; overflow-x:auto; }
-.pp-ost-table     { border-collapse:collapse; width:100%; }
-.pp-ost-table th  { padding:4px 8px; font-size:10px; font-weight:700; color:var(--repose-grey); text-align:center; border-bottom:1px solid var(--border); white-space:nowrap; }
-.pp-ost-table th.pc { text-align:left; }
-.pp-ost-table td  { padding:4px 8px; text-align:center; border-bottom:1px solid var(--border2); }
-.pp-ost-table td.pc { text-align:left; font-size:10px; font-weight:600; color:var(--repose-grey); white-space:nowrap; }
-.pp-ost-cell      { display:inline-block; min-width:20px; border-radius:5px; padding:1px 5px; font-size:11px; font-weight:700; }
-.pp-ost-cell.red  { background:#fee2e2; color:#dc2626; }
-.pp-ost-cell.amb  { background:#fef3c7; color:#b45309; }
-.pp-ost-cell.nil  { color:var(--border); }
-.pp-miss-badge    { display:inline-block; background:#fef3c7; color:#b45309; border:1px solid #fde68a; border-radius:8px; font-size:9px; font-weight:700; padding:1px 5px; margin-left:5px; vertical-align:middle; line-height:14px; }
+/* Missing job highlight (past prep + team selected + not done) */
+.pp-job.pp-job-miss { border-left:3px solid #e97132; background:#fff7ed; }
+.pp-badge-miss      { outline:2px solid #e97132; border-radius:5px; padding:1px; }
+.pp-miss-count      { display:inline-block; background:#fee2e2; color:#dc2626; border-radius:8px; font-size:9px; font-weight:800; padding:1px 6px; margin-left:5px; vertical-align:middle; line-height:14px; }
 /* Compact job rows */
 .pp-job {
   display: flex; flex-direction: column; gap: 3px;
@@ -2442,7 +2430,6 @@ document.addEventListener('DOMContentLoaded', () => {
     </div>
     <div id="pp-week-bar" class="pp-week-bar"></div>
     <div id="pp-team-bar" class="pp-team-bar"></div>
-    <div id="pp-outstanding"></div>
     <div id="pp-area" class="pp-area"></div>
   </div>
 </div>
@@ -3108,10 +3095,8 @@ let activeHasSubs = false;
 let activeSub = 'all';
 let activeWC = 'WK 12'; // default to current week
 let activePrep = 1;
-let activeProdWC        = null;
-let activeProdTeam      = null; // team key being highlighted (e.g. 'wm')
-let ppOutstandingOpen   = true;
-function togglePPOutstanding() { ppOutstandingOpen = !ppOutstandingOpen; renderProductionPlan(); }
+let activeProdWC   = null;
+let activeProdTeam = null; // team key being highlighted (e.g. 'wm')
 let ppAutoSyncInterval = null;
 
 // ═══════════════════════════════════════════════
@@ -6337,7 +6322,7 @@ function renderProductionPlan() {
 
   const wkData = PROD[activeProdWC] || {};
 
-  // ── Outstanding jobs: preps that have already passed this week ──
+  // ── Past preps for the selected week ──
   const _wc = PROD[activeProdWC]?.wc || '';
   const pastPreps = [];
   if (_wc) {
@@ -6349,94 +6334,45 @@ function renderProductionPlan() {
       if (pd < _today) pastPreps.push(p);
     }
   }
-  const PP_OST_TEAMS = OV_DEPTS.filter(d => d.k !== 'qc');
-  const ostData  = {}; // prepNum → { teamKey: missedCount }
-  const ostJobs  = {}; // prepNum → jobs with ≥1 team outstanding
-  pastPreps.forEach(p => {
-    const jobs = wkData[p] || [];
-    const counts = {}; PP_OST_TEAMS.forEach(d => counts[d.k] = 0);
-    jobs.forEach((_, ji) => {
-      const s = getPPJobTeamStatus(p, ji);
-      PP_OST_TEAMS.forEach(d => {
-        const val  = s[d.k];
-        const done = d.hasSubs ? (Array.isArray(val) && val.length === 3) : !!val;
-        if (!done) counts[d.k]++;
-      });
-    });
-    ostData[p] = counts;
-    ostJobs[p] = jobs.filter((_, ji) => {
-      const s = getPPJobTeamStatus(p, ji);
-      return !PP_OST_TEAMS.every(d => {
-        const val = s[d.k];
-        return d.hasSubs ? (Array.isArray(val) && val.length === 3) : !!val;
-      });
-    }).length;
-  });
-  const ostPrepsWithMissing = pastPreps.filter(p => Object.values(ostData[p]).some(c => c > 0));
-  const hasOutstanding = ostPrepsWithMissing.length > 0;
-
-  // Build outstanding panel HTML
-  const ostPanelHtml = hasOutstanding ? `
-    <div class="pp-ost">
-      <div class="pp-ost-head" onclick="togglePPOutstanding()">
-        <span style="font-size:13px">⚠️</span>
-        <span class="pp-ost-title">Outstanding — ${ostPrepsWithMissing.length} prep${ostPrepsWithMissing.length > 1 ? 's' : ''} with incomplete jobs</span>
-        <span class="pp-ost-toggle">${ppOutstandingOpen ? '▲ Collapse' : '▼ Show'}</span>
-      </div>
-      ${ppOutstandingOpen ? `
-      <div class="pp-ost-body">
-        <table class="pp-ost-table">
-          <thead><tr>
-            <th class="pc"></th>
-            ${PP_OST_TEAMS.map(d => `<th>${d.lbl}</th>`).join('')}
-          </tr></thead>
-          <tbody>
-            ${pastPreps.filter(p => Object.values(ostData[p]).some(c => c > 0)).map(p => {
-              const dayName = ['Mon','Tue','Wed','Thu','Fri'][p - 1];
-              return `<tr>
-                <td class="pc">Prep ${p} · ${dayName}</td>
-                ${PP_OST_TEAMS.map(d => {
-                  const c = ostData[p][d.k] || 0;
-                  const cls = c >= 3 ? 'red' : c > 0 ? 'amb' : 'nil';
-                  return `<td><span class="pp-ost-cell ${cls}">${c || '—'}</span></td>`;
-                }).join('')}
-              </tr>`;
-            }).join('')}
-          </tbody>
-        </table>
-      </div>` : ''}
-    </div>` : '';
-
-  const ostEl = document.getElementById('pp-outstanding');
-  if (ostEl) ostEl.innerHTML = ostPanelHtml;
 
   const gridCols = PP_COLS.map(col => {
-    const jobs = wkData[col.key] || [];
-    const headCls = col.express ? 'pp-col-head express' : 'pp-col-head';
-    const total = jobs.length;
+    const jobs       = wkData[col.key] || [];
+    const headCls    = col.express ? 'pp-col-head express' : 'pp-col-head';
+    const total      = jobs.length;
+    const isPastPrep = typeof col.key === 'number' && pastPreps.includes(col.key);
+    const tCfg       = activeProdTeam ? OV_DEPTS.find(d => d.k === activeProdTeam) : null;
+
     let doneCount = 0;
-    if (activeProdTeam) {
-      const tCfg = OV_DEPTS.find(d => d.k === activeProdTeam);
-      if (tCfg) {
-        jobs.forEach((_, ji) => {
-          const tStatus = getPPJobTeamStatus(col.key, ji);
-          const val = tStatus[tCfg.k];
-          if (tCfg.hasSubs ? (Array.isArray(val) && val.length === 3) : val) doneCount++;
-        });
-      }
+    if (tCfg) {
+      jobs.forEach((_, ji) => {
+        const val = getPPJobTeamStatus(col.key, ji)[tCfg.k];
+        if (tCfg.hasSubs ? (Array.isArray(val) && val.length === 3) : val) doneCount++;
+      });
     }
+    const teamMissCount = isPastPrep && tCfg ? (total - doneCount) : 0;
 
     const jobRows = jobs.length
       ? jobs.map((j, ji) => {
           const s       = getPPJobTeamStatus(col.key, ji);
           const started = getPPJobStartedStatus(col.key, ji);
           const codeLabel = col.express ? escHtml(String(j.itemNo)) : `Job ${escHtml(String(j.itemNo))}`;
-          // Badge strip — same design as Load Plan, scaled down via pp-badge-strip
+
+          // Is this job missing for the selected team on a past prep?
+          let teamDoneForJob = true;
+          if (tCfg) {
+            const val = s[tCfg.k];
+            teamDoneForJob = tCfg.hasSubs ? (Array.isArray(val) && val.length === 3) : !!val;
+          }
+          const isPastMiss = isPastPrep && tCfg && !teamDoneForJob;
+
           let badgeHtml = '<div class="badge-strip pp-badge-strip" style="flex-wrap:wrap;gap:2px">';
           OV_DEPTS.forEach((d, di) => {
             if (di > 0) badgeHtml += `<div class="bdiv"></div>`;
             const dimCls = activeProdTeam && d.k !== activeProdTeam ? 'pp-badge-dim' : '';
-            const selCls = activeProdTeam && d.k === activeProdTeam ? 'pp-badge-sel' : '';
+            // Use orange outline for the selected team badge when the job is a past miss
+            const selCls = activeProdTeam && d.k === activeProdTeam
+              ? (isPastMiss ? 'pp-badge-miss' : 'pp-badge-sel')
+              : '';
             if (d.hasSubs) {
               const done        = Array.isArray(s[d.k]) ? s[d.k] : [];
               const startedSubs = Array.isArray(started[d.k]) ? started[d.k] : [];
@@ -6447,7 +6383,6 @@ function renderProductionPlan() {
                   ${OV_SUBS_SHORT.map(sub => {
                     const on = done.includes(sub);
                     const inPrSub = !on && startedSubs.includes(sub);
-                    // Woodmill only: orange dot if done but gluing pending
                     const fullSub = GLU_SUB_FULL[sub] || sub;
                     const gkSub = d.k === 'wm' ? GLUING_QUEUE[gluingKey(activeProdWC, col.key, j.rep, fullSub)] : null;
                     const gluPending = d.k === 'wm' && on && gkSub && !gkSub.done;
@@ -6457,7 +6392,7 @@ function renderProductionPlan() {
                 </div>
               </div>`;
             } else {
-              const isDone = !!s[d.k];
+              const isDone    = !!s[d.k];
               const isStarted = !isDone && !!started[d.k];
               const cls = isDone ? ('done' + (d.k==='qc' ? ' qc' : '')) : isStarted ? 'in-progress' : '';
               badgeHtml += `<div class="dbadge ${cls} ${dimCls} ${selCls}">
@@ -6466,7 +6401,7 @@ function renderProductionPlan() {
             }
           });
           badgeHtml += '</div>';
-          return `<div class="pp-job" onclick="ppJobClick('${col.key}',${ji},event)" style="cursor:pointer">
+          return `<div class="pp-job${isPastMiss ? ' pp-job-miss' : ''}" onclick="ppJobClick('${col.key}',${ji},event)" style="cursor:pointer">
             <div class="pp-job-top">
               <span class="pp-job-code">${codeLabel}</span>
               <span class="pp-job-rep">${escHtml(j.rep)}</span>
@@ -6478,19 +6413,18 @@ function renderProductionPlan() {
 
     const lpServCt = jobs.filter(j => j.isService).length;
     const lpNewCt  = total - lpServCt;
-    const subLine = activeProdTeam
+    const subLine = tCfg
       ? `${doneCount}/${total} done`
       : lpServCt
         ? `${lpNewCt} new · ${lpServCt} SERV`
         : `${total} job${total!==1?'s':''}`;
 
-    const isPastPrep  = typeof col.key === 'number' && pastPreps.includes(col.key);
-    const missCount   = isPastPrep ? (ostJobs[col.key] || 0) : 0;
-    const missBadge   = missCount > 0 ? `<span class="pp-miss-badge">⚠ ${missCount}</span>` : '';
-    const headStyle   = isPastPrep && missCount > 0 ? ' style="background:#fffbeb;border-bottom-color:#fde68a"' : '';
+    const missBadge = teamMissCount > 0
+      ? `<span class="pp-miss-count">${teamMissCount} missing</span>`
+      : '';
 
     return `<div class="pp-col">
-      <div class="${headCls}"${headStyle}>
+      <div class="${headCls}">
         <div class="pp-col-title">${col.title}${missBadge}</div>
         <div class="pp-col-sub">${col.day} · ${subLine}</div>
       </div>
