@@ -6345,7 +6345,7 @@ function renderProductionPlan() {
     const jobs       = wkData[col.key] || [];
     const headCls    = col.express ? 'pp-col-head express' : 'pp-col-head';
     const total      = jobs.length;
-    const isPastPrep = typeof col.key === 'number' && pastPreps.includes(col.key);
+    const isPastPrep = col.express ? pastPreps.length > 0 : (typeof col.key === 'number' && pastPreps.includes(col.key));
     const tCfg       = activeProdTeam ? OV_DEPTS.find(d => d.k === activeProdTeam) : null;
 
     let doneCount = 0;
