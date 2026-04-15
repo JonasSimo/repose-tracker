@@ -7573,7 +7573,29 @@ function renderStatsDashboard() {
     const count = tc.length;
     const isEmpty = count === 0;
     let partsHtml = '';
-    if (t.hasSubs) {
+    if (t.name === 'Woodmill') {
+      const normComp = tc.filter(c => c.fields.Prep !== 'express');
+      const expComp  = tc.filter(c => c.fields.Prep === 'express');
+      const subs = ['Arms','Backs','Seats'];
+      const totals = subs.map(s => tc.filter(c => c.fields.SubTeam === s).length);
+      const norms  = subs.map(s => normComp.filter(c => c.fields.SubTeam === s).length);
+      const exps   = subs.map(s => expComp.filter(c => c.fields.SubTeam === s).length);
+      const totalJobs = Math.floor((totals[0] + totals[1]) / 2);
+      partsHtml = `
+        <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border2);display:flex;gap:0">
+          ${subs.map((sub, i) => `
+            <div style="flex:1;text-align:center;padding:0 2px">
+              <div style="font-size:16px;font-weight:700;color:var(--tc)">${totals[i]}</div>
+              <div style="font-size:9px;font-weight:600;color:var(--repose-grey);margin-bottom:3px">${sub}</div>
+              <div style="font-size:9px;color:var(--repose-grey)">N&nbsp;${norms[i]}</div>
+              <div style="font-size:9px;color:#e97132">E&nbsp;${exps[i]}</div>
+            </div>`).join('')}
+        </div>
+        <div style="margin-top:7px;padding-top:7px;border-top:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:10px;color:var(--repose-grey)">Total jobs</span>
+          <span style="font-size:14px;font-weight:800;color:var(--repose-navy)">${totalJobs}</span>
+        </div>`;
+    } else if (t.hasSubs) {
       const arms  = tc.filter(c => c.fields.SubTeam === 'Arms').length;
       const backs = tc.filter(c => c.fields.SubTeam === 'Backs').length;
       const seats = tc.filter(c => c.fields.SubTeam === 'Seats').length;
@@ -7583,21 +7605,6 @@ function renderStatsDashboard() {
         <div class="tt-part"><div class="tt-part-val">${seats}</div><div class="tt-part-lbl">Seats</div></div>
       </div>`;
     }
-    let jobTypeHtml = '';
-    if (t.name === 'Woodmill') {
-      const normalParts  = tc.filter(c => c.fields.Prep !== 'express').length;
-      const expressParts = tc.filter(c => c.fields.Prep === 'express').length;
-      jobTypeHtml = `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border2);display:flex;flex-direction:column;gap:4px">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <span style="font-size:10px;color:var(--repose-grey)">Normal</span>
-          <span style="font-size:13px;font-weight:700;color:var(--repose-navy)">${normalParts}</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <span style="font-size:10px;color:#92400e">Express / MF-T</span>
-          <span style="font-size:13px;font-weight:700;color:#e97132">${expressParts}</span>
-        </div>
-      </div>`;
-    }
     const isActive = statsTeamFilter === t.name;
     return `<div class="team-token${isEmpty?' tt-zero':''}${isActive?' active':''}" style="--tc:${t.color}"
         onclick="statsSetTeamFilter('${t.name}')">
@@ -7605,7 +7612,6 @@ function renderStatsDashboard() {
       <div class="tt-count">${count}</div>
       <div class="tt-sub">${t.hasSubs ? 'parts' : 'jobs'}</div>
       ${partsHtml}
-      ${jobTypeHtml}
     </div>`;
   }).join('');
 
