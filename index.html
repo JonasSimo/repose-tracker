@@ -7591,9 +7591,19 @@ function renderStatsDashboard() {
               <div style="font-size:9px;color:#e97132">E&nbsp;${exps[i]}</div>
             </div>`).join('')}
         </div>
-        <div style="margin-top:7px;padding-top:7px;border-top:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center">
-          <span style="font-size:10px;color:var(--repose-grey)">Total jobs</span>
-          <span style="font-size:14px;font-weight:800;color:var(--repose-navy)">${totalJobs}</span>
+        <div style="margin-top:7px;padding-top:7px;border-top:1px solid var(--border2)">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+            <span style="font-size:10px;font-weight:700;color:var(--repose-grey)">Total jobs</span>
+            <span style="font-size:14px;font-weight:800;color:var(--repose-navy)">${totalJobs}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px">
+            <span style="font-size:9px;color:var(--repose-grey)">Normal</span>
+            <span style="font-size:11px;font-weight:700;color:var(--repose-navy)">${Math.floor((norms[0] + norms[1]) / 2)}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:9px;color:#e97132">Express / MF-T</span>
+            <span style="font-size:11px;font-weight:700;color:#e97132">${Math.floor((exps[0] + exps[1]) / 2)}</span>
+          </div>
         </div>`;
     } else if (t.hasSubs) {
       const arms  = tc.filter(c => c.fields.SubTeam === 'Arms').length;
