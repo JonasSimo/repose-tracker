@@ -13522,6 +13522,12 @@ function ivnRenderDetail() {
   // Manager action buttons
   let actionHtml = '';
   if (canManage) {
+    if (s === 'rejected') {
+      actionHtml = `
+        <div class="ivn-action-row">
+          <button class="ivn-btn ivn-btn-blue" onclick="ivnUnreject()">↩ Un-reject Idea</button>
+        </div>`;
+    }
     if (s === 'pending') {
       actionHtml = `
         <div class="ivn-action-row">
@@ -13560,6 +13566,15 @@ function ivnRenderDetail() {
           </div>
           <div class="ivn-action-row" style="margin-top:8px">
             <button class="ivn-btn ivn-btn-blue" onclick="ivnSaveAssignment()">Save Assignment</button>
+            <button class="ivn-btn ivn-btn-red" onclick="ivnShowRejectForm()">✗ Reject</button>
+          </div>
+        </div>
+        <div id="ivn-reject-box" class="ivn-reject-box" style="display:none">
+          <div class="ivn-field-label">Reason for rejection</div>
+          <textarea id="ivn-reject-reason" class="ivn-textarea" rows="3" placeholder="Optional — explain why this idea is being rejected"></textarea>
+          <div class="ivn-action-row" style="margin-top:8px">
+            <button class="ivn-btn ivn-btn-red" onclick="ivnConfirmReject()">Confirm Reject</button>
+            <button class="ivn-btn" onclick="document.getElementById('ivn-reject-box').style.display='none'">Cancel</button>
           </div>
         </div>`;
     }
@@ -13652,6 +13667,13 @@ async function ivnAccept() {
   if (!ivnCurrentItem) return;
   await ivnPatchField(ivnCurrentItem, { [IVN_F.valid]: true });
   ivnCurrentItem.fields[IVN_F.valid] = true;
+  ivnRenderDetail();
+}
+
+async function ivnUnreject() {
+  if (!ivnCurrentItem) return;
+  await ivnPatchField(ivnCurrentItem, { [IVN_F.rejected]: 'No' });
+  ivnCurrentItem.fields[IVN_F.rejected] = 'No';
   ivnRenderDetail();
 }
 
