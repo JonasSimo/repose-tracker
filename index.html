@@ -13731,8 +13731,11 @@ function ccRenderSubmitForm() {
         </div>`;
       }).join('') + `</div>
       <div style="margin-top:14px">
-        <div class="ivn-field-label" style="margin-bottom:6px">Your Name</div>
-        <input id="cc-operator-name" class="ivn-input" type="text" placeholder="Full name" value="${graphAccount?.name||''}">
+        <div class="ivn-field-label" style="margin-bottom:6px">Operator</div>
+        <select id="cc-operator-name" class="ivn-select" onchange="ccUpdateSubmitBtn()">
+          <option value="">— Select your name —</option>
+          ${(TEAM_OPERATORS['Cutting'] || []).map(op => `<option value="${escHtml(op.name)}">${escHtml(op.name)}</option>`).join('')}
+        </select>
       </div>
       <div style="margin-top:12px">
         <div class="ivn-field-label" style="margin-bottom:6px">Comments (optional)</div>
@@ -13759,7 +13762,8 @@ function ccSetResult(idx, result) {
 function ccUpdateSubmitBtn() {
   const btn = document.getElementById('cc-submit-go');
   if (!btn) return;
-  const allAnswered = ccSelectedMachine && ccCheckResults.every(r => r !== null);
+  const name = document.getElementById('cc-operator-name')?.value || '';
+  const allAnswered = ccSelectedMachine && ccCheckResults.every(r => r !== null) && name !== '';
   btn.disabled = !allAnswered;
 }
 
