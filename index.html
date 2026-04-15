@@ -7842,6 +7842,7 @@ function renderStatsDashboard() {
     </div>`;
 
   // sparklines drawn after DOM paint
+  const spark = buildSparkData(comp, alerts, scrap, cpars);
   statsSparkTimer = setTimeout(() => {
     statsSparkTimer = null;
     drawSparkline('spark-complete', spark.complete, '#14a1e9');
