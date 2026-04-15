@@ -6069,6 +6069,9 @@ function updateAuthBadge() {
     if (woodmillBtn) woodmillBtn.style.display = WOODMILL_ALLOWED.has(graphAccount.username.toLowerCase()) ? '' : 'none';
     wmIsManager = TIMING_ALLOWED.has(graphAccount.username.toLowerCase());
     cpIsManager = COMPLAINTS_MANAGERS.has(graphAccount.username.toLowerCase());
+    const _statsAccess = STATS_TEAM_ACCESS[graphAccount.username.toLowerCase()];
+    if (_statsAccess) { statsAllowedTeams = _statsAccess; statsUnlocked = true; }
+    else { statsAllowedTeams = null; }
   } else {
     badge.innerHTML = `<span class="auth-dot off"></span><span class="auth-name">Sign in</span>`;
     badge.onclick = graphSignIn;
@@ -6713,6 +6716,17 @@ window.addEventListener('load', () => initGraph().catch(console.error));
 // ═══════════════════════════════════════════════
 
 const STATS_PASSWORD = 'Repnetiscool';
+
+// Team-level access: auto-unlock but restrict to their team(s) only
+const STATS_TEAM_ACCESS = {
+  'mark@reposefurniture.co.uk':              ['Cutting'],
+  'sewingroom@reposefurniture.co.uk':        ['Sewing'],
+  'woodmill@reposefurniture.co.uk':          ['Woodmill'],
+  'paul.jenkins@reposefurniture.co.uk':      ['Woodmill'],
+  'daniel.seymour@reposefurniture.co.uk':    ['Upholstery', 'Assembly'],
+  'weronika.hathaway@reposefurniture.co.uk': ['QC'],
+};
+let statsAllowedTeams = null; // null = full access; array = restricted
 
 let statsUnlocked  = false;
 let statsPeriod    = 'today';  // 'today' | 'yesterday' | 'week' | 'month' | 'year'
@@ -7533,6 +7547,7 @@ function setStatsTeamFilter(team, btn) {
 // Called from team token clicks on the dashboard — opens team detail view
 let teamTokenPeriod = 'today'; // 'today' | 'yesterday' | 'week' | 'month'
 function statsSetTeamFilter(team) {
+  if (statsAllowedTeams && !statsAllowedTeams.includes(team)) return;
   statsTeamFilter = team;
   // Inherit current global period into the team detail view
   teamTokenPeriod = (statsPeriod === 'today' || statsPeriod === 'yesterday') ? statsPeriod : 'today';
@@ -7611,7 +7626,7 @@ function renderStatsDashboard() {
     { name:'Woodmill',   color:'#14a1e9', hasSubs:true  },
     { name:'Upholstery', color:'#059669', hasSubs:true  },
     { name:'Assembly',   color:'#0e023a', hasSubs:false },
-  ];
+  ].filter(t => !statsAllowedTeams || statsAllowedTeams.includes(t.name));
 
   // Team token counts use the same global period as everything else
   const _today = new Date(); _today.setHours(0,0,0,0);
@@ -7694,7 +7709,7 @@ function renderStatsDashboard() {
   const qcPct2 = newChairTotal ? Math.round(qcDoneCount / newChairTotal * 100) : 0;
   const qcBarColor = qcPct2 === 100 ? '#059669' : qcPct2 >= 60 ? '#d97706' : '#dc2626';
 
-  const completeSummaryHtml = _qcTotal === 0
+  const completeSummaryHtml = statsAllowedTeams ? '' : _qcTotal === 0
     ? `<div style="margin-top:12px;background:#fff;border-radius:12px;border:1.5px solid var(--border);padding:12px 16px;font-size:12px;color:var(--repose-grey)">No loads scheduled for ${_qcPeriodLabel} in Load Plan — sync the load plan to update.</div>`
     : `<div style="margin-top:12px;background:#fff;border-radius:12px;border:1.5px solid var(--border);padding:12px 16px;display:flex;align-items:center;gap:16px">
       <div style="flex:1">
@@ -7739,7 +7754,7 @@ function renderStatsDashboard() {
   }).length;
   const nmsOpen = NMS_ITEMS.filter(i => !i.fields?.NearMissclosedout_x003f_).length;
 
-  document.getElementById('stats-dash-bottom').innerHTML = `
+  const _qcCardHtml = `
     <div class="stat-card teal" onclick="renderStatsDetail('qc')">
       <div class="card-label">QC Verified</div>
       <div class="card-row">
@@ -7751,7 +7766,8 @@ function renderStatsDashboard() {
       <div class="prog-bar"><div class="prog-fill" style="width:${qcPct}%;background:#0e7490"></div></div>
       <div style="font-size:11px;color:var(--repose-grey);margin-top:4px">${qcNewChairReps.length} of ${fullReps.length} complete jobs QC verified</div>
       <div class="card-arrow">›</div>
-    </div>
+    </div>`;
+  const _otherCardsHtml = `
     <div class="stat-card" style="cursor:pointer;border-top:3px solid #f59e0b" onclick="renderStatsDetail('nms')">
       <div class="card-label">Near Misses</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:8px 0 6px">
@@ -7795,13 +7811,17 @@ function renderStatsDashboard() {
       </div>
       <div class="card-arrow">›</div>
     </div>`;
+  const _showQC    = !statsAllowedTeams || statsAllowedTeams.includes('QC');
+  const _showOther = !statsAllowedTeams;
+  document.getElementById('stats-dash-bottom').innerHTML =
+    (_showQC ? _qcCardHtml : '') + (_showOther ? _otherCardsHtml : '');
 
   // CPAR issues card
   const cparOpen   = cpars.filter(c => (c.fields?.Status||'') !== 'Closed');
   const cparClosed = cpars.filter(c => (c.fields?.Status||'') === 'Closed');
   const cparAmber  = cparOpen.filter(c => { const dt = parseCPARDate(c.fields?.LoggedAt); if (!dt.getTime()) return false; const hrs = (Date.now() - dt.getTime()) / 3600000; return hrs >= 48 && hrs < 96; });
   const cparRed    = cparOpen.filter(c => { const dt = parseCPARDate(c.fields?.LoggedAt); if (!dt.getTime()) return false; return (Date.now() - dt.getTime()) / 3600000 >= 96; });
-  document.getElementById('stats-dash-issues').innerHTML = `
+  document.getElementById('stats-dash-issues').innerHTML = statsAllowedTeams ? '' : `
     <div class="stat-card" style="cursor:pointer;border-top:3px solid #7c3aed" onclick="renderStatsDetail('cpar')">
       <div class="card-label">Issues (CPARs)</div>
       <div class="card-row">
@@ -7835,6 +7855,14 @@ function renderStatsDashboard() {
 // ── Detail view router ──────────────────────────
 
 function renderStatsDetail(view) {
+  if (statsAllowedTeams) {
+    const qcOnly = statsAllowedTeams.length === 1 && statsAllowedTeams.includes('QC');
+    if (qcOnly && view !== 'qc') return;
+    if (!qcOnly && view !== 'team') return;
+    if (view === 'team' && !statsAllowedTeams.includes(statsTeamFilter)) {
+      statsTeamFilter = statsAllowedTeams[0];
+    }
+  }
   statsDestroyCharts();
   document.getElementById('stats-dashboard').style.display = 'none';
   const detailEl = document.getElementById('stats-detail');
