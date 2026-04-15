@@ -7872,6 +7872,44 @@ function renderDetailTeamToken() {
         </div>`;
       }).join('');
 
+  // Express vs Normal breakdown (Woodmill only)
+  let jobTypeBreakdownHtml = '';
+  if (team === 'Woodmill') {
+    const expressComp = allComp.filter(c => c.fields.Prep === 'express');
+    const normalComp  = allComp.filter(c => c.fields.Prep !== 'express');
+
+    // Count complete jobs = REPs where all 3 parts (Arms, Backs, Seats) are logged
+    function countCompleteWmJobs(comps) {
+      const repSubs = {};
+      comps.forEach(c => {
+        const rep = c.fields.REP || '';
+        if (!repSubs[rep]) repSubs[rep] = new Set();
+        repSubs[rep].add(c.fields.SubTeam);
+      });
+      return Object.values(repSubs).filter(s => s.has('Arms') && s.has('Backs') && s.has('Seats')).length;
+    }
+
+    const normComplete = countCompleteWmJobs(normalComp);
+    const expComplete  = countCompleteWmJobs(expressComp);
+
+    jobTypeBreakdownHtml = `
+      <div style="margin-bottom:16px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--repose-grey);margin-bottom:8px">Job Type Breakdown</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div style="background:#fff;border-radius:12px;border:1.5px solid var(--border);padding:14px 16px">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--repose-grey);margin-bottom:6px">Normal Jobs</div>
+            <div style="font-size:32px;font-weight:800;color:var(--repose-navy);line-height:1">${normComplete}</div>
+            <div style="font-size:11px;color:var(--repose-grey);margin-top:3px">complete · ${normalComp.length} parts logged</div>
+          </div>
+          <div style="background:#fff;border-radius:12px;border:1.5px solid #fed7aa;padding:14px 16px">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#92400e;margin-bottom:6px">Express / MF-T</div>
+            <div style="font-size:32px;font-weight:800;color:#e97132;line-height:1">${expComplete}</div>
+            <div style="font-size:11px;color:#92400e;margin-top:3px">complete · ${expressComp.length} parts logged</div>
+          </div>
+        </div>
+      </div>`;
+  }
+
   // Recent jobs list
   const recentJobs = [...allComp]
     .sort((a, b) => (b.fields.CompletedTime||'').localeCompare(a.fields.CompletedTime||''))
@@ -7885,8 +7923,9 @@ function renderDetailTeamToken() {
           const f = c.fields;
           const name = STATS_OPERATORS[team]?.[f.Initials] ?? f.Initials ?? '—';
           const subBadge = f.SubTeam ? `<span style="background:${tc}18;color:${tc};border-radius:6px;padding:1px 7px;font-size:10px;font-weight:600;margin-left:4px">${escHtml(f.SubTeam)}</span>` : '';
+          const expBadge = f.Prep === 'express' ? `<span style="background:#fff7ed;color:#92400e;border:1px solid #fed7aa;border-radius:6px;padding:1px 7px;font-size:10px;font-weight:700;margin-left:4px">EXP</span>` : '';
           return `<div style="display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--border2);border-radius:10px;padding:8px 12px">
-            <div style="font-size:13px;font-weight:600;color:var(--text);flex:1">${escHtml(f.REP||'—')} ${subBadge}</div>
+            <div style="font-size:13px;font-weight:600;color:var(--text);flex:1">${escHtml(f.REP||'—')} ${subBadge}${expBadge}</div>
             <div style="font-size:12px;color:var(--text2)">${escHtml(name)}</div>
             <div style="font-size:11px;color:var(--repose-grey);font-family:'JetBrains Mono',monospace">${escHtml(f.CompletedTime||'—')}</div>
           </div>`;
@@ -7897,6 +7936,7 @@ function renderDetailTeamToken() {
   body.innerHTML = `
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">${filterBtns}</div>
     <div style="font-size:12px;color:var(--repose-grey);margin-bottom:14px">${escHtml(periodLabels[teamTokenPeriod])} · <strong style="color:var(--text)">${total} ${hasSubs ? 'parts' : 'jobs'}</strong> logged</div>
+    ${jobTypeBreakdownHtml}
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
       ${personCardsHtml}
     </div>
@@ -9337,7 +9377,7 @@ const CPAR_CUTTING_GROUPS = {
   'Missing bits': ['Arms Section', 'Back Section', 'Seat Section', 'Accessories'],
   'Cut wrong/uneven': ['Arms Section', 'Back Section', 'Seat Section', 'Accessories'],
 };
-const CPAR_CUTTING_DIRECT = ['Leather/Fabric defect', 'Lining error', 'Product damaged', 'Part not fitting'];
+const CPAR_CUTTING_DIRECT = ['Leather/Fabric defect', 'Lining error', 'Product damaged', 'Part not fitting', 'Parts over'];
 
 const CPAR_SEWING_GROUPS = {
   'Internal': ['Machine Error', 'Human Error', 'Other (Specify)'],
