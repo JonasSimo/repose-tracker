@@ -2031,6 +2031,90 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .cp-modal-cancel    { font-family:inherit; font-size:13px; padding:6px 14px; border-radius:7px; border:1.5px solid var(--border2); background:var(--bg3); color:var(--text2); cursor:pointer; }
 .cp-modal-confirm   { font-family:inherit; font-size:13px; font-weight:600; padding:6px 16px; border-radius:7px; border:none; background:var(--repose-blue); color:#fff; cursor:pointer; }
 
+/* ═══════════════════════════════════════════════
+   INNOVATION STATION
+════════════════════════════════════════════════ */
+.ivn-wrap          { display:flex; flex-direction:column; height:100%; overflow:hidden; }
+.ivn-header        { background:var(--bg2); border-bottom:1px solid var(--border); padding:10px 14px; display:flex; flex-direction:column; gap:8px; flex-shrink:0; }
+.ivn-title-row     { display:flex; align-items:center; gap:10px; }
+.ivn-title         { font-size:15px; font-weight:700; color:var(--text1); flex:1; }
+.ivn-score-btn     { font-family:inherit; font-size:12px; font-weight:600; padding:5px 12px; border-radius:7px; border:1.5px solid #7c3aed; background:transparent; color:#a78bfa; cursor:pointer; }
+.ivn-score-btn:hover { background:#2e1065; }
+.ivn-refresh-btn   { font-family:inherit; font-size:14px; padding:4px 10px; border-radius:7px; border:1.5px solid var(--border2); background:var(--bg3); color:var(--text2); cursor:pointer; }
+.ivn-chips         { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+.ivn-chip          { font-family:inherit; font-size:12px; font-weight:600; padding:5px 12px; border-radius:20px; border:1.5px solid var(--border2); background:var(--bg3); color:var(--text2); cursor:pointer; }
+.ivn-chip:hover    { background:var(--bg4,#2a2a3a); color:var(--text1); }
+.ivn-chip.active   { background:var(--repose-blue); color:#fff; border-color:var(--repose-blue); }
+.ivn-list          { flex:1; overflow-y:auto; padding:12px 14px; display:flex; flex-direction:column; gap:10px; }
+.ivn-empty         { text-align:center; padding:40px; font-size:14px; color:var(--text2); }
+.ivn-loading       { text-align:center; padding:40px; font-size:14px; color:var(--text2); }
+
+/* Cards */
+.ivn-card          { background:var(--bg2); border:1.5px solid var(--border); border-radius:10px; padding:14px 16px; cursor:pointer; transition:border-color .15s; }
+.ivn-card:hover    { border-color:var(--repose-blue); }
+.ivn-card-top      { display:flex; align-items:flex-start; gap:10px; margin-bottom:6px; }
+.ivn-card-idea     { flex:1; font-size:14px; font-weight:600; color:var(--text1); line-height:1.4; }
+.ivn-card-meta     { font-size:12px; color:var(--text2); display:flex; gap:12px; flex-wrap:wrap; }
+.ivn-card-meta span { display:flex; align-items:center; gap:4px; }
+
+/* Status badges */
+.ivn-status        { display:inline-block; padding:3px 9px; border-radius:12px; font-size:11px; font-weight:700; white-space:nowrap; }
+.ivn-status-pending    { background:#3b2a00; color:#f59e0b; }
+.ivn-status-accepted   { background:#1e3a5f; color:#60a5fa; }
+.ivn-status-progress   { background:#0c2d4a; color:#38bdf8; }
+.ivn-status-overdue    { background:#3b0000; color:#f87171; }
+.ivn-status-completed  { background:#0a2e1a; color:#4ade80; }
+.ivn-status-rejected   { background:#2a2a3a; color:#9ca3af; }
+
+/* Detail view */
+.ivn-detail-wrap   { height:100%; overflow-y:auto; padding:16px 20px 40px; }
+.ivn-detail-back   { font-family:inherit; font-size:13px; padding:6px 12px; border-radius:7px; border:1.5px solid var(--border2); background:var(--bg3); color:var(--text2); cursor:pointer; margin-bottom:14px; }
+.ivn-detail-back:hover { color:var(--text1); }
+.ivn-detail-title  { font-size:16px; font-weight:700; color:var(--text1); margin-bottom:4px; padding-bottom:10px; border-bottom:2px solid var(--repose-blue); }
+.ivn-detail-meta   { display:grid; grid-template-columns:1fr 1fr; gap:6px 16px; margin:14px 0; }
+.ivn-detail-meta-full { grid-column:1/-1; }
+.ivn-meta-label    { font-size:11px; font-weight:700; color:var(--text2); text-transform:uppercase; margin-bottom:3px; }
+.ivn-meta-val      { font-size:13px; color:var(--text1); }
+.ivn-section       { margin-bottom:18px; }
+.ivn-section-title { font-size:13px; font-weight:700; color:var(--repose-blue); margin-bottom:8px; }
+.ivn-textarea      { width:100%; min-height:80px; font-family:inherit; font-size:13px; color:var(--text1); background:var(--bg3); border:1px solid var(--border2); border-radius:6px; padding:8px; resize:vertical; box-sizing:border-box; }
+.ivn-textarea[readonly] { background:var(--bg2); border-color:var(--border); }
+.ivn-input         { width:100%; font-family:inherit; font-size:13px; color:var(--text1); background:var(--bg3); border:1px solid var(--border2); border-radius:6px; padding:7px 10px; box-sizing:border-box; }
+.ivn-select        { width:100%; font-family:inherit; font-size:13px; color:var(--text1); background:var(--bg3); border:1px solid var(--border2); border-radius:6px; padding:7px 10px; box-sizing:border-box; }
+.ivn-action-row    { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+.ivn-btn           { font-family:inherit; font-size:13px; font-weight:600; padding:7px 16px; border-radius:7px; border:1.5px solid var(--border2); background:var(--bg3); color:var(--text1); cursor:pointer; }
+.ivn-btn:hover     { background:var(--bg4,#2a2a3a); }
+.ivn-btn-green     { background:#059669; color:#fff; border-color:#059669; }
+.ivn-btn-green:hover { background:#047857; }
+.ivn-btn-red       { background:#dc2626; color:#fff; border-color:#dc2626; }
+.ivn-btn-red:hover { background:#b91c1c; }
+.ivn-btn-blue      { background:var(--repose-blue); color:#fff; border-color:var(--repose-blue); }
+.ivn-btn-blue:hover { opacity:.85; }
+.ivn-btn-purple    { background:#7c3aed; color:#fff; border-color:#7c3aed; }
+.ivn-btn-purple:hover { background:#6d28d9; }
+.ivn-assign-box    { background:var(--bg3); border:1.5px solid var(--border2); border-radius:8px; padding:14px; margin-top:8px; display:flex; flex-direction:column; gap:10px; }
+.ivn-assign-row    { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.ivn-field-label   { font-size:11px; font-weight:700; color:var(--text2); text-transform:uppercase; margin-bottom:4px; }
+.ivn-reject-box    { background:var(--bg3); border:1.5px solid #dc2626; border-radius:8px; padding:14px; margin-top:8px; }
+.ivn-complete-box  { background:var(--bg3); border:1.5px solid #059669; border-radius:8px; padding:14px; margin-top:8px; }
+.ivn-saved-note    { font-size:12px; color:#4ade80; margin-left:8px; opacity:0; transition:opacity .3s; }
+.ivn-saved-note.show { opacity:1; }
+
+/* Scorecard */
+.ivn-score-wrap    { height:100%; overflow-y:auto; padding:16px 20px 40px; }
+.ivn-score-back    { font-family:inherit; font-size:13px; padding:6px 12px; border-radius:7px; border:1.5px solid var(--border2); background:var(--bg3); color:var(--text2); cursor:pointer; margin-bottom:14px; }
+.ivn-score-back:hover { color:var(--text1); }
+.ivn-score-title   { font-size:16px; font-weight:700; color:var(--text1); margin-bottom:16px; padding-bottom:10px; border-bottom:2px solid #7c3aed; }
+.ivn-score-summary { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:10px; margin-bottom:20px; }
+.ivn-score-kpi     { background:var(--bg2); border:1.5px solid var(--border); border-radius:10px; padding:14px; text-align:center; }
+.ivn-score-kpi-val { font-size:26px; font-weight:700; color:var(--text1); }
+.ivn-score-kpi-lbl { font-size:11px; color:var(--text2); font-weight:600; text-transform:uppercase; margin-top:4px; }
+.ivn-score-table   { width:100%; border-collapse:collapse; }
+.ivn-score-table th { font-size:11px; font-weight:700; color:var(--text2); text-transform:uppercase; padding:6px 8px; border-bottom:1.5px solid var(--border); text-align:left; }
+.ivn-score-table td { font-size:13px; color:var(--text1); padding:8px; border-bottom:1px solid var(--border); }
+.ivn-score-table tbody tr:hover { background:var(--bg2); }
+.ivn-score-section-title { font-size:13px; font-weight:700; color:#a78bfa; margin:20px 0 8px; }
+
 /* ─── PRINT (PDF EXPORT) ─────────────────────── */
 
 /* Replaced elements created by cpExportPdf() — hidden on screen, shown in print */
@@ -2189,6 +2273,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <button class="nav-item" data-view="woodmill" id="woodmill-tab-btn" onclick="navTo('woodmill')" style="display:none">Woodmill</button>
         <button class="nav-item" data-view="safety" onclick="navTo('safety')">Near Misses</button>
         <button class="nav-item" data-view="complaints" onclick="navTo('complaints')">Complaints</button>
+        <button class="nav-item" id="ivn-tab-btn" data-view="innovation" onclick="navTo('innovation')" style="display:none">Innovation</button>
         <!-- Order Check — work in progress, hidden until ready -->
         <!-- <button class="nav-item" data-view="ordercheck" onclick="navTo('ordercheck')">Order Check</button> -->
       </div>
@@ -2700,6 +2785,42 @@ document.addEventListener('DOMContentLoaded', () => {
   </div>
 </div>
 
+<!-- ═══════════════════════════════════════════════
+     VIEW: INNOVATION STATION
+════════════════════════════════════════════════ -->
+<div class="view" id="view-innovation">
+  <!-- LIST SUBVIEW -->
+  <div id="ivn-list-view" class="ivn-wrap">
+    <div class="ivn-header">
+      <div class="ivn-title-row">
+        <div class="ivn-title">Innovation Station</div>
+        <button class="ivn-score-btn" id="ivn-score-btn" onclick="ivnShowScorecard()" style="display:none">Scorecard</button>
+        <button class="ivn-refresh-btn" onclick="ivnOnOpen()" title="Refresh">↻</button>
+      </div>
+      <div class="ivn-chips" id="ivn-filter-chips">
+        <button class="ivn-chip active" onclick="ivnSetFilter(this,'all')">All</button>
+        <button class="ivn-chip" onclick="ivnSetFilter(this,'pending')">Pending</button>
+        <button class="ivn-chip" onclick="ivnSetFilter(this,'accepted')">Accepted</button>
+        <button class="ivn-chip" onclick="ivnSetFilter(this,'progress')">In Progress</button>
+        <button class="ivn-chip" onclick="ivnSetFilter(this,'overdue')">Overdue</button>
+        <button class="ivn-chip" onclick="ivnSetFilter(this,'completed')">Completed</button>
+        <button class="ivn-chip" onclick="ivnSetFilter(this,'rejected')">Rejected</button>
+      </div>
+    </div>
+    <div class="ivn-list" id="ivn-list-body">
+      <div class="ivn-loading">Loading ideas…</div>
+    </div>
+  </div>
+  <!-- DETAIL SUBVIEW -->
+  <div id="ivn-detail-view" class="ivn-detail-wrap" style="display:none">
+    <div id="ivn-detail-inner"></div>
+  </div>
+  <!-- SCORECARD SUBVIEW -->
+  <div id="ivn-score-view" class="ivn-score-wrap" style="display:none">
+    <div id="ivn-score-inner"></div>
+  </div>
+</div>
+
 <!-- Assign investigator modal -->
 <div id="cp-assign-modal" class="cp-modal-overlay" style="display:none" onclick="if(event.target===this)cpCloseAssignModal()">
   <div class="cp-modal-box">
@@ -3105,7 +3226,7 @@ let ppAutoSyncInterval = null;
 // ═══════════════════════════════════════════════
 // ROUTING
 // ═══════════════════════════════════════════════
-const NAV_LABELS = { 'team-select':'Team View','tracker':'Team View','overview':'Load Plan','loadsheet':'Delivery','production':'Production Plan','stats':'Stats','issues':'Issues','safety':'Safety','ordercheck':'Order Check','timing':'Job Timing','complaints':'Complaints','woodmill':'Woodmill' };
+const NAV_LABELS = { 'team-select':'Team View','tracker':'Team View','overview':'Load Plan','loadsheet':'Delivery','production':'Production Plan','stats':'Stats','issues':'Issues','safety':'Safety','ordercheck':'Order Check','timing':'Job Timing','complaints':'Complaints','woodmill':'Woodmill','innovation':'Innovation Station' };
 function showView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   const activeView = name === 'tracker' ? 'team-select' : name;
@@ -3129,6 +3250,7 @@ function showView(name) {
   if (name === 'timing')      { tmOnOpen(); }
   if (name === 'complaints')  { cpOnOpen(); }
   if (name === 'woodmill')    { wmOnOpen(); }
+  if (name === 'innovation')  { ivnOnOpen(); }
 }
 
 function toggleNavMenu() {
@@ -6072,6 +6194,16 @@ function updateAuthBadge() {
     const _statsAccess = STATS_TEAM_ACCESS[graphAccount.username.toLowerCase()];
     if (_statsAccess) { statsAllowedTeams = _statsAccess; statsUnlocked = true; }
     else { statsAllowedTeams = null; }
+    // Innovation Station access
+    const _ivnEmail = graphAccount.username.toLowerCase();
+    ivnUserEmail = _ivnEmail;
+    ivnIsFullAccess = IVN_FULL_ACCESS.has(_ivnEmail);
+    ivnIsManager   = IVN_MANAGERS.has(_ivnEmail);
+    // Show tab for full-access users; restricted users shown after data load (if they have assigned items)
+    const ivnBtn = document.getElementById('ivn-tab-btn');
+    if (ivnBtn) ivnBtn.style.display = ivnIsFullAccess ? '' : 'none';
+    const ivnScoreBtn = document.getElementById('ivn-score-btn');
+    if (ivnScoreBtn) ivnScoreBtn.style.display = ivnIsFullAccess ? '' : 'none';
   } else {
     badge.innerHTML = `<span class="auth-dot off"></span><span class="auth-name">Sign in</span>`;
     badge.onclick = graphSignIn;
@@ -13008,6 +13140,503 @@ function wmOpenWeekModal(machineId, weekStartStr, machineName) {
 
 function wmCloseModal() {
   document.getElementById('wm-modal').style.display = 'none';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INNOVATION STATION
+// ═══════════════════════════════════════════════════════════════════════════
+
+const IVN_SITE_PATH = '/sites/ReposeFurniture-Quality';
+const IVN_LIST_NAME = 'Innovation Station';
+
+const IVN_FULL_ACCESS = new Set([
+  'jonas.simonaitis@reposefurniture.co.uk',
+  'richard.semmens@reposefurniture.co.uk',
+  'mitch@reposefurniture.co.uk',
+  'jody.tilley@reposefurniture.co.uk',
+]);
+const IVN_MANAGERS = new Set([
+  'jonas.simonaitis@reposefurniture.co.uk',
+  'richard.semmens@reposefurniture.co.uk',
+]);
+
+// Known staff for assignment dropdown
+const IVN_STAFF = [
+  { email:'jonas.simonaitis@reposefurniture.co.uk',   name:'Jonas Simonaitis' },
+  { email:'richard.semmens@reposefurniture.co.uk',    name:'Richard Semmens' },
+  { email:'mitch@reposefurniture.co.uk',              name:'Mitch' },
+  { email:'jody.tilley@reposefurniture.co.uk',        name:'Jody Tilley' },
+  { email:'paul.jenkins@reposefurniture.co.uk',       name:'Paul Jenkins' },
+  { email:'daniel.seymour@reposefurniture.co.uk',     name:'Daniel Seymour' },
+  { email:'weronika.hathaway@reposefurniture.co.uk',  name:'Weronika Hathaway' },
+  { email:'woodmill@reposefurniture.co.uk',           name:'Woodmill' },
+  { email:'sewingroom@reposefurniture.co.uk',         name:'Sewing Room' },
+  { email:'mark@reposefurniture.co.uk',               name:'Mark' },
+];
+
+// SharePoint field names (spaces removed, special chars encoded)
+// IMPORTANT: console.log first item fields on first load to verify actual names
+const IVN_F = {
+  title:       'Title',
+  suggestion:  'Suggestion',
+  benefit:     'Benefit',
+  valid:       'Validsuggestion_x003f_',
+  dateSubmit:  'Datesubmitted',
+  actionOwner: 'ActionOwner',        // Person field (display name)
+  notifSent:   'NotificationSent',
+  closed:      'Actionclosed_x003f_',
+  rejected:    'Rejected',
+  // New columns Jonas needs to add to the SP list:
+  assigneeEmail: 'AssigneeEmail',
+  deadline:    'Deadline',
+  notes:       'ProgressNotes',
+  completionNotes: 'CompletionNotes',
+};
+
+// State
+let ivnItems        = [];
+let ivnFilter       = 'all';
+let ivnCurrentItem  = null;
+let _ivnSiteId      = null;
+let _ivnListId      = null;
+let ivnIsFullAccess = false;
+let ivnIsManager    = false;
+let ivnUserEmail    = '';
+let _ivnLoaded      = false;
+
+async function ivnGetSiteId() {
+  if (_ivnSiteId) return _ivnSiteId;
+  const res = await graphGet(`https://graph.microsoft.com/v1.0/sites/${SP_HOST}:${IVN_SITE_PATH}`);
+  _ivnSiteId = res.id;
+  return _ivnSiteId;
+}
+
+async function ivnGetListId() {
+  if (_ivnListId) return _ivnListId;
+  const siteId = await ivnGetSiteId();
+  _ivnListId = await getListIdByNameOnSite(siteId, IVN_LIST_NAME);
+  return _ivnListId;
+}
+
+function ivnStatus(item) {
+  const f = item.fields;
+  if (f[IVN_F.closed]) return 'completed';
+  if (f[IVN_F.rejected] && f[IVN_F.rejected] !== '' && f[IVN_F.rejected] !== 'No') return 'rejected';
+  if (f[IVN_F.assigneeEmail] && f[IVN_F.assigneeEmail] !== '') {
+    const dl = f[IVN_F.deadline] ? new Date(f[IVN_F.deadline]) : null;
+    if (dl) { const t = new Date(); t.setHours(0,0,0,0); if (dl < t) return 'overdue'; }
+    return 'progress';
+  }
+  if (f[IVN_F.valid]) return 'accepted';
+  return 'pending';
+}
+
+function ivnStatusLabel(s) {
+  return { pending:'Pending Review', accepted:'Accepted', progress:'In Progress',
+           overdue:'Overdue', completed:'Completed', rejected:'Rejected' }[s] || s;
+}
+
+function ivnStaffName(email) {
+  if (!email) return '—';
+  const found = IVN_STAFF.find(s => s.email === email.toLowerCase());
+  return found ? found.name : email.split('@')[0];
+}
+
+function ivnFmtDate(ds) {
+  if (!ds) return '—';
+  const d = new Date(ds);
+  return isNaN(d) ? ds : d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+}
+
+async function ivnOnOpen() {
+  // Show tab for restricted users who have assigned items (checked after load)
+  if (!ivnIsFullAccess && !_ivnLoaded) {
+    // Show list view immediately with loading state
+    ivnShowSubview('list');
+  }
+  await ivnLoadData();
+}
+
+async function ivnLoadData() {
+  document.getElementById('ivn-list-body').innerHTML = '<div class="ivn-loading">Loading ideas…</div>';
+  ivnShowSubview('list');
+  try {
+    const siteId = await ivnGetSiteId();
+    const listId = await ivnGetListId();
+    const url = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?expand=fields&$top=500`;
+    ivnItems = await graphGetAll(url);
+    // Debug: log field names from first item (helps verify SP column encoding)
+    if (ivnItems.length > 0 && !_ivnLoaded) {
+      console.log('[IVN] First item fields:', Object.keys(ivnItems[0].fields));
+    }
+    _ivnLoaded = true;
+    // Sort: newest first
+    ivnItems.sort((a,b) => new Date(b.createdDateTime) - new Date(a.createdDateTime));
+    // Show tab for restricted users who have assigned items
+    if (!ivnIsFullAccess) {
+      const hasOwn = ivnItems.some(i => (i.fields[IVN_F.assigneeEmail]||'').toLowerCase() === ivnUserEmail);
+      const ivnBtn = document.getElementById('ivn-tab-btn');
+      if (ivnBtn) ivnBtn.style.display = hasOwn ? '' : 'none';
+      if (!hasOwn) {
+        document.getElementById('ivn-list-body').innerHTML = '<div class="ivn-empty">No items assigned to you.</div>';
+        return;
+      }
+    }
+    ivnRenderList();
+  } catch(e) {
+    console.error('[IVN] Load error:', e);
+    document.getElementById('ivn-list-body').innerHTML = `<div class="ivn-empty">Failed to load: ${escHtml(String(e))}</div>`;
+  }
+}
+
+function ivnVisibleItems() {
+  let items = ivnItems;
+  if (!ivnIsFullAccess) {
+    items = items.filter(i => (i.fields[IVN_F.assigneeEmail]||'').toLowerCase() === ivnUserEmail);
+  }
+  if (ivnFilter === 'all') return items;
+  return items.filter(i => ivnStatus(i) === ivnFilter);
+}
+
+function ivnRenderList() {
+  const items = ivnVisibleItems();
+  const body = document.getElementById('ivn-list-body');
+  if (!items.length) {
+    body.innerHTML = '<div class="ivn-empty">No ideas match this filter.</div>';
+    return;
+  }
+  body.innerHTML = items.map(item => ivnRenderCard(item)).join('');
+}
+
+function ivnRenderCard(item) {
+  const f = item.fields;
+  const s = ivnStatus(item);
+  const idea = escHtml(f[IVN_F.suggestion] || f[IVN_F.title] || '(No title)');
+  const submittedBy = escHtml(f[IVN_F.title] || '');
+  const date = ivnFmtDate(f[IVN_F.dateSubmit] || item.createdDateTime);
+  const assignee = f[IVN_F.assigneeEmail] ? escHtml(ivnStaffName(f[IVN_F.assigneeEmail])) : null;
+  const deadline = f[IVN_F.deadline] ? ivnFmtDate(f[IVN_F.deadline]) : null;
+  return `
+    <div class="ivn-card" onclick="ivnOpenDetail(${item.id})">
+      <div class="ivn-card-top">
+        <div class="ivn-card-idea">${idea}</div>
+        <span class="ivn-status ivn-status-${s}">${ivnStatusLabel(s)}</span>
+      </div>
+      <div class="ivn-card-meta">
+        ${submittedBy ? `<span>✉ ${submittedBy}</span>` : ''}
+        <span>📅 ${date}</span>
+        ${assignee ? `<span>👤 ${assignee}</span>` : ''}
+        ${deadline ? `<span>⏰ ${deadline}</span>` : ''}
+      </div>
+    </div>`;
+}
+
+function ivnSetFilter(btn, f) {
+  ivnFilter = f;
+  document.querySelectorAll('#ivn-filter-chips .ivn-chip').forEach(c => c.classList.toggle('active', c === btn));
+  ivnRenderList();
+}
+
+function ivnShowSubview(which) {
+  document.getElementById('ivn-list-view').style.display   = which === 'list'   ? '' : 'none';
+  document.getElementById('ivn-detail-view').style.display = which === 'detail' ? '' : 'none';
+  document.getElementById('ivn-score-view').style.display  = which === 'score'  ? '' : 'none';
+}
+
+function ivnOpenDetail(id) {
+  ivnCurrentItem = ivnItems.find(i => i.id == id);
+  if (!ivnCurrentItem) return;
+  ivnShowSubview('detail');
+  ivnRenderDetail();
+}
+
+function ivnBackToList() {
+  ivnCurrentItem = null;
+  ivnShowSubview('list');
+  ivnRenderList();
+}
+
+function ivnRenderDetail() {
+  const item = ivnCurrentItem;
+  const f = item.fields;
+  const s = ivnStatus(item);
+  const canManage = ivnIsManager;
+  const isAssignee = ivnUserEmail && (f[IVN_F.assigneeEmail]||'').toLowerCase() === ivnUserEmail;
+  const canNotes = isAssignee || ivnIsManager;
+
+  const idea = escHtml(f[IVN_F.suggestion] || f[IVN_F.title] || '');
+  const benefit = escHtml(f[IVN_F.benefit] || '');
+  const submittedBy = escHtml(f[IVN_F.title] || '');
+  const date = ivnFmtDate(f[IVN_F.dateSubmit] || item.createdDateTime);
+  const assigneeEmail = f[IVN_F.assigneeEmail] || '';
+  const assigneeName = ivnStaffName(assigneeEmail);
+  const deadline = ivnFmtDate(f[IVN_F.deadline]);
+  const notes = escHtml(f[IVN_F.notes] || '');
+  const completionNotes = escHtml(f[IVN_F.completionNotes] || '');
+  const rejReason = escHtml(typeof f[IVN_F.rejected] === 'string' && f[IVN_F.rejected] !== 'No' ? f[IVN_F.rejected] : '');
+
+  // Manager action buttons
+  let actionHtml = '';
+  if (canManage) {
+    if (s === 'pending') {
+      actionHtml = `
+        <div class="ivn-action-row">
+          <button class="ivn-btn ivn-btn-green" onclick="ivnAccept()">✓ Accept Idea</button>
+          <button class="ivn-btn ivn-btn-red" onclick="ivnShowRejectForm()">✗ Reject</button>
+        </div>
+        <div id="ivn-reject-box" class="ivn-reject-box" style="display:none">
+          <div class="ivn-field-label">Reason for rejection</div>
+          <textarea id="ivn-reject-reason" class="ivn-textarea" rows="3" placeholder="Optional — explain why this idea is being rejected"></textarea>
+          <div class="ivn-action-row" style="margin-top:8px">
+            <button class="ivn-btn ivn-btn-red" onclick="ivnConfirmReject()">Confirm Reject</button>
+            <button class="ivn-btn" onclick="document.getElementById('ivn-reject-box').style.display='none'">Cancel</button>
+          </div>
+        </div>`;
+    }
+    if (s === 'accepted' || s === 'progress' || s === 'overdue') {
+      // Assign/reassign panel
+      const staffOptions = IVN_STAFF.map(st =>
+        `<option value="${escHtml(st.email)}" ${st.email===assigneeEmail?'selected':''}>${escHtml(st.name)}</option>`
+      ).join('');
+      actionHtml += `
+        <div class="ivn-assign-box">
+          <div style="font-size:13px;font-weight:700;color:var(--text1);margin-bottom:6px">${s==='accepted'?'Assign Action Owner':'Reassign / Update Deadline'}</div>
+          <div class="ivn-assign-row">
+            <div>
+              <div class="ivn-field-label">Action Owner</div>
+              <select id="ivn-assign-select" class="ivn-select">
+                <option value="">— Select person —</option>
+                ${staffOptions}
+              </select>
+            </div>
+            <div>
+              <div class="ivn-field-label">Deadline</div>
+              <input id="ivn-assign-deadline" type="date" class="ivn-input" value="${f[IVN_F.deadline]?f[IVN_F.deadline].substring(0,10):''}">
+            </div>
+          </div>
+          <div class="ivn-action-row" style="margin-top:8px">
+            <button class="ivn-btn ivn-btn-blue" onclick="ivnSaveAssignment()">Save Assignment</button>
+          </div>
+        </div>`;
+    }
+    if ((s === 'progress' || s === 'overdue') && s !== 'completed') {
+      actionHtml += `
+        <div class="ivn-action-row" style="margin-top:8px">
+          <button class="ivn-btn ivn-btn-purple" onclick="ivnShowCompleteForm()">Mark Complete</button>
+        </div>
+        <div id="ivn-complete-box" class="ivn-complete-box" style="display:none">
+          <div class="ivn-field-label">Completion notes</div>
+          <textarea id="ivn-complete-notes" class="ivn-textarea" rows="3" placeholder="Describe what was done…"></textarea>
+          <div class="ivn-action-row" style="margin-top:8px">
+            <button class="ivn-btn ivn-btn-green" onclick="ivnComplete()">Confirm Complete</button>
+            <button class="ivn-btn" onclick="document.getElementById('ivn-complete-box').style.display='none'">Cancel</button>
+          </div>
+        </div>`;
+    }
+  } else if (s === 'progress' || s === 'overdue') {
+    // Non-manager but assignee can mark complete too? Per spec, only Jonas+Richard mark complete.
+    // But assignee can add progress notes.
+  }
+
+  const html = `
+    <button class="ivn-detail-back" onclick="ivnBackToList()">← Back</button>
+    <div class="ivn-detail-title">${idea}</div>
+    <div style="margin-bottom:10px"><span class="ivn-status ivn-status-${s}">${ivnStatusLabel(s)}</span></div>
+
+    <div class="ivn-detail-meta">
+      <div>
+        <div class="ivn-meta-label">Submitted By</div>
+        <div class="ivn-meta-val">${submittedBy || '—'}</div>
+      </div>
+      <div>
+        <div class="ivn-meta-label">Date Submitted</div>
+        <div class="ivn-meta-val">${date}</div>
+      </div>
+      <div class="ivn-detail-meta-full">
+        <div class="ivn-meta-label">Benefit / Justification</div>
+        <div class="ivn-meta-val">${benefit || '—'}</div>
+      </div>
+      ${assigneeEmail ? `
+      <div>
+        <div class="ivn-meta-label">Action Owner</div>
+        <div class="ivn-meta-val">${escHtml(assigneeName)}</div>
+      </div>
+      <div>
+        <div class="ivn-meta-label">Deadline</div>
+        <div class="ivn-meta-val">${deadline}</div>
+      </div>` : ''}
+      ${rejReason ? `
+      <div class="ivn-detail-meta-full">
+        <div class="ivn-meta-label">Rejection Reason</div>
+        <div class="ivn-meta-val">${rejReason}</div>
+      </div>` : ''}
+      ${completionNotes ? `
+      <div class="ivn-detail-meta-full">
+        <div class="ivn-meta-label">Completion Notes</div>
+        <div class="ivn-meta-val">${completionNotes}</div>
+      </div>` : ''}
+    </div>
+
+    ${(s === 'progress' || s === 'overdue' || s === 'completed') ? `
+    <div class="ivn-section">
+      <div class="ivn-section-title">Progress Notes</div>
+      <textarea id="ivn-notes-ta" class="ivn-textarea" rows="4" ${canNotes?'':'readonly'}
+        placeholder="${canNotes?'Add progress notes here…':'No progress notes yet.'}">${notes}</textarea>
+      ${canNotes && s !== 'completed' ? `
+      <div class="ivn-action-row">
+        <button class="ivn-btn ivn-btn-blue" onclick="ivnSaveNotes()">Save Notes</button>
+        <span class="ivn-saved-note" id="ivn-notes-saved">Saved ✓</span>
+      </div>` : ''}
+    </div>` : ''}
+
+    ${actionHtml}`;
+
+  document.getElementById('ivn-detail-inner').innerHTML = html;
+}
+
+function ivnShowRejectForm() {
+  const box = document.getElementById('ivn-reject-box');
+  if (box) box.style.display = '';
+}
+
+function ivnShowCompleteForm() {
+  const box = document.getElementById('ivn-complete-box');
+  if (box) box.style.display = '';
+}
+
+async function ivnAccept() {
+  if (!ivnCurrentItem) return;
+  await ivnPatchField(ivnCurrentItem, { [IVN_F.valid]: true });
+  ivnCurrentItem.fields[IVN_F.valid] = true;
+  ivnRenderDetail();
+}
+
+async function ivnConfirmReject() {
+  if (!ivnCurrentItem) return;
+  const reason = (document.getElementById('ivn-reject-reason')?.value || 'Yes').trim() || 'Yes';
+  await ivnPatchField(ivnCurrentItem, { [IVN_F.rejected]: reason });
+  ivnCurrentItem.fields[IVN_F.rejected] = reason;
+  ivnRenderDetail();
+}
+
+async function ivnSaveAssignment() {
+  if (!ivnCurrentItem) return;
+  const email = document.getElementById('ivn-assign-select')?.value || '';
+  const deadline = document.getElementById('ivn-assign-deadline')?.value || '';
+  if (!email) { alert('Please select an action owner.'); return; }
+  const patch = { [IVN_F.assigneeEmail]: email };
+  if (deadline) patch[IVN_F.deadline] = deadline;
+  await ivnPatchField(ivnCurrentItem, patch);
+  ivnCurrentItem.fields[IVN_F.assigneeEmail] = email;
+  if (deadline) ivnCurrentItem.fields[IVN_F.deadline] = deadline;
+  ivnRenderDetail();
+}
+
+async function ivnSaveNotes() {
+  if (!ivnCurrentItem) return;
+  const notes = document.getElementById('ivn-notes-ta')?.value || '';
+  await ivnPatchField(ivnCurrentItem, { [IVN_F.notes]: notes });
+  ivnCurrentItem.fields[IVN_F.notes] = notes;
+  const saved = document.getElementById('ivn-notes-saved');
+  if (saved) { saved.classList.add('show'); setTimeout(() => saved.classList.remove('show'), 2000); }
+}
+
+async function ivnComplete() {
+  if (!ivnCurrentItem) return;
+  const notes = (document.getElementById('ivn-complete-notes')?.value || '').trim();
+  if (!notes) { alert('Please add completion notes before marking complete.'); return; }
+  await ivnPatchField(ivnCurrentItem, { [IVN_F.closed]: true, [IVN_F.completionNotes]: notes });
+  ivnCurrentItem.fields[IVN_F.closed] = true;
+  ivnCurrentItem.fields[IVN_F.completionNotes] = notes;
+  ivnRenderDetail();
+}
+
+async function ivnPatchField(item, fields) {
+  const siteId = await ivnGetSiteId();
+  const listId = await ivnGetListId();
+  const token = await getGraphToken();
+  const res = await fetch(
+    `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${item.id}`,
+    { method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields }) }
+  );
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`PATCH failed ${res.status}: ${txt}`);
+  }
+}
+
+// ─── SCORECARD ──────────────────────────────────────────────────────────────
+
+function ivnShowScorecard() {
+  ivnShowSubview('score');
+  ivnRenderScorecard();
+}
+
+function ivnRenderScorecard() {
+  const all = ivnItems;
+  const total   = all.length;
+  const accepted = all.filter(i => ivnStatus(i) !== 'pending' && ivnStatus(i) !== 'rejected').length;
+  const rejected = all.filter(i => ivnStatus(i) === 'rejected').length;
+  const completed = all.filter(i => ivnStatus(i) === 'completed').length;
+  const inProgress = all.filter(i => ['progress','overdue'].includes(ivnStatus(i))).length;
+  const overdue = all.filter(i => ivnStatus(i) === 'overdue').length;
+  const pending  = all.filter(i => ivnStatus(i) === 'pending').length;
+
+  // Per-person scorecard
+  const byPerson = {};
+  all.forEach(item => {
+    const s = ivnStatus(item);
+    if (s === 'pending' || s === 'rejected') return; // no assignee
+    const email = (item.fields[IVN_F.assigneeEmail]||'').toLowerCase();
+    if (!email) return;
+    if (!byPerson[email]) byPerson[email] = { name: ivnStaffName(email), assigned:0, progress:0, overdue:0, completed:0 };
+    byPerson[email].assigned++;
+    if (s === 'progress')   byPerson[email].progress++;
+    if (s === 'overdue')    byPerson[email].overdue++;
+    if (s === 'completed')  byPerson[email].completed++;
+  });
+
+  const personRows = Object.values(byPerson).sort((a,b) => b.assigned - a.assigned).map(p => `
+    <tr>
+      <td>${escHtml(p.name)}</td>
+      <td style="text-align:center">${p.assigned}</td>
+      <td style="text-align:center">${p.progress}</td>
+      <td style="text-align:center;color:${p.overdue?'#f87171':''}">${p.overdue || '—'}</td>
+      <td style="text-align:center;color:#4ade80">${p.completed || '—'}</td>
+    </tr>`).join('');
+
+  const html = `
+    <button class="ivn-score-back" onclick="ivnBackScorecard()">← Back to Ideas</button>
+    <div class="ivn-score-title">Innovation Scorecard</div>
+
+    <div class="ivn-score-summary">
+      <div class="ivn-score-kpi"><div class="ivn-score-kpi-val">${total}</div><div class="ivn-score-kpi-lbl">Total Ideas</div></div>
+      <div class="ivn-score-kpi"><div class="ivn-score-kpi-val">${pending}</div><div class="ivn-score-kpi-lbl">Pending Review</div></div>
+      <div class="ivn-score-kpi"><div class="ivn-score-kpi-val">${accepted}</div><div class="ivn-score-kpi-lbl">Accepted</div></div>
+      <div class="ivn-score-kpi"><div class="ivn-score-kpi-val" style="color:#f87171">${overdue}</div><div class="ivn-score-kpi-lbl">Overdue</div></div>
+      <div class="ivn-score-kpi"><div class="ivn-score-kpi-val" style="color:#4ade80">${completed}</div><div class="ivn-score-kpi-lbl">Completed</div></div>
+      <div class="ivn-score-kpi"><div class="ivn-score-kpi-val" style="color:#9ca3af">${rejected}</div><div class="ivn-score-kpi-lbl">Rejected</div></div>
+    </div>
+
+    ${Object.keys(byPerson).length ? `
+    <div class="ivn-score-section-title">By Action Owner</div>
+    <table class="ivn-score-table">
+      <thead><tr>
+        <th>Person</th><th style="text-align:center">Assigned</th>
+        <th style="text-align:center">In Progress</th><th style="text-align:center">Overdue</th>
+        <th style="text-align:center">Completed</th>
+      </tr></thead>
+      <tbody>${personRows}</tbody>
+    </table>` : '<div style="color:var(--text2);font-size:13px">No assignments yet.</div>'}`;
+
+  document.getElementById('ivn-score-inner').innerHTML = html;
+}
+
+function ivnBackScorecard() {
+  ivnShowSubview('list');
+  ivnRenderList();
 }
 
 </script>
