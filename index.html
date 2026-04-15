@@ -704,10 +704,13 @@ html.tablet-team .tablet-sync-btn { display: inline-flex; }
 .pp-col-title { font-size: 11px; font-weight: 700; color: var(--repose-navy); }
 .pp-col-head.express .pp-col-title { color: #92400e; }
 .pp-col-sub { font-size: 9px; color: var(--text3); margin-top: 1px; }
-/* Missing job highlight (past prep + team selected + not done) */
-.pp-job.pp-job-miss { border-left:3px solid #e97132; background:#fff7ed; }
-.pp-badge-miss      { outline:2px solid #e97132; border-radius:5px; padding:1px; }
-.pp-miss-count      { display:inline-block; background:#fee2e2; color:#dc2626; border-radius:8px; font-size:9px; font-weight:800; padding:1px 6px; margin-left:5px; vertical-align:middle; line-height:14px; }
+/* Missing = past prep, not started (red) */
+.pp-job.pp-job-miss   { border-left:3px solid #dc2626; background:#fef2f2; }
+.pp-badge-miss        { outline:2px solid #dc2626 !important; border-radius:5px; padding:1px; }
+/* In progress = started but not done (blue) */
+.pp-job.pp-job-inprog { border-left:3px solid #3b82f6; background:#eff6ff; }
+.pp-badge-inprog      { outline:2px solid #3b82f6 !important; border-radius:5px; padding:1px; }
+.pp-miss-count        { display:inline-block; background:#fee2e2; color:#dc2626; border-radius:8px; font-size:9px; font-weight:800; padding:1px 6px; margin-left:5px; vertical-align:middle; line-height:14px; }
 /* Compact job rows */
 .pp-job {
   display: flex; flex-direction: column; gap: 3px;
@@ -6351,27 +6354,41 @@ function renderProductionPlan() {
     }
     const teamMissCount = isPastPrep && tCfg ? (total - doneCount) : 0;
 
-    const jobRows = jobs.length
-      ? jobs.map((j, ji) => {
-          const s       = getPPJobTeamStatus(col.key, ji);
-          const started = getPPJobStartedStatus(col.key, ji);
-          const codeLabel = col.express ? escHtml(String(j.itemNo)) : `Job ${escHtml(String(j.itemNo))}`;
+    // Precompute statuses so we can sort without re-calling per comparison
+    const jobData = jobs.map((j, ji) => {
+      const s       = getPPJobTeamStatus(col.key, ji);
+      const started = getPPJobStartedStatus(col.key, ji);
+      let teamDone = true, teamInProg = false;
+      if (tCfg) {
+        const val      = s[tCfg.k];
+        const startVal = started[tCfg.k];
+        teamDone   = tCfg.hasSubs ? (Array.isArray(val) && val.length === 3) : !!val;
+        teamInProg = !teamDone && (tCfg.hasSubs ? (Array.isArray(startVal) && startVal.length > 0) : !!startVal);
+      }
+      return { j, ji, s, started, teamDone, teamInProg };
+    });
 
-          // Is this job missing for the selected team on a past prep?
-          let teamDoneForJob = true;
-          if (tCfg) {
-            const val = s[tCfg.k];
-            teamDoneForJob = tCfg.hasSubs ? (Array.isArray(val) && val.length === 3) : !!val;
-          }
-          const isPastMiss = isPastPrep && tCfg && !teamDoneForJob;
+    // When team selected: not-done floats to top (in-progress first, then missing)
+    if (tCfg) {
+      jobData.sort((a, b) => {
+        const rankA = a.teamDone ? 2 : a.teamInProg ? 0 : 1;
+        const rankB = b.teamDone ? 2 : b.teamInProg ? 0 : 1;
+        return rankA - rankB;
+      });
+    }
+
+    const jobRows = jobs.length
+      ? jobData.map(({ j, ji, s, started, teamDone, teamInProg }) => {
+          const codeLabel  = col.express ? escHtml(String(j.itemNo)) : `Job ${escHtml(String(j.itemNo))}`;
+          const isPastMiss = isPastPrep && tCfg && !teamDone && !teamInProg;
+          const rowCls     = isPastMiss ? ' pp-job-miss' : (tCfg && teamInProg ? ' pp-job-inprog' : '');
 
           let badgeHtml = '<div class="badge-strip pp-badge-strip" style="flex-wrap:wrap;gap:2px">';
           OV_DEPTS.forEach((d, di) => {
             if (di > 0) badgeHtml += `<div class="bdiv"></div>`;
             const dimCls = activeProdTeam && d.k !== activeProdTeam ? 'pp-badge-dim' : '';
-            // Use orange outline for the selected team badge when the job is a past miss
             const selCls = activeProdTeam && d.k === activeProdTeam
-              ? (isPastMiss ? 'pp-badge-miss' : 'pp-badge-sel')
+              ? (isPastMiss ? 'pp-badge-miss' : teamInProg ? 'pp-badge-inprog' : 'pp-badge-sel')
               : '';
             if (d.hasSubs) {
               const done        = Array.isArray(s[d.k]) ? s[d.k] : [];
@@ -6401,7 +6418,7 @@ function renderProductionPlan() {
             }
           });
           badgeHtml += '</div>';
-          return `<div class="pp-job${isPastMiss ? ' pp-job-miss' : ''}" onclick="ppJobClick('${col.key}',${ji},event)" style="cursor:pointer">
+          return `<div class="pp-job${rowCls}" onclick="ppJobClick('${col.key}',${ji},event)" style="cursor:pointer">
             <div class="pp-job-top">
               <span class="pp-job-code">${codeLabel}</span>
               <span class="pp-job-rep">${escHtml(j.rep)}</span>
