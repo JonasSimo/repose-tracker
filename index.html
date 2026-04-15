@@ -7582,6 +7582,21 @@ function renderStatsDashboard() {
         <div class="tt-part"><div class="tt-part-val">${seats}</div><div class="tt-part-lbl">Seats</div></div>
       </div>`;
     }
+    let jobTypeHtml = '';
+    if (t.name === 'Woodmill') {
+      const normalParts  = tc.filter(c => c.fields.Prep !== 'express').length;
+      const expressParts = tc.filter(c => c.fields.Prep === 'express').length;
+      jobTypeHtml = `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border2);display:flex;flex-direction:column;gap:4px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:10px;color:var(--repose-grey)">Normal</span>
+          <span style="font-size:13px;font-weight:700;color:var(--repose-navy)">${normalParts}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:10px;color:#92400e">Express / MF-T</span>
+          <span style="font-size:13px;font-weight:700;color:#e97132">${expressParts}</span>
+        </div>
+      </div>`;
+    }
     const isActive = statsTeamFilter === t.name;
     return `<div class="team-token${isEmpty?' tt-zero':''}${isActive?' active':''}" style="--tc:${t.color}"
         onclick="statsSetTeamFilter('${t.name}')">
@@ -7589,6 +7604,7 @@ function renderStatsDashboard() {
       <div class="tt-count">${count}</div>
       <div class="tt-sub">${t.hasSubs ? 'parts' : 'jobs'}</div>
       ${partsHtml}
+      ${jobTypeHtml}
     </div>`;
   }).join('');
 
@@ -7872,44 +7888,6 @@ function renderDetailTeamToken() {
         </div>`;
       }).join('');
 
-  // Express vs Normal breakdown (Woodmill only)
-  let jobTypeBreakdownHtml = '';
-  if (team === 'Woodmill') {
-    const expressComp = allComp.filter(c => c.fields.Prep === 'express');
-    const normalComp  = allComp.filter(c => c.fields.Prep !== 'express');
-
-    // Count complete jobs = REPs where all 3 parts (Arms, Backs, Seats) are logged
-    function countCompleteWmJobs(comps) {
-      const repSubs = {};
-      comps.forEach(c => {
-        const rep = c.fields.REP || '';
-        if (!repSubs[rep]) repSubs[rep] = new Set();
-        repSubs[rep].add(c.fields.SubTeam);
-      });
-      return Object.values(repSubs).filter(s => s.has('Arms') && s.has('Backs') && s.has('Seats')).length;
-    }
-
-    const normComplete = countCompleteWmJobs(normalComp);
-    const expComplete  = countCompleteWmJobs(expressComp);
-
-    jobTypeBreakdownHtml = `
-      <div style="margin-bottom:16px">
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--repose-grey);margin-bottom:8px">Job Type Breakdown</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-          <div style="background:#fff;border-radius:12px;border:1.5px solid var(--border);padding:14px 16px">
-            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--repose-grey);margin-bottom:6px">Normal Jobs</div>
-            <div style="font-size:32px;font-weight:800;color:var(--repose-navy);line-height:1">${normComplete}</div>
-            <div style="font-size:11px;color:var(--repose-grey);margin-top:3px">complete · ${normalComp.length} parts logged</div>
-          </div>
-          <div style="background:#fff;border-radius:12px;border:1.5px solid #fed7aa;padding:14px 16px">
-            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#92400e;margin-bottom:6px">Express / MF-T</div>
-            <div style="font-size:32px;font-weight:800;color:#e97132;line-height:1">${expComplete}</div>
-            <div style="font-size:11px;color:#92400e;margin-top:3px">complete · ${expressComp.length} parts logged</div>
-          </div>
-        </div>
-      </div>`;
-  }
-
   // Recent jobs list
   const recentJobs = [...allComp]
     .sort((a, b) => (b.fields.CompletedTime||'').localeCompare(a.fields.CompletedTime||''))
@@ -7936,7 +7914,6 @@ function renderDetailTeamToken() {
   body.innerHTML = `
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">${filterBtns}</div>
     <div style="font-size:12px;color:var(--repose-grey);margin-bottom:14px">${escHtml(periodLabels[teamTokenPeriod])} · <strong style="color:var(--text)">${total} ${hasSubs ? 'parts' : 'jobs'}</strong> logged</div>
-    ${jobTypeBreakdownHtml}
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
       ${personCardsHtml}
     </div>
