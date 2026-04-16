@@ -8622,19 +8622,16 @@ function renderDetailQC() {
   const bothCount     = newChairReps.filter(r => fullRepsS.has(r)).length;
   const fastTrack     = newChairReps.length - bothCount;
 
-  // Outstanding: Assembly completions since QC tracking began, not yet QC'd
-  // Anchor to the earliest QC record so pre-QC-system history doesn't inflate the count
-  const allQCdReps  = new Set(STATS_QC.filter(q => q.type === 'New Chair').map(q => q.rep7));
-  const qcStartDate = STATS_QC.length
-    ? new Date(Math.min(...STATS_QC.map(q => q.date instanceof Date ? q.date.getTime() : new Date(q.date).getTime())))
-    : new Date(Date.now() - 90 * 24 * 60 * 60 * 1000); // fallback: 90 days if no QC records
+  // Outstanding: Assembly completions not yet in the QC Excel sheet
+  // qcCompletedReps is the authoritative Set of 7-digit REPs already QC'd (from autoSyncQCCompletions)
+  // REP field in SP is stored as e.g. "REP2610016" so strip non-digits to match
   const allAssemblyReps = new Set(
     STATS_COMPLETIONS
       .filter(c => c.fields.Team === 'Assembly')
-      .filter(c => { const d = parseDdmmyyyy(c.fields.CompletedDate); return d && d >= qcStartDate; })
-      .map(c => c.fields.REP)
+      .map(c => String(c.fields.REP ?? '').replace(/\D/g, '').slice(-7))
+      .filter(r => r.length === 7)
   );
-  const outstandingReps = [...allAssemblyReps].filter(r => !allQCdReps.has(r));
+  const outstandingReps = [...allAssemblyReps].filter(r => !qcCompletedReps.has(r));
   const outstanding     = outstandingReps.length;
 
   // Inspector breakdown across all types
@@ -8672,7 +8669,7 @@ function renderDetailQC() {
         <div class="row-team" style="font-weight:700;color:#dc2626">Outstanding (Assembly done, not QC'd)</div>
         <div class="row-count" style="color:#dc2626;font-size:18px">${outstanding}</div>
       </div>
-      <div class="comp-row no-exp"><div class="row-team" style="font-weight:400;font-size:13px;color:var(--repose-grey)">Total Assembly completions (all time)</div><div class="row-count" style="color:#64748b">${allAssemblyReps.size}</div></div>
+      <div class="comp-row no-exp"><div class="row-team" style="font-weight:400;font-size:13px;color:var(--repose-grey)">Assembly completions tracked</div><div class="row-count" style="color:#64748b">${allAssemblyReps.size}</div></div>
     </div>
     <div class="detail-card">
       <div style="font-size:13px;font-weight:600;color:#374151;margin-bottom:6px">By QC Inspector</div>
