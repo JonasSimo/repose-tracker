@@ -8112,7 +8112,7 @@ function renderStatsDashboard() {
   const cparClosed = cpars.filter(c => (c.fields?.Status||'') === 'Closed');
   const cparAmber  = cparOpen.filter(c => { const dt = parseCPARDate(c.fields?.LoggedAt); if (!dt.getTime()) return false; const hrs = (Date.now() - dt.getTime()) / 3600000; return hrs >= 48 && hrs < 96; });
   const cparRed    = cparOpen.filter(c => { const dt = parseCPARDate(c.fields?.LoggedAt); if (!dt.getTime()) return false; return (Date.now() - dt.getTime()) / 3600000 >= 96; });
-  document.getElementById('stats-dash-issues').innerHTML = statsAllowedTeams ? '' : `
+  document.getElementById('stats-dash-issues').innerHTML = `
     <div class="stat-card" style="cursor:pointer;border-top:3px solid #7c3aed" onclick="renderStatsDetail('cpar')">
       <div class="card-label">Issues (CPARs)</div>
       <div class="card-row">
@@ -8147,13 +8147,10 @@ function renderStatsDashboard() {
 // ── Detail view router ──────────────────────────
 
 function renderStatsDetail(view) {
-  if (statsAllowedTeams) {
-    const qcOnly = statsAllowedTeams.length === 1 && statsAllowedTeams.includes('QC');
-    if (qcOnly && view !== 'qc') return;
-    if (!qcOnly && view !== 'team') return;
-    if (view === 'team' && !statsAllowedTeams.includes(statsTeamFilter)) {
-      statsTeamFilter = statsAllowedTeams[0];
-    }
+  // Restricted area managers: can see all dashboard cards, but when drilling into
+  // team token detail, snap to their own team and block switching to others.
+  if (statsAllowedTeams && view === 'team' && !statsAllowedTeams.includes(statsTeamFilter)) {
+    statsTeamFilter = statsAllowedTeams[0];
   }
   statsDestroyCharts();
   document.getElementById('stats-dashboard').style.display = 'none';
