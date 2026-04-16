@@ -8050,12 +8050,12 @@ function renderStatsDashboard() {
       <div class="card-label">QC Verified</div>
       <div class="card-row">
         <div>
-          <div class="card-number">${qcNewChairReps.length}</div>
-          <div class="card-sub">new chairs QC'd${(qcServiceCount+qcAccCount) ? ` · ${qcServiceCount+qcAccCount} service/acc` : ''}</div>
+          <div class="card-number">${qcNewChairReps.length + qcServiceCount}</div>
+          <div class="card-sub">total chairs QC'd${qcAccCount ? ` · ${qcAccCount} acc` : ''}</div>
         </div>
       </div>
       <div class="prog-bar"><div class="prog-fill" style="width:${qcPct}%;background:#0e7490"></div></div>
-      <div style="font-size:11px;color:var(--repose-grey);margin-top:4px">${qcNewChairReps.length} of ${fullReps.length} complete jobs QC verified</div>
+      <div style="font-size:11px;color:var(--repose-grey);margin-top:4px">${qcNewChairReps.length} new · ${qcServiceCount} service · ${fullReps.length} complete jobs this period</div>
       <div class="card-arrow">›</div>
     </div>`;
   const _otherCardsHtml = `
@@ -8564,9 +8564,16 @@ function renderDetailQC() {
   const serviceChairs = qc.filter(q => q.type === 'Service Chair');
   const accessories   = qc.filter(q => q.type === 'Accessories');
 
-  const newChairReps = [...new Set(newChairs.map(q => q.rep7))];
-  const bothCount    = newChairReps.filter(r => fullRepsS.has(r)).length;
-  const fastTrack    = newChairReps.length - bothCount;
+  const newChairReps  = [...new Set(newChairs.map(q => q.rep7))];
+  const totalQC       = newChairReps.length + serviceChairs.length;
+  const bothCount     = newChairReps.filter(r => fullRepsS.has(r)).length;
+  const fastTrack     = newChairReps.length - bothCount;
+
+  // Outstanding: chairs that have been completed in Assembly this period but not yet QC'd
+  const assemblyReps  = new Set(comp.filter(c => c.fields.Team === 'Assembly').map(c => c.fields.REP));
+  const qcRepSet      = new Set(newChairReps);
+  const outstandingReps = [...assemblyReps].filter(r => !qcRepSet.has(r));
+  const outstanding   = outstandingReps.length;
 
   // Inspector breakdown across all types
   const byInspector = {};
@@ -8590,16 +8597,20 @@ function renderDetailQC() {
         <div class="chart-wrap" style="height:160px"><canvas id="ch-qc-daily"></canvas></div>
       </div>
       <div class="chart-panel" style="display:flex;flex-direction:column;align-items:center;justify-content:center">
-        <div class="chart-panel-title" style="text-align:center">New Chairs — verified vs outstanding</div>
+        <div class="chart-panel-title" style="text-align:center">Assembly done — QC'd vs outstanding</div>
         <div class="chart-wrap" style="height:140px;width:140px"><canvas id="ch-qc-donut"></canvas></div>
       </div>
     </div>
     <div class="detail-card">
-      <div class="comp-row no-exp"><div class="row-team" style="font-weight:600">New Chairs QC'd</div><div class="row-count" style="color:#0e7490;font-size:20px">${newChairReps.length}</div></div>
-      <div class="comp-row no-exp"><div class="row-team" style="font-weight:400;font-size:13px;color:var(--repose-grey)">Service Chairs</div><div class="row-count" style="color:#64748b">${serviceChairs.length}</div></div>
-      <div class="comp-row no-exp"><div class="row-team" style="font-weight:400;font-size:13px;color:var(--repose-grey)">Accessories</div><div class="row-count" style="color:#64748b">${accessories.length}</div></div>
-      <div class="comp-row no-exp" style="border-top:1px solid #e5e7eb;margin-top:4px;padding-top:4px"><div class="row-team" style="font-weight:400;font-size:13px;color:var(--repose-grey)">New Chairs — fully complete + QC'd</div><div class="row-count" style="color:#0e7490">${bothCount}</div></div>
-      <div class="comp-row no-exp"><div class="row-team" style="font-weight:400;font-size:13px;color:var(--repose-grey)">New Chairs QC'd — not yet fully complete</div><div class="row-count" style="color:#d97706">${fastTrack}</div></div>
+      <div class="comp-row no-exp"><div class="row-team" style="font-weight:700">Total Chairs QC'd</div><div class="row-count" style="color:#0e7490;font-size:20px">${totalQC}</div></div>
+      <div class="comp-row no-exp"><div class="row-team" style="font-weight:400;font-size:13px;color:var(--repose-grey)">— New Chairs</div><div class="row-count" style="color:#0e7490">${newChairReps.length}</div></div>
+      <div class="comp-row no-exp"><div class="row-team" style="font-weight:400;font-size:13px;color:var(--repose-grey)">— Service Chairs</div><div class="row-count" style="color:#0e7490">${serviceChairs.length}</div></div>
+      ${accessories.length ? `<div class="comp-row no-exp"><div class="row-team" style="font-weight:400;font-size:13px;color:var(--repose-grey)">— Accessories</div><div class="row-count" style="color:#64748b">${accessories.length}</div></div>` : ''}
+      <div class="comp-row no-exp" style="border-top:1px solid #e5e7eb;margin-top:4px;padding-top:4px">
+        <div class="row-team" style="font-weight:700;color:#dc2626">Outstanding (Assembly done, not QC'd)</div>
+        <div class="row-count" style="color:#dc2626;font-size:18px">${outstanding}</div>
+      </div>
+      <div class="comp-row no-exp"><div class="row-team" style="font-weight:400;font-size:13px;color:var(--repose-grey)">Assembly completions this period</div><div class="row-count" style="color:#64748b">${assemblyReps.size}</div></div>
     </div>
     <div class="detail-card">
       <div style="font-size:13px;font-weight:600;color:#374151;margin-bottom:6px">By QC Inspector</div>
@@ -8610,10 +8621,9 @@ function renderDetailQC() {
     statsBarChart('ch-qc-daily', labels, spark.qc, '#0e7490');
     const donutCanvas = document.getElementById('ch-qc-donut');
     if (donutCanvas && typeof Chart !== 'undefined') {
-      const notQC = Math.max(0, fullRepsS.size - newChairReps.length);
       statsCharts['ch-qc-donut'] = new Chart(donutCanvas.getContext('2d'), {
         type: 'doughnut',
-        data: { labels: ['New Chairs QC\'d','Not yet QC'], datasets: [{ data: [newChairReps.length, notQC], backgroundColor: ['#0e7490','#e5e7eb'], borderWidth: 0 }] },
+        data: { labels: ['QC\'d','Outstanding (not QC\'d)'], datasets: [{ data: [totalQC, outstanding], backgroundColor: ['#0e7490','#f87171'], borderWidth: 0 }] },
         options: { responsive: true, maintainAspectRatio: false, cutout: '65%', plugins: { legend: { display: false } } },
       });
     }
