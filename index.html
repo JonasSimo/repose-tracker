@@ -8569,11 +8569,11 @@ function renderDetailQC() {
   const bothCount     = newChairReps.filter(r => fullRepsS.has(r)).length;
   const fastTrack     = newChairReps.length - bothCount;
 
-  // Outstanding: chairs that have been completed in Assembly this period but not yet QC'd
-  const assemblyReps  = new Set(comp.filter(c => c.fields.Team === 'Assembly').map(c => c.fields.REP));
-  const qcRepSet      = new Set(newChairReps);
-  const outstandingReps = [...assemblyReps].filter(r => !qcRepSet.has(r));
-  const outstanding   = outstandingReps.length;
+  // Outstanding: OVERALL backlog — all Assembly completions ever, not yet QC'd (any period)
+  const allAssemblyReps = new Set(STATS_COMPLETIONS.filter(c => c.fields.Team === 'Assembly').map(c => c.fields.REP));
+  const allQCdReps      = new Set(STATS_QC.filter(q => q.type === 'New Chair').map(q => q.rep7));
+  const outstandingReps = [...allAssemblyReps].filter(r => !allQCdReps.has(r));
+  const outstanding     = outstandingReps.length;
 
   // Inspector breakdown across all types
   const byInspector = {};
@@ -8610,7 +8610,7 @@ function renderDetailQC() {
         <div class="row-team" style="font-weight:700;color:#dc2626">Outstanding (Assembly done, not QC'd)</div>
         <div class="row-count" style="color:#dc2626;font-size:18px">${outstanding}</div>
       </div>
-      <div class="comp-row no-exp"><div class="row-team" style="font-weight:400;font-size:13px;color:var(--repose-grey)">Assembly completions this period</div><div class="row-count" style="color:#64748b">${assemblyReps.size}</div></div>
+      <div class="comp-row no-exp"><div class="row-team" style="font-weight:400;font-size:13px;color:var(--repose-grey)">Total Assembly completions (all time)</div><div class="row-count" style="color:#64748b">${allAssemblyReps.size}</div></div>
     </div>
     <div class="detail-card">
       <div style="font-size:13px;font-weight:600;color:#374151;margin-bottom:6px">By QC Inspector</div>
