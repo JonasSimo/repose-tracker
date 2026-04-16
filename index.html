@@ -7535,7 +7535,7 @@ function buildSparkData(comp, alerts, scrap, cpars) {
 
   function dayKey(dd) { return `${dd.getFullYear()}-${dd.getMonth()}-${dd.getDate()}`; }
 
-  if (statsPeriod === 'week' || statsPeriod === 'day') {
+  if (statsPeriod === 'week' || statsPeriod === 'day' || statsPeriod === 'today' || statsPeriod === 'yesterday') {
     const day = ref.getDay() || 7;
     const mon = new Date(ref); mon.setDate(mon.getDate() - (day - 1));
     labels = ['Mon','Tue','Wed','Thu','Fri'];
@@ -8456,7 +8456,7 @@ function renderDetailCompletions() {
   const body      = document.getElementById('stats-detail-body');
   const teamOrder = ['Woodmill','Foam','Cutting','Sewing','Upholstery','Assembly'];
   const spark     = buildSparkData(comp, [], [], []);
-  const labels    = statsPeriod === 'week' ? ['Mon','Tue','Wed','Thu','Fri'] :
+  const labels    = (statsPeriod === 'week' || statsPeriod === 'today' || statsPeriod === 'yesterday' || statsPeriod === 'day') ? ['Mon','Tue','Wed','Thu','Fri'] :
                     statsPeriod === 'month' ? ['Wk1','Wk2','Wk3','Wk4'] : MONTHS_SHORT;
 
   // ── Woodmill / Upholstery parts breakdown (shown when team filter active) ──
@@ -8649,7 +8649,7 @@ function renderDetailQC() {
 
   const body   = document.getElementById('stats-detail-body');
   const spark  = buildSparkData(comp, [], [], []);
-  const labels = (statsPeriod === 'week' || statsPeriod === 'day') ? ['Mon','Tue','Wed','Thu','Fri'] :
+  const labels = (statsPeriod === 'week' || statsPeriod === 'day' || statsPeriod === 'today' || statsPeriod === 'yesterday') ? ['Mon','Tue','Wed','Thu','Fri'] :
                  statsPeriod === 'month' ? ['Wk1','Wk2','Wk3','Wk4'] : MONTHS_SHORT;
 
   body.innerHTML = `
