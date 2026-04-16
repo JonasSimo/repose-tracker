@@ -8622,9 +8622,18 @@ function renderDetailQC() {
   const bothCount     = newChairReps.filter(r => fullRepsS.has(r)).length;
   const fastTrack     = newChairReps.length - bothCount;
 
-  // Outstanding: OVERALL backlog — all Assembly completions ever, not yet QC'd (any period)
-  const allAssemblyReps = new Set(STATS_COMPLETIONS.filter(c => c.fields.Team === 'Assembly').map(c => c.fields.REP));
-  const allQCdReps      = new Set(STATS_QC.filter(q => q.type === 'New Chair').map(q => q.rep7));
+  // Outstanding: Assembly completions since QC tracking began, not yet QC'd
+  // Anchor to the earliest QC record so pre-QC-system history doesn't inflate the count
+  const allQCdReps  = new Set(STATS_QC.filter(q => q.type === 'New Chair').map(q => q.rep7));
+  const qcStartDate = STATS_QC.length
+    ? new Date(Math.min(...STATS_QC.map(q => q.date instanceof Date ? q.date.getTime() : new Date(q.date).getTime())))
+    : new Date(Date.now() - 90 * 24 * 60 * 60 * 1000); // fallback: 90 days if no QC records
+  const allAssemblyReps = new Set(
+    STATS_COMPLETIONS
+      .filter(c => c.fields.Team === 'Assembly')
+      .filter(c => { const d = parseDdmmyyyy(c.fields.CompletedDate); return d && d >= qcStartDate; })
+      .map(c => c.fields.REP)
+  );
   const outstandingReps = [...allAssemblyReps].filter(r => !allQCdReps.has(r));
   const outstanding     = outstandingReps.length;
 
