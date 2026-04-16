@@ -2729,6 +2729,18 @@ document.addEventListener('DOMContentLoaded', () => {
   </div>
 </div>
 
+<!-- Woodmill Arms/Backs completion confirm modal -->
+<div id="modal-wm-confirm" class="modal-overlay" style="display:none" onclick="if(event.target===this)wmConfirmCancel()">
+  <div class="modal-box">
+    <div class="modal-title">Confirm completion</div>
+    <div class="modal-sub" id="modal-wm-confirm-body" style="margin-top:8px;margin-bottom:4px;line-height:1.5"></div>
+    <div class="modal-actions" style="margin-top:16px">
+      <button class="modal-cancel" onclick="wmConfirmCancel()">Cancel</button>
+      <button class="modal-confirm" onclick="wmConfirmProceed()">Yes, complete</button>
+    </div>
+  </div>
+</div>
+
 <div id="modal-initials" class="modal-overlay" style="display:none" onclick="if(event.target===this)modalCancel()">
   <div class="modal-box">
     <div class="modal-title" id="modal-title">Mark as Complete</div>
@@ -3868,6 +3880,38 @@ function renderJobs() {
   renderUndo();
 }
 
+// ─── Woodmill Arms/Backs confirm ───
+let _wmPending = null;
+function wmConfirmCancel() {
+  _wmPending = null;
+  document.getElementById('modal-wm-confirm').style.display = 'none';
+}
+function wmConfirmProceed() {
+  document.getElementById('modal-wm-confirm').style.display = 'none';
+  if (!_wmPending) return;
+  const { snapTeam, snapSub, snapWC, snapPrep, ji, s, job } = _wmPending;
+  _wmPending = null;
+  const sk = snapSub;
+  s.done     = true;
+  s.doneAt   = new Date().toTimeString().slice(0,5);
+  s.doneDate = new Date().toLocaleDateString('en-GB');
+  s.initials = '';
+  recentDone.unshift({ team:snapTeam, sub:sk, wc:snapWC, prep:snapPrep, ji, label:job.rep });
+  if (recentDone.length > 20) recentDone.pop();
+  toast(`${job.rep} · marked complete`, 's');
+  saveCompletionToList(snapTeam, sk, snapWC, snapPrep, ji).catch(err => {
+    console.warn('saveCompletionToList:', err);
+    s.done = false; s.doneAt = ''; s.doneDate = ''; s.initials = '';
+    const rdIdx = recentDone.findIndex(r => r.team===snapTeam && r.sub===sk && r.wc===snapWC && r.prep===snapPrep && r.ji===ji);
+    if (rdIdx >= 0) recentDone.splice(rdIdx, 1);
+    applyStateToOvBadges(); renderJobs(); renderTeamSidebar();
+    toast('Save failed — marked incomplete. Try again.', 'u');
+  });
+  applyStateToOvBadges();
+  renderJobs();
+  renderTeamSidebar();
+}
+
 // ─── Pending tick (waiting for initials) ───
 let pendingTick  = null; // { ji, team, sub, wc, prep }
 let pendingStart = null; // { ji, team, sub, wc, prep }
@@ -3893,6 +3937,15 @@ function tickJob(ji) {
     return;
   }
   const job = PROD[snapWC][snapPrep][ji];
+
+  // Woodmill Arms/Backs — show confirm popup before completing
+  if (snapTeam === 'Woodmill' && (snapSub === 'Arms' || snapSub === 'Backs')) {
+    _wmPending = { snapTeam, snapSub, snapWC, snapPrep, ji, s, job };
+    document.getElementById('modal-wm-confirm-body').innerHTML =
+      `Are you sure you want to mark <strong>${escHtml(job.rep)}</strong> as complete for <strong>Woodmill ${escHtml(snapSub)}</strong>?`;
+    document.getElementById('modal-wm-confirm').style.display = 'flex';
+    return;
+  }
 
   // Woodmill — complete directly without initials
   if (snapTeam === 'Woodmill' || snapTeam === 'Foam') {
