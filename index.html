@@ -1199,6 +1199,8 @@ html.tablet-team .tablet-sync-btn { display: inline-flex; }
 .tt-part-lbl { font-size: 10px; color: var(--repose-grey); margin-top: 1px; }
 .tt-zero { opacity: .45; }
 .tt-zero .tt-count { color: var(--repose-grey); }
+.tt-locked { opacity: .6; cursor: default; }
+.tt-locked:hover { transform: none; box-shadow: none; border-color: var(--border); }
 .cpar-stat-pills { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
 .cpar-stat-pill  { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 10px; }
 .cpar-stat-pill.open   { background: var(--bbg); color: var(--blue); }
@@ -7970,7 +7972,7 @@ function renderStatsDashboard() {
     { name:'Woodmill',   color:'#14a1e9', hasSubs:true  },
     { name:'Upholstery', color:'#059669', hasSubs:true  },
     { name:'Assembly',   color:'#0e023a', hasSubs:false },
-  ].filter(t => !statsAllowedTeams || statsAllowedTeams.includes(t.name));
+  ]; // all teams always visible — restriction is only on clicking the token to drill in
 
   // Team token counts use the same global period as everything else
   const _today = new Date(); _today.setHours(0,0,0,0);
@@ -8023,10 +8025,11 @@ function renderStatsDashboard() {
         <div class="tt-part"><div class="tt-part-val">${seats}</div><div class="tt-part-lbl">Seats</div></div>
       </div>`;
     }
-    const isActive = statsTeamFilter === t.name;
-    return `<div class="team-token${isEmpty?' tt-zero':''}${isActive?' active':''}" style="--tc:${t.color}"
+    const isActive   = statsTeamFilter === t.name;
+    const isLocked   = statsAllowedTeams && !statsAllowedTeams.includes(t.name);
+    return `<div class="team-token${isEmpty?' tt-zero':''}${isActive?' active':''}${isLocked?' tt-locked':''}" style="--tc:${t.color}"
         onclick="statsSetTeamFilter('${t.name}')">
-      <div class="tt-name">${t.name}</div>
+      <div class="tt-name">${t.name}${isLocked?' 🔒':''}</div>
       <div class="tt-count">${count}</div>
       <div class="tt-sub">${t.hasSubs ? 'parts' : 'jobs'}</div>
       ${partsHtml}
@@ -8053,7 +8056,7 @@ function renderStatsDashboard() {
   const qcPct2 = newChairTotal ? Math.round(qcDoneCount / newChairTotal * 100) : 0;
   const qcBarColor = qcPct2 === 100 ? '#059669' : qcPct2 >= 60 ? '#d97706' : '#dc2626';
 
-  const completeSummaryHtml = statsAllowedTeams ? '' : _qcTotal === 0
+  const completeSummaryHtml = _qcTotal === 0
     ? `<div style="margin-top:12px;background:#fff;border-radius:12px;border:1.5px solid var(--border);padding:12px 16px;font-size:12px;color:var(--repose-grey)">No loads scheduled for ${_qcPeriodLabel} in Load Plan — sync the load plan to update.</div>`
     : `<div style="margin-top:12px;background:#fff;border-radius:12px;border:1.5px solid var(--border);padding:12px 16px;display:flex;align-items:center;gap:16px">
       <div style="flex:1">
@@ -8155,10 +8158,7 @@ function renderStatsDashboard() {
       </div>
       <div class="card-arrow">›</div>
     </div>`;
-  const _showQC    = !statsAllowedTeams || statsAllowedTeams.includes('QC');
-  const _showOther = !statsAllowedTeams;
-  document.getElementById('stats-dash-bottom').innerHTML =
-    (_showQC ? _qcCardHtml : '') + (_showOther ? _otherCardsHtml : '');
+  document.getElementById('stats-dash-bottom').innerHTML = _qcCardHtml + _otherCardsHtml;
 
   // CPAR issues card
   const cparOpen   = cpars.filter(c => (c.fields?.Status||'') !== 'Closed');
