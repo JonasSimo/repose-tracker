@@ -7406,8 +7406,8 @@ async function loadStatsData() {
         if (!m) return;
         const d = tsCell ? new Date(tsCell) : null;
         const date = d && !isNaN(d) ? d : null;
-        // Deduplicate: same REP + same calendar date = one entry
-        const dateKey = date ? date.toISOString().slice(0, 10) : 'nodate';
+        // Deduplicate: same REP + same minute = one entry (catches accidental double-scans; different times on same day count separately)
+        const dateKey = date ? date.toISOString().slice(0, 16) : 'nodate';
         const uniqKey = `${m[1]}__${dateKey}`;
         if (seen.has(uniqKey)) return;
         seen.add(uniqKey);
