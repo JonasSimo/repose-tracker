@@ -10926,9 +10926,10 @@ function buildDailyReportHtml() {
   const backlogByTeam = {};
   PROD_TEAMS.forEach(t => { backlogByTeam[t.name] = 0; });
   const recentWeeks = WEEKS.slice(-2);
+  const isRegularPrep = prep => /^\d+$/.test(prep); // exclude express, mf-t etc
   recentWeeks.forEach(wk => {
     Object.entries(PROD[wk] || {}).forEach(([prep, jobs]) => {
-      if (!Array.isArray(jobs)) return;
+      if (!Array.isArray(jobs) || !isRegularPrep(prep)) return;
       jobs.forEach((job, ji) => {
         PROD_TEAMS.forEach(t => {
           const subs = t.hasSubs ? SUBS : ['all'];
@@ -10940,12 +10941,13 @@ function buildDailyReportHtml() {
   });
   const totalBacklog = Object.values(backlogByTeam).reduce((a,b)=>a+b,0);
 
-  // Current week plan job count per team (for target estimate)
+  // Current week plan job count per team (regular preps only, for target estimate)
   const currentWk = WEEKS[WEEKS.length - 1] || '';
   const totalPlanByTeam = {};
   PROD_TEAMS.forEach(t => { totalPlanByTeam[t.name] = 0; });
   Object.entries(PROD[currentWk] || {}).forEach(([prep, jobs]) => {
-    if (Array.isArray(jobs)) PROD_TEAMS.forEach(t => { totalPlanByTeam[t.name] += jobs.length; });
+    if (Array.isArray(jobs) && isRegularPrep(prep))
+      PROD_TEAMS.forEach(t => { totalPlanByTeam[t.name] += jobs.length; });
   });
 
   // Production table rows
@@ -11085,10 +11087,10 @@ function buildDailyReportHtml() {
     const backlog  = backlogByTeam[t.name]||0;
     const next     = flowNext[t.name]||'Dispatch';
     const nextColor= next==='Dispatch'?'#16a34a':next==='QC'?'#0e7490':'#7c3aed';
-    // Remaining incomplete jobs in current week
+    // Remaining incomplete jobs in current week (regular preps only)
     let planned = 0;
     Object.entries(PROD[currentWk]||{}).forEach(([prep, jobs]) => {
-      if (!Array.isArray(jobs)) return;
+      if (!Array.isArray(jobs) || !isRegularPrep(prep)) return;
       jobs.forEach((job, ji) => {
         const subs = t.hasSubs ? SUBS : ['all'];
         if (!subs.every(sub => STATE[t.name]?.[sub]?.[currentWk]?.[prep]?.[ji]?.done)) planned++;
