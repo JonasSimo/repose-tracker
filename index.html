@@ -11299,10 +11299,8 @@ async function sendDailyReport(btn) {
       ? `[TEST] RepNet Daily Report — Thu 17 Apr 2026`
       : `RepNet Daily Production Report — ${dateLabel}`;
 
-    // Fetch the HTML (mock in test mode, generated otherwise), attach as a file
-    const htmlContent = DAILY_REPORT_TEST_MODE
-      ? await fetch('./daily-report-mock.html').then(r => r.text())
-      : buildDailyReportHtml();
+    // Build the report HTML from live RepNet data
+    const htmlContent = buildDailyReportHtml();
 
     // Encode to base64 (UTF-8 safe)
     const utf8Bytes = new TextEncoder().encode(htmlContent);
