@@ -10961,21 +10961,26 @@ function buildDailyReportHtml() {
   });
   const totalBacklog = Object.values(backlogByTeam).reduce((a,b)=>a+b,0);
 
-  // Current week plan job count per team (regular preps only, for target estimate)
-  const currentWk = WEEKS[WEEKS.length - 1] || '';
-  const totalPlanByTeam = {};
-  PROD_TEAMS.forEach(t => { totalPlanByTeam[t.name] = 0; });
+  // Find the week in WEEKS that matches today's ISO week number
+  const todayWkNum  = isoWeekNumber(today);
+  const todayWkCode = `WK ${todayWkNum}`;
+  const currentWk   = WEEKS.includes(todayWkCode) ? todayWkCode : (WEEKS.slice(-2)[0] || WEEKS[WEEKS.length-1] || '');
+
+  // Per-prep job counts for current week (regular preps only)
+  const prepCounts = {};
   Object.entries(PROD[currentWk] || {}).forEach(([prep, jobs]) => {
-    if (Array.isArray(jobs) && isRegularPrep(prep))
-      PROD_TEAMS.forEach(t => { totalPlanByTeam[t.name] += jobs.length; });
+    if (Array.isArray(jobs) && isRegularPrep(prep)) prepCounts[prep] = jobs.length;
   });
+  const numPreps = Object.keys(prepCounts).length || 5;
+  const totalJobsThisWeek = Object.values(prepCounts).reduce((a,b)=>a+b, 0);
+  // Daily target = average jobs per prep day in current week (same for all teams — one job = one chair)
+  const dayTarget = numPreps > 0 ? Math.round(totalJobsThisWeek / numPreps) : 0;
 
   // Production table rows
   const prodRows = PROD_TEAMS.map(t => {
     const done    = doneByTeam[t.name] || 0;
     const wtd     = wtdByTeam[t.name] || 0;
     const backlog = backlogByTeam[t.name] || 0;
-    const dayTarget = Math.round((totalPlanByTeam[t.name] || 0) / 5);
     const pct = dayTarget > 0 ? Math.min(100, Math.round(done / dayTarget * 100)) : (done > 0 ? 100 : 0);
     const barColor = pct >= 90 ? '#16a34a' : pct >= 70 ? '#f59e0b' : '#ef4444';
     const pillCls  = backlog === 0 ? 'pill-grey' : backlog <= 3 ? 'pill-amber' : 'pill-red';
@@ -11049,11 +11054,14 @@ function buildDailyReportHtml() {
   const cparRaisedThisMonth = cparAll.filter(i => cparDateInPeriod(i, d => d.getMonth()===today.getMonth()&&d.getFullYear()===today.getFullYear())).length;
 
   const cparByTeam = {};
-  PROD_TEAMS.forEach(t => { cparByTeam[t.name] = { open:0, overdue:0, raisedThisWeek:0, closedThisWeek:0 }; });
+  PROD_TEAMS.forEach(t => { cparByTeam[t.name] = { raisedYest:0, open:0, overdue:0, raisedThisWeek:0, closedThisWeek:0 }; });
   cparAll.forEach(item => {
     const t = normaliseTeam(item.fields?.SourceDept||item.fields?.RaisedByTeam||'');
     if (!cparByTeam[t]) return;
     const s = getCPARStatus(item);
+    const la = item.fields?.LoggedAt||item.createdDateTime||'';
+    const isYest = la.includes('/') ? la.startsWith(yestDDMMYYYY) : (la && wmDateStr(new Date(la))===yestISO);
+    if (isYest) cparByTeam[t].raisedYest++;
     if (s === 'closed') {
       cparByTeam[t].closedThisWeek += cparDateInPeriod(item, d => sameWeek(d, today)) ? 1 : 0;
     } else {
@@ -11063,10 +11071,13 @@ function buildDailyReportHtml() {
     if (cparDateInPeriod(item, d => sameWeek(d, today))) cparByTeam[t].raisedThisWeek++;
   });
 
+  const cparRaisedYestTotal = Object.values(cparByTeam).reduce((a,c)=>a+c.raisedYest, 0);
+
   const cparTeamRows = PROD_TEAMS.map(t => {
-    const c = cparByTeam[t.name]||{open:0,overdue:0,raisedThisWeek:0,closedThisWeek:0};
+    const c = cparByTeam[t.name]||{raisedYest:0,open:0,overdue:0,raisedThisWeek:0,closedThisWeek:0};
     return `<tr>
       <td><span style="margin-right:5px">${t.icon}</span><span class="team-name">${escHtml(t.name)}</span></td>
+      <td>${c.raisedYest||'—'}</td>
       <td><span class="pill ${c.open>0?'pill-amber':'pill-grey'}">${c.open}</span></td>
       <td><span class="pill ${c.overdue>0?'pill-red':'pill-grey'}">${c.overdue}</span></td>
       <td>${c.raisedThisWeek}</td>
@@ -11280,13 +11291,13 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f4f8;padding:32px 16p
     <div class="section">
       <div class="section-title">CPARs — Issues by Team</div>
       <table class="prod-table" style="margin-bottom:14px">
-        <thead><tr><th>Team</th><th>Open</th><th>Overdue</th><th>Raised This Week</th><th>Closed This Week</th></tr></thead>
+        <thead><tr><th>Team</th><th>Raised Yesterday</th><th>Open</th><th>Overdue</th><th>Raised This Week</th><th>Closed This Week</th></tr></thead>
         <tbody>${cparTeamRows}</tbody>
       </table>
       <div class="qc-strip" style="grid-template-columns:repeat(5,1fr)">
         <div class="qc-cell"><div class="qc-num" style="color:#0e023a">${cparOpen}</div><div class="qc-lbl">Open</div></div>
         <div class="qc-cell" style="${cparOverdue?'border-color:#fca5a5;background:#fef2f2':''}"><div class="qc-num ${cparOverdue?'red':'grey'}">${cparOverdue}</div><div class="qc-lbl">Overdue</div></div>
-        <div class="qc-cell"><div class="qc-num grey">${cparRaisedToday}</div><div class="qc-lbl">Raised Today</div></div>
+        <div class="qc-cell" style="${cparRaisedYestTotal>0?'border-color:#fcd34d;background:#fffbeb':''}"><div class="qc-num grey">${cparRaisedYestTotal}</div><div class="qc-lbl">Raised Yesterday</div></div>
         <div class="qc-cell"><div class="qc-num grey">${cparRaisedThisWeek}</div><div class="qc-lbl">Raised This Week</div></div>
         <div class="qc-cell"><div class="qc-num grey">${cparRaisedThisMonth}</div><div class="qc-lbl">Raised This Month</div></div>
       </div>
