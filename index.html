@@ -11355,6 +11355,8 @@ async function loadAllReportData() {
   toast('Loading data for report…', 'i');
 
   // Step 1: Production plan FIRST — loadCompletionsFromList maps completions to PROD entries
+  // Reset mutex in case a previous sync was interrupted or the auto-sync is holding it
+  _prodSyncing = false;
   await loadProductionFromSharePoint().catch(e => console.warn('[report] prod plan:', e.message));
 
   // Step 2: Everything else in parallel (completions need PROD populated from step 1)
