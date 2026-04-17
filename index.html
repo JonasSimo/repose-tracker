@@ -11275,7 +11275,7 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f4f8;padding:32px 16p
     <div class="section">
       <div class="section-title">Production — Yesterday (${yestLabel})</div>
       <table class="prod-table">
-        <thead><tr><th>Team</th><th>Done</th><th>Est. Target</th><th>Progress</th><th>Backlog</th><th>WTD</th><th>Status</th></tr></thead>
+        <thead><tr><th>Team</th><th>Done</th><th>Target</th><th>Progress</th><th>Backlog</th><th>WTD</th><th>Status</th></tr></thead>
         <tbody>${prodRows}</tbody>
       </table>
       <div class="stat-note">Backlog = incomplete jobs from last week + this week (excl. today) &nbsp;·&nbsp; WTD = this ISO week &nbsp;·&nbsp; Est. Target = job count for that prep day</div>
@@ -11357,6 +11357,9 @@ async function loadAllReportData() {
 
     // Stats: completions, QC, spec alerts
     loadStatsData(),
+
+    // Production completions — populates STATE so backlog calculation is accurate
+    loadCompletionsFromList(),
 
     // CPARs
     (async () => {
