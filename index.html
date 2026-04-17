@@ -2715,6 +2715,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <button class="issues-chip green" data-f="closed" onclick="setIssueFilter('closed')">Closed</button>
         <button class="issues-chip" data-f="all" onclick="setIssueFilter('all')">All</button>
         <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
+          <button id="daily-report-btn" style="display:none;padding:5px 12px;border-radius:7px;border:none;background:#16a34a;color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit" onclick="sendDailyReport(this)" title="Send daily production report email">📧 Send Test Report</button>
           <button id="cpar-email-btn" style="display:none;padding:5px 12px;border-radius:7px;border:none;background:#0e023a;color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit" onclick="sendOpenCPARDigest()" title="Send open CPAR digest email">📧 Email Open CPARs</button>
           <button onclick="fetchCPARs()" style="padding:5px 10px;border-radius:7px;border:1.5px solid var(--border2);background:var(--bg3);font-size:13px;cursor:pointer;font-family:inherit;color:var(--text2)" title="Refresh">↻</button>
         </div>
@@ -6407,6 +6408,8 @@ function updateAuthBadge() {
     cparCanDelete = isJonas;
     const emailBtn = document.getElementById('cpar-email-btn');
     if (emailBtn) emailBtn.style.display = isJonas ? 'inline-flex' : 'none';
+    const drBtn = document.getElementById('daily-report-btn');
+    if (drBtn) drBtn.style.display = isJonas ? 'inline-flex' : 'none';
     const TIMING_ALLOWED = new Set(['jonas.simonaitis@reposefurniture.co.uk','richard.semmens@reposefurniture.co.uk','paul.jenkins@reposefurniture.co.uk','mitch@reposefurniture.co.uk']);
     const WOODMILL_ALLOWED = new Set([...TIMING_ALLOWED, 'woodmill@reposefurniture.co.uk']);
     const timingBtn = document.getElementById('timing-tab-btn');
@@ -9791,6 +9794,18 @@ const TEAM_MANAGERS = {
 // Always receive full daily digest summary (all teams)
 const DIGEST_MANAGEMENT = ['mitch@reposefurniture.co.uk', 'richard.semmens@reposefurniture.co.uk'];
 
+// Daily Production Report recipients
+// Set DAILY_REPORT_TEST_MODE = true to send only to Jonas for testing
+const DAILY_REPORT_TEST_MODE = true;
+const DAILY_REPORT_RECIPIENTS_ALL = [
+  'mitch@reposefurniture.co.uk',
+  'richard.semmens@reposefurniture.co.uk',
+  'jody.tilley@reposefurniture.co.uk',
+  'jonas.simonaitis@reposefurniture.co.uk',
+];
+const DAILY_REPORT_RECIPIENTS_TEST = ['jonas.simonaitis@reposefurniture.co.uk'];
+const DAILY_REPORT_RECIPIENTS = DAILY_REPORT_TEST_MODE ? DAILY_REPORT_RECIPIENTS_TEST : DAILY_REPORT_RECIPIENTS_ALL;
+
 const CPAR_SOURCES = [
   { key:'woodmill',    label:'Woodmill',            color:'#7c3aed' },
   { key:'cutting',     label:'Cutting',             color:'#0284c7' },
@@ -10862,6 +10877,451 @@ async function sendDailyDigest(btn) {
     toast('Could not send digest — check connection', 'u');
   } finally {
     btn.disabled = false; btn.textContent = '✉ Send Digest';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Daily Production Report — build HTML + send
+// ═══════════════════════════════════════════════════════════════════════════
+
+function buildDailyReportHtml() {
+  const now   = new Date();
+  const today = new Date(now); today.setHours(0,0,0,0);
+  const yest  = new Date(today); yest.setDate(yest.getDate() - 1);
+
+  const yestDDMMYYYY = yest.toLocaleDateString('en-GB');
+  const yestISO      = wmDateStr(yest);
+  const todayISO     = wmDateStr(today);
+  const todayDayName = today.toLocaleDateString('en-GB', { weekday:'long' });
+  const todayDayDate = today.toLocaleDateString('en-GB', { day:'numeric', month:'long', year:'numeric' });
+  const todayShort   = today.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
+  const yestLabel    = yest.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
+  const genTime      = now.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' });
+
+  function sameWeek(d, ref) {
+    return isoWeekNumber(d) === isoWeekNumber(ref) && isoWeekYear(d) === isoWeekYear(ref);
+  }
+
+  // ── Yesterday's completions ────────────────────────────────────────────
+  const yestComps = STATS_COMPLETIONS.filter(i => i.fields?.CompletedDate === yestDDMMYYYY && i.fields?.IsComplete);
+  const wtdComps  = STATS_COMPLETIONS.filter(i => {
+    if (!i.fields?.CompletedDate || !i.fields?.IsComplete) return false;
+    const d = parseDdmmyyyy(i.fields.CompletedDate);
+    return d && sameWeek(d, today);
+  });
+
+  const PROD_TEAMS = TEAMS_CFG.filter(t => t.name !== 'QC');
+
+  const doneByTeam = {};
+  PROD_TEAMS.forEach(t => { doneByTeam[t.name] = 0; });
+  yestComps.forEach(i => { const t = i.fields?.Team||''; if (doneByTeam[t] !== undefined) doneByTeam[t]++; });
+
+  const wtdByTeam = {};
+  PROD_TEAMS.forEach(t => { wtdByTeam[t.name] = 0; });
+  wtdComps.forEach(i => { const t = i.fields?.Team||''; if (wtdByTeam[t] !== undefined) wtdByTeam[t]++; });
+
+  const totalDone = Object.values(doneByTeam).reduce((a,b)=>a+b,0);
+
+  // Backlog: incomplete jobs across last 2 weeks in PROD
+  const backlogByTeam = {};
+  PROD_TEAMS.forEach(t => { backlogByTeam[t.name] = 0; });
+  const recentWeeks = WEEKS.slice(-2);
+  recentWeeks.forEach(wk => {
+    Object.entries(PROD[wk] || {}).forEach(([prep, jobs]) => {
+      if (!Array.isArray(jobs)) return;
+      jobs.forEach((job, ji) => {
+        PROD_TEAMS.forEach(t => {
+          const subs = t.hasSubs ? SUBS : ['all'];
+          if (!subs.every(sub => STATE[t.name]?.[sub]?.[wk]?.[prep]?.[ji]?.done))
+            backlogByTeam[t.name]++;
+        });
+      });
+    });
+  });
+  const totalBacklog = Object.values(backlogByTeam).reduce((a,b)=>a+b,0);
+
+  // Current week plan job count per team (for target estimate)
+  const currentWk = WEEKS[WEEKS.length - 1] || '';
+  const totalPlanByTeam = {};
+  PROD_TEAMS.forEach(t => { totalPlanByTeam[t.name] = 0; });
+  Object.entries(PROD[currentWk] || {}).forEach(([prep, jobs]) => {
+    if (Array.isArray(jobs)) PROD_TEAMS.forEach(t => { totalPlanByTeam[t.name] += jobs.length; });
+  });
+
+  // Production table rows
+  const prodRows = PROD_TEAMS.map(t => {
+    const done    = doneByTeam[t.name] || 0;
+    const wtd     = wtdByTeam[t.name] || 0;
+    const backlog = backlogByTeam[t.name] || 0;
+    const dayTarget = Math.round((totalPlanByTeam[t.name] || 0) / 5);
+    const pct = dayTarget > 0 ? Math.min(100, Math.round(done / dayTarget * 100)) : (done > 0 ? 100 : 0);
+    const barColor = pct >= 90 ? '#16a34a' : pct >= 70 ? '#f59e0b' : '#ef4444';
+    const pillCls  = backlog === 0 ? 'pill-grey' : backlog <= 3 ? 'pill-amber' : 'pill-red';
+    const statusTxt = pct >= 100 ? 'Complete' : pct >= 90 ? 'On Track' : pct >= 70 ? 'Below Target' : 'Behind';
+    const statusCls = pct >= 100 || pct >= 90 ? 'pill-green' : pct >= 70 ? 'pill-amber' : 'pill-red';
+    return `<tr>
+      <td><span style="margin-right:5px">${t.icon}</span><span class="team-name">${escHtml(t.name)}</span></td>
+      <td>${done}</td><td>${dayTarget||'—'}</td>
+      <td><div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" style="width:${pct}%;background:${barColor}"></div></div><span class="bar-pct">${pct}%</span></div></td>
+      <td><span class="pill ${pillCls}">${backlog}</span></td>
+      <td class="wtd">${wtd}</td>
+      <td><span class="pill ${statusCls}">${statusTxt}</span></td>
+    </tr>`;
+  }).join('');
+
+  // ── QC ─────────────────────────────────────────────────────────────────
+  const yestQC      = STATS_QC.filter(r => r.date && wmDateStr(r.date) === yestISO);
+  const qcTotal     = yestQC.length;
+  const qcNewChair  = yestQC.filter(r => r.type === 'New Chair').length;
+  const qcService   = yestQC.filter(r => r.type === 'Service Chair').length;
+  const qcAccessory = yestQC.filter(r => r.type === 'Accessories').length;
+
+  // ── Near Misses ────────────────────────────────────────────────────────
+  const nmsYest  = NMS_ITEMS.filter(i => { const d=new Date(i.createdDateTime); d.setHours(0,0,0,0); return d.getTime()===yest.getTime(); });
+  const nmsWeek  = NMS_ITEMS.filter(i => sameWeek(new Date(i.createdDateTime), today));
+  const nmsMonth = NMS_ITEMS.filter(i => { const d=new Date(i.createdDateTime); return d.getMonth()===today.getMonth()&&d.getFullYear()===today.getFullYear(); });
+  const nmsYTD   = NMS_ITEMS.filter(i => new Date(i.createdDateTime).getFullYear()===today.getFullYear());
+  const nmsOpen  = NMS_ITEMS.filter(i => !i.fields?.NearMissclosedout_x003f_).length;
+
+  const nmsRows = nmsYest.map(item => {
+    const f = item.fields||{};
+    const ref = f.Title||('NMS-'+item.id.slice(0,6));
+    const loc = (f.Locationofissue||'').replace(/^Repose\s*[-–]\s*/i,'');
+    const isOpen = !f.NearMissclosedout_x003f_;
+    return `<div class="alert-row ${isOpen?'red':'green'}">
+      <div class="alert-icon">⚠️</div>
+      <div class="alert-body">
+        <div class="alert-title">${escHtml(ref)}${loc?' · '+escHtml(loc):''}</div>
+        <div class="alert-sub">${escHtml(f.Whatistheissue_x003f_||'—')}${f.RaisedBy_x003a_?' — Raised by '+escHtml(f.RaisedBy_x003a_):''}</div>
+      </div>
+      <div class="alert-badge"><span class="pill ${isOpen?'pill-red':'pill-green'}">${isOpen?'Open':'Closed'}</span></div>
+    </div>`;
+  }).join('')||'<div style="color:#9ca3af;font-size:12px;padding:6px 0">No near misses reported yesterday.</div>';
+
+  const nmsWeekSummary = nmsWeek.length ? `<div class="alert-row blue" style="margin-top:10px">
+    <div class="alert-icon">📅</div>
+    <div class="alert-body">
+      <div class="alert-title">This week — ${nmsWeek.length} near miss${nmsWeek.length!==1?'es':''}</div>
+      <div class="alert-sub">${nmsWeek.map(i=>{const f=i.fields||{};const ref=f.Title||('NMS-'+i.id.slice(0,6));const loc=(f.Locationofissue||'').replace(/^Repose\s*[-–]\s*/i,'');return escHtml(ref)+(loc?' · '+escHtml(loc):'')+(f.NearMissclosedout_x003f_?' (Closed)':' (Open)');}).join(' &nbsp;·&nbsp; ')}</div>
+    </div>
+    <div class="alert-badge"><span class="pill pill-blue">${nmsOpen} open</span></div>
+  </div>` : '';
+
+  // ── CPARs ──────────────────────────────────────────────────────────────
+  const cparAll     = CPAR_ITEMS;
+  const cparOpen    = cparAll.filter(i => getCPARStatus(i) !== 'closed').length;
+  const cparOverdue = cparAll.filter(i => getCPARStatus(i) === 'red').length;
+  const todayDDMMYYYY = now.toLocaleDateString('en-GB');
+
+  function cparDateInPeriod(item, checker) {
+    const la = item.fields?.LoggedAt || item.createdDateTime || '';
+    if (!la) return false;
+    let d;
+    if (la.includes('/')) d = parseDdmmyyyy(la.split(' ')[0]);
+    else d = new Date(la);
+    return d && !isNaN(d) && checker(d);
+  }
+
+  const cparRaisedToday     = cparAll.filter(i => { const la=i.fields?.LoggedAt||''; return la.startsWith(todayDDMMYYYY); }).length;
+  const cparRaisedThisWeek  = cparAll.filter(i => cparDateInPeriod(i, d => sameWeek(d, today))).length;
+  const cparRaisedThisMonth = cparAll.filter(i => cparDateInPeriod(i, d => d.getMonth()===today.getMonth()&&d.getFullYear()===today.getFullYear())).length;
+
+  const cparByTeam = {};
+  PROD_TEAMS.forEach(t => { cparByTeam[t.name] = { total:0, open:0, overdue:0, closed:0 }; });
+  cparAll.forEach(item => {
+    const t = normaliseTeam(item.fields?.SourceDept||item.fields?.RaisedByTeam||'');
+    if (!cparByTeam[t]) return;
+    cparByTeam[t].total++;
+    const s = getCPARStatus(item);
+    if (s === 'closed') cparByTeam[t].closed++;
+    else { cparByTeam[t].open++; if (s === 'red') cparByTeam[t].overdue++; }
+  });
+
+  const cparTeamRows = PROD_TEAMS.map(t => {
+    const c = cparByTeam[t.name]||{total:0,open:0,overdue:0,closed:0};
+    return `<tr>
+      <td><span style="margin-right:5px">${t.icon}</span><span class="team-name">${escHtml(t.name)}</span></td>
+      <td>${c.total}</td>
+      <td><span class="pill ${c.open>0?'pill-amber':'pill-grey'}">${c.open}</span></td>
+      <td><span class="pill ${c.overdue>0?'pill-red':'pill-grey'}">${c.overdue}</span></td>
+      <td>${c.closed}</td>
+    </tr>`;
+  }).join('');
+
+  // ── Spec Changes ───────────────────────────────────────────────────────
+  const specYest = (STATS_ALERTS||[]).filter(a => {
+    const da = a.fields?.DetectedAt||a.createdDateTime||'';
+    return da && wmDateStr(new Date(da)) === yestISO && !specAlertIsNoise(a);
+  });
+  const specRows = specYest.slice(0,10).map(a => {
+    const f = a.fields||{};
+    const da = f.DetectedAt||a.createdDateTime||'';
+    const timeStr = da ? new Date(da).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '';
+    return `<tr>
+      <td><span class="spec-rep">${escHtml(f.Title||'—')}</span></td>
+      <td class="spec-field">${escHtml(f.FieldLabel||f.FieldKey||'—')}</td>
+      <td><span class="spec-old">${escHtml(f.OldValue||'—')}</span></td>
+      <td><span class="spec-new">${escHtml(f.NewValue||'—')}</span></td>
+      <td class="spec-time">${timeStr}</td>
+    </tr>`;
+  }).join()||'<tr><td colspan="5" style="color:#9ca3af;font-size:12px;padding:6px 8px">No spec changes detected yesterday.</td></tr>';
+
+  // ── Pre-use Checks (Cutting machines) ─────────────────────────────────
+  const cuttingChecksHtml = CC_MACHINES.map(m => {
+    const insps  = ccByMachineDate[m.id]?.[yestISO]||[];
+    const status = insps.length===0 ? 'none' : insps.some(f=>f.AnyFail) ? 'fail' : 'pass';
+    const icon   = status==='pass' ? '✓' : status==='fail' ? '⚠' : '–';
+    let timeOp = 'Not submitted';
+    if (insps.length && insps[0].InspectedAt) {
+      timeOp = new Date(insps[0].InspectedAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+      if (insps[0].Inspector) timeOp += ' · ' + insps[0].Inspector;
+    }
+    return `<div class="check-machine ${status}"><div class="check-icon ${status}">${icon}</div><div class="check-info"><div class="check-name">${escHtml(m.name)}</div><div class="check-time">${escHtml(timeOp)}</div></div></div>`;
+  }).join('');
+
+  // ── Today's Plan cards ─────────────────────────────────────────────────
+  const flowNext = { 'Woodmill':'Upholstery','Foam':'Upholstery','Cutting':'Sewing','Sewing':'Upholstery','Upholstery':'Assembly','Assembly':'QC' };
+  const todayPlanCards = PROD_TEAMS.map(t => {
+    const backlog  = backlogByTeam[t.name]||0;
+    const next     = flowNext[t.name]||'Dispatch';
+    const nextColor= next==='Dispatch'?'#16a34a':next==='QC'?'#0e7490':'#7c3aed';
+    // Remaining incomplete jobs in current week
+    let planned = 0;
+    Object.entries(PROD[currentWk]||{}).forEach(([prep, jobs]) => {
+      if (!Array.isArray(jobs)) return;
+      jobs.forEach((job, ji) => {
+        const subs = t.hasSubs ? SUBS : ['all'];
+        if (!subs.every(sub => STATE[t.name]?.[sub]?.[currentWk]?.[prep]?.[ji]?.done)) planned++;
+      });
+    });
+    const todayDoneTeam = doneByTeam[t.name]||0;
+    const numColor = backlog > 5 ? '#dc2626' : backlog > 0 ? '#d97706' : '#0e023a';
+    const cardStyle = backlog > 5 ? 'border-color:#fca5a5;background:#fef2f2' : backlog > 0 ? 'border-color:#fed7aa;background:#fff7ed' : '';
+    return `<div class="plan-card" style="${cardStyle}">
+      <div class="plan-team">${t.icon} ${escHtml(t.name)}</div>
+      <div class="plan-num" style="color:${numColor}">${planned}</div>
+      <div class="plan-sub">to complete${backlog>0?` (inc. ${backlog} backlog)`:''} &nbsp;·&nbsp; <span style="color:${nextColor};font-weight:600">${todayDoneTeam} yesterday → ${next}</span></div>
+    </div>`;
+  }).join('');
+
+  const qcCard = `<div class="plan-card">
+    <div class="plan-team">✅ QC</div>
+    <div class="plan-num" style="color:#0e7490">${qcTotal}</div>
+    <div class="plan-sub">QC'd yesterday &nbsp;·&nbsp; <span style="color:#16a34a;font-weight:600">${qcNewChair} new chairs cleared</span></div>
+  </div>`;
+
+  // ── Assemble HTML ──────────────────────────────────────────────────────
+  return `<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RepNet Daily Report</title><style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f4f8;padding:32px 16px 60px;color:#1a202c}
+.email-wrap{max-width:680px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.10)}
+.header{background:#0e023a;padding:28px 32px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.header-left{display:flex;flex-direction:column;gap:4px}
+.logo-row{display:flex;align-items:center;gap:8px}
+.logo-dot{width:9px;height:9px;border-radius:50%;background:#14a1e9}
+.logo-wordmark{font-size:16px;font-weight:900;color:#14a1e9;letter-spacing:-.04em}
+.header-title{font-size:20px;font-weight:700;color:#fff;letter-spacing:-.02em}
+.header-sub{font-size:12px;color:#94a3b8;margin-top:2px}
+.header-date{text-align:right;color:#cbd5e1;font-size:12px;line-height:1.6}
+.header-date strong{display:block;font-size:18px;color:#fff;font-weight:700}
+.summary-bar{display:grid;grid-template-columns:repeat(5,1fr);border-bottom:1px solid #e5e7eb}
+.summary-cell{padding:14px 10px;border-right:1px solid #e5e7eb;text-align:center}
+.summary-cell:last-child{border-right:none}
+.summary-num{font-size:24px;font-weight:800;color:#0e023a;line-height:1}
+.summary-num.green{color:#16a34a}.summary-num.amber{color:#d97706}.summary-num.red{color:#dc2626}.summary-num.blue{color:#0e7490}
+.summary-lbl{font-size:10px;color:#6b7280;margin-top:4px;font-weight:500;text-transform:uppercase;letter-spacing:.04em}
+.body{padding:0 32px 32px}
+.section{margin-top:26px}
+.section-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#6b7280;padding-bottom:8px;border-bottom:1.5px solid #e5e7eb;margin-bottom:12px}
+.prod-table{width:100%;border-collapse:collapse;font-size:13px}
+.prod-table th{text-align:left;font-size:10px;color:#9ca3af;font-weight:600;padding:0 8px 6px;border-bottom:1px solid #f3f4f6;text-transform:uppercase;letter-spacing:.04em}
+.prod-table th:not(:first-child){text-align:center}
+.prod-table td{padding:7px 8px;border-bottom:1px solid #f9fafb;vertical-align:middle}
+.prod-table td:not(:first-child){text-align:center}
+.prod-table tr:last-child td{border-bottom:none}
+.prod-table .wtd{font-size:11px;color:#9ca3af}
+.team-name{font-weight:600;color:#0e023a;font-size:13px}
+.pill{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600}
+.pill-green{background:#dcfce7;color:#16a34a}.pill-amber{background:#fef9c3;color:#92400e}.pill-red{background:#fee2e2;color:#dc2626}.pill-grey{background:#f3f4f6;color:#6b7280}.pill-blue{background:#e0f2fe;color:#0e7490}
+.bar-wrap{display:flex;align-items:center;gap:6px}
+.bar-bg{flex:1;height:5px;background:#f3f4f6;border-radius:3px;overflow:hidden;min-width:40px}
+.bar-fill{height:100%;border-radius:3px}
+.bar-pct{font-size:11px;color:#6b7280;width:30px;text-align:right;flex-shrink:0}
+.plan-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.plan-card{background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px}
+.plan-team{font-size:12px;font-weight:700;color:#374151}
+.plan-num{font-size:20px;font-weight:800;color:#0e023a;line-height:1.1;margin-top:2px}
+.plan-sub{font-size:11px;color:#9ca3af;margin-top:1px}
+.qc-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.qc-cell{background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:11px 12px;text-align:center}
+.qc-num{font-size:20px;font-weight:800;color:#0e7490}
+.qc-num.red{color:#dc2626}.qc-num.grey{color:#374151}
+.qc-lbl{font-size:11px;color:#6b7280;margin-top:2px}
+.alert-row{display:flex;align-items:flex-start;gap:12px;padding:10px 12px;border-radius:8px;margin-bottom:8px;font-size:13px;border:1px solid}
+.alert-row:last-of-type{margin-bottom:0}
+.alert-row.red{background:#fef2f2;border-color:#fca5a5}.alert-row.amber{background:#fff7ed;border-color:#fed7aa}.alert-row.blue{background:#eff6ff;border-color:#bfdbfe}.alert-row.green{background:#f0fdf4;border-color:#bbf7d0}
+.alert-icon{font-size:15px;flex-shrink:0;margin-top:1px}
+.alert-body{flex:1}
+.alert-title{font-weight:600;color:#0e023a}
+.alert-sub{font-size:12px;color:#6b7280;margin-top:2px;line-height:1.4}
+.alert-badge{font-size:11px;font-weight:700;flex-shrink:0;margin-top:2px}
+.spec-table{width:100%;border-collapse:collapse;font-size:12px}
+.spec-table th{text-align:left;font-size:10px;color:#9ca3af;font-weight:600;padding:0 8px 6px;text-transform:uppercase}
+.spec-table td{padding:6px 8px;border-top:1px solid #f3f4f6;vertical-align:top}
+.spec-rep{font-family:monospace;font-weight:700;color:#0e023a;white-space:nowrap}
+.spec-field{color:#374151}.spec-old{color:#dc2626;text-decoration:line-through}.spec-new{color:#16a34a;font-weight:600}.spec-time{color:#9ca3af;white-space:nowrap}
+.checks-area{margin-bottom:10px}
+.checks-area-label{font-size:11px;font-weight:700;color:#374151;margin-bottom:6px}
+.checks-grid{display:flex;gap:6px;flex-wrap:wrap}
+.check-machine{display:flex;align-items:center;gap:6px;background:#f8fafc;border:1.5px solid #e5e7eb;border-radius:6px;padding:5px 10px}
+.check-machine.pass{background:#f0fdf4;border-color:#86efac}.check-machine.fail{background:#fef2f2;border-color:#fca5a5}.check-machine.none{background:#fafafa;border-color:#e5e7eb}
+.check-icon{font-size:13px;font-weight:700;flex-shrink:0}
+.check-icon.pass{color:#16a34a}.check-icon.fail{color:#dc2626}.check-icon.none{color:#9ca3af}
+.check-info{display:flex;flex-direction:column}
+.check-name{font-size:11px;font-weight:600;color:#374151;line-height:1.2}
+.check-time{font-size:10px;color:#9ca3af}
+.stat-note{font-size:12px;color:#6b7280;margin-top:8px;padding:0 2px}
+.stat-note strong{color:#374151}
+.footer{background:#f8fafc;border-top:1px solid #e5e7eb;padding:14px 32px;font-size:11px;color:#9ca3af;display:flex;justify-content:space-between;align-items:center}
+</style></head><body>
+<div class="email-wrap">
+  <div class="header">
+    <div class="header-left">
+      <div class="logo-row"><span class="logo-dot"></span><span class="logo-wordmark">RepNet</span></div>
+      <div class="header-title">Daily Production Report</div>
+      <div class="header-sub">Repose Furniture Ltd &nbsp;·&nbsp; Generated at ${genTime}</div>
+    </div>
+    <div class="header-date"><strong>${todayDayName}</strong>${todayDayDate}</div>
+  </div>
+
+  <div class="summary-bar">
+    <div class="summary-cell"><div class="summary-num green">${totalDone}</div><div class="summary-lbl">Jobs Done</div></div>
+    <div class="summary-cell"><div class="summary-num ${totalBacklog>0?'amber':'green'}">${totalBacklog}</div><div class="summary-lbl">Backlog</div></div>
+    <div class="summary-cell"><div class="summary-num blue">${qcTotal}</div><div class="summary-lbl">QC'd</div></div>
+    <div class="summary-cell"><div class="summary-num ${nmsYest.length>0?'red':'green'}">${nmsYest.length}</div><div class="summary-lbl">Near Misses</div></div>
+    <div class="summary-cell"><div class="summary-num ${cparOpen>0?'red':'green'}">${cparOpen}</div><div class="summary-lbl">Open CPARs</div></div>
+  </div>
+
+  <div class="body">
+
+    <div class="section">
+      <div class="section-title">Production — Yesterday (${yestLabel})</div>
+      <table class="prod-table">
+        <thead><tr><th>Team</th><th>Done</th><th>Est. Target</th><th>Progress</th><th>Backlog</th><th>WTD</th><th>Status</th></tr></thead>
+        <tbody>${prodRows}</tbody>
+      </table>
+      <div class="stat-note">Backlog = incomplete jobs in last 2 weeks &nbsp;·&nbsp; WTD = this ISO week &nbsp;·&nbsp; Est. Target = weekly plan ÷ 5</div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Today's Plan — ${todayShort}</div>
+      <div class="plan-grid">${todayPlanCards}${qcCard}</div>
+      <div class="stat-note">"yesterday →" = jobs completed yesterday now waiting for next stage &nbsp;·&nbsp; Remaining = not yet done in current week</div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Quality Control — Yesterday</div>
+      <div class="qc-strip">
+        <div class="qc-cell"><div class="qc-num">${qcTotal}</div><div class="qc-lbl">Total QC'd</div></div>
+        <div class="qc-cell"><div class="qc-num">${qcNewChair}</div><div class="qc-lbl">New Chairs</div></div>
+        <div class="qc-cell"><div class="qc-num">${qcService}</div><div class="qc-lbl">Service Chairs</div></div>
+        <div class="qc-cell"><div class="qc-num grey">${qcAccessory}</div><div class="qc-lbl">Accessories</div></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Near Misses — Yesterday</div>
+      ${nmsRows}
+      ${nmsWeekSummary}
+      <div class="stat-note" style="margin-top:8px">This month: <strong>${nmsMonth.length}</strong> &nbsp;·&nbsp; YTD: <strong>${nmsYTD.length}</strong></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">CPARs — Issues by Team</div>
+      <table class="prod-table" style="margin-bottom:14px">
+        <thead><tr><th>Team</th><th>Total</th><th>Open</th><th>Overdue</th><th>Closed</th></tr></thead>
+        <tbody>${cparTeamRows}</tbody>
+      </table>
+      <div class="qc-strip" style="grid-template-columns:repeat(5,1fr)">
+        <div class="qc-cell"><div class="qc-num" style="color:#0e023a">${cparOpen}</div><div class="qc-lbl">Open</div></div>
+        <div class="qc-cell" style="${cparOverdue?'border-color:#fca5a5;background:#fef2f2':''}"><div class="qc-num ${cparOverdue?'red':'grey'}">${cparOverdue}</div><div class="qc-lbl">Overdue</div></div>
+        <div class="qc-cell"><div class="qc-num grey">${cparRaisedToday}</div><div class="qc-lbl">Raised Today</div></div>
+        <div class="qc-cell"><div class="qc-num grey">${cparRaisedThisWeek}</div><div class="qc-lbl">Raised This Week</div></div>
+        <div class="qc-cell"><div class="qc-num grey">${cparRaisedThisMonth}</div><div class="qc-lbl">Raised This Month</div></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Spec Changes — Detected Yesterday</div>
+      <table class="spec-table">
+        <thead><tr><th>REP</th><th>Field</th><th>From</th><th>To</th><th>Time</th></tr></thead>
+        <tbody>${specRows}</tbody>
+      </table>
+      ${specYest.length?`<div class="stat-note">${specYest.length} change${specYest.length!==1?'s':''} detected yesterday</div>`:''}
+    </div>
+
+    <div class="section">
+      <div class="section-title">Pre-Use Checks — Yesterday</div>
+      <div class="checks-area">
+        <div class="checks-area-label">✂️ Cutting Machines</div>
+        <div class="checks-grid">${cuttingChecksHtml}</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="footer">
+    <span>Generated by RepNet &nbsp;·&nbsp; Repose Furniture Ltd</span>
+    <span>Powered by <strong style="color:#0e023a">RepNet</strong></span>
+  </div>
+</div>
+</body></html>`;
+}
+
+async function sendDailyReport(btn) {
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Sending…'; }
+  try {
+    const accounts = msalInstance.getAllAccounts();
+    if (!accounts.length) throw new Error('Not signed in');
+    let mailToken;
+    try {
+      const r = await msalInstance.acquireTokenSilent({ scopes: MAIL_SCOPES, account: accounts[0] });
+      mailToken = r.accessToken;
+    } catch {
+      const r = await msalInstance.acquireTokenPopup({ scopes: MAIL_SCOPES, account: accounts[0] });
+      mailToken = r.accessToken;
+    }
+
+    const dateLabel = new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+    const html      = buildDailyReportHtml();
+    const subject   = `RepNet Daily Production Report — ${dateLabel}`;
+
+    const res = await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${mailToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: {
+          subject,
+          body: { contentType: 'HTML', content: html },
+          toRecipients: DAILY_REPORT_RECIPIENTS.map(a => ({ emailAddress: { address: a } })),
+        },
+        saveToSentItems: true,
+      }),
+    });
+
+    if (res.ok) {
+      toast(DAILY_REPORT_TEST_MODE ? 'Test report sent to Jonas only ✓' : `Daily report sent to ${DAILY_REPORT_RECIPIENTS.length} recipients ✓`, 's');
+    } else {
+      const err = await res.json().catch(()=>({}));
+      throw new Error(err.error?.message || `HTTP ${res.status}`);
+    }
+  } catch(e) {
+    console.warn('sendDailyReport:', e.message);
+    toast('Could not send report — ' + e.message, 'u');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '📧 Send Daily Report'; }
   }
 }
 
@@ -14028,14 +14488,19 @@ const IVN_MANAGERS = new Set([
 const IVN_STAFF = [
   { email:'jonas.simonaitis@reposefurniture.co.uk',   name:'Jonas Simonaitis' },
   { email:'richard.semmens@reposefurniture.co.uk',    name:'Richard Semmens' },
-  { email:'mitch@reposefurniture.co.uk',              name:'Mitch' },
+  { email:'mitch@reposefurniture.co.uk',              name:'Mitch Millward' },
   { email:'jody.tilley@reposefurniture.co.uk',        name:'Jody Tilley' },
   { email:'paul.jenkins@reposefurniture.co.uk',       name:'Paul Jenkins' },
   { email:'daniel.seymour@reposefurniture.co.uk',     name:'Daniel Seymour' },
   { email:'weronika.hathaway@reposefurniture.co.uk',  name:'Weronika Hathaway' },
+  { email:'tom.malia@reposefurniture.co.uk',          name:'Tom Malia' },
+  { email:'matt.hesketh@reposefurniture.co.uk',       name:'Matt Hesketh' },
+  { email:'jade.brynnink@reposefurniture.co.uk',      name:'Jade Brynnink' },
+  { email:'john.bradnick@reposefurniture.co.uk',      name:'John Bradnick' },
+  { email:'kayleigh.perkins@reposefurniture.co.uk',   name:'Kayleigh Perkins' },
+  { email:'gillian.fletcher@reposefurniture.co.uk',   name:'Sewing (Gillian Fletcher)' },
+  { email:'mark@reposefurniture.co.uk',               name:'Mark (Mark Wood)' },
   { email:'woodmill@reposefurniture.co.uk',           name:'Woodmill' },
-  { email:'sewingroom@reposefurniture.co.uk',         name:'Sewing Room' },
-  { email:'mark@reposefurniture.co.uk',               name:'Mark' },
 ];
 
 // SharePoint field names (spaces removed, special chars encoded)
