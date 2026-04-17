@@ -11295,8 +11295,13 @@ async function sendDailyReport(btn) {
     }
 
     const dateLabel = new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
-    const html      = buildDailyReportHtml();
-    const subject   = `RepNet Daily Production Report — ${dateLabel}`;
+    // In test mode: send the static mock HTML so formatting can be verified exactly
+    const html = DAILY_REPORT_TEST_MODE
+      ? await fetch('./daily-report-mock.html').then(r => r.text())
+      : buildDailyReportHtml();
+    const subject = DAILY_REPORT_TEST_MODE
+      ? `[TEST] RepNet Daily Report — Thu 17 Apr 2026`
+      : `RepNet Daily Production Report — ${dateLabel}`;
 
     const res = await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
       method: 'POST',

@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RepNet Daily Report — Repose Furniture</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: #f0f4f8;
+    padding: 32px 16px 60px;
+    color: #1a202c;
+  }
+
+  .email-wrap {
+    max-width: 680px;
+    margin: 0 auto;
+    background: #fff;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 24px rgba(0,0,0,.10);
+  }
+
+  /* ── Header ─────────────────────────────────── */
+  .header {
+    background: #0e023a;
+    padding: 28px 32px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .header-left { display: flex; flex-direction: column; gap: 4px; }
+  .logo-row { display: flex; align-items: center; gap: 8px; }
+  .logo-dot { width: 9px; height: 9px; border-radius: 50%; background: #14a1e9; }
+  .logo-wordmark { font-size: 16px; font-weight: 900; color: #14a1e9; letter-spacing: -.04em; }
+  .header-title { font-size: 20px; font-weight: 700; color: #fff; letter-spacing: -.02em; }
+  .header-sub   { font-size: 12px; color: #94a3b8; margin-top: 2px; }
+  .header-date  { text-align: right; color: #cbd5e1; font-size: 12px; line-height: 1.6; }
+  .header-date strong { display: block; font-size: 18px; color: #fff; font-weight: 700; }
+
+  /* ── Summary bar ─────────────────────────────── */
+  .summary-bar {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .summary-cell {
+    padding: 14px 10px;
+    border-right: 1px solid #e5e7eb;
+    text-align: center;
+  }
+  .summary-cell:last-child { border-right: none; }
+  .summary-num  { font-size: 24px; font-weight: 800; color: #0e023a; line-height: 1; }
+  .summary-num.green  { color: #16a34a; }
+  .summary-num.amber  { color: #d97706; }
+  .summary-num.red    { color: #dc2626; }
+  .summary-num.blue   { color: #0e7490; }
+  .summary-num.purple { color: #7c3aed; }
+  .summary-lbl  { font-size: 10px; color: #6b7280; margin-top: 4px; font-weight: 500; text-transform: uppercase; letter-spacing: .04em; }
+
+  /* ── Body ────────────────────────────────────── */
+  .body { padding: 0 32px 32px; }
+  .section { margin-top: 26px; }
+  .section-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: #6b7280;
+    padding-bottom: 8px;
+    border-bottom: 1.5px solid #e5e7eb;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* ── Action banners ──────────────────────────── */
+  .action-banner {
+    border-radius: 8px;
+    padding: 11px 14px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    border: 1.5px solid;
+  }
+  .action-banner:last-child { margin-bottom: 0; }
+  .action-banner.red    { background: #fef2f2; border-color: #fca5a5; }
+  .action-banner.amber  { background: #fff7ed; border-color: #fcd34d; }
+  .action-banner.green  { background: #f0fdf4; border-color: #86efac; }
+  .action-banner-icon   { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+  .action-banner-title  { font-size: 13px; font-weight: 700; color: #0e023a; }
+  .action-banner.red  .action-banner-title { color: #991b1b; }
+  .action-banner.amber .action-banner-title { color: #92400e; }
+  .action-banner.green .action-banner-title { color: #166534; }
+  .action-banner-sub    { font-size: 12px; color: #6b7280; margin-top: 2px; line-height: 1.4; }
+
+  /* ── Production table ────────────────────────── */
+  .prod-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .prod-table th {
+    text-align: left; font-size: 10px; color: #9ca3af;
+    font-weight: 600; padding: 0 8px 6px;
+    border-bottom: 1px solid #f3f4f6; text-transform: uppercase; letter-spacing: .04em;
+  }
+  .prod-table th:not(:first-child) { text-align: center; }
+  .prod-table td { padding: 7px 8px; border-bottom: 1px solid #f9fafb; vertical-align: middle; }
+  .prod-table td:not(:first-child) { text-align: center; }
+  .prod-table tr:last-child td { border-bottom: none; }
+  .prod-table .wtd { font-size: 11px; color: #9ca3af; }
+  .team-name { font-weight: 600; color: #0e023a; font-size: 13px; }
+
+  .pill {
+    display: inline-block; padding: 2px 8px;
+    border-radius: 12px; font-size: 11px; font-weight: 600;
+  }
+  .pill-green  { background: #dcfce7; color: #16a34a; }
+  .pill-amber  { background: #fef9c3; color: #92400e; }
+  .pill-red    { background: #fee2e2; color: #dc2626; }
+  .pill-grey   { background: #f3f4f6; color: #6b7280; }
+  .pill-blue   { background: #e0f2fe; color: #0e7490; }
+  .pill-purple { background: #f5f3ff; color: #7c3aed; }
+
+  .bar-wrap { display: flex; align-items: center; gap: 6px; }
+  .bar-bg   { flex: 1; height: 5px; background: #f3f4f6; border-radius: 3px; overflow: hidden; min-width: 40px; }
+  .bar-fill { height: 100%; border-radius: 3px; }
+  .bar-pct  { font-size: 11px; color: #6b7280; width: 30px; text-align: right; flex-shrink: 0; }
+
+  /* ── Two-col plan grid ───────────────────────── */
+  .plan-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .plan-card {
+    background: #f8fafc; border: 1px solid #e5e7eb;
+    border-radius: 8px; padding: 10px 12px;
+  }
+  .plan-team  { font-size: 12px; font-weight: 700; color: #374151; }
+  .plan-num   { font-size: 20px; font-weight: 800; color: #0e023a; line-height: 1.1; margin-top: 2px; }
+  .plan-sub   { font-size: 11px; color: #9ca3af; margin-top: 1px; }
+
+  /* ── QC strip ────────────────────────────────── */
+  .qc-strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .qc-cell {
+    background: #f8fafc; border: 1px solid #e5e7eb;
+    border-radius: 8px; padding: 11px 12px; text-align: center;
+  }
+  .qc-num  { font-size: 20px; font-weight: 800; color: #0e7490; }
+  .qc-num.red { color: #dc2626; }
+  .qc-num.grey { color: #374151; }
+  .qc-lbl  { font-size: 11px; color: #6b7280; margin-top: 2px; }
+
+  /* ── Alert rows ──────────────────────────────── */
+  .alert-row {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 10px 12px; border-radius: 8px;
+    margin-bottom: 8px; font-size: 13px; border: 1px solid;
+  }
+  .alert-row:last-of-type { margin-bottom: 0; }
+  .alert-row.red    { background: #fef2f2; border-color: #fca5a5; }
+  .alert-row.amber  { background: #fff7ed; border-color: #fed7aa; }
+  .alert-row.blue   { background: #eff6ff; border-color: #bfdbfe; }
+  .alert-row.green  { background: #f0fdf4; border-color: #bbf7d0; }
+  .alert-row.purple { background: #faf5ff; border-color: #d8b4fe; }
+  .alert-icon { font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+  .alert-body { flex: 1; }
+  .alert-title { font-weight: 600; color: #0e023a; }
+  .alert-sub   { font-size: 12px; color: #6b7280; margin-top: 2px; line-height: 1.4; }
+  .alert-badge { font-size: 11px; font-weight: 700; flex-shrink: 0; margin-top: 2px; }
+
+  /* ── Spec changes ────────────────────────────── */
+  .spec-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .spec-table th { text-align: left; font-size: 10px; color: #9ca3af; font-weight: 600; padding: 0 8px 6px; text-transform: uppercase; }
+  .spec-table td { padding: 6px 8px; border-top: 1px solid #f3f4f6; vertical-align: top; }
+  .spec-rep   { font-family: monospace; font-weight: 700; color: #0e023a; white-space: nowrap; }
+  .spec-field { color: #374151; }
+  .spec-old   { color: #dc2626; text-decoration: line-through; }
+  .spec-new   { color: #16a34a; font-weight: 600; }
+  .spec-time  { color: #9ca3af; white-space: nowrap; }
+
+  /* ── Pre-use checks ──────────────────────────── */
+  .checks-area { margin-bottom: 10px; }
+  .checks-area-label {
+    font-size: 11px; font-weight: 700; color: #374151;
+    margin-bottom: 6px; display: flex; align-items: center; gap: 6px;
+  }
+  .checks-grid { display: flex; gap: 6px; flex-wrap: wrap; }
+  .check-machine {
+    display: flex; align-items: center; gap: 6px;
+    background: #f8fafc; border: 1.5px solid #e5e7eb;
+    border-radius: 6px; padding: 5px 10px;
+  }
+  .check-machine.pass { background: #f0fdf4; border-color: #86efac; }
+  .check-machine.fail { background: #fef2f2; border-color: #fca5a5; }
+  .check-machine.none { background: #fafafa; border-color: #e5e7eb; }
+  .check-icon  { font-size: 13px; font-weight: 700; flex-shrink: 0; }
+  .check-icon.pass { color: #16a34a; }
+  .check-icon.fail { color: #dc2626; }
+  .check-icon.none { color: #9ca3af; }
+  .check-info  { display: flex; flex-direction: column; }
+  .check-name  { font-size: 11px; font-weight: 600; color: #374151; line-height: 1.2; }
+  .check-time  { font-size: 10px; color: #9ca3af; }
+
+  /* ── Innovation strip ────────────────────────── */
+  .ivn-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .ivn-cell  {
+    background: #faf5ff; border: 1px solid #e9d5ff;
+    border-radius: 8px; padding: 10px 10px; text-align: center;
+  }
+  .ivn-num   { font-size: 20px; font-weight: 800; color: #7c3aed; }
+  .ivn-num.amber { color: #d97706; }
+  .ivn-num.green { color: #16a34a; }
+  .ivn-num.grey  { color: #6b7280; }
+  .ivn-lbl   { font-size: 10px; color: #6b7280; margin-top: 2px; text-transform: uppercase; letter-spacing: .04em; }
+
+  /* ── Stat note ───────────────────────────────── */
+  .stat-note { font-size: 12px; color: #6b7280; margin-top: 8px; padding: 0 2px; }
+  .stat-note strong { color: #374151; }
+
+  /* ── Footer ──────────────────────────────────── */
+  .footer {
+    background: #f8fafc; border-top: 1px solid #e5e7eb;
+    padding: 14px 32px; font-size: 11px; color: #9ca3af;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .footer a { color: #14a1e9; text-decoration: none; }
+
+  .divider { height: 1px; background: #f3f4f6; margin: 4px 0; }
+
+  @media print {
+    body { background: #fff; padding: 0; }
+    .email-wrap { box-shadow: none; border-radius: 0; max-width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<div class="email-wrap">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <div class="logo-row">
+        <span class="logo-dot"></span>
+        <span class="logo-wordmark">RepNet</span>
+      </div>
+      <div class="header-title">Daily Production Report</div>
+      <div class="header-sub">Repose Furniture Ltd &nbsp;·&nbsp; Auto-generated at 07:00</div>
+    </div>
+    <div class="header-date">
+      <strong>Thursday</strong>
+      17 April 2026
+    </div>
+  </div>
+
+  <!-- Summary bar — 5 key numbers -->
+  <div class="summary-bar">
+    <div class="summary-cell">
+      <div class="summary-num green">143</div>
+      <div class="summary-lbl">Jobs Done</div>
+    </div>
+    <div class="summary-cell">
+      <div class="summary-num amber">18</div>
+      <div class="summary-lbl">Backlog</div>
+    </div>
+    <div class="summary-cell">
+      <div class="summary-num blue">18</div>
+      <div class="summary-lbl">QC'd</div>
+    </div>
+    <div class="summary-cell">
+      <div class="summary-num red">2</div>
+      <div class="summary-lbl">Near Misses</div>
+    </div>
+    <div class="summary-cell">
+      <div class="summary-num red">7</div>
+      <div class="summary-lbl">Open CPARs</div>
+    </div>
+  </div>
+
+  <div class="body">
+
+    <!-- Action Required -->
+    <div class="section">
+      <div class="section-title">Action Required</div>
+      <div class="action-banner red">
+        <div class="action-banner-icon">⚠️</div>
+        <div>
+          <div class="action-banner-title">2 Near Misses not yet investigated</div>
+          <div class="action-banner-sub">NM-2026-041 (Foam) and NM-2026-042 (Sewing) raised yesterday — investigations not yet assigned.</div>
+        </div>
+      </div>
+      <div class="action-banner amber">
+        <div class="action-banner-icon">📋</div>
+        <div>
+          <div class="action-banner-title">CPAR overdue — CP-2026-018 · Woodmill</div>
+          <div class="action-banner-sub">Deadline was 14 Apr 2026. Root cause investigation not completed. Owner: Richard S.</div>
+        </div>
+      </div>
+      <div class="action-banner amber">
+        <div class="action-banner-icon">🔧</div>
+        <div>
+          <div class="action-banner-title">Pre-use checks missed — Foam &amp; Cutting (Pathfinder 2)</div>
+          <div class="action-banner-sub">No check submitted yesterday for these machines. Follow up with team leads.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Production — Yesterday -->
+    <div class="section">
+      <div class="section-title">Production — Yesterday (Wed 16 Apr)</div>
+      <table class="prod-table">
+        <thead>
+          <tr>
+            <th>Team</th>
+            <th>Done</th>
+            <th>Target</th>
+            <th>Progress</th>
+            <th>Backlog</th>
+            <th>WTD</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span style="margin-right:5px">🪵</span><span class="team-name">Woodmill</span></td>
+            <td>38</td><td>40</td>
+            <td><div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" style="width:95%;background:#14a1e9"></div></div><span class="bar-pct">95%</span></div></td>
+            <td><span class="pill pill-grey">0</span></td>
+            <td class="wtd">112/120</td>
+            <td><span class="pill pill-green">On Track</span></td>
+          </tr>
+          <tr>
+            <td><span style="margin-right:5px">🟦</span><span class="team-name">Foam</span></td>
+            <td>22</td><td>30</td>
+            <td><div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" style="width:73%;background:#f59e0b"></div></div><span class="bar-pct">73%</span></div></td>
+            <td><span class="pill pill-red">8</span></td>
+            <td class="wtd">68/90</td>
+            <td><span class="pill pill-amber">Below Target</span></td>
+          </tr>
+          <tr>
+            <td><span style="margin-right:5px">✂️</span><span class="team-name">Cutting</span></td>
+            <td>35</td><td>35</td>
+            <td><div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" style="width:100%;background:#16a34a"></div></div><span class="bar-pct">100%</span></div></td>
+            <td><span class="pill pill-grey">0</span></td>
+            <td class="wtd">105/105</td>
+            <td><span class="pill pill-green">Complete</span></td>
+          </tr>
+          <tr>
+            <td><span style="margin-right:5px">🧵</span><span class="team-name">Sewing</span></td>
+            <td>28</td><td>35</td>
+            <td><div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" style="width:80%;background:#f59e0b"></div></div><span class="bar-pct">80%</span></div></td>
+            <td><span class="pill pill-amber">4</span></td>
+            <td class="wtd">84/105</td>
+            <td><span class="pill pill-amber">Below Target</span></td>
+          </tr>
+          <tr>
+            <td><span style="margin-right:5px">🪑</span><span class="team-name">Upholstery</span></td>
+            <td>14</td><td>20</td>
+            <td><div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" style="width:70%;background:#ef4444"></div></div><span class="bar-pct">70%</span></div></td>
+            <td><span class="pill pill-red">6</span></td>
+            <td class="wtd">42/60</td>
+            <td><span class="pill pill-red">Behind</span></td>
+          </tr>
+          <tr>
+            <td><span style="margin-right:5px">🔩</span><span class="team-name">Assembly</span></td>
+            <td>6</td><td>8</td>
+            <td><div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" style="width:75%;background:#f59e0b"></div></div><span class="bar-pct">75%</span></div></td>
+            <td><span class="pill pill-amber">2</span></td>
+            <td class="wtd">18/24</td>
+            <td><span class="pill pill-amber">Below Target</span></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="stat-note" style="margin-top:10px">Week WK16 · 3 days in &nbsp;·&nbsp; On-time rate: <strong>87%</strong> &nbsp;·&nbsp; Scrap logged this week: <strong>4</strong> &nbsp;·&nbsp; Backlog = incomplete jobs across WK15 &amp; WK16</div>
+    </div>
+
+    <!-- Today's Plan -->
+    <div class="section">
+      <div class="section-title">Today's Plan — Thu 17 Apr (Prep Day 4)</div>
+      <div class="plan-grid">
+        <div class="plan-card">
+          <div class="plan-team">🪵 Woodmill</div>
+          <div class="plan-num">40</div>
+          <div class="plan-sub">to complete today &nbsp;·&nbsp; <span style="color:#7c3aed;font-weight:600">6 waiting → Upholstery</span></div>
+        </div>
+        <div class="plan-card" style="border-color:#fed7aa;background:#fff7ed">
+          <div class="plan-team">🟦 Foam</div>
+          <div class="plan-num" style="color:#d97706">38</div>
+          <div class="plan-sub">to complete today (inc. 8 backlog) &nbsp;·&nbsp; <span style="color:#7c3aed;font-weight:600">11 waiting → Upholstery</span></div>
+        </div>
+        <div class="plan-card">
+          <div class="plan-team">✂️ Cutting</div>
+          <div class="plan-num">35</div>
+          <div class="plan-sub">to complete today &nbsp;·&nbsp; <span style="color:#7c3aed;font-weight:600">4 waiting → Sewing</span></div>
+        </div>
+        <div class="plan-card" style="border-color:#fed7aa;background:#fff7ed">
+          <div class="plan-team">🧵 Sewing</div>
+          <div class="plan-num" style="color:#d97706">39</div>
+          <div class="plan-sub">to complete today (inc. 4 backlog) &nbsp;·&nbsp; <span style="color:#7c3aed;font-weight:600">7 waiting → Upholstery</span></div>
+        </div>
+        <div class="plan-card" style="border-color:#fca5a5;background:#fef2f2">
+          <div class="plan-team">🪑 Upholstery</div>
+          <div class="plan-num" style="color:#dc2626">26</div>
+          <div class="plan-sub">to complete today (inc. 6 backlog) &nbsp;·&nbsp; <span style="color:#7c3aed;font-weight:600">5 waiting → Assembly</span></div>
+        </div>
+        <div class="plan-card" style="border-color:#fed7aa;background:#fff7ed">
+          <div class="plan-team">🔩 Assembly</div>
+          <div class="plan-num" style="color:#d97706">10</div>
+          <div class="plan-sub">to complete today (inc. 2 backlog) &nbsp;·&nbsp; <span style="color:#0e7490;font-weight:600">3 waiting → QC</span></div>
+        </div>
+        <div class="plan-card">
+          <div class="plan-team">✅ QC</div>
+          <div class="plan-num" style="color:#0e7490">18</div>
+          <div class="plan-sub">chairs to verify today &nbsp;·&nbsp; <span style="color:#16a34a;font-weight:600">14 cleared → Dispatch</span></div>
+        </div>
+      </div>
+      <div class="stat-note">Backlog includes WK15 &amp; WK16 incomplete jobs · "waiting →" = completed by that team but not yet picked up by the next stage</div>
+    </div>
+
+    <!-- QC -->
+    <div class="section">
+      <div class="section-title">Quality Control — Yesterday</div>
+      <div class="qc-strip">
+        <div class="qc-cell">
+          <div class="qc-num">18</div>
+          <div class="qc-lbl">Total QC'd</div>
+        </div>
+        <div class="qc-cell">
+          <div class="qc-num">14</div>
+          <div class="qc-lbl">New Chairs</div>
+        </div>
+        <div class="qc-cell">
+          <div class="qc-num">4</div>
+          <div class="qc-lbl">Service Chairs</div>
+        </div>
+        <div class="qc-cell" style="border-color:#fca5a5;background:#fef2f2">
+          <div class="qc-num red">5</div>
+          <div class="qc-lbl" style="color:#dc2626">Not QC'd (outstanding)</div>
+        </div>
+        <div class="qc-cell">
+          <div class="qc-num grey">3</div>
+          <div class="qc-lbl">Accessories</div>
+        </div>
+        <div class="qc-cell">
+          <div class="qc-num grey" style="font-size:14px">2</div>
+          <div class="qc-lbl">Inspectors on shift</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Near Misses -->
+    <div class="section">
+      <div class="section-title">Near Misses — Yesterday</div>
+      <div class="alert-row red">
+        <div class="alert-icon">⚠️</div>
+        <div class="alert-body">
+          <div class="alert-title">NM-2026-041 · Foam</div>
+          <div class="alert-sub">Forklift near-miss in goods-in area. Pedestrian zone not observed. Reported by Craig H.</div>
+        </div>
+        <div class="alert-badge"><span class="pill pill-red">Open</span></div>
+      </div>
+      <div class="alert-row amber">
+        <div class="alert-icon">⚠️</div>
+        <div class="alert-body">
+          <div class="alert-title">NM-2026-042 · Sewing</div>
+          <div class="alert-sub">Needle guard removed and not replaced before shift end. Identified during daily check. Reported by Matthew T.</div>
+        </div>
+        <div class="alert-badge"><span class="pill pill-amber">Open</span></div>
+      </div>
+      <div class="alert-row blue" style="margin-top:10px">
+        <div class="alert-icon">📅</div>
+        <div class="alert-body">
+          <div class="alert-title">This week (WK16) — 3 near misses</div>
+          <div class="alert-sub">
+            Mon: NM-2026-040 · Woodmill — trailing cable trip hazard (Closed) &nbsp;·&nbsp;
+            Wed: NM-2026-041 · Foam — forklift near-miss (Open) &nbsp;·&nbsp;
+            Wed: NM-2026-042 · Sewing — needle guard removed (Open)
+          </div>
+        </div>
+        <div class="alert-badge"><span class="pill pill-blue">2 open</span></div>
+      </div>
+      <div class="stat-note" style="margin-top:8px">This month: <strong>6 near misses</strong> &nbsp;·&nbsp; YTD: <strong>14</strong></div>
+    </div>
+
+    <!-- CPARs -->
+    <div class="section">
+      <div class="section-title">CPARs — Issues by Team</div>
+      <table class="prod-table" style="margin-bottom:14px">
+        <thead>
+          <tr>
+            <th>Team</th>
+            <th>Total</th>
+            <th>Open</th>
+            <th>Overdue</th>
+            <th>Closed</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span style="margin-right:5px">🪵</span><span class="team-name">Woodmill</span></td>
+            <td>3</td>
+            <td><span class="pill pill-amber">2</span></td>
+            <td><span class="pill pill-red">1</span></td>
+            <td>1</td>
+          </tr>
+          <tr>
+            <td><span style="margin-right:5px">🧵</span><span class="team-name">Sewing</span></td>
+            <td>2</td>
+            <td><span class="pill pill-amber">1</span></td>
+            <td><span class="pill pill-grey">0</span></td>
+            <td>1</td>
+          </tr>
+          <tr>
+            <td><span style="margin-right:5px">✂️</span><span class="team-name">Cutting</span></td>
+            <td>1</td>
+            <td><span class="pill pill-blue">1</span></td>
+            <td><span class="pill pill-grey">0</span></td>
+            <td>0</td>
+          </tr>
+          <tr>
+            <td><span style="margin-right:5px">🪑</span><span class="team-name">Upholstery</span></td>
+            <td>1</td>
+            <td><span class="pill pill-amber">1</span></td>
+            <td><span class="pill pill-grey">0</span></td>
+            <td>0</td>
+          </tr>
+          <tr>
+            <td><span style="margin-right:5px">🟦</span><span class="team-name">Foam</span></td>
+            <td>2</td>
+            <td><span class="pill pill-grey">0</span></td>
+            <td><span class="pill pill-grey">0</span></td>
+            <td>2</td>
+          </tr>
+          <tr>
+            <td><span style="margin-right:5px">🔩</span><span class="team-name">Assembly</span></td>
+            <td>0</td>
+            <td><span class="pill pill-grey">0</span></td>
+            <td><span class="pill pill-grey">0</span></td>
+            <td>0</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="qc-strip" style="grid-template-columns:repeat(5,1fr)">
+        <div class="qc-cell">
+          <div class="qc-num" style="color:#0e023a">7</div>
+          <div class="qc-lbl">Open</div>
+        </div>
+        <div class="qc-cell" style="border-color:#fca5a5;background:#fef2f2">
+          <div class="qc-num red">1</div>
+          <div class="qc-lbl">Overdue</div>
+        </div>
+        <div class="qc-cell">
+          <div class="qc-num grey">1</div>
+          <div class="qc-lbl">Raised Today</div>
+        </div>
+        <div class="qc-cell">
+          <div class="qc-num grey">3</div>
+          <div class="qc-lbl">Raised This Week</div>
+        </div>
+        <div class="qc-cell">
+          <div class="qc-num grey">5</div>
+          <div class="qc-lbl">Raised This Month</div>
+        </div>
+      </div>
+      <div class="stat-note" style="margin-top:8px">Avg closure time: <strong>8.4 days</strong> &nbsp;·&nbsp; Closed this month: <strong>3</strong></div>
+    </div>
+
+    <!-- Spec Changes -->
+    <div class="section">
+      <div class="section-title">Spec Changes — Detected Yesterday</div>
+      <table class="spec-table">
+        <thead>
+          <tr><th>REP</th><th>Field</th><th>From</th><th>To</th><th>Time</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="spec-rep">2613044</span></td>
+            <td class="spec-field">Frame Colour</td>
+            <td><span class="spec-old">Walnut</span></td>
+            <td><span class="spec-new">Champagne</span></td>
+            <td class="spec-time">08:42</td>
+          </tr>
+          <tr>
+            <td><span class="spec-rep">2613055</span></td>
+            <td class="spec-field">Fabric Code</td>
+            <td><span class="spec-old">FAB-0041-NV</span></td>
+            <td><span class="spec-new">FAB-0041-TL</span></td>
+            <td class="spec-time">10:15</td>
+          </tr>
+          <tr>
+            <td><span class="spec-rep">2613071</span></td>
+            <td class="spec-field">Mechanism Type</td>
+            <td><span class="spec-old">Wall-Hugger</span></td>
+            <td><span class="spec-new">2-Motor Rise</span></td>
+            <td class="spec-time">13:07</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="stat-note">3 changes yesterday &nbsp;·&nbsp; 11 this week &nbsp;·&nbsp; All acknowledged in RepNet</div>
+    </div>
+
+    <!-- Pre-use Checks -->
+    <div class="section">
+      <div class="section-title">Pre-Use Checks — Yesterday</div>
+
+      <div class="checks-area">
+        <div class="checks-area-label">🪵 Woodmill Machines</div>
+        <div class="checks-grid">
+          <div class="check-machine pass"><div class="check-icon pass">✓</div><div class="check-info"><div class="check-name">Band Saw</div><div class="check-time">06:12 · Mark T.</div></div></div>
+          <div class="check-machine pass"><div class="check-icon pass">✓</div><div class="check-info"><div class="check-name">Panel Saw</div><div class="check-time">06:15 · Mark T.</div></div></div>
+          <div class="check-machine pass"><div class="check-icon pass">✓</div><div class="check-info"><div class="check-name">Spindle Moulder</div><div class="check-time">06:18 · Mark T.</div></div></div>
+          <div class="check-machine pass"><div class="check-icon pass">✓</div><div class="check-info"><div class="check-name">Dowel Inserter</div><div class="check-time">06:20 · Mark T.</div></div></div>
+        </div>
+      </div>
+
+      <div class="checks-area">
+        <div class="checks-area-label">✂️ Cutting Machines</div>
+        <div class="checks-grid">
+          <div class="check-machine pass"><div class="check-icon pass">✓</div><div class="check-info"><div class="check-name">Lectra Vector</div><div class="check-time">06:05 · Sarah K.</div></div></div>
+          <div class="check-machine pass"><div class="check-icon pass">✓</div><div class="check-info"><div class="check-name">Pathfinder 1</div><div class="check-time">06:08 · Sarah K.</div></div></div>
+          <div class="check-machine none"><div class="check-icon none">–</div><div class="check-info"><div class="check-name">Pathfinder 2</div><div class="check-time">Not submitted</div></div></div>
+        </div>
+      </div>
+
+      <div class="checks-area" style="margin-bottom:0">
+        <div class="checks-area-label">🟦 Other Areas</div>
+        <div class="checks-grid">
+          <div class="check-machine pass"><div class="check-icon pass">✓</div><div class="check-info"><div class="check-name">Sewing</div><div class="check-time">06:30 · Matthew T.</div></div></div>
+          <div class="check-machine pass"><div class="check-icon pass">✓</div><div class="check-info"><div class="check-name">Upholstery</div><div class="check-time">06:25 · Daniel S.</div></div></div>
+          <div class="check-machine none"><div class="check-icon none">–</div><div class="check-info"><div class="check-name">Foam</div><div class="check-time">Not submitted</div></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Innovation Station -->
+    <div class="section">
+      <div class="section-title">Innovation Station</div>
+      <div class="ivn-strip">
+        <div class="ivn-cell">
+          <div class="ivn-num">12</div>
+          <div class="ivn-lbl">Total Ideas</div>
+        </div>
+        <div class="ivn-cell">
+          <div class="ivn-num amber">4</div>
+          <div class="ivn-lbl">Pending Review</div>
+        </div>
+        <div class="ivn-cell">
+          <div class="ivn-num" style="color:#38bdf8">3</div>
+          <div class="ivn-lbl">In Progress</div>
+        </div>
+        <div class="ivn-cell">
+          <div class="ivn-num green">5</div>
+          <div class="ivn-lbl">Completed</div>
+        </div>
+      </div>
+      <div class="stat-note" style="margin-top:10px">1 idea overdue this week &nbsp;·&nbsp; Newest: <strong>"Foam offcut recycling bin labels"</strong> — submitted yesterday by Craig H.</div>
+    </div>
+
+  </div><!-- /body -->
+
+  <!-- Footer -->
+  <div class="footer">
+    <span>Generated by RepNet &nbsp;·&nbsp; Repose Furniture Ltd</span>
+    <span>Powered by <strong style="color:#0e023a">RepNet</strong> &nbsp;·&nbsp; <a href="#">View in RepNet</a></span>
+  </div>
+
+</div><!-- /email-wrap -->
+
+</body>
+</html>
