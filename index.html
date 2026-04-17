@@ -11113,7 +11113,7 @@ function buildDailyReportHtml() {
     const anyFail    = fieldMap?.anyFail    || 'AnyFail';
     const inspectedAt= fieldMap?.inspectedAt|| 'InspectedAt';
     const inspector  = fieldMap?.inspector  || 'Inspector';
-    const status = insps.length===0 ? 'none' : insps.some(f=>f[anyFail]) ? 'fail' : 'pass';
+    const status = insps.length===0 ? 'none' : insps.some(f => f[anyFail]===true || f[anyFail]==='true' || f[anyFail]===1) ? 'fail' : 'pass';
     const icon   = status==='pass' ? '✓' : status==='fail' ? '⚠' : '–';
     let timeOp = 'Not submitted';
     if (insps.length && insps[0][inspectedAt]) {
