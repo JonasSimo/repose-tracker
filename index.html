@@ -10953,16 +10953,17 @@ function buildDailyReportHtml() {
   const todayDOW     = today.getDay(); // 0=Sun,1=Mon…6=Sat
   const todayPrepDay = (todayDOW >= 1 && todayDOW <= 5) ? String(todayDOW) : null;
 
-  // Backlog = PREVIOUS week's incomplete regular-prep jobs only (carry-over, not today's work)
+  // Backlog = prev week incomplete + this week incomplete (excl. today's prep day, still in progress)
   const prevWkIdx = WEEKS.indexOf(currentWk) - 1;
   const prevWk    = prevWkIdx >= 0 ? WEEKS[prevWkIdx] : null;
   const backlogByTeam = {};
   PROD_TEAMS.forEach(t => { backlogByTeam[t.name] = 0; });
+  // Previous week carry-over
   if (prevWk) {
     Object.entries(PROD[prevWk] || {}).forEach(([prep, jobs]) => {
       if (!Array.isArray(jobs) || !isRegularPrep(prep)) return;
       jobs.forEach((job, ji) => {
-        PROD_TEAMS.forEach(t => {
+        PROD_TEAMS.filter(t => t.name !== 'QC').forEach(t => {
           const subs = t.hasSubs ? SUBS : ['all'];
           if (!subs.every(sub => STATE[t.name]?.[sub]?.[prevWk]?.[prep]?.[ji]?.done))
             backlogByTeam[t.name]++;
@@ -10970,6 +10971,26 @@ function buildDailyReportHtml() {
       });
     });
   }
+  // Current week (exclude today — still being worked on)
+  Object.entries(PROD[currentWk] || {}).forEach(([prep, jobs]) => {
+    if (!Array.isArray(jobs) || !isRegularPrep(prep)) return;
+    if (prep === todayPrepDay) return;
+    jobs.forEach((job, ji) => {
+      PROD_TEAMS.filter(t => t.name !== 'QC').forEach(t => {
+        const subs = t.hasSubs ? SUBS : ['all'];
+        if (!subs.every(sub => STATE[t.name]?.[sub]?.[currentWk]?.[prep]?.[ji]?.done))
+          backlogByTeam[t.name]++;
+      });
+    });
+  });
+  // QC backlog = Assembly completions not yet QC'd (mirrors Stats tab "Outstanding" figure)
+  const _assemblyReps = new Set(
+    (STATS_COMPLETIONS||[])
+      .filter(c => c.fields?.Team === 'Assembly')
+      .map(c => String(c.fields?.REP ?? '').replace(/\D/g,'').slice(-7))
+      .filter(r => r.length === 7)
+  );
+  backlogByTeam['QC'] = [..._assemblyReps].filter(r => !qcCompletedReps.has(r)).length;
   const totalBacklog = Object.values(backlogByTeam).reduce((a,b)=>a+b,0);
 
   // Yesterday's prep day (Mon=1 … Fri=5); null on weekends
@@ -11091,13 +11112,16 @@ function buildDailyReportHtml() {
 
   // ── Spec Changes ───────────────────────────────────────────────────────
   const specYest = (STATS_ALERTS||[]).filter(a => {
-    const da = a.fields?.DetectedAt||a.createdDateTime||'';
-    return da && wmDateStr(new Date(da)) === yestISO && !specAlertIsNoise(a);
+    const da = a.fields?.DetectedAt||'';
+    if (!da) return false;
+    const parsed = parseDdmmyyyy(da); // DetectedAt stored as "DD/MM/YYYY HH:MM"
+    return parsed && wmDateStr(parsed) === yestISO && !specAlertIsNoise(a);
   });
   const specRows = specYest.slice(0,10).map(a => {
     const f = a.fields||{};
-    const da = f.DetectedAt||a.createdDateTime||'';
-    const timeStr = da ? new Date(da).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '';
+    const da = f.DetectedAt||'';
+    const timePart = da.includes(' ') ? da.split(' ')[1] : '';
+    const timeStr = timePart || '';
     return `<tr>
       <td><span class="spec-rep">${escHtml(f.Title||'—')}</span></td>
       <td class="spec-field">${escHtml(f.FieldLabel||f.FieldKey||'—')}</td>
@@ -11133,33 +11157,23 @@ function buildDailyReportHtml() {
     return checkToken(m.name, insps, {});
   }).join('');
 
-  // ── Today's Plan cards ─────────────────────────────────────────────────
-  const todayPlanCards = PROD_TEAMS.map(t => {
-    const backlog = backlogByTeam[t.name] || 0;
-    // Jobs planned for TODAY's prep day only
-    const todayJobs = todayPrepDay ? (PROD[currentWk]?.[todayPrepDay] || []) : [];
-    let plannedToday = 0;
-    todayJobs.forEach((job, ji) => {
-      const subs = t.hasSubs ? SUBS : ['all'];
-      if (!subs.every(sub => STATE[t.name]?.[sub]?.[currentWk]?.[todayPrepDay]?.[ji]?.done)) plannedToday++;
-    });
-    const total = plannedToday + backlog;
-    const numColor = backlog > 5 ? '#dc2626' : backlog > 0 ? '#d97706' : '#0e023a';
-    const cardStyle = backlog > 5 ? 'border-color:#fca5a5;background:#fef2f2' : backlog > 0 ? 'border-color:#fed7aa;background:#fff7ed' : '';
-    const subLine = backlog > 0
-      ? `${plannedToday} planned today + ${backlog} backlog`
-      : `${plannedToday} planned today`;
+  // ── Backlog cards ─────────────────────────────────────────────────────
+  const backlogCards = PROD_TEAMS.map(t => {
+    const n        = backlogByTeam[t.name] || 0;
+    const numColor = n > 5 ? '#dc2626' : n > 0 ? '#d97706' : '#16a34a';
+    const cardStyle = n > 5 ? 'border-color:#fca5a5;background:#fef2f2' : n > 0 ? 'border-color:#fed7aa;background:#fff7ed' : '';
     return `<div class="plan-card" style="${cardStyle}">
       <div class="plan-team">${t.icon} ${escHtml(t.name)}</div>
-      <div class="plan-num" style="color:${numColor}">${total}</div>
-      <div class="plan-sub">${subLine}</div>
+      <div class="plan-num" style="color:${numColor}">${n}</div>
+      <div class="plan-sub">${n === 0 ? 'All clear' : 'jobs outstanding'}</div>
     </div>`;
   }).join('');
 
-  const qcCard = `<div class="plan-card">
+  const qcBacklogN = backlogByTeam['QC'] || 0;
+  const qcBacklogCard = `<div class="plan-card" style="${qcBacklogN > 5 ? 'border-color:#fca5a5;background:#fef2f2' : qcBacklogN > 0 ? 'border-color:#fed7aa;background:#fff7ed' : ''}">
     <div class="plan-team">✅ QC</div>
-    <div class="plan-num" style="color:#0e7490">${qcTotal}</div>
-    <div class="plan-sub">QC'd yesterday &nbsp;·&nbsp; <span style="color:#16a34a;font-weight:600">${qcNewChair} new chairs cleared</span></div>
+    <div class="plan-num" style="color:${qcBacklogN > 5 ? '#dc2626' : qcBacklogN > 0 ? '#d97706' : '#16a34a'}">${qcBacklogN}</div>
+    <div class="plan-sub">${qcBacklogN === 0 ? 'All clear' : 'assembly done, not QC\'d'}</div>
   </div>`;
 
   // ── Assemble HTML ──────────────────────────────────────────────────────
@@ -11264,13 +11278,13 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f4f8;padding:32px 16p
         <thead><tr><th>Team</th><th>Done</th><th>Est. Target</th><th>Progress</th><th>Backlog</th><th>WTD</th><th>Status</th></tr></thead>
         <tbody>${prodRows}</tbody>
       </table>
-      <div class="stat-note">Backlog = incomplete jobs in last 2 weeks &nbsp;·&nbsp; WTD = this ISO week &nbsp;·&nbsp; Est. Target = weekly plan ÷ 5</div>
+      <div class="stat-note">Backlog = incomplete jobs from last week + this week (excl. today) &nbsp;·&nbsp; WTD = this ISO week &nbsp;·&nbsp; Est. Target = job count for that prep day</div>
     </div>
 
     <div class="section">
-      <div class="section-title">Today's Plan — ${todayShort}</div>
-      <div class="plan-grid">${todayPlanCards}${qcCard}</div>
-      <div class="stat-note">"yesterday →" = jobs completed yesterday now waiting for next stage &nbsp;·&nbsp; Remaining = not yet done in current week</div>
+      <div class="section-title">Backlog</div>
+      <div class="plan-grid">${backlogCards}${qcBacklogCard}</div>
+      <div class="stat-note">Outstanding jobs from last week + this week (today excluded) &nbsp;·&nbsp; QC = Assembly done but not yet QC'd</div>
     </div>
 
     <div class="section">
@@ -11330,7 +11344,7 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f4f8;padding:32px 16p
 
   <div class="footer">
     <span>Generated by RepNet &nbsp;·&nbsp; Repose Furniture Ltd</span>
-    <span>Powered by <strong style="color:#0e023a">RepNet</strong></span>
+    <span>v2 &nbsp;·&nbsp; Powered by <strong style="color:#0e023a">RepNet</strong></span>
   </div>
 </div>
 </body></html>`;
@@ -11421,7 +11435,8 @@ async function sendDailyReport(btn) {
     const binStr   = Array.from(utf8Bytes).map(b => String.fromCharCode(b)).join('');
     const b64      = btoa(binStr);
 
-    const fileName = DAILY_REPORT_TEST_MODE ? 'RepNet-Daily-Report-TEST.html' : `RepNet-Daily-Report-${new Date().toISOString().slice(0,10)}.html`;
+    const _ts = now.toISOString().replace(/[:.]/g,'-').slice(0,19);
+    const fileName = DAILY_REPORT_TEST_MODE ? `RepNet-Daily-Report-TEST-${_ts}.html` : `RepNet-Daily-Report-${new Date().toISOString().slice(0,10)}.html`;
 
     const res = await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
       method: 'POST',
