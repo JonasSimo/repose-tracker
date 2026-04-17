@@ -10912,13 +10912,33 @@ function buildDailyReportHtml() {
 
   const PROD_TEAMS = TEAMS_CFG.filter(t => t.name !== 'QC');
 
+  // For hasSubs teams (Woodmill, Upholstery) deduplicate by job — each job has 3 sub records (Arms/Backs/Seats)
+  function jobKey(i) { return `${i.fields?.Week||''}_${i.fields?.PrepDay||''}_${i.fields?.JobNo||i.fields?.REP||''}`; }
+  const doneSetsByTeam = {};
+  PROD_TEAMS.forEach(t => { doneSetsByTeam[t.name] = t.hasSubs ? new Set() : null; });
+
   const doneByTeam = {};
   PROD_TEAMS.forEach(t => { doneByTeam[t.name] = 0; });
-  yestComps.forEach(i => { const t = i.fields?.Team||''; if (doneByTeam[t] !== undefined) doneByTeam[t]++; });
+  yestComps.forEach(i => {
+    const t = i.fields?.Team||'';
+    if (doneByTeam[t] === undefined) return;
+    if (doneSetsByTeam[t]) doneSetsByTeam[t].add(jobKey(i));
+    else doneByTeam[t]++;
+  });
+  PROD_TEAMS.filter(t => t.hasSubs).forEach(t => { doneByTeam[t.name] = doneSetsByTeam[t.name].size; });
+
+  const wtdSetsByTeam = {};
+  PROD_TEAMS.forEach(t => { wtdSetsByTeam[t.name] = t.hasSubs ? new Set() : null; });
 
   const wtdByTeam = {};
   PROD_TEAMS.forEach(t => { wtdByTeam[t.name] = 0; });
-  wtdComps.forEach(i => { const t = i.fields?.Team||''; if (wtdByTeam[t] !== undefined) wtdByTeam[t]++; });
+  wtdComps.forEach(i => {
+    const t = i.fields?.Team||'';
+    if (wtdByTeam[t] === undefined) return;
+    if (wtdSetsByTeam[t]) wtdSetsByTeam[t].add(jobKey(i));
+    else wtdByTeam[t]++;
+  });
+  PROD_TEAMS.filter(t => t.hasSubs).forEach(t => { wtdByTeam[t.name] = wtdSetsByTeam[t.name].size; });
 
   const totalDone = Object.values(doneByTeam).reduce((a,b)=>a+b,0);
 
