@@ -11049,24 +11049,28 @@ function buildDailyReportHtml() {
   const cparRaisedThisMonth = cparAll.filter(i => cparDateInPeriod(i, d => d.getMonth()===today.getMonth()&&d.getFullYear()===today.getFullYear())).length;
 
   const cparByTeam = {};
-  PROD_TEAMS.forEach(t => { cparByTeam[t.name] = { total:0, open:0, overdue:0, closed:0 }; });
+  PROD_TEAMS.forEach(t => { cparByTeam[t.name] = { open:0, overdue:0, raisedThisWeek:0, closedThisWeek:0 }; });
   cparAll.forEach(item => {
     const t = normaliseTeam(item.fields?.SourceDept||item.fields?.RaisedByTeam||'');
     if (!cparByTeam[t]) return;
-    cparByTeam[t].total++;
     const s = getCPARStatus(item);
-    if (s === 'closed') cparByTeam[t].closed++;
-    else { cparByTeam[t].open++; if (s === 'red') cparByTeam[t].overdue++; }
+    if (s === 'closed') {
+      cparByTeam[t].closedThisWeek += cparDateInPeriod(item, d => sameWeek(d, today)) ? 1 : 0;
+    } else {
+      cparByTeam[t].open++;
+      if (s === 'red') cparByTeam[t].overdue++;
+    }
+    if (cparDateInPeriod(item, d => sameWeek(d, today))) cparByTeam[t].raisedThisWeek++;
   });
 
   const cparTeamRows = PROD_TEAMS.map(t => {
-    const c = cparByTeam[t.name]||{total:0,open:0,overdue:0,closed:0};
+    const c = cparByTeam[t.name]||{open:0,overdue:0,raisedThisWeek:0,closedThisWeek:0};
     return `<tr>
       <td><span style="margin-right:5px">${t.icon}</span><span class="team-name">${escHtml(t.name)}</span></td>
-      <td>${c.total}</td>
       <td><span class="pill ${c.open>0?'pill-amber':'pill-grey'}">${c.open}</span></td>
       <td><span class="pill ${c.overdue>0?'pill-red':'pill-grey'}">${c.overdue}</span></td>
-      <td>${c.closed}</td>
+      <td>${c.raisedThisWeek}</td>
+      <td>${c.closedThisWeek}</td>
     </tr>`;
   }).join('');
 
@@ -11088,17 +11092,30 @@ function buildDailyReportHtml() {
     </tr>`;
   }).join()||'<tr><td colspan="5" style="color:#9ca3af;font-size:12px;padding:6px 8px">No spec changes detected yesterday.</td></tr>';
 
-  // ── Pre-use Checks (Cutting machines) ─────────────────────────────────
-  const cuttingChecksHtml = CC_MACHINES.map(m => {
-    const insps  = ccByMachineDate[m.id]?.[yestISO]||[];
-    const status = insps.length===0 ? 'none' : insps.some(f=>f.AnyFail) ? 'fail' : 'pass';
+  // ── Pre-use Checks ─────────────────────────────────────────────────────
+  function checkToken(name, insps, fieldMap) {
+    // fieldMap: { anyFail, inspectedAt, inspector } — field names differ between WM and CC
+    const anyFail    = fieldMap?.anyFail    || 'AnyFail';
+    const inspectedAt= fieldMap?.inspectedAt|| 'InspectedAt';
+    const inspector  = fieldMap?.inspector  || 'Inspector';
+    const status = insps.length===0 ? 'none' : insps.some(f=>f[anyFail]) ? 'fail' : 'pass';
     const icon   = status==='pass' ? '✓' : status==='fail' ? '⚠' : '–';
     let timeOp = 'Not submitted';
-    if (insps.length && insps[0].InspectedAt) {
-      timeOp = new Date(insps[0].InspectedAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
-      if (insps[0].Inspector) timeOp += ' · ' + insps[0].Inspector;
+    if (insps.length && insps[0][inspectedAt]) {
+      timeOp = new Date(insps[0][inspectedAt]).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+      if (insps[0][inspector]) timeOp += ' · ' + insps[0][inspector];
     }
-    return `<div class="check-machine ${status}"><div class="check-icon ${status}">${icon}</div><div class="check-info"><div class="check-name">${escHtml(m.name)}</div><div class="check-time">${escHtml(timeOp)}</div></div></div>`;
+    return `<div class="check-machine ${status}"><div class="check-icon ${status}">${icon}</div><div class="check-info"><div class="check-name">${escHtml(name)}</div><div class="check-time">${escHtml(timeOp)}</div></div></div>`;
+  }
+
+  const woodmillChecksHtml = WM_MACHINES.map(m => {
+    const insps = wmByMachineDate[m.id]?.[yestISO]||[];
+    return checkToken(m.name, insps, {});
+  }).join('');
+
+  const cuttingChecksHtml = CC_MACHINES.map(m => {
+    const insps = ccByMachineDate[m.id]?.[yestISO]||[];
+    return checkToken(m.name, insps, {});
   }).join('');
 
   // ── Today's Plan cards ─────────────────────────────────────────────────
@@ -11263,7 +11280,7 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f4f8;padding:32px 16p
     <div class="section">
       <div class="section-title">CPARs — Issues by Team</div>
       <table class="prod-table" style="margin-bottom:14px">
-        <thead><tr><th>Team</th><th>Total</th><th>Open</th><th>Overdue</th><th>Closed</th></tr></thead>
+        <thead><tr><th>Team</th><th>Open</th><th>Overdue</th><th>Raised This Week</th><th>Closed This Week</th></tr></thead>
         <tbody>${cparTeamRows}</tbody>
       </table>
       <div class="qc-strip" style="grid-template-columns:repeat(5,1fr)">
@@ -11287,6 +11304,10 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f4f8;padding:32px 16p
     <div class="section">
       <div class="section-title">Pre-Use Checks — Yesterday</div>
       <div class="checks-area">
+        <div class="checks-area-label">🪵 Woodmill Machines</div>
+        <div class="checks-grid">${woodmillChecksHtml}</div>
+      </div>
+      <div class="checks-area" style="margin-bottom:0">
         <div class="checks-area-label">✂️ Cutting Machines</div>
         <div class="checks-grid">${cuttingChecksHtml}</div>
       </div>
