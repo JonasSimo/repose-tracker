@@ -13967,19 +13967,20 @@ async function ccSubmit() {
   try {
     const siteId = await ccGetSiteId();
     const listId = await ccGetListId();
+    const payload = {
+      fields: {
+        Title:         `${ccSelectedMachine.name} ${new Date().toISOString().slice(0,10)}`,
+        Machine:       ccSelectedMachine.name,
+        InspectedAt:   new Date().toISOString(),
+        InspectorName: operatorName,
+        AnyFail:       anyFail,
+        ChecksDetail:  checksDetail,
+        Comments:      comments,
+      }
+    };
     await graphPost(
       `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`,
-      {
-        fields: {
-          Title:         `${ccSelectedMachine.name} · ${new Date().toISOString().slice(0,10)}`,
-          Machine:       ccSelectedMachine.name,
-          InspectedAt:   new Date().toISOString(),
-          InspectorName: operatorName,
-          AnyFail:       anyFail,
-          ChecksDetail:  checksDetail,
-          Comments:      comments,
-        }
-      }
+      payload
     );
 
     // Update local state immediately
