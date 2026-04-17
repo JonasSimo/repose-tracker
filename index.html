@@ -11435,7 +11435,7 @@ async function sendDailyReport(btn) {
     const binStr   = Array.from(utf8Bytes).map(b => String.fromCharCode(b)).join('');
     const b64      = btoa(binStr);
 
-    const _ts = now.toISOString().replace(/[:.]/g,'-').slice(0,19);
+    const _ts = new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
     const fileName = DAILY_REPORT_TEST_MODE ? `RepNet-Daily-Report-TEST-${_ts}.html` : `RepNet-Daily-Report-${new Date().toISOString().slice(0,10)}.html`;
 
     const res = await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
