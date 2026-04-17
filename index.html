@@ -11323,9 +11323,67 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f4f8;padding:32px 16p
 </body></html>`;
 }
 
+async function loadAllReportData() {
+  // Silently load all data needed for the daily report without touching tab-specific DOM
+  toast('Loading data for report…', 'i');
+  await Promise.allSettled([
+
+    // Stats: completions, QC, spec alerts
+    loadStatsData(),
+
+    // CPARs
+    (async () => {
+      try {
+        const siteId = await getSpSiteId();
+        const listId = await getListIdByName(SP_CPAR_LIST);
+        CPAR_ITEMS = await graphGetAll(
+          `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999&$orderby=createdDateTime desc`
+        );
+      } catch(e) { console.warn('[report] CPARs:', e.message); }
+    })(),
+
+    // Near Misses — fetch directly (loadNearMisses needs the safety view DOM open)
+    (async () => {
+      try {
+        const siteId = await getNmsSiteId();
+        NMS_ITEMS = await graphGetAll(
+          `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${NMS_LIST_ID}/items?$expand=fields&$top=999&$orderby=createdDateTime desc`
+        );
+      } catch(e) { console.warn('[report] NMS:', e.message); }
+    })(),
+
+    // Woodmill pre-use checks — fetch directly (wmLoadData touches wm-loading DOM element)
+    (async () => {
+      try {
+        const siteId = await wmGetSiteId();
+        const items  = await graphGetAll(
+          `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${WM_LIST_ID}/items?$expand=fields&$top=999`
+        );
+        wmInspections   = items;
+        wmByMachineDate = {};
+        for (const item of items) {
+          const f = item.fields;
+          const mid     = (f.MachineId || f.machineId || f.Title || '').trim();
+          const dateStr = f.InspectedAt ? wmDateStr(new Date(f.InspectedAt)) : '';
+          if (!mid || !dateStr) continue;
+          if (!wmByMachineDate[mid]) wmByMachineDate[mid] = {};
+          if (!wmByMachineDate[mid][dateStr]) wmByMachineDate[mid][dateStr] = [];
+          wmByMachineDate[mid][dateStr].push(f);
+        }
+        wmLoaded = true;
+      } catch(e) { console.warn('[report] Woodmill checks:', e.message); }
+    })(),
+
+    // Cutting pre-use checks
+    ccLoadData(),
+  ]);
+}
+
 async function sendDailyReport(btn) {
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Sending…'; }
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Loading data…'; }
   try {
+    await loadAllReportData();
+    if (btn) btn.textContent = '⏳ Sending…';
     const accounts = msalInstance.getAllAccounts();
     if (!accounts.length) throw new Error('Not signed in');
     let mailToken;
