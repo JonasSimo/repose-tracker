@@ -1561,6 +1561,8 @@ html.tablet-team .tablet-sync-btn { display: inline-flex; }
 .ls-item-rep    { padding:0 3px; border-bottom:1px solid #dde2ea; cursor:pointer; transition:background .1s; background:#fff; }
 .ls-item-rep:hover { background:#e8f4fd; }
 .ls-item-rep.qc-done { background:#bbf7d0 !important; }
+.ls-item-rep.asm-done { background:repeating-linear-gradient(45deg,#fff7ed,#fff7ed 4px,#fed7aa 4px,#fed7aa 8px) !important; }
+.ls-item-rep.asm-done .ls-rep-num { color:#9a3412; }
 .ls-item-rep.exp-job { border-left:3px solid #e97132; padding-left:2px; }
 .ls-item-rep.exp-job .ls-rep-num { color:#b84d00; }
 .ls-item-rep.mft-job { border-left:3px solid #ff33cc; padding-left:2px; }
@@ -2612,6 +2614,10 @@ document.addEventListener('DOMContentLoaded', () => {
       <span>Weekly Factory Load Sheet</span>
       <span id="ls-sync-lbl" style="font-size:10px;font-weight:400;opacity:.7;letter-spacing:.02em">Sign in to load</span>
       <button style="padding:3px 10px;border-radius:6px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.1);color:#fff;font-size:11px;cursor:pointer;font-family:inherit" onclick="loadLoadPlanFromSharePoint()">↻ Sync</button>
+    </div>
+    <div style="display:flex;gap:14px;align-items:center;padding:6px 12px 4px;font-size:11px;color:#fff;opacity:.85;flex-wrap:wrap">
+      <span style="display:flex;align-items:center;gap:5px"><span style="width:14px;height:14px;background:#bbf7d0;border-radius:2px;display:inline-block;border:1px solid #86efac"></span>QC done</span>
+      <span style="display:flex;align-items:center;gap:5px"><span style="width:14px;height:14px;background:repeating-linear-gradient(45deg,#fff7ed,#fff7ed 4px,#fed7aa 4px,#fed7aa 8px);border-radius:2px;display:inline-block;border:1px solid #fdba74"></span>Assembly done — awaiting QC</span>
     </div>
     <div class="ls-cols-scroll" id="ls-cols"></div>
   </div>
@@ -9478,6 +9484,14 @@ function renderLoadSheet() {
   for (let i = 1; i <= 3; i++) targetKeys.add(localDateKey(addWorkdays(today, i)));
   const cols = LS_RAW.filter(c => targetKeys.has(localDateKey(c.date)));
 
+  // Build set of REPs completed by Assembly (but not yet QC'd)
+  const assemblyDoneReps = new Set(
+    (STATS_COMPLETIONS||[])
+      .filter(c => c.fields?.Team === 'Assembly')
+      .map(c => String(c.fields?.REP ?? '').replace(/\D/g,'').slice(-7))
+      .filter(r => r.length === 7)
+  );
+
   wrap.innerHTML = cols.map(col => {
     const label    = lsDayLabel(col.date);
     const cls      = lsDayCls(col.date);
@@ -9502,7 +9516,8 @@ function renderLoadSheet() {
         const extra      = item.text.replace(/\bREP\b/gi,'').replace(/\bmech\b/gi,'').replace(/\bserv\b/gi,'').replace(item.rep7,'').replace(/^[\s\-–]+|[\s\-–]+$/g,'').trim();
         const expType    = EXPRESS_TYPE_MAP.get(item.rep7);
         const expCls     = expType === 'MFT' ? ' mft-job' : expType === 'EXP' ? ' exp-job' : '';
-        const cls        = `ls-item-rep${expCls}${isDone?' qc-done':''}${isChanged?' ls-changed':''}`;
+        const isAsmDone  = !isDone && assemblyDoneReps.has(item.rep7);
+        const cls        = `ls-item-rep${expCls}${isDone?' qc-done':isAsmDone?' asm-done':''}${isChanged?' ls-changed':''}`;
         return `<div class="${cls}"${isChanged?` style="${delayStyle}"`:''}>
           <div class="ls-rep-num">${item.rep7}${mechTag}${servTag}</div>
           ${extra ? `<div class="ls-rep-desc">${escHtml(extra)}</div>` : ''}
