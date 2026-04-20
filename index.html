@@ -3378,7 +3378,7 @@ function showView(name) {
   if (lbl) lbl.textContent = NAV_LABELS[name] || name;
   document.getElementById('view-' + name).classList.add('active');
   if (name === 'overview')    { if (!ovActiveTab) ovActiveTab = 'live'; buildOvSlots(ovActiveTab==='wk1'?5:ovActiveTab==='wk2'?10:0); applyStateToOvBadges(); renderOverviewTabs(); renderOverview(); populateCustomerDropdown(); }
-  if (name === 'loadsheet')   { renderLoadSheet(); if (!STATS_COMPLETIONS.length) loadStatsData(); }
+  if (name === 'loadsheet')   { renderLoadSheet(); ensureDeliveryStateLoaded(); }
   if (name === 'production')  {
     renderProductionPlan();
     if (ppAutoSyncInterval) clearInterval(ppAutoSyncInterval);
@@ -5962,7 +5962,7 @@ async function loadLoadPlanFromSharePoint() {
     if (lsLbl) lsLbl.textContent = `Live · synced ${syncTime}`;
     if (document.getElementById('view-loadsheet')?.classList.contains('active')) {
       renderLoadSheet();
-      if (!STATS_COMPLETIONS.length) loadStatsData();
+      ensureDeliveryStateLoaded();
     }
 
   } catch(e) {
@@ -9450,6 +9450,46 @@ function renderDetailCPAR() {
 // ═══════════════════════════════════════════════
 // DELIVERY SCHEDULE VIEW
 // ═══════════════════════════════════════════════
+// Ensures PROD and STATE (completions) are loaded for the Delivery tab Assembly-done check.
+// Step 1: load production plan (needed so STATE job indices map correctly).
+// Step 2: load completions into STATE.
+// Step 3: re-render once data is ready.
+async function ensureDeliveryStateLoaded() {
+  if (!graphAccount) return;
+  const prodHasData = Object.values(PROD).some(wk =>
+    Object.values(wk).some(v => Array.isArray(v) && v.length > 0)
+  );
+  if (!prodHasData) {
+    _prodSyncing = false;
+    await loadProductionFromSharePoint().catch(e => console.warn('[delivery] prod:', e.message));
+  }
+  _completionsSyncing = false;
+  await loadCompletionsFromList().catch(e => console.warn('[delivery] completions:', e.message));
+  if (document.getElementById('view-loadsheet')?.classList.contains('active')) renderLoadSheet();
+}
+
+// Returns true only if EVERY Assembly job in the production plan for this REP7 is marked done in STATE.
+// Falls back to false if PROD has no matching jobs (safe — no false positives).
+function isAssemblyFullyDoneForRep(rep7) {
+  let found = false;
+  for (const wk of Object.keys(PROD)) {
+    const wkData = PROD[wk];
+    if (!wkData) continue;
+    for (const prep of Object.keys(wkData)) {
+      const jobs = wkData[prep];
+      if (!Array.isArray(jobs)) continue;
+      const prepKey = prep === 'express' ? 'express' : Number(prep);
+      for (let ji = 0; ji < jobs.length; ji++) {
+        const jobRep7 = String(jobs[ji]?.rep ?? '').replace(/\D/g,'').slice(-7);
+        if (jobRep7 !== rep7) continue;
+        found = true;
+        if (!STATE['Assembly']?.['all']?.[wk]?.[prepKey]?.[ji]?.done) return false;
+      }
+    }
+  }
+  return found; // false if no jobs found, true only when all found jobs are done
+}
+
 function lsDayLabel(date) {
   const today = new Date(); today.setHours(0,0,0,0);
   const diff = Math.round((date - today) / 86400000);
@@ -9483,14 +9523,6 @@ function renderLoadSheet() {
   for (let i = 1; i <= 3; i++) targetKeys.add(localDateKey(addWorkdays(today, i)));
   const cols = LS_RAW.filter(c => targetKeys.has(localDateKey(c.date)));
 
-  // Build set of REPs completed by Assembly (but not yet QC'd)
-  const assemblyDoneReps = new Set(
-    (STATS_COMPLETIONS||[])
-      .filter(c => c.fields?.Team === 'Assembly')
-      .map(c => String(c.fields?.REP ?? '').replace(/\D/g,'').slice(-7))
-      .filter(r => r.length === 7)
-  );
-
   wrap.innerHTML = cols.map(col => {
     const label    = lsDayLabel(col.date);
     const cls      = lsDayCls(col.date);
@@ -9515,7 +9547,7 @@ function renderLoadSheet() {
         const extra      = item.text.replace(/\bREP\b/gi,'').replace(/\bmech\b/gi,'').replace(/\bserv\b/gi,'').replace(item.rep7,'').replace(/^[\s\-–]+|[\s\-–]+$/g,'').trim();
         const expType    = EXPRESS_TYPE_MAP.get(item.rep7);
         const expCls     = expType === 'MFT' ? ' mft-job' : expType === 'EXP' ? ' exp-job' : '';
-        const isAsmDone  = !isDone && assemblyDoneReps.has(item.rep7);
+        const isAsmDone  = !isDone && isAssemblyFullyDoneForRep(item.rep7);
         const cls        = `ls-item-rep${expCls}${isDone?' qc-done':isAsmDone?' asm-done':''}${isChanged?' ls-changed':''}`;
         return `<div class="${cls}"${isChanged?` style="${delayStyle}"`:''}>
           <div class="ls-rep-num">${item.rep7}${mechTag}${servTag}</div>
