@@ -1,0 +1,13 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+    "TENANT_ID": "ef6548a3-2d0d-4c08-b052-ffc7b491d08e",
+    "CLIENT_ID": "2f8cdb1e-93da-4815-942b-c7c8d1a29ca5",
+    "CLIENT_SECRET": "<paste-your-secret-here>",
+    "SEND_FROM": "jonas.simonaitis@reposefurniture.co.uk",
+    "RECIPIENTS": "mitch@reposefurniture.co.uk,richard.semmens@reposefurniture.co.uk,jody.tilley@reposefurniture.co.uk,jonas.simonaitis@reposefurniture.co.uk",
+    "WEBSITE_TIME_ZONE": "GMT Standard Time"
+  }
+}

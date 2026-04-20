@@ -1,0 +1,16 @@
+{
+  "name": "repnet-daily-report",
+  "version": "1.0.0",
+  "description": "RepNet daily production report — Azure Function timer trigger",
+  "main": "daily-report/index.js",
+  "scripts": {
+    "start": "func start"
+  },
+  "dependencies": {
+    "@azure/msal-node": "^2.6.0",
+    "node-fetch": "^2.7.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
