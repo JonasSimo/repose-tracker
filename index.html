@@ -341,6 +341,16 @@ html.tablet-team .tablet-sync-btn { display: inline-flex; }
   flex-shrink: 0; font-family: 'JetBrains Mono', monospace;
 }
 .job-card.done .jc-item { color: var(--green); background: var(--gbg); border-color: var(--gborder); }
+/* Upholstery readiness tokens (Assembly view only) */
+.uh-ready-row { display:flex; gap:4px; align-items:center; flex-shrink:0; }
+.uh-token { display:flex; flex-direction:column; align-items:center; justify-content:center; width:28px; height:28px; border-radius:5px; font-size:9px; font-weight:700; line-height:1; gap:1px; border:1.5px solid; }
+.uh-token.done  { background:#dcfce7; color:#166534; border-color:#86efac; }
+.uh-token.pend  { background:#f1f5f9; color:#94a3b8; border-color:#cbd5e1; }
+.uh-token-lbl   { font-size:8px; font-weight:700; letter-spacing:.03em; }
+.uh-token-icon  { font-size:11px; line-height:1; }
+body.tablet-mode .uh-token { width:36px; height:36px; }
+body.tablet-mode .uh-token-lbl { font-size:10px; }
+body.tablet-mode .uh-token-icon { font-size:14px; }
 
 /* Tick button (single team) */
 .tick-btn {
@@ -3677,6 +3687,7 @@ function renderPriorityJobsList() {
                 `<span class="jc-qty">Qty: ${job.qty||'—'}</span>`}
             </div>
             ${activeTeam === 'Assembly' ? (() => { const _s = MECH_SERIALS.get(`${job.rep}__${wc}__${prep}`); return `<button class="serial-card-btn${_s?' saved':''}" onclick="event.stopPropagation();openMechSerialModal('${wc}','${prep}',${ji},'${escHtml(job.rep)}')">${_s ? `✓<br><span style="font-size:9px;letter-spacing:.02em">${escHtml(_s)}</span>` : '⊞<br>Serial'}</button>`; })() : ''}
+            ${activeTeam === 'Assembly' ? uhReadyTokens(wc, prep, ji) : ''}
             <button class="cpar-btn" onclick="event.stopPropagation();openCPARForm('${wc}','${prep}',${ji})" title="Raise CPAR for this job">⚠<br>CPAR</button>
             ${showStart && !s.done ? `<button class="start-btn${isStarted?' active':''}" onclick="event.stopPropagation();${isStarted?`priorityUnStartJob('${wc}','${prep}',${ji})`:`priorityStartJob('${wc}','${prep}',${ji})`}" title="${isStarted?'Cancel start':'Start this job'}">
               <span class="sb-icon">${isStarted?'⏸':'▶'}</span>
@@ -3811,6 +3822,25 @@ function selectPrep(p) {
 // ═══════════════════════════════════════════════
 // JOB LIST
 // ═══════════════════════════════════════════════
+
+// Returns HTML for three Upholstery readiness tokens (Arms / Backs / Seats).
+// Only called when activeTeam === 'Assembly'.
+function uhReadyTokens(wc, prep, ji) {
+  const subs = [
+    { key: 'Arms',  lbl: 'ARM' },
+    { key: 'Backs', lbl: 'BCK' },
+    { key: 'Seats', lbl: 'SET' },
+  ];
+  const tokens = subs.map(({ key, lbl }) => {
+    const done = !!STATE['Upholstery']?.[key]?.[wc]?.[prep]?.[ji]?.done;
+    return `<div class="uh-token ${done?'done':'pend'}">
+      <span class="uh-token-icon">${done ? '✓' : '○'}</span>
+      <span class="uh-token-lbl">${lbl}</span>
+    </div>`;
+  }).join('');
+  return `<div class="uh-ready-row">${tokens}</div>`;
+}
+
 function getTeamColor() {
   return TEAMS_CFG.find(t=>t.name===activeTeam)?.color || '#14a1e9';
 }
@@ -3891,6 +3921,7 @@ function renderJobs() {
             `<span class="jc-qty">Qty: ${job.qty||'—'}</span>`}
         </div>
         ${activeTeam === 'Assembly' ? (() => { const _s = MECH_SERIALS.get(`${job.rep}__${activeWC}__${activePrep}`); return `<button class="serial-card-btn${_s?' saved':''}" onclick="event.stopPropagation();openMechSerialModal('${activeWC}','${activePrep}',${ji},'${escHtml(job.rep)}')">${_s ? `✓<br><span style="font-size:9px;letter-spacing:.02em">${escHtml(_s)}</span>` : '⊞<br>Serial'}</button>`; })() : ''}
+        ${activeTeam === 'Assembly' ? uhReadyTokens(activeWC, activePrep, ji) : ''}
         <button class="cpar-btn" onclick="event.stopPropagation();openCPARForm('${activeWC}','${activePrep}',${ji})" title="Raise CPAR for this job">⚠<br>CPAR</button>
         ${showStart && !s.done ? `<button class="start-btn${isStarted?' active':''}" onclick="event.stopPropagation();${isStarted?`unStartJob(${ji})`:`startJob(${ji})`}" title="${isStarted?'Cancel start':'Start this job'}">
           <span class="sb-icon">${isStarted?'⏸':'▶'}</span>
