@@ -11063,28 +11063,31 @@ function buildDailyReportHtml() {
   const todayDOW     = today.getDay(); // 0=Sun,1=Mon…6=Sat
   const todayPrepDay = (todayDOW >= 1 && todayDOW <= 5) ? String(todayDOW) : null;
 
-  // Backlog = prev week incomplete + this week incomplete (excl. today's prep day, still in progress)
-  const prevWkIdx = WEEKS.indexOf(currentWk) - 1;
-  const prevWk    = prevWkIdx >= 0 ? WEEKS[prevWkIdx] : null;
+  // Backlog = all incomplete jobs from weeks before current + current week's past prep days only
+  // On Monday (todayPrepDay=1): nothing from current week counts (no past prep days this week yet)
+  const currentWkIdx = WEEKS.indexOf(currentWk);
   const backlogByTeam = {};
   PROD_TEAMS.forEach(t => { backlogByTeam[t.name] = 0; });
-  // Previous week carry-over
-  if (prevWk) {
-    Object.entries(PROD[prevWk] || {}).forEach(([prep, jobs]) => {
+
+  // All weeks before current week — count every incomplete job
+  WEEKS.slice(0, currentWkIdx).forEach(wk => {
+    Object.entries(PROD[wk] || {}).forEach(([prep, jobs]) => {
       if (!Array.isArray(jobs) || !isRegularPrep(prep)) return;
       jobs.forEach((job, ji) => {
         PROD_TEAMS.filter(t => t.name !== 'QC').forEach(t => {
           const subs = t.hasSubs ? SUBS : ['all'];
-          if (!subs.every(sub => STATE[t.name]?.[sub]?.[prevWk]?.[prep]?.[ji]?.done))
+          if (!subs.every(sub => STATE[t.name]?.[sub]?.[wk]?.[prep]?.[ji]?.done))
             backlogByTeam[t.name]++;
         });
       });
     });
-  }
-  // Current week (exclude today — still being worked on)
+  });
+
+  // Current week — only prep days that have already passed (strictly before today's prep day)
+  // On Monday todayPrepDay=1 so nothing passes this filter; on Tuesday prep 1 is included, etc.
   Object.entries(PROD[currentWk] || {}).forEach(([prep, jobs]) => {
     if (!Array.isArray(jobs) || !isRegularPrep(prep)) return;
-    if (prep === todayPrepDay) return;
+    if (!todayPrepDay || Number(prep) >= Number(todayPrepDay)) return;
     jobs.forEach((job, ji) => {
       PROD_TEAMS.filter(t => t.name !== 'QC').forEach(t => {
         const subs = t.hasSubs ? SUBS : ['all'];
