@@ -2615,10 +2615,6 @@ document.addEventListener('DOMContentLoaded', () => {
       <span id="ls-sync-lbl" style="font-size:10px;font-weight:400;opacity:.7;letter-spacing:.02em">Sign in to load</span>
       <button style="padding:3px 10px;border-radius:6px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.1);color:#fff;font-size:11px;cursor:pointer;font-family:inherit" onclick="loadLoadPlanFromSharePoint()">↻ Sync</button>
     </div>
-    <div style="display:flex;gap:14px;align-items:center;padding:6px 12px 4px;font-size:11px;color:#fff;opacity:.85;flex-wrap:wrap">
-      <span style="display:flex;align-items:center;gap:5px"><span style="width:14px;height:14px;background:#bbf7d0;border-radius:2px;display:inline-block;border:1px solid #86efac"></span>QC done</span>
-      <span style="display:flex;align-items:center;gap:5px"><span style="width:14px;height:14px;background:repeating-linear-gradient(45deg,#fff7ed,#fff7ed 4px,#fed7aa 4px,#fed7aa 8px);border-radius:2px;display:inline-block;border:1px solid #fdba74"></span>Assembly done — awaiting QC</span>
-    </div>
     <div class="ls-cols-scroll" id="ls-cols"></div>
   </div>
 </div>
@@ -3382,7 +3378,7 @@ function showView(name) {
   if (lbl) lbl.textContent = NAV_LABELS[name] || name;
   document.getElementById('view-' + name).classList.add('active');
   if (name === 'overview')    { if (!ovActiveTab) ovActiveTab = 'live'; buildOvSlots(ovActiveTab==='wk1'?5:ovActiveTab==='wk2'?10:0); applyStateToOvBadges(); renderOverviewTabs(); renderOverview(); populateCustomerDropdown(); }
-  if (name === 'loadsheet')   { renderLoadSheet(); }
+  if (name === 'loadsheet')   { renderLoadSheet(); if (!STATS_COMPLETIONS.length) loadStatsData(); }
   if (name === 'production')  {
     renderProductionPlan();
     if (ppAutoSyncInterval) clearInterval(ppAutoSyncInterval);
@@ -5964,7 +5960,10 @@ async function loadLoadPlanFromSharePoint() {
     if (pill) { pill.className = 'sync-pill synced'; lbl.textContent = `Live · synced ${syncTime}`; }
     const lsLbl = document.getElementById('ls-sync-lbl');
     if (lsLbl) lsLbl.textContent = `Live · synced ${syncTime}`;
-    if (document.getElementById('view-loadsheet')?.classList.contains('active')) renderLoadSheet();
+    if (document.getElementById('view-loadsheet')?.classList.contains('active')) {
+      renderLoadSheet();
+      if (!STATS_COMPLETIONS.length) loadStatsData();
+    }
 
   } catch(e) {
     console.error('loadLoadPlanFromSharePoint failed:', e.message);
