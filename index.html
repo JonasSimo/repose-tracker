@@ -10880,7 +10880,23 @@ async function sendDailyDigest(btn) {
 function buildDailyReportHtml() {
   const now   = new Date();
   const today = new Date(now); today.setHours(0,0,0,0);
-  const yest  = new Date(today); yest.setDate(yest.getDate() - 1);
+
+  // Last WORKING day (skip weekends — Mon report looks back to Fri)
+  const yest = new Date(today);
+  yest.setDate(yest.getDate() - 1);
+  while (yest.getDay() === 0 || yest.getDay() === 6) yest.setDate(yest.getDate() - 1);
+
+  // Weekend overtime days between last working day and today (e.g. Saturday)
+  const overtimeDates = [];
+  const _d = new Date(yest); _d.setDate(_d.getDate() + 1);
+  while (_d < today) {
+    if (_d.getDay() === 6) overtimeDates.push(new Date(_d)); // Saturday only
+    _d.setDate(_d.getDate() + 1);
+  }
+  const reportDateStrs = new Set([
+    yest.toLocaleDateString('en-GB'),
+    ...overtimeDates.map(d => d.toLocaleDateString('en-GB')),
+  ]);
 
   const yestDDMMYYYY = yest.toLocaleDateString('en-GB');
   const yestISO      = wmDateStr(yest);
@@ -10888,15 +10904,17 @@ function buildDailyReportHtml() {
   const todayDayName = today.toLocaleDateString('en-GB', { weekday:'long' });
   const todayDayDate = today.toLocaleDateString('en-GB', { day:'numeric', month:'long', year:'numeric' });
   const todayShort   = today.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
-  const yestLabel    = yest.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
+  const hasOvertime  = overtimeDates.length > 0;
+  const yestLabel    = yest.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' })
+                     + (hasOvertime ? ' + Sat OT' : '');
   const genTime      = now.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' });
 
   function sameWeek(d, ref) {
     return isoWeekNumber(d) === isoWeekNumber(ref) && isoWeekYear(d) === isoWeekYear(ref);
   }
 
-  // ── Yesterday's completions ────────────────────────────────────────────
-  const yestComps = STATS_COMPLETIONS.filter(i => i.fields?.CompletedDate === yestDDMMYYYY && i.fields?.IsComplete);
+  // ── Yesterday's completions (last working day + any Saturday overtime) ─
+  const yestComps = STATS_COMPLETIONS.filter(i => reportDateStrs.has(i.fields?.CompletedDate) && i.fields?.IsComplete);
   const wtdComps  = STATS_COMPLETIONS.filter(i => {
     if (!i.fields?.CompletedDate || !i.fields?.IsComplete) return false;
     const d = parseDdmmyyyy(i.fields.CompletedDate);
