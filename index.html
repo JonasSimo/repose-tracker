@@ -4301,7 +4301,7 @@ function openSpecModal(wc, prep, ji) {
       </div>
       <button class="spec-close" onclick="closeSpecModal()">✕</button>
     </div>
-    ${chairTypeLabel ? `<div style="padding:8px 20px 0"><span style="display:inline-block;background:#eff6ff;color:#1d4ed8;border:1.5px solid #bfdbfe;border-radius:20px;font-size:13px;font-weight:700;padding:4px 14px">🪑 ${escHtml(chairTypeLabel)}</span></div>` : ''}
+    ${chairTypeLabel ? `<div style="padding:8px 20px 0"><span style="display:inline-block;background:#eff6ff;color:#1d4ed8;border:1.5px solid #bfdbfe;border-radius:20px;font-size:13px;font-weight:700;padding:4px 14px">${escHtml(chairTypeLabel)}</span></div>` : ''}
     ${noSpec ? `<div class="spec-body" style="color:var(--text3);font-size:13px;padding:24px 20px">No specification data — sync from SharePoint first.</div>` : `
     <div class="spec-body">
       <div>
@@ -4439,7 +4439,7 @@ function openSpecModalByRep(repId) {
         </div>
         <button class="spec-close" onclick="closeSpecModal()">✕</button>
       </div>
-      ${chairTypeLabel ? `<div style="padding:8px 20px 0"><span style="display:inline-block;background:#eff6ff;color:#1d4ed8;border:1.5px solid #bfdbfe;border-radius:20px;font-size:13px;font-weight:700;padding:4px 14px">🪑 ${escHtml(chairTypeLabel)}</span></div>` : ''}
+      ${chairTypeLabel ? `<div style="padding:8px 20px 0"><span style="display:inline-block;background:#eff6ff;color:#1d4ed8;border:1.5px solid #bfdbfe;border-radius:20px;font-size:13px;font-weight:700;padding:4px 14px">${escHtml(chairTypeLabel)}</span></div>` : ''}
       <div class="spec-body">
         <div><div class="spec-section-title">Identity</div>${row('Sew Label', v(sp.sewLabel))}${row('Back Design', v(sp.backDesign))}</div>
         <div><div class="spec-section-title">Fabric &amp; Cover</div>${row('Cover Code / Supplier', v(sp.coverCode))}${row('Fabric Description', v(sp.fabric))}${row('Mechanism', mechanism || '—')}</div>
