@@ -4284,6 +4284,11 @@ function openSpecModal(wc, prep, ji) {
 
   const mechanism = [v(sp.mechanism1), v(sp.mechanism2)].filter(Boolean).join(' + ');
   const castors   = [v(sp.castor1),    v(sp.castor2)   ].filter(Boolean).join(', ');
+  const chairTypeLabel = (() => {
+    const raw = (sp.chairType || '').trim();
+    if (!raw) return '';
+    return raw === '1' ? 'Recliner Chair' : raw;
+  })();
 
   const noSpec = !Object.values(sp).some(x => v(x));
 
@@ -4296,6 +4301,7 @@ function openSpecModal(wc, prep, ji) {
       </div>
       <button class="spec-close" onclick="closeSpecModal()">✕</button>
     </div>
+    ${chairTypeLabel ? `<div style="padding:8px 20px 0"><span style="display:inline-block;background:#eff6ff;color:#1d4ed8;border:1.5px solid #bfdbfe;border-radius:20px;font-size:13px;font-weight:700;padding:4px 14px">🪑 ${escHtml(chairTypeLabel)}</span></div>` : ''}
     ${noSpec ? `<div class="spec-body" style="color:var(--text3);font-size:13px;padding:24px 20px">No specification data — sync from SharePoint first.</div>` : `
     <div class="spec-body">
       <div>
@@ -4421,6 +4427,7 @@ function openSpecModalByRep(repId) {
     const dim = (lbl, val) => val ? `<div class="spec-dim-cell"><div class="spec-dim-val">${val}</div><div class="spec-dim-lbl">${lbl}</div></div>` : '';
     const mechanism = [v(sp.mechanism1), v(sp.mechanism2)].filter(Boolean).join(' + ');
     const castors   = [v(sp.castor1),    v(sp.castor2)   ].filter(Boolean).join(', ');
+    const chairTypeLabel = (() => { const raw = (sp.chairType||'').trim(); return raw === '1' ? 'Recliner Chair' : raw; })();
     const card = document.getElementById('specCard');
     card.innerHTML = `
       <div class="spec-head">
@@ -4432,6 +4439,7 @@ function openSpecModalByRep(repId) {
         </div>
         <button class="spec-close" onclick="closeSpecModal()">✕</button>
       </div>
+      ${chairTypeLabel ? `<div style="padding:8px 20px 0"><span style="display:inline-block;background:#eff6ff;color:#1d4ed8;border:1.5px solid #bfdbfe;border-radius:20px;font-size:13px;font-weight:700;padding:4px 14px">🪑 ${escHtml(chairTypeLabel)}</span></div>` : ''}
       <div class="spec-body">
         <div><div class="spec-section-title">Identity</div>${row('Sew Label', v(sp.sewLabel))}${row('Back Design', v(sp.backDesign))}</div>
         <div><div class="spec-section-title">Fabric &amp; Cover</div>${row('Cover Code / Supplier', v(sp.coverCode))}${row('Fabric Description', v(sp.fabric))}${row('Mechanism', mechanism || '—')}</div>
@@ -6233,6 +6241,7 @@ function parseSheetValues(values) {
       backDesign: sp(20),  // U
       coverCode:  sp(21),  // V
       fabric:     sp(22),  // W
+      chairType:  sp(23),  // X — "1" = Recliner Chair, else literal text
       mechanism1: sp(24),  // Y
       mechanism2: sp(25),  // Z (additional mechanism)
       seatHeight: sp(26),  // AA
