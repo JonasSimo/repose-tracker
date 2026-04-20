@@ -11150,7 +11150,7 @@ function buildDailyReportHtml() {
 
   // ── Near Misses ────────────────────────────────────────────────────────
   const nmsYest  = NMS_ITEMS.filter(i => { const d=new Date(i.createdDateTime); d.setHours(0,0,0,0); return d.getTime()===yest.getTime(); });
-  const nmsWeek  = NMS_ITEMS.filter(i => sameWeek(new Date(i.createdDateTime), today));
+  const nmsWeek  = NMS_ITEMS.filter(i => sameWeek(new Date(i.createdDateTime), yest)); // use yest as ref — on Mon, yest=Fri so shows last week
   const nmsMonth = NMS_ITEMS.filter(i => { const d=new Date(i.createdDateTime); return d.getMonth()===today.getMonth()&&d.getFullYear()===today.getFullYear(); });
   const nmsYTD   = NMS_ITEMS.filter(i => new Date(i.createdDateTime).getFullYear()===today.getFullYear());
   const nmsOpen  = NMS_ITEMS.filter(i => !i.fields?.NearMissclosedout_x003f_).length;
@@ -11417,7 +11417,7 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f4f8;padding:32px 16p
     </div>
 
     <div class="section">
-      <div class="section-title">Quality Control — Yesterday</div>
+      <div class="section-title">Quality Control — ${yestLabel}</div>
       <div class="qc-strip">
         <div class="qc-cell"><div class="qc-num">${qcTotal}</div><div class="qc-lbl">Total QC'd</div></div>
         <div class="qc-cell"><div class="qc-num">${qcNewChair}</div><div class="qc-lbl">New Chairs</div></div>
@@ -11427,7 +11427,7 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f4f8;padding:32px 16p
     </div>
 
     <div class="section">
-      <div class="section-title">Near Misses — Yesterday</div>
+      <div class="section-title">Near Misses — ${yestLabel}</div>
       ${nmsRows}
       ${nmsWeekSummary}
       <div class="stat-note" style="margin-top:8px">This month: <strong>${nmsMonth.length}</strong> &nbsp;·&nbsp; YTD: <strong>${nmsYTD.length}</strong></div>
@@ -11449,7 +11449,7 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f4f8;padding:32px 16p
     </div>
 
     <div class="section">
-      <div class="section-title">Spec Changes — Detected Yesterday</div>
+      <div class="section-title">Spec Changes — ${yestLabel}</div>
       <table class="spec-table">
         <thead><tr><th>REP</th><th>Field</th><th>From</th><th>To</th><th>Time</th></tr></thead>
         <tbody>${specRows}</tbody>
@@ -11458,7 +11458,7 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f4f8;padding:32px 16p
     </div>
 
     <div class="section">
-      <div class="section-title">Pre-Use Checks — Yesterday</div>
+      <div class="section-title">Pre-Use Checks — ${yestLabel}</div>
       <div class="checks-area">
         <div class="checks-area-label">🪵 Woodmill Machines</div>
         <div class="checks-grid">${woodmillChecksHtml}</div>
