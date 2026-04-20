@@ -6258,18 +6258,9 @@ function distributeIntoPreps(jobs) {
   const normalJobs = jobs.filter(j => j.prep !== 'express');
   const hasNumericPrep = normalJobs.some(j => typeof j.prep === 'number');
   if (hasNumericPrep) {
-    // Use explicit prep values; jobs with null prep distributed evenly
-    const nullJobs = normalJobs.filter(j => j.prep === null);
-    const n = nullJobs.length;
-    let ni = 0;
+    // Use explicit prep values; skip jobs with null prep (no prep day assigned yet)
     normalJobs.forEach(j => {
-      if (j.prep !== null) {
-        preps[j.prep].push(jo(j));
-      } else {
-        const p = n === 0 ? 1 : Math.min(5, Math.floor(ni * 5 / n) + 1);
-        preps[p].push(jo(j));
-        ni++;
-      }
+      if (j.prep !== null) preps[j.prep].push(jo(j));
     });
   } else {
     // No numeric preps — distribute all normal jobs evenly across 1-5
