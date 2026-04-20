@@ -1038,6 +1038,7 @@ html.tablet-team .tablet-sync-btn { display: inline-flex; }
   border: 1.5px solid var(--border2); background: var(--bg3);
   cursor: pointer; font-size: 13px; color: var(--text2);
   display: flex; align-items: center; justify-content: center; margin-top: 2px;
+  touch-action: manipulation; -webkit-tap-highlight-color: transparent;
 }
 .spec-close:hover { background: var(--border2); }
 .spec-body  { padding: 14px 20px 20px; display: flex; flex-direction: column; gap: 16px; }
@@ -1674,6 +1675,7 @@ body.tablet-mode .start-btn      { width: 58px; font-size: 12px; }
 body.tablet-mode .start-btn .sb-icon { font-size: 20px; }
 /* Spec popup */
 body.tablet-mode .spec-card      { max-width: 96vw; }
+body.tablet-mode .spec-head      { position: static; } /* iOS: sticky inside overflow-auto breaks tap events */
 body.tablet-mode .spec-head-rep  { font-size: 18px; }
 body.tablet-mode .spec-head-model{ font-size: 26px; }
 body.tablet-mode .spec-head-cust { font-size: 17px; }
@@ -12337,7 +12339,7 @@ async function closeOutNearMiss(itemId) {
 </div>
 
 <!-- Job spec modal -->
-<div id="specModal" class="spec-modal" style="display:none" onclick="if(event.target===this)closeSpecModal()">
+<div id="specModal" class="spec-modal" style="display:none" onclick="if(event.target===this)closeSpecModal()" ontouchend="if(event.target===this)closeSpecModal()">
   <div class="spec-card" id="specCard"></div>
 </div>
 
