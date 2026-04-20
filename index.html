@@ -10992,16 +10992,19 @@ function buildDailyReportHtml() {
   const todayDayDate = today.toLocaleDateString('en-GB', { day:'numeric', month:'long', year:'numeric' });
   const todayShort   = today.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
   const hasOvertime  = overtimeDates.length > 0;
-  const yestLabel    = yest.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' })
-                     + (hasOvertime ? ' + Sat OT' : '');
+  const yestLabel    = yest.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
+  const satLabel     = hasOvertime ? overtimeDates[0].toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' }) : '';
   const genTime      = now.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' });
 
   function sameWeek(d, ref) {
     return isoWeekNumber(d) === isoWeekNumber(ref) && isoWeekYear(d) === isoWeekYear(ref);
   }
 
-  // ── Yesterday's completions (last working day + any Saturday overtime) ─
-  const yestComps = STATS_COMPLETIONS.filter(i => reportDateStrs.has(i.fields?.CompletedDate) && i.fields?.IsComplete);
+  // ── Yesterday's completions — split into last working day and Saturday overtime ─
+  const fridayComps = STATS_COMPLETIONS.filter(i => i.fields?.CompletedDate === yestDDMMYYYY && i.fields?.IsComplete);
+  const satDateStr  = hasOvertime ? overtimeDates[0].toLocaleDateString('en-GB') : '';
+  const satComps    = hasOvertime ? STATS_COMPLETIONS.filter(i => i.fields?.CompletedDate === satDateStr && i.fields?.IsComplete) : [];
+  const yestComps   = [...fridayComps, ...satComps]; // combined — used for WTD and other non-split calcs
   const wtdComps  = STATS_COMPLETIONS.filter(i => {
     if (!i.fields?.CompletedDate || !i.fields?.IsComplete) return false;
     const d = parseDdmmyyyy(i.fields.CompletedDate);
@@ -11016,17 +11019,23 @@ function buildDailyReportHtml() {
     return comps.filter(i => i.fields?.Team === team && i.fields?.SubTeam === sub).length;
   }
 
-  const doneByTeam = {};
-  PROD_TEAMS.forEach(t => { doneByTeam[t.name] = 0; });
-  yestComps.forEach(i => {
-    const t = i.fields?.Team||'';
-    if (doneByTeam[t] === undefined) return;
-    const team = PROD_TEAMS.find(x => x.name === t);
-    if (!team?.hasSubs) doneByTeam[t]++;
-  });
-  PROD_TEAMS.filter(t => t.hasSubs).forEach(t => {
-    doneByTeam[t.name] = Math.round((subCount(yestComps, t.name, 'Arms') + subCount(yestComps, t.name, 'Backs')) / 2);
-  });
+  function buildDoneByTeam(comps) {
+    const map = {};
+    PROD_TEAMS.forEach(t => { map[t.name] = 0; });
+    comps.forEach(i => {
+      const t = i.fields?.Team||'';
+      if (map[t] === undefined) return;
+      const team = PROD_TEAMS.find(x => x.name === t);
+      if (!team?.hasSubs) map[t]++;
+    });
+    PROD_TEAMS.filter(t => t.hasSubs).forEach(t => {
+      map[t.name] = Math.round((subCount(comps, t.name, 'Arms') + subCount(comps, t.name, 'Backs')) / 2);
+    });
+    return map;
+  }
+
+  const doneByTeam    = buildDoneByTeam(fridayComps);
+  const satDoneByTeam = hasOvertime ? buildDoneByTeam(satComps) : null;
 
   const wtdByTeam = {};
   PROD_TEAMS.forEach(t => { wtdByTeam[t.name] = 0; });
@@ -11040,7 +11049,8 @@ function buildDailyReportHtml() {
     wtdByTeam[t.name] = Math.round((subCount(wtdComps, t.name, 'Arms') + subCount(wtdComps, t.name, 'Backs')) / 2);
   });
 
-  const totalDone = Object.values(doneByTeam).reduce((a,b)=>a+b,0);
+  const totalDone    = Object.values(doneByTeam).reduce((a,b)=>a+b,0);
+  const satTotalDone = satDoneByTeam ? Object.values(satDoneByTeam).reduce((a,b)=>a+b,0) : 0;
 
   const isRegularPrep = prep => /^\d+$/.test(prep); // exclude express, mf-t etc
 
@@ -11101,7 +11111,7 @@ function buildDailyReportHtml() {
   const yesterdayJobs = yesterdayPrepDay ? (PROD[currentWk]?.[yesterdayPrepDay] || []) : [];
   const dayTarget = yesterdayJobs.length;
 
-  // Production table rows
+  // Production table rows — Friday only
   const prodRows = PROD_TEAMS.map(t => {
     const done    = doneByTeam[t.name] || 0;
     const wtd     = wtdByTeam[t.name] || 0;
@@ -11120,6 +11130,16 @@ function buildDailyReportHtml() {
       <td><span class="pill ${statusCls}">${statusTxt}</span></td>
     </tr>`;
   }).join('');
+
+  // Saturday overtime table rows — only built if overtime completions exist
+  const satProdRows = (satDoneByTeam && satTotalDone > 0) ? PROD_TEAMS.map(t => {
+    const done = satDoneByTeam[t.name] || 0;
+    if (done === 0) return '';
+    return `<tr>
+      <td><span style="margin-right:5px">${t.icon}</span><span class="team-name">${escHtml(t.name)}</span></td>
+      <td>${done}</td>
+    </tr>`;
+  }).join('') : '';
 
   // ── QC ─────────────────────────────────────────────────────────────────
   const yestQC      = STATS_QC.filter(r => r.date && wmDateStr(r.date) === yestISO);
@@ -11362,7 +11382,7 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f4f8;padding:32px 16p
   </div>
 
   <div class="summary-bar">
-    <div class="summary-cell"><div class="summary-num green">${totalDone}</div><div class="summary-lbl">Jobs Done</div></div>
+    <div class="summary-cell"><div class="summary-num green">${totalDone + satTotalDone}</div><div class="summary-lbl">Jobs Done${satTotalDone > 0 ? ` <span style="font-size:9px;color:#6b7280">(incl. Sat OT)</span>` : ''}</div></div>
     <div class="summary-cell"><div class="summary-num ${totalBacklog>0?'amber':'green'}">${totalBacklog}</div><div class="summary-lbl">Backlog</div></div>
     <div class="summary-cell"><div class="summary-num blue">${qcTotal}</div><div class="summary-lbl">QC'd</div></div>
     <div class="summary-cell"><div class="summary-num ${nmsYest.length>0?'red':'green'}">${nmsYest.length}</div><div class="summary-lbl">Near Misses</div></div>
@@ -11372,13 +11392,23 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f4f8;padding:32px 16p
   <div class="body">
 
     <div class="section">
-      <div class="section-title">Production — Yesterday (${yestLabel})</div>
+      <div class="section-title">Production — ${yestLabel}</div>
       <table class="prod-table">
         <thead><tr><th>Team</th><th>Done</th><th>Target</th><th>Progress</th><th>Backlog</th><th>WTD</th><th>Status</th></tr></thead>
         <tbody>${prodRows}</tbody>
       </table>
-      <div class="stat-note">Backlog = incomplete jobs from last week + this week (excl. today) &nbsp;·&nbsp; WTD = this ISO week &nbsp;·&nbsp; Est. Target = job count for that prep day</div>
+      <div class="stat-note">Backlog = incomplete jobs from last week + this week (excl. today) &nbsp;·&nbsp; WTD = this ISO week &nbsp;·&nbsp; Target = job count for that prep day</div>
     </div>
+
+    ${satTotalDone > 0 ? `
+    <div class="section">
+      <div class="section-title" style="color:#d97706;border-bottom-color:#fed7aa">Saturday Overtime — ${satLabel}</div>
+      <table class="prod-table">
+        <thead><tr><th>Team</th><th>Done</th></tr></thead>
+        <tbody>${satProdRows}</tbody>
+      </table>
+      <div class="stat-note">${satTotalDone} job${satTotalDone !== 1 ? 's' : ''} completed during Saturday overtime</div>
+    </div>` : ''}
 
     <div class="section">
       <div class="section-title">Backlog</div>
