@@ -14,6 +14,8 @@
     document.documentElement.classList.add('tablet-team');
     sessionStorage.setItem('tabletTeam', tp);
   }
+  var ts = new URLSearchParams(location.search).get('sub') || '';
+  if (ts) sessionStorage.setItem('tabletSub', ts);
   var tv = new URLSearchParams(location.search).get('tab')
         || sessionStorage.getItem('tabletTab');
   if (tv) {
@@ -3460,7 +3462,7 @@ function renderTeamSidebar() {
   if (visibleTeams.length && !visibleTeams.find(t => t.name === activeTeam)) {
     activeTeam = visibleTeams[0].name;
     activeHasSubs = visibleTeams[0].hasSubs;
-    activeSub = activeHasSubs ? 'Arms' : 'all';
+    activeSub = activeHasSubs ? (TABLET_SUB || 'Arms') : 'all';
   }
   visibleTeams.forEach(t => {
     const isActive = t.name === activeTeam;
@@ -3485,7 +3487,7 @@ function renderTeamSidebar() {
     </button>`;
 
     if (isActive && t.hasSubs) {
-      const visibleSubs = TABLET_TEAM.toLowerCase() === 'seats' ? ['Seats'] : SUBS;
+      const visibleSubs = TABLET_TEAM.toLowerCase() === 'seats' ? ['Seats'] : TABLET_SUB ? [TABLET_SUB] : SUBS;
       html += `<div class="sub-btns">`;
       visibleSubs.forEach(s => {
         const jobs = PROD[activeWC]?.[activePrep] || [];
@@ -6072,6 +6074,10 @@ const _paramTab = new URLSearchParams(window.location.search).get('tab') || '';
 if (_paramTab) sessionStorage.setItem('tabletTab', _paramTab);
 const TABLET_TAB = _paramTab || sessionStorage.getItem('tabletTab') || '';
 
+const _paramSub = new URLSearchParams(window.location.search).get('sub') || '';
+if (_paramSub) sessionStorage.setItem('tabletSub', _paramSub);
+const TABLET_SUB = _paramSub || sessionStorage.getItem('tabletSub') || '';
+
 let msalInstance = null;
 let graphAccount  = null;
 let _refreshInterval = null;
@@ -7091,7 +7097,10 @@ if (TABLET_TEAM) {
     activeSub = 'Seats';
   } else {
     const cfg = TEAMS_CFG.find(t => t.name.toLowerCase() === TABLET_TEAM.toLowerCase());
-    if (cfg) openTeam(cfg.name, cfg.hasSubs);
+    if (cfg) {
+      openTeam(cfg.name, cfg.hasSubs);
+      if (TABLET_SUB && cfg.hasSubs) activeSub = TABLET_SUB;
+    }
   }
   // Hide "← Teams" button
   document.querySelectorAll('button').forEach(b => {
@@ -7099,7 +7108,7 @@ if (TABLET_TEAM) {
   });
   // Nav menu hidden entirely in tablet-team mode via CSS (html.tablet-team .nav-menu)
   // Add tablet class for large-font scaling — only for Samsung tablet teams, not PC teams like Cutting
-  const TABLET_FONT_TEAMS = ['woodmill','sewing','assembly'];
+  const TABLET_FONT_TEAMS = ['woodmill','sewing','assembly','upholstery'];
   if (TABLET_FONT_TEAMS.includes(TABLET_TEAM.toLowerCase())) document.body.classList.add('tablet-mode');
 }
 if (TABLET_TAB && !TABLET_TEAM) {
