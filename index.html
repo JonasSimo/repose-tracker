@@ -9,13 +9,15 @@
 (function(){
   var tp = new URLSearchParams(location.search).get('team')
         || sessionStorage.getItem('tabletTeam');
+  var ts = new URLSearchParams(location.search).get('sub')
+        || sessionStorage.getItem('tabletSub') || '';
+  if (ts) sessionStorage.setItem('tabletSub', ts);
   if (tp) {
-    document.getElementById('manifest-link').href = '/manifest-' + tp.toLowerCase() + '.json';
+    var manifestName = 'manifest-' + tp.toLowerCase() + (ts ? '-' + ts.toLowerCase() : '') + '.json';
+    document.getElementById('manifest-link').href = '/' + manifestName;
     document.documentElement.classList.add('tablet-team');
     sessionStorage.setItem('tabletTeam', tp);
   }
-  var ts = new URLSearchParams(location.search).get('sub') || '';
-  if (ts) sessionStorage.setItem('tabletSub', ts);
   var tv = new URLSearchParams(location.search).get('tab')
         || sessionStorage.getItem('tabletTab');
   if (tv) {

@@ -1,0 +1,25 @@
+{
+  "name": "Upholstery Backs — Repose Tracker",
+  "short_name": "UH Backs",
+  "description": "Upholstery Backs team production tracker",
+  "start_url": "/?team=Upholstery&sub=Backs",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0e023a",
+  "theme_color": "#0e023a",
+  "orientation": "landscape",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
