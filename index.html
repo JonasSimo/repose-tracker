@@ -15326,8 +15326,8 @@ async function ivnPpSearch(q) {
       const token = await getGraphToken();
       const encoded = encodeURIComponent(q.trim());
       const res = await fetch(
-        `https://graph.microsoft.com/v1.0/users?$filter=startswith(displayName,'${encoded}') or startswith(userPrincipalName,'${encoded}')&$select=displayName,userPrincipalName,mail&$top=8&$orderby=displayName`,
-        { headers: { Authorization: `Bearer ${token}` } }
+        `https://graph.microsoft.com/v1.0/users?$filter=startswith(displayName,'${encoded}') or startswith(userPrincipalName,'${encoded}')&$select=displayName,userPrincipalName,mail&$top=8&$count=true&$orderby=displayName`,
+        { headers: { Authorization: `Bearer ${token}`, ConsistencyLevel: 'eventual' } }
       );
       const data = await res.json();
       const users = (data.value || []).filter(u =>
