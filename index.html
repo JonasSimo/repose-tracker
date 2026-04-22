@@ -2380,19 +2380,18 @@ document.addEventListener('DOMContentLoaded', () => {
   <div class="topbar-center">
     <svg width="93" height="26" viewBox="0 0 200 56" fill="none" aria-label="RepNet">
       <style>
-        @keyframes rn-up   { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes rn-up    { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:translateY(0); } }
         @keyframes rn-bar-r { from { width:0; } to { width:56px; } }
         @keyframes rn-bar-n { from { width:0; } to { width:68px; } }
-        @keyframes rn-pulse { 0%,100% { fill:#14a1e9; } 50% { fill:#38bdf8; } }
         .rn-rep     { animation: rn-up .45s cubic-bezier(.22,1,.36,1) both; }
-        .rn-net     { animation: rn-up .45s cubic-bezier(.22,1,.36,1) .12s both, rn-pulse 4s ease-in-out 1.2s infinite; }
+        .rn-net     { animation: rn-up .45s cubic-bezier(.22,1,.36,1) .12s both; }
         .rn-bar-rep { animation: rn-bar-r .45s cubic-bezier(.22,1,.36,1) .08s both; }
         .rn-bar-net { animation: rn-bar-n .45s cubic-bezier(.22,1,.36,1) .2s both; }
       </style>
-      <rect class="rn-bar-rep" x="0" y="48" width="56" height="3" rx="1.5" fill="rgba(255,255,255,.3)"/>
+      <rect class="rn-bar-rep" x="0"  y="48" width="56" height="3" rx="1.5" fill="rgba(255,255,255,.35)"/>
       <rect class="rn-bar-net" x="68" y="48" width="68" height="3" rx="1.5" fill="#14a1e9"/>
-      <text class="rn-rep" x="0" y="36" font-family="Inter,sans-serif" font-size="36" font-weight="900" fill="#fff">REP</text>
-      <text class="rn-net" x="68" y="36" font-family="Inter,sans-serif" font-size="36" font-weight="900" fill="#14a1e9">NET</text>
+      <text class="rn-rep" x="0"  y="36" font-family="Inter,Arial,sans-serif" font-size="36" font-weight="900" fill="#ffffff">REP</text>
+      <text class="rn-net" x="68" y="36" font-family="Inter,Arial,sans-serif" font-size="36" font-weight="900" fill="#14a1e9">NET</text>
     </svg>
   </div>
   <div class="tr" style="display:flex;align-items:center;gap:10px">
@@ -6098,7 +6097,7 @@ async function loadMechQCFromSharePoint() {
 //     5. Copy the Application (client) ID below
 const AZURE_CLIENT_ID  = '2f8cdb1e-93da-4815-942b-c7c8d1a29ca5';
 const AZURE_TENANT_ID  = 'reposefurniturelimited.onmicrosoft.com';
-const GRAPH_SCOPES     = ['Files.Read.All', 'User.Read', 'Sites.ReadWrite.All'];
+const GRAPH_SCOPES     = ['Files.Read.All', 'User.Read', 'User.ReadBasic.All', 'Sites.ReadWrite.All'];
 const MAIL_SCOPES      = ['Mail.Send'];
 
 // Live SharePoint link — Production 2026 Dec-Nov.xlsx
@@ -14782,14 +14781,19 @@ async function ccSubmit() {
   btn.disabled = true;
   btn.textContent = 'Submitting…';
 
+  // Store local time (no Z) so display reads correctly without timezone conversion
+  const _now = new Date();
+  const localISO = new Date(_now.getTime() - _now.getTimezoneOffset() * 60000).toISOString().slice(0, 19);
+  const localDate = localISO.slice(0, 10);
+
   try {
     const siteId = await ccGetSiteId();
     const listId = await ccGetListId();
     const payload = {
       fields: {
-        Title:         `${ccSelectedMachine.name} ${new Date().toISOString().slice(0,10)}`,
+        Title:         `${ccSelectedMachine.name} ${localDate}`,
         Machine:       ccSelectedMachine.name,
-        InspectedAt:   new Date().toISOString(),
+        InspectedAt:   localISO,
         InspectorName: operatorName,
         AnyFail:       anyFail,
         ChecksDetail:  checksDetail,
@@ -14802,12 +14806,12 @@ async function ccSubmit() {
     );
 
     // Update local state immediately
-    const ds = wmDateStr(new Date());
+    const ds = wmDateStr(_now);
     const mid = ccSelectedMachine.id;
     if (!ccByMachineDate[mid]) ccByMachineDate[mid] = {};
     if (!ccByMachineDate[mid][ds]) ccByMachineDate[mid][ds] = [];
     ccByMachineDate[mid][ds].push({
-      Machine: ccSelectedMachine.name, InspectedAt: new Date().toISOString(),
+      Machine: ccSelectedMachine.name, InspectedAt: localISO,
       InspectorName: operatorName, AnyFail: anyFail,
       ChecksDetail: checksDetail, Comments: comments,
     });
