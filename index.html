@@ -14913,7 +14913,7 @@ async function ivnGetListId() {
 function ivnStatus(item) {
   const f = item.fields;
   if (f[IVN_F.closed]) return 'completed';
-  if (f[IVN_F.rejected] === true || f[IVN_F.rejected] === 1) return 'rejected';
+  if (Array.isArray(f[IVN_F.rejected]) ? f[IVN_F.rejected].includes('Rejected') : f[IVN_F.rejected]) return 'rejected';
   if (f[IVN_F.assigneeEmail] && f[IVN_F.assigneeEmail] !== '') {
     const dl = f[IVN_F.deadline] ? new Date(f[IVN_F.deadline]) : null;
     if (dl) { const t = new Date(); t.setHours(0,0,0,0); if (dl < t) return 'overdue'; }
@@ -15298,8 +15298,8 @@ async function ivnUnreject() {
   const btn = document.querySelector('[onclick="ivnUnreject()"]');
   if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
   try {
-    await ivnPatchField(ivnCurrentItem, { [IVN_F.rejected]: false, [IVN_F.rejectedReason]: '' });
-    ivnCurrentItem.fields[IVN_F.rejected] = false;
+    await ivnPatchField(ivnCurrentItem, { [IVN_F.rejected]: [], [IVN_F.rejectedReason]: '' });
+    ivnCurrentItem.fields[IVN_F.rejected] = [];
     ivnCurrentItem.fields[IVN_F.rejectedReason] = '';
     ivnRenderDetail();
   } catch(e) {
@@ -15314,16 +15314,9 @@ async function ivnConfirmReject() {
   const btn = document.querySelector('[onclick="ivnConfirmReject()"]');
   if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
   try {
-    await ivnPatchField(ivnCurrentItem, { [IVN_F.rejected]: true });
-    ivnCurrentItem.fields[IVN_F.rejected] = true;
-    if (reason) {
-      try {
-        await ivnPatchField(ivnCurrentItem, { [IVN_F.rejectedReason]: reason });
-        ivnCurrentItem.fields[IVN_F.rejectedReason] = reason;
-      } catch(e2) {
-        console.warn('[IVN] RejectionReason PATCH failed:', e2.message);
-      }
-    }
+    await ivnPatchField(ivnCurrentItem, { [IVN_F.rejected]: ['Rejected'], [IVN_F.rejectedReason]: reason });
+    ivnCurrentItem.fields[IVN_F.rejected] = ['Rejected'];
+    ivnCurrentItem.fields[IVN_F.rejectedReason] = reason;
     ivnRenderDetail();
   } catch(e) {
     alert('Failed to reject: ' + e.message);
@@ -15449,7 +15442,6 @@ async function ivnPatchField(item, fields) {
   const listId = await ivnGetListId();
   const token = await getGraphToken();
   const url = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${item.id}/fields`;
-  console.log('[IVN] PATCH', url, JSON.stringify(fields));
   const res = await fetch(url,
     { method: 'PATCH',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
