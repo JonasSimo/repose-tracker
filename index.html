@@ -2119,6 +2119,13 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .ivn-complete-box  { background:var(--bg3); border:1.5px solid #059669; border-radius:8px; padding:14px; margin-top:8px; }
 .ivn-saved-note    { font-size:12px; color:#4ade80; margin-left:8px; opacity:0; transition:opacity .3s; }
 .ivn-saved-note.show { opacity:1; }
+.ivn-pp-wrap       { position:relative; }
+.ivn-pp-dropdown   { position:absolute; top:100%; left:0; right:0; background:var(--bg2); border:1.5px solid var(--repose-blue); border-radius:6px; z-index:200; max-height:220px; overflow-y:auto; box-shadow:0 4px 16px rgba(0,0,0,.3); }
+.ivn-pp-option     { padding:9px 12px; cursor:pointer; }
+.ivn-pp-option:hover { background:var(--bg3); }
+.ivn-pp-name       { font-size:13px; font-weight:600; color:var(--text1); }
+.ivn-pp-email      { font-size:11px; color:var(--text2); margin-top:2px; }
+.ivn-pp-empty      { padding:10px 12px; font-size:13px; color:var(--text2); }
 
 /* Scorecard */
 .ivn-score-wrap    { height:100%; overflow-y:auto; padding:16px 20px 40px; }
@@ -6081,7 +6088,7 @@ async function loadMechQCFromSharePoint() {
 //     5. Copy the Application (client) ID below
 const AZURE_CLIENT_ID  = '2f8cdb1e-93da-4815-942b-c7c8d1a29ca5';
 const AZURE_TENANT_ID  = 'reposefurniturelimited.onmicrosoft.com';
-const GRAPH_SCOPES     = ['Files.Read.All', 'User.Read', 'Sites.ReadWrite.All'];
+const GRAPH_SCOPES     = ['Files.Read.All', 'User.Read', 'User.ReadBasic.All', 'Sites.ReadWrite.All'];
 const MAIL_SCOPES      = ['Mail.Send'];
 
 // Live SharePoint link — Production 2026 Dec-Nov.xlsx
@@ -6538,6 +6545,8 @@ async function initGraph() {
   if (accounts.length) {
     graphAccount = accounts[0];
     updateAuthBadge();
+    const _deepView = new URLSearchParams(window.location.search).get('view');
+    if (_deepView) navTo(_deepView);
     await loadProductionFromSharePoint();
     await loadLoadPlanFromSharePoint();
     await loadCompletionsFromList();
@@ -15122,10 +15131,15 @@ function ivnRenderDetail() {
           <div class="ivn-assign-row">
             <div>
               <div class="ivn-field-label">Action Owner</div>
-              <select id="ivn-assign-select" class="ivn-select">
-                <option value="">— Select person —</option>
-                ${staffOptions}
-              </select>
+              <div class="ivn-pp-wrap">
+                <input id="ivn-pp-input" type="text" class="ivn-input"
+                  value="${escHtml(assigneeName && assigneeName !== assigneeEmail ? assigneeName : assigneeEmail)}"
+                  placeholder="Type a name or email…"
+                  oninput="ivnPpSearch(this.value)"
+                  autocomplete="off">
+                <div id="ivn-pp-dropdown" class="ivn-pp-dropdown" style="display:none"></div>
+                <input type="hidden" id="ivn-assign-email" value="${escHtml(assigneeEmail)}">
+              </div>
             </div>
             <div>
               <div class="ivn-field-label">Deadline</div>
@@ -15160,9 +15174,29 @@ function ivnRenderDetail() {
           </div>
         </div>`;
     }
-  } else if (s === 'progress' || s === 'overdue') {
-    // Non-manager but assignee can mark complete too? Per spec, only Jonas+Richard mark complete.
-    // But assignee can add progress notes.
+  } else if ((s === 'progress' || s === 'overdue') && isAssignee) {
+    actionHtml += `
+      <div class="ivn-assign-box">
+        <div style="font-size:13px;font-weight:700;color:var(--text1);margin-bottom:6px">Update Deadline</div>
+        <div>
+          <div class="ivn-field-label">Target Completion Date</div>
+          <input id="ivn-assign-deadline" type="date" class="ivn-input" value="${f[IVN_F.deadline]?f[IVN_F.deadline].substring(0,10):''}">
+        </div>
+        <div class="ivn-action-row" style="margin-top:8px">
+          <button class="ivn-btn ivn-btn-blue" onclick="ivnSaveDeadline()">Save Deadline</button>
+        </div>
+      </div>
+      <div class="ivn-action-row" style="margin-top:8px">
+        <button class="ivn-btn ivn-btn-purple" onclick="ivnShowCompleteForm()">Mark Complete</button>
+      </div>
+      <div id="ivn-complete-box" class="ivn-complete-box" style="display:none">
+        <div class="ivn-field-label">Completion notes / reason if cannot be implemented</div>
+        <textarea id="ivn-complete-notes" class="ivn-textarea" rows="3" placeholder="Describe what was done, or explain why the idea cannot be implemented…"></textarea>
+        <div class="ivn-action-row" style="margin-top:8px">
+          <button class="ivn-btn ivn-btn-green" onclick="ivnComplete()">Confirm Complete</button>
+          <button class="ivn-btn" onclick="document.getElementById('ivn-complete-box').style.display='none'">Cancel</button>
+        </div>
+      </div>`;
   }
 
   const html = `
@@ -15255,12 +15289,76 @@ async function ivnConfirmReject() {
   ivnRenderDetail();
 }
 
+async function ivnGetSpUserId(email) {
+  try {
+    const siteId = await ivnGetSiteId();
+    const token = await getGraphToken();
+    const res = await fetch(
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/User%20Information%20List/items?$expand=fields&$select=fields&$filter=fields/EMail eq '${encodeURIComponent(email)}'`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    const data = await res.json();
+    return data.value?.[0]?.fields?.Id || null;
+  } catch { return null; }
+}
+
+let _ivnPpTimer = null;
+async function ivnPpSearch(q) {
+  document.getElementById('ivn-assign-email').value = '';
+  clearTimeout(_ivnPpTimer);
+  if ((q || '').trim().length < 2) { document.getElementById('ivn-pp-dropdown').style.display = 'none'; return; }
+  _ivnPpTimer = setTimeout(async () => {
+    try {
+      const token = await getGraphToken();
+      const encoded = encodeURIComponent(q.trim());
+      const res = await fetch(
+        `https://graph.microsoft.com/v1.0/users?$filter=startswith(displayName,'${encoded}') or startswith(userPrincipalName,'${encoded}')&$select=displayName,userPrincipalName,mail&$top=8&$orderby=displayName`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const data = await res.json();
+      const users = (data.value || []).filter(u =>
+        (u.userPrincipalName || u.mail || '').toLowerCase().includes('@reposefurniture.co.uk')
+      );
+      const dd = document.getElementById('ivn-pp-dropdown');
+      if (!dd) return;
+      if (!users.length) {
+        dd.innerHTML = '<div class="ivn-pp-empty">No matches found</div>';
+      } else {
+        dd.innerHTML = users.map(u => {
+          const email = u.mail || u.userPrincipalName || '';
+          return `<div class="ivn-pp-option" onmousedown="ivnPpSelect('${escHtml(u.displayName)}','${escHtml(email)}')">
+            <div class="ivn-pp-name">${escHtml(u.displayName)}</div>
+            <div class="ivn-pp-email">${escHtml(email)}</div>
+          </div>`;
+        }).join('');
+      }
+      dd.style.display = '';
+    } catch { document.getElementById('ivn-pp-dropdown').style.display = 'none'; }
+  }, 300);
+}
+function ivnPpSelect(name, email) {
+  const inp = document.getElementById('ivn-pp-input');
+  const hid = document.getElementById('ivn-assign-email');
+  if (inp) inp.value = name;
+  if (hid) hid.value = email;
+  document.getElementById('ivn-pp-dropdown').style.display = 'none';
+}
+document.addEventListener('click', e => {
+  const wrap = document.getElementById('ivn-pp-wrap');
+  if (wrap && !wrap.contains(e.target)) {
+    const dd = document.getElementById('ivn-pp-dropdown');
+    if (dd) dd.style.display = 'none';
+  }
+});
+
 async function ivnSaveAssignment() {
   if (!ivnCurrentItem) return;
-  const email = document.getElementById('ivn-assign-select')?.value || '';
+  const email = document.getElementById('ivn-assign-email')?.value || '';
   const deadline = document.getElementById('ivn-assign-deadline')?.value || '';
-  if (!email) { alert('Please select an action owner.'); return; }
+  if (!email) { alert('Please select a person from the suggestions list.'); return; }
+  const spUserId = await ivnGetSpUserId(email);
   const patch = { [IVN_F.assigneeEmail]: email };
+  if (spUserId) patch['ActionOwnerId'] = spUserId;
   if (deadline) patch[IVN_F.deadline] = deadline;
   await ivnPatchField(ivnCurrentItem, patch);
   ivnCurrentItem.fields[IVN_F.assigneeEmail] = email;
@@ -15275,6 +15373,16 @@ async function ivnSaveNotes() {
   ivnCurrentItem.fields[IVN_F.notes] = notes;
   const saved = document.getElementById('ivn-notes-saved');
   if (saved) { saved.classList.add('show'); setTimeout(() => saved.classList.remove('show'), 2000); }
+}
+
+async function ivnSaveDeadline() {
+  if (!ivnCurrentItem) return;
+  const deadline = document.getElementById('ivn-assign-deadline')?.value || '';
+  if (!deadline) { alert('Please select a deadline date.'); return; }
+  await ivnPatchField(ivnCurrentItem, { [IVN_F.deadline]: deadline });
+  ivnCurrentItem.fields[IVN_F.deadline] = deadline;
+  const btn = document.querySelector('[onclick="ivnSaveDeadline()"]');
+  if (btn) { const orig = btn.textContent; btn.textContent = 'Saved ✓'; setTimeout(() => btn.textContent = orig, 2000); }
 }
 
 async function ivnComplete() {
