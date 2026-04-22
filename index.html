@@ -15314,9 +15314,16 @@ async function ivnConfirmReject() {
   const btn = document.querySelector('[onclick="ivnConfirmReject()"]');
   if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
   try {
-    await ivnPatchField(ivnCurrentItem, { [IVN_F.rejected]: true, [IVN_F.rejectedReason]: reason });
+    await ivnPatchField(ivnCurrentItem, { [IVN_F.rejected]: true });
     ivnCurrentItem.fields[IVN_F.rejected] = true;
-    ivnCurrentItem.fields[IVN_F.rejectedReason] = reason;
+    if (reason) {
+      try {
+        await ivnPatchField(ivnCurrentItem, { [IVN_F.rejectedReason]: reason });
+        ivnCurrentItem.fields[IVN_F.rejectedReason] = reason;
+      } catch(e2) {
+        console.warn('[IVN] RejectionReason PATCH failed:', e2.message);
+      }
+    }
     ivnRenderDetail();
   } catch(e) {
     alert('Failed to reject: ' + e.message);
