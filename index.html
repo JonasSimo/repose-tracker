@@ -15112,6 +15112,14 @@ function ivnRenderDetail() {
 
   // Manager action buttons
   let actionHtml = '';
+  if (s === 'completed') {
+    actionHtml = `
+      <div class="ivn-assign-box" style="border-left:4px solid #16a34a">
+        <div style="font-size:13px;font-weight:700;color:#16a34a;margin-bottom:6px">✓ Idea Completed</div>
+        ${assigneeEmail ? `<div style="font-size:13px;color:var(--text2)">Implemented by <strong>${escHtml(assigneeName || assigneeEmail)}</strong></div>` : ''}
+        ${completionNotes ? `<div style="font-size:13px;color:var(--text2);margin-top:6px">${completionNotes}</div>` : ''}
+      </div>`;
+  }
   if (canManage) {
     if (s === 'rejected') {
       actionHtml = `
