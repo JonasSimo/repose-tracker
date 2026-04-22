@@ -15298,7 +15298,7 @@ async function ivnUnreject() {
   const btn = document.querySelector('[onclick="ivnUnreject()"]');
   if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
   try {
-    await ivnPatchField(ivnCurrentItem, { [IVN_F.rejected]: [], [IVN_F.rejectedReason]: '' });
+    await ivnPatchField(ivnCurrentItem, { 'Rejected@odata.type': 'Collection(Edm.String)', [IVN_F.rejected]: [], [IVN_F.rejectedReason]: '' });
     ivnCurrentItem.fields[IVN_F.rejected] = [];
     ivnCurrentItem.fields[IVN_F.rejectedReason] = '';
     ivnRenderDetail();
@@ -15314,7 +15314,7 @@ async function ivnConfirmReject() {
   const btn = document.querySelector('[onclick="ivnConfirmReject()"]');
   if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
   try {
-    await ivnPatchField(ivnCurrentItem, { [IVN_F.rejected]: ['Rejected'], [IVN_F.rejectedReason]: reason });
+    await ivnPatchField(ivnCurrentItem, { 'Rejected@odata.type': 'Collection(Edm.String)', [IVN_F.rejected]: ['Rejected'], [IVN_F.rejectedReason]: reason });
     ivnCurrentItem.fields[IVN_F.rejected] = ['Rejected'];
     ivnCurrentItem.fields[IVN_F.rejectedReason] = reason;
     ivnRenderDetail();
