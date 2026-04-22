@@ -22,7 +22,7 @@ jobs:
         working-directory: azure-functions
 
       - name: Deploy to Azure Functions
-        uses: Azure/functions-action@v2
+        uses: Azure/functions-action@v1.5.6
         with:
           app-name: repnet-daily-report
           package: azure-functions
