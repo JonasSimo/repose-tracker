@@ -14853,7 +14853,8 @@ const IVN_F = {
   actionOwner: 'ActionOwner',        // Person field (display name)
   notifSent:   'NotificationSent',
   closed:      'Actionclosed_x003f_',
-  rejected:    'Rejected',
+  rejected:       'Rejected',
+  rejectedReason: 'RejectionReason',
   // New columns Jonas needs to add to the SP list:
   assigneeEmail: 'AssigneeEmail',
   deadline:    'Deadline',
@@ -14889,7 +14890,7 @@ async function ivnGetListId() {
 function ivnStatus(item) {
   const f = item.fields;
   if (f[IVN_F.closed]) return 'completed';
-  if (f[IVN_F.rejected] && f[IVN_F.rejected] !== '' && f[IVN_F.rejected] !== 'No') return 'rejected';
+  if (f[IVN_F.rejected] === true || f[IVN_F.rejected] === 1) return 'rejected';
   if (f[IVN_F.assigneeEmail] && f[IVN_F.assigneeEmail] !== '') {
     const dl = f[IVN_F.deadline] ? new Date(f[IVN_F.deadline]) : null;
     if (dl) { const t = new Date(); t.setHours(0,0,0,0); if (dl < t) return 'overdue'; }
@@ -15084,7 +15085,7 @@ function ivnRenderDetail() {
   const deadline = ivnFmtDate(f[IVN_F.deadline]);
   const notes = escHtml(f[IVN_F.notes] || '');
   const completionNotes = escHtml(f[IVN_F.completionNotes] || '');
-  const rejReason = escHtml(typeof f[IVN_F.rejected] === 'string' && f[IVN_F.rejected] !== 'No' ? f[IVN_F.rejected] : '');
+  const rejReason = escHtml(f[IVN_F.rejectedReason] || '');
 
   // Manager action buttons
   let actionHtml = '';
@@ -15239,16 +15240,18 @@ async function ivnAccept() {
 
 async function ivnUnreject() {
   if (!ivnCurrentItem) return;
-  await ivnPatchField(ivnCurrentItem, { [IVN_F.rejected]: 'No' });
-  ivnCurrentItem.fields[IVN_F.rejected] = 'No';
+  await ivnPatchField(ivnCurrentItem, { [IVN_F.rejected]: false, [IVN_F.rejectedReason]: '' });
+  ivnCurrentItem.fields[IVN_F.rejected] = false;
+  ivnCurrentItem.fields[IVN_F.rejectedReason] = '';
   ivnRenderDetail();
 }
 
 async function ivnConfirmReject() {
   if (!ivnCurrentItem) return;
-  const reason = (document.getElementById('ivn-reject-reason')?.value || 'Yes').trim() || 'Yes';
-  await ivnPatchField(ivnCurrentItem, { [IVN_F.rejected]: reason });
-  ivnCurrentItem.fields[IVN_F.rejected] = reason;
+  const reason = (document.getElementById('ivn-reject-reason')?.value || '').trim();
+  await ivnPatchField(ivnCurrentItem, { [IVN_F.rejected]: true, [IVN_F.rejectedReason]: reason });
+  ivnCurrentItem.fields[IVN_F.rejected] = true;
+  ivnCurrentItem.fields[IVN_F.rejectedReason] = reason;
   ivnRenderDetail();
 }
 
