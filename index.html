@@ -15449,10 +15449,10 @@ async function ivnPatchField(item, fields) {
   const listId = await ivnGetListId();
   const token = await getGraphToken();
   const res = await fetch(
-    `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${item.id}`,
+    `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${item.id}/fields`,
     { method: 'PATCH',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fields }) }
+      body: JSON.stringify(fields) }
   );
   if (!res.ok) {
     const txt = await res.text();
