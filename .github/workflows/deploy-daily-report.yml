@@ -1,4 +1,4 @@
-name: Deploy Daily Report Function
+  name: Deploy Daily Report Function
 
   on:
     push:
