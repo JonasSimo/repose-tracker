@@ -2379,10 +2379,20 @@ document.addEventListener('DOMContentLoaded', () => {
   </div>
   <div class="topbar-center">
     <svg width="93" height="26" viewBox="0 0 200 56" fill="none" aria-label="RepNet">
-      <rect x="0" y="48" width="56" height="3" rx="1.5" fill="rgba(255,255,255,.3)"/>
-      <text x="0" y="36" font-family="Inter,sans-serif" font-size="36" font-weight="900" fill="#fff">REP</text>
-      <text x="68" y="36" font-family="Inter,sans-serif" font-size="36" font-weight="900" fill="#14a1e9">NET</text>
-      <rect x="68" y="48" width="68" height="3" rx="1.5" fill="#14a1e9"/>
+      <style>
+        @keyframes rn-up   { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes rn-bar-r { from { width:0; } to { width:56px; } }
+        @keyframes rn-bar-n { from { width:0; } to { width:68px; } }
+        @keyframes rn-pulse { 0%,100% { fill:#14a1e9; } 50% { fill:#38bdf8; } }
+        .rn-rep     { animation: rn-up .45s cubic-bezier(.22,1,.36,1) both; }
+        .rn-net     { animation: rn-up .45s cubic-bezier(.22,1,.36,1) .12s both, rn-pulse 4s ease-in-out 1.2s infinite; }
+        .rn-bar-rep { animation: rn-bar-r .45s cubic-bezier(.22,1,.36,1) .08s both; }
+        .rn-bar-net { animation: rn-bar-n .45s cubic-bezier(.22,1,.36,1) .2s both; }
+      </style>
+      <rect class="rn-bar-rep" x="0" y="48" width="56" height="3" rx="1.5" fill="rgba(255,255,255,.3)"/>
+      <rect class="rn-bar-net" x="68" y="48" width="68" height="3" rx="1.5" fill="#14a1e9"/>
+      <text class="rn-rep" x="0" y="36" font-family="Inter,sans-serif" font-size="36" font-weight="900" fill="#fff">REP</text>
+      <text class="rn-net" x="68" y="36" font-family="Inter,sans-serif" font-size="36" font-weight="900" fill="#14a1e9">NET</text>
     </svg>
   </div>
   <div class="tr" style="display:flex;align-items:center;gap:10px">
