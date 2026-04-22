@@ -15281,26 +15281,47 @@ function ivnShowCompleteForm() {
 
 async function ivnAccept() {
   if (!ivnCurrentItem) return;
-  await ivnPatchField(ivnCurrentItem, { [IVN_F.valid]: true });
-  ivnCurrentItem.fields[IVN_F.valid] = true;
-  ivnRenderDetail();
+  const btn = document.querySelector('[onclick="ivnAccept()"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  try {
+    await ivnPatchField(ivnCurrentItem, { [IVN_F.valid]: true });
+    ivnCurrentItem.fields[IVN_F.valid] = true;
+    ivnRenderDetail();
+  } catch(e) {
+    alert('Failed to approve: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = 'Approve'; }
+  }
 }
 
 async function ivnUnreject() {
   if (!ivnCurrentItem) return;
-  await ivnPatchField(ivnCurrentItem, { [IVN_F.rejected]: false, [IVN_F.rejectedReason]: '' });
-  ivnCurrentItem.fields[IVN_F.rejected] = false;
-  ivnCurrentItem.fields[IVN_F.rejectedReason] = '';
-  ivnRenderDetail();
+  const btn = document.querySelector('[onclick="ivnUnreject()"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  try {
+    await ivnPatchField(ivnCurrentItem, { [IVN_F.rejected]: false, [IVN_F.rejectedReason]: '' });
+    ivnCurrentItem.fields[IVN_F.rejected] = false;
+    ivnCurrentItem.fields[IVN_F.rejectedReason] = '';
+    ivnRenderDetail();
+  } catch(e) {
+    alert('Failed to unreject: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = 'Unreject'; }
+  }
 }
 
 async function ivnConfirmReject() {
   if (!ivnCurrentItem) return;
   const reason = (document.getElementById('ivn-reject-reason')?.value || '').trim();
-  await ivnPatchField(ivnCurrentItem, { [IVN_F.rejected]: true, [IVN_F.rejectedReason]: reason });
-  ivnCurrentItem.fields[IVN_F.rejected] = true;
-  ivnCurrentItem.fields[IVN_F.rejectedReason] = reason;
-  ivnRenderDetail();
+  const btn = document.querySelector('[onclick="ivnConfirmReject()"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  try {
+    await ivnPatchField(ivnCurrentItem, { [IVN_F.rejected]: true, [IVN_F.rejectedReason]: reason });
+    ivnCurrentItem.fields[IVN_F.rejected] = true;
+    ivnCurrentItem.fields[IVN_F.rejectedReason] = reason;
+    ivnRenderDetail();
+  } catch(e) {
+    alert('Failed to reject: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = 'Confirm Reject'; }
+  }
 }
 
 async function ivnGetSpUserId(email) {
@@ -15403,10 +15424,17 @@ async function ivnComplete() {
   if (!ivnCurrentItem) return;
   const notes = (document.getElementById('ivn-complete-notes')?.value || '').trim();
   if (!notes) { alert('Please add completion notes before marking complete.'); return; }
-  await ivnPatchField(ivnCurrentItem, { [IVN_F.closed]: true, [IVN_F.completionNotes]: notes });
-  ivnCurrentItem.fields[IVN_F.closed] = true;
-  ivnCurrentItem.fields[IVN_F.completionNotes] = notes;
-  ivnRenderDetail();
+  const btn = document.querySelector('[onclick="ivnComplete()"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  try {
+    await ivnPatchField(ivnCurrentItem, { [IVN_F.closed]: true, [IVN_F.completionNotes]: notes });
+    ivnCurrentItem.fields[IVN_F.closed] = true;
+    ivnCurrentItem.fields[IVN_F.completionNotes] = notes;
+    ivnRenderDetail();
+  } catch(e) {
+    alert('Failed to mark complete: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = 'Confirm Complete'; }
+  }
 }
 
 async function ivnPatchField(item, fields) {
