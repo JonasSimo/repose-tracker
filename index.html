@@ -6222,10 +6222,21 @@ async function getGraphToken() {
   }
 }
 
+async function _graphFetchWithRetry(url, init, retries = 3) {
+  let r = await fetch(url, init);
+  while ((r.status === 429 || r.status === 503) && retries > 0) {
+    const waitSec = Math.min(60, Math.max(1, parseInt(r.headers.get('Retry-After') || '5', 10))) + 1;
+    await new Promise(res => setTimeout(res, waitSec * 1000));
+    r = await fetch(url, init);
+    retries--;
+  }
+  return r;
+}
+
 async function graphGet(url) {
   const token = await getGraphToken();
   if (!token) throw new Error('Not authenticated');
-  const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  const r = await _graphFetchWithRetry(url, { headers: { Authorization: `Bearer ${token}` } });
   if (!r.ok) throw new Error(`Graph ${r.status}: ${await r.text()}`);
   return r.json();
 }
@@ -6233,7 +6244,7 @@ async function graphGet(url) {
 async function graphPost(url, body) {
   const token = await getGraphToken();
   if (!token) throw new Error('Not authenticated');
-  const r = await fetch(url, {
+  const r = await _graphFetchWithRetry(url, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -6245,7 +6256,7 @@ async function graphPost(url, body) {
 async function graphDelete(url) {
   const token = await getGraphToken();
   if (!token) throw new Error('Not authenticated');
-  const r = await fetch(url, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+  const r = await _graphFetchWithRetry(url, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
   if (!r.ok) throw new Error(`Graph ${r.status}: ${await r.text()}`);
 }
 
@@ -6555,7 +6566,8 @@ async function initGraph() {
     graphAccount = accounts[0];
     updateAuthBadge();
     const _deepView = new URLSearchParams(window.location.search).get('view');
-    if (_deepView) navTo(_deepView);
+    const _validViews = new Set(['team-select','overview','tracker','loadsheet','production','stats','issues','safety','ordercheck','timing','complaints','woodmill','cutting-checks','innovation']);
+    if (_deepView && _validViews.has(_deepView)) navTo(_deepView);
     await loadProductionFromSharePoint();
     await loadLoadPlanFromSharePoint();
     await loadCompletionsFromList();
@@ -7430,8 +7442,12 @@ function parseDdmmyyyy(str) {
   const parts = String(str).split(' ')[0].split('/');
   if (parts.length !== 3) return null;
   const [d, m, y] = parts.map(Number);
-  if (!d || !m || !y) return null;
-  return new Date(y, m - 1, d);
+  if (!Number.isFinite(d) || !Number.isFinite(m) || !Number.isFinite(y)) return null;
+  if (d < 1 || d > 31 || m < 1 || m > 12 || y < 1900 || y > 2200) return null;
+  const dt = new Date(y, m - 1, d);
+  // Reject rollovers like 31/02/2026 → 03/03/2026
+  if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== d) return null;
+  return dt;
 }
 
 function statsInPeriod(dateStr) {
@@ -7445,7 +7461,9 @@ function statsInPeriod(dateStr) {
   return d.getFullYear() === ref.getFullYear();
 }
 
+let _statsLoadGen = 0;
 async function loadStatsData() {
+  const gen = ++_statsLoadGen;
   document.getElementById('stats-dash-teams').innerHTML   = '';
   document.getElementById('stats-dash-bottom').innerHTML  = '';
   document.getElementById('stats-spinner').style.display  = 'flex';
@@ -7458,6 +7476,7 @@ async function loadStatsData() {
   } catch(e) {
     console.warn('loadStatsData (site):', e.message);
     toast(`Stats: could not reach SharePoint — ${e.message}`, 'u');
+    if (gen !== _statsLoadGen) return;
     document.getElementById('stats-spinner').style.display = 'none';
     renderStatsDashboard();
     return;
@@ -7548,8 +7567,9 @@ async function loadStatsData() {
   }
 
   } finally {
-    document.getElementById('stats-spinner').style.display = 'none';
+    if (gen === _statsLoadGen) document.getElementById('stats-spinner').style.display = 'none';
   }
+  if (gen !== _statsLoadGen) return;
   renderStatsDashboard();
 }
 
@@ -8771,18 +8791,23 @@ function renderDetailQC() {
   const outstandingReps = [...allAssemblyReps].filter(r => !qcCompletedReps.has(r));
   const outstanding     = outstandingReps.length;
 
-  // Build details for each outstanding REP (Assembly completion date + worker)
+  // Build details for each outstanding REP (latest Assembly completion per REP)
   const outstandingDetails = outstandingReps.map(rep => {
-    const comp = STATS_COMPLETIONS.find(c =>
+    const matches = STATS_COMPLETIONS.filter(c =>
       c.fields.Team === 'Assembly' &&
       String(c.fields.REP ?? '').replace(/\D/g, '').slice(-7) === rep
     );
+    const comp = matches.reduce((latest, c) => {
+      const t = parseDdmmyyyy(c.fields.CompletedDate)?.getTime() || 0;
+      const lt = latest ? (parseDdmmyyyy(latest.fields.CompletedDate)?.getTime() || 0) : -1;
+      return t >= lt ? c : latest;
+    }, null);
     const initials = comp?.fields.Initials || '';
     const name = STATS_OPERATORS.Assembly?.[initials] || initials || '—';
     return {
       rep: comp?.fields.REP || `REP${rep}`,
       date: comp?.fields.CompletedDate || '',
-      _ts: (() => { const d = parseDdmmyyyy(comp?.fields.CompletedDate); return d ? d.getTime() : 0; })(),
+      _ts: parseDdmmyyyy(comp?.fields.CompletedDate)?.getTime() || 0,
       name,
     };
   }).sort((a, b) => a._ts - b._ts);
@@ -15317,11 +15342,12 @@ async function ivnAccept() {
   if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
   try {
     await ivnPatchField(ivnCurrentItem, { [IVN_F.valid]: true });
+    if (!ivnCurrentItem) return;
     ivnCurrentItem.fields[IVN_F.valid] = true;
     ivnRenderDetail();
   } catch(e) {
     alert('Failed to approve: ' + e.message);
-    if (btn) { btn.disabled = false; btn.textContent = 'Approve'; }
+    if (btn) { btn.disabled = false; btn.textContent = '✓ Accept Idea'; }
   }
 }
 
@@ -15331,12 +15357,13 @@ async function ivnUnreject() {
   if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
   try {
     await ivnPatchField(ivnCurrentItem, { 'Rejected@odata.type': 'Collection(Edm.String)', [IVN_F.rejected]: [], [IVN_F.rejectedReason]: '' });
+    if (!ivnCurrentItem) return;
     ivnCurrentItem.fields[IVN_F.rejected] = [];
     ivnCurrentItem.fields[IVN_F.rejectedReason] = '';
     ivnRenderDetail();
   } catch(e) {
     alert('Failed to unreject: ' + e.message);
-    if (btn) { btn.disabled = false; btn.textContent = 'Unreject'; }
+    if (btn) { btn.disabled = false; btn.textContent = '↩ Un-reject Idea'; }
   }
 }
 
@@ -15347,6 +15374,7 @@ async function ivnConfirmReject() {
   if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
   try {
     await ivnPatchField(ivnCurrentItem, { 'Rejected@odata.type': 'Collection(Edm.String)', [IVN_F.rejected]: ['Rejected'], [IVN_F.rejectedReason]: reason });
+    if (!ivnCurrentItem) return;
     ivnCurrentItem.fields[IVN_F.rejected] = ['Rejected'];
     ivnCurrentItem.fields[IVN_F.rejectedReason] = reason;
     ivnRenderDetail();
@@ -15391,13 +15419,16 @@ async function ivnPpSearch(q) {
       if (!users.length) {
         dd.innerHTML = '<div class="ivn-pp-empty">No matches found</div>';
       } else {
-        dd.innerHTML = users.map(u => {
+        dd.innerHTML = users.map((u, i) => {
           const email = u.mail || u.userPrincipalName || '';
-          return `<div class="ivn-pp-option" onmousedown="ivnPpSelect('${escHtml(u.displayName)}','${escHtml(email)}')">
+          return `<div class="ivn-pp-option" data-ppname="${escHtml(u.displayName || '')}" data-ppemail="${escHtml(email)}">
             <div class="ivn-pp-name">${escHtml(u.displayName)}</div>
             <div class="ivn-pp-email">${escHtml(email)}</div>
           </div>`;
         }).join('');
+        dd.querySelectorAll('.ivn-pp-option').forEach(el => {
+          el.addEventListener('mousedown', () => ivnPpSelect(el.dataset.ppname, el.dataset.ppemail));
+        });
       }
       dd.style.display = '';
     } catch { document.getElementById('ivn-pp-dropdown').style.display = 'none'; }
@@ -15423,33 +15454,58 @@ async function ivnSaveAssignment() {
   const email = document.getElementById('ivn-assign-email')?.value || '';
   const deadline = document.getElementById('ivn-assign-deadline')?.value || '';
   if (!email) { alert('Please select a person from the suggestions list.'); return; }
-  const spUserId = await ivnGetSpUserId(email);
-  const patch = { [IVN_F.assigneeEmail]: email };
-  if (spUserId) patch['ActionOwnerId'] = spUserId;
-  if (deadline) patch[IVN_F.deadline] = deadline;
-  await ivnPatchField(ivnCurrentItem, patch);
-  ivnCurrentItem.fields[IVN_F.assigneeEmail] = email;
-  if (deadline) ivnCurrentItem.fields[IVN_F.deadline] = deadline;
-  ivnRenderDetail();
+  const btn = document.querySelector('[onclick="ivnSaveAssignment()"]');
+  const btnOrig = btn?.textContent;
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  try {
+    const spUserId = await ivnGetSpUserId(email);
+    const patch = { [IVN_F.assigneeEmail]: email };
+    if (spUserId) patch['ActionOwnerId'] = spUserId;
+    if (deadline) patch[IVN_F.deadline] = deadline;
+    await ivnPatchField(ivnCurrentItem, patch);
+    if (!ivnCurrentItem) return;
+    ivnCurrentItem.fields[IVN_F.assigneeEmail] = email;
+    if (deadline) ivnCurrentItem.fields[IVN_F.deadline] = deadline;
+    ivnRenderDetail();
+  } catch(e) {
+    alert('Failed to save assignment: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = btnOrig || 'Save Assignment'; }
+  }
 }
 
 async function ivnSaveNotes() {
   if (!ivnCurrentItem) return;
   const notes = document.getElementById('ivn-notes-ta')?.value || '';
-  await ivnPatchField(ivnCurrentItem, { [IVN_F.notes]: notes });
-  ivnCurrentItem.fields[IVN_F.notes] = notes;
-  const saved = document.getElementById('ivn-notes-saved');
-  if (saved) { saved.classList.add('show'); setTimeout(() => saved.classList.remove('show'), 2000); }
+  const btn = document.querySelector('[onclick="ivnSaveNotes()"]');
+  const btnOrig = btn?.textContent;
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  try {
+    await ivnPatchField(ivnCurrentItem, { [IVN_F.notes]: notes });
+    if (ivnCurrentItem) ivnCurrentItem.fields[IVN_F.notes] = notes;
+    const saved = document.getElementById('ivn-notes-saved');
+    if (saved) { saved.classList.add('show'); setTimeout(() => saved.classList.remove('show'), 2000); }
+  } catch(e) {
+    alert('Failed to save notes: ' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = btnOrig || 'Save Notes'; }
+  }
 }
 
 async function ivnSaveDeadline() {
   if (!ivnCurrentItem) return;
   const deadline = document.getElementById('ivn-assign-deadline')?.value || '';
   if (!deadline) { alert('Please select a deadline date.'); return; }
-  await ivnPatchField(ivnCurrentItem, { [IVN_F.deadline]: deadline });
-  ivnCurrentItem.fields[IVN_F.deadline] = deadline;
   const btn = document.querySelector('[onclick="ivnSaveDeadline()"]');
-  if (btn) { const orig = btn.textContent; btn.textContent = 'Saved ✓'; setTimeout(() => btn.textContent = orig, 2000); }
+  const btnOrig = btn?.textContent;
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  try {
+    await ivnPatchField(ivnCurrentItem, { [IVN_F.deadline]: deadline });
+    if (ivnCurrentItem) ivnCurrentItem.fields[IVN_F.deadline] = deadline;
+    if (btn) { btn.textContent = 'Saved ✓'; setTimeout(() => { btn.textContent = btnOrig || 'Save Deadline'; btn.disabled = false; }, 2000); }
+  } catch(e) {
+    alert('Failed to save deadline: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = btnOrig || 'Save Deadline'; }
+  }
 }
 
 async function ivnComplete() {
@@ -15459,14 +15515,10 @@ async function ivnComplete() {
   const btn = document.querySelector('[onclick="ivnComplete()"]');
   if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
   try {
-    await ivnPatchField(ivnCurrentItem, { [IVN_F.closed]: true });
+    await ivnPatchField(ivnCurrentItem, { [IVN_F.closed]: true, [IVN_F.completionNotes]: notes });
+    if (!ivnCurrentItem) return;
     ivnCurrentItem.fields[IVN_F.closed] = true;
-    try {
-      await ivnPatchField(ivnCurrentItem, { [IVN_F.completionNotes]: notes });
-      ivnCurrentItem.fields[IVN_F.completionNotes] = notes;
-    } catch(e2) {
-      console.warn('[IVN] CompletionNotes column missing — create it in SharePoint list settings');
-    }
+    ivnCurrentItem.fields[IVN_F.completionNotes] = notes;
     ivnRenderDetail();
   } catch(e) {
     alert('Failed to mark complete: ' + e.message);
