@@ -4643,6 +4643,8 @@ function populateCustomerDropdown() {
       });
     }
   }
+  // Bail out if no data loaded yet so we don't wipe the user's current filter selection
+  if (!names.size) return;
   sel.innerHTML = '<option value="">— Filter by customer —</option>' +
     [...names].sort().map(n => `<option value="${escHtml(n)}"${n===prev?' selected':''}>${escHtml(n)}</option>`).join('');
 }
@@ -5452,11 +5454,12 @@ async function acknowledgeAllAlerts() {
   if (btn) { btn.disabled = true; btn.textContent = `Acknowledging 0 / ${toAck.length}…`; }
   const siteId  = await getSpSiteId();
   const listId  = await getListIdByName(SP_SPEC_ALERTS_LIST);
-  const token   = await getGraphToken();
   const now     = new Date().toLocaleDateString('en-GB') + ' ' + new Date().toTimeString().slice(0,5);
   let done = 0, failed = 0;
   for (const alert of toAck) {
     try {
+      // Fresh token per iteration — MSAL caches so this is cheap, and it survives expiry mid-batch
+      const token = await getGraphToken();
       const res = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${alert.id}`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -5469,6 +5472,7 @@ async function acknowledgeAllAlerts() {
     } catch(e) { console.warn('acknowledgeAllAlerts:', alert.id, e.message); failed++; }
     if (btn) btn.textContent = `Acknowledging ${done} / ${toAck.length}…`;
   }
+  if (btn) { btn.disabled = false; btn.textContent = 'Acknowledge All'; }
   saveSpecAlertCache();
   renderSpecAlerts();
   if (failed) toast(`${done} acknowledged, ${failed} failed — check connection`, 'u');
@@ -5813,8 +5817,6 @@ async function autoSyncQCCompletions() {
     saveAccQCDone(accQCDone); // persist any acc jobs picked up from the SC sheet
     qcLastSyncTime  = now;
     qcSyncError     = false;
-    qcSyncing       = false;
-    if (activeTeam === 'QC') renderQCSyncBar();
 
     applyQCAutoToTeamView(); // mark all teams done for QC-completed REPs
     if (activeTeam === 'QC') {
@@ -5830,7 +5832,8 @@ async function autoSyncQCCompletions() {
   } catch (e) {
     console.warn('QC auto-sync failed:', e.message);
     qcSyncError = true;
-    qcSyncing   = false;
+  } finally {
+    qcSyncing = false;
     if (activeTeam === 'QC') renderQCSyncBar();
   }
 }
@@ -6198,6 +6201,7 @@ async function graphSignOut() {
     clearInterval(ppAutoSyncInterval);
     ppAutoSyncInterval = null;
   }
+  if (typeof stopQCAutoSync === 'function') stopQCAutoSync();
   updateAuthBadge();
   if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
     msalInstance.logoutRedirect({ account }).catch(console.error);
@@ -9621,10 +9625,8 @@ async function ensureDeliveryStateLoaded() {
     Object.values(wk).some(v => Array.isArray(v) && v.length > 0)
   );
   if (!prodHasData) {
-    _prodSyncing = false;
     await loadProductionFromSharePoint().catch(e => console.warn('[delivery] prod:', e.message));
   }
-  _completionsSyncing = false;
   await loadCompletionsFromList().catch(e => console.warn('[delivery] completions:', e.message));
   if (document.getElementById('view-loadsheet')?.classList.contains('active')) renderLoadSheet();
 }
