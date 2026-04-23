@@ -6194,6 +6194,10 @@ async function graphSignOut() {
   clearInterval(_fullRefreshInterval);
   _refreshInterval = null;
   _fullRefreshInterval = null;
+  if (typeof ppAutoSyncInterval !== 'undefined' && ppAutoSyncInterval) {
+    clearInterval(ppAutoSyncInterval);
+    ppAutoSyncInterval = null;
+  }
   updateAuthBadge();
   if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
     msalInstance.logoutRedirect({ account }).catch(console.error);
@@ -6213,7 +6217,10 @@ async function getGraphToken() {
   } catch(e) {
     if (!(e instanceof msal.InteractionRequiredAuthError)) throw e;
     if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-      msalInstance.acquireTokenRedirect({ scopes: GRAPH_SCOPES });
+      try { toast('Re-authentication needed — redirecting…', 'u'); } catch {}
+      msalInstance.acquireTokenRedirect({ scopes: GRAPH_SCOPES }).catch(err => {
+        console.error('acquireTokenRedirect failed:', err);
+      });
       throw new Error('Redirecting for authentication');
     }
     const res = await msalInstance.acquireTokenPopup({ scopes: GRAPH_SCOPES });
@@ -6560,7 +6567,10 @@ async function initGraph() {
   try {
     const redirectResult = await msalInstance.handleRedirectPromise();
     if (redirectResult) graphAccount = redirectResult.account;
-  } catch {}
+  } catch(e) {
+    console.error('MSAL redirect error:', e);
+    try { toast('Sign-in failed — please refresh and try again', 'u'); } catch {}
+  }
   const accounts = msalInstance.getAllAccounts();
   if (accounts.length) {
     graphAccount = accounts[0];
@@ -12880,7 +12890,7 @@ let tmActivePeriod = 'week'; // 'today' | 'week' | 'month' | 'all'
 // Cancelled record IDs — persisted to SharePoint (cross-device) with localStorage as fast cache
 const TM_CANCELLED_KEY   = 'repnet_tm_cancelled';
 const TM_EXCLUSIONS_LIST = 'TimingExclusions';
-let tmCancelledIds     = new Set(JSON.parse(localStorage.getItem(TM_CANCELLED_KEY) || '[]'));
+let tmCancelledIds     = (() => { try { return new Set(JSON.parse(localStorage.getItem(TM_CANCELLED_KEY) || '[]')); } catch { return new Set(); } })();
 let tmExclusionItemIds = {}; // productionRecord id → SP list item id (needed for DELETE)
 
 function tmSaveCancelled() {
@@ -13156,7 +13166,6 @@ async function tmCancelRecord(id) {
   tmSaveCancelled();
   tmRender();
   tmOpenDetail(_tmDetailCurrentModel());
-  // Persist to SharePoint so all devices see the exclusion
   try {
     const siteId  = await getSpSiteId();
     const listId  = await getListIdByName(TM_EXCLUSIONS_LIST);
@@ -13166,7 +13175,12 @@ async function tmCancelRecord(id) {
     );
     tmExclusionItemIds[id] = created.id;
   } catch (e) {
-    console.warn('TimingExclusions: cancel persist failed:', e.message);
+    // Revert optimistic update so UI matches SharePoint
+    tmCancelledIds.delete(id);
+    tmSaveCancelled();
+    tmRender();
+    tmOpenDetail(_tmDetailCurrentModel());
+    toast('Could not save exclusion — ' + e.message, 'u');
   }
 }
 
@@ -13175,20 +13189,25 @@ async function tmRestoreRecord(id) {
   tmSaveCancelled();
   tmRender();
   tmOpenDetail(_tmDetailCurrentModel());
-  // Remove from SharePoint
   const spItemId = tmExclusionItemIds[id];
   if (!spItemId) return;
   try {
     const siteId = await getSpSiteId();
     const listId = await getListIdByName(TM_EXCLUSIONS_LIST);
     const token  = await getGraphToken();
-    await fetch(
+    const res = await fetch(
       `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${spItemId}`,
       { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }
     );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     delete tmExclusionItemIds[id];
   } catch (e) {
-    console.warn('TimingExclusions: restore delete failed:', e.message);
+    // Revert optimistic restore so next sync doesn't un-undo the user's change
+    tmCancelledIds.add(id);
+    tmSaveCancelled();
+    tmRender();
+    tmOpenDetail(_tmDetailCurrentModel());
+    toast('Could not restore record — ' + e.message, 'u');
   }
 }
 
@@ -13372,6 +13391,10 @@ async function cpAssignInvestigator() {
   if (!email.includes('@')) { toast('Enter a valid email address', 'e'); return; }
   if (!cpActiveTicket) return;
 
+  // Guard against double-assign (race or double-click): if the ticket already has an investigation, bail
+  const existing = cpComplaints.find(x => x.TicketNo === cpActiveTicket);
+  if (existing?.inv) { toast('This ticket already has an investigator assigned', 'e'); return; }
+
   const confirmBtn = document.querySelector('#cp-assign-modal .cp-modal-confirm');
   if (confirmBtn) confirmBtn.disabled = true;
 
@@ -13409,8 +13432,9 @@ async function cpAssignInvestigator() {
     cpCloseAssignModal();
     await cpOnOpen(); // reload list
   } catch (e) {
-    if (confirmBtn) confirmBtn.disabled = false;
     toast('Error assigning investigator: ' + e.message, 'e');
+  } finally {
+    if (confirmBtn) confirmBtn.disabled = false;
   }
 }
 
@@ -13677,6 +13701,9 @@ async function cpSaveForm() {
 
   if (!c.inv._id) { toast('No SharePoint ID for this investigation', 'e'); return; }
 
+  const saveBtn = document.querySelector('.cp-save-btn');
+  const btnOrig = saveBtn?.textContent;
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
   try {
     const siteId = await cpGetSiteId();
     const listId = await getListIdByNameOnSite(siteId, 'ComplaintInvestigations');
@@ -13690,12 +13717,13 @@ async function cpSaveForm() {
       }
     );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    // Update local cache so re-render doesn't lose edits
     Object.assign(c.inv, fields);
     toast('Saved');
   } catch (e) {
     toast('Save failed: ' + e.message, 'e');
     throw e;
+  } finally {
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = btnOrig || 'Save'; }
   }
 }
 
@@ -14292,7 +14320,8 @@ function wmRenderMonth() {
 
 function wmOpenModal(machineId, dateStr, machineName) {
   const insps = wmByMachineDate[machineId]?.[dateStr] || [];
-  const date  = new Date(dateStr).toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  const [_y, _m, _d] = dateStr.split('-').map(Number);
+  const date  = new Date(_y, (_m || 1) - 1, _d || 1).toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
 
   document.getElementById('wm-modal-title').textContent = machineName;
   document.getElementById('wm-modal-sub').textContent   = date;
@@ -14666,7 +14695,9 @@ function ccRenderMonth() {
 
 function ccOpenViewModal(machineId, dateStr, machineName) {
   const insps = ccByMachineDate[machineId]?.[dateStr] || [];
-  const date  = new Date(dateStr).toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  // Parse as local midnight, not UTC — bare ISO date string is parsed as UTC and shifts -1hr in BST
+  const [_y, _m, _d] = dateStr.split('-').map(Number);
+  const date  = new Date(_y, (_m || 1) - 1, _d || 1).toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
   document.getElementById('cc-view-title').textContent = machineName;
   document.getElementById('cc-view-sub').textContent   = date;
   const body = document.getElementById('cc-view-body');
