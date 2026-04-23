@@ -9862,6 +9862,7 @@ async function loadMechSerials() {
       `?$expand=fields&$top=999`
     );
     MECH_SERIALS.clear();
+    // 1. Seed from ProductionCompletions list (serials saved when Assembly completion posted)
     items.filter(i => (i.fields?.Team || '') === 'Assembly').forEach(item => {
       const f   = item.fields || {};
       const ser = String(f.MechSerial ?? '').trim();
@@ -9871,9 +9872,52 @@ async function loadMechSerials() {
       const pr  = String(f.Prep ?? '').trim();
       if (rep) MECH_SERIALS.set(`${rep}__${wk}__${pr}`, ser);
     });
+    // 2. Overlay serials from Excel production sheet column AS (catches serials recorded
+    //    but whose Assembly completion wasn't posted / was deleted from the SP list)
+    await _overlayMechSerialsFromProdExcel().catch(e => console.warn('Excel serial overlay:', e.message));
     renderJobs();
   } catch(e) {
     console.warn('loadMechSerials:', e.message);
+  }
+}
+
+async function _overlayMechSerialsFromProdExcel() {
+  if (!PROD_DRIVE_ID || !PROD_ITEM_ID) {
+    const encoded   = encodeSharingUrl(PROD_SHARING_URL);
+    const driveItem = await graphGet(`https://graph.microsoft.com/v1.0/shares/${encoded}/driveItem`);
+    PROD_DRIVE_ID = driveItem.parentReference.driveId;
+    PROD_ITEM_ID  = driveItem.id;
+  }
+  for (const wk of WEEKS) {
+    try {
+      const base = `https://graph.microsoft.com/v1.0/drives/${PROD_DRIVE_ID}/items/${PROD_ITEM_ID}` +
+                   `/workbook/worksheets('${encodeURIComponent(wk)}')`;
+      const [colL, colAS] = await Promise.all([
+        graphGet(`${base}/range(address='L1:L300')?$select=values`),
+        graphGet(`${base}/range(address='AS1:AS300')?$select=values`)
+      ]);
+      const reps    = colL.values  || [];
+      const serials = colAS.values || [];
+      const n = Math.min(reps.length, serials.length);
+      for (let i = 0; i < n; i++) {
+        const repCell = String(reps[i]?.[0] || '').trim();
+        const serial  = String(serials[i]?.[0] || '').trim();
+        if (!serial || !repCell) continue;
+        // Sheet stores "REP1234567" (no space); in-memory jobs use "REP 1234567" (space)
+        const m = repCell.match(/REP\s*(\d{7})/);
+        if (!m) continue;
+        const repKey = `REP ${m[1]}`;
+        // Find the prep this REP sits in for the given week
+        for (const prep of [1,2,3,4,5,'express']) {
+          if ((PROD[wk]?.[prep] || []).some(j => j.rep === repKey)) {
+            MECH_SERIALS.set(`${repKey}__${wk}__${prep}`, serial);
+            break;
+          }
+        }
+      }
+    } catch(e) {
+      console.warn(`Excel serial overlay ${wk}:`, e.message);
+    }
   }
 }
 
