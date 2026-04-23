@@ -6144,16 +6144,20 @@ const GRAPH_READY = AZURE_CLIENT_ID !== 'YOUR_CLIENT_ID_HERE';
 // Tablet team lock — add ?team=Woodmill (or any team name) to the URL
 // to lock the tablet to that team only, hiding all others
 // Preserve team across MSAL redirect (sessionStorage cleared when tab closes)
+const _VALID_TEAMS = new Set(['Woodmill','Cutting','Sewing','Upholstery','Assembly','Foam','QC','Gluing','Seats']);
 const _paramTeam = new URLSearchParams(window.location.search).get('team') || '';
-if (_paramTeam) sessionStorage.setItem('tabletTeam', _paramTeam);
-const TABLET_TEAM = _paramTeam || sessionStorage.getItem('tabletTeam') || '';
+const _validatedTeam = _VALID_TEAMS.has(_paramTeam) ? _paramTeam : '';
+if (_validatedTeam) sessionStorage.setItem('tabletTeam', _validatedTeam);
+const TABLET_TEAM = _validatedTeam || sessionStorage.getItem('tabletTeam') || '';
 
 // Single-tab lock — add ?tab=production (or any view name) to the URL
 // to lock the app to that tab only, hiding the nav menu
 // Preserve tab across MSAL redirect
+const _VALID_TABS = new Set(['team-select','overview','tracker','loadsheet','production','stats','issues','safety','ordercheck','timing','complaints','woodmill','cutting-checks','innovation']);
 const _paramTab = new URLSearchParams(window.location.search).get('tab') || '';
-if (_paramTab) sessionStorage.setItem('tabletTab', _paramTab);
-const TABLET_TAB = _paramTab || sessionStorage.getItem('tabletTab') || '';
+const _validatedTab = _VALID_TABS.has(_paramTab) ? _paramTab : '';
+if (_validatedTab) sessionStorage.setItem('tabletTab', _validatedTab);
+const TABLET_TAB = _validatedTab || sessionStorage.getItem('tabletTab') || '';
 
 const _VALID_SUBS = new Set(['Arms', 'Backs', 'Seats']);
 const _paramSub = new URLSearchParams(window.location.search).get('sub') || '';
@@ -6235,6 +6239,8 @@ async function graphSignOut() {
     ppAutoSyncInterval = null;
   }
   if (typeof stopQCAutoSync === 'function') stopQCAutoSync();
+  // Clear view-level filter state so a different user signing in later doesn't inherit it
+  if (typeof ovCustomerFilter !== 'undefined') ovCustomerFilter = '';
   updateAuthBadge();
   if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
     msalInstance.logoutRedirect({ account }).catch(console.error);
