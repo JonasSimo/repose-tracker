@@ -5662,14 +5662,16 @@ async function saveCompletionToList(team, sub, wk, prep, ji) {
     };
     // If the job was "started" and saved to SP, PATCH that record rather than creating a new one
     if (s.startItemId) {
+      const startItemId = s.startItemId; // capture before await in case STATE is rebuilt by a concurrent sync
       const res = await fetch(
-        `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${s.startItemId}`,
+        `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${startItemId}`,
         { method:'PATCH', headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
           body: JSON.stringify({ fields }) }
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      s.listItemId   = s.startItemId;
-      s.startItemId  = null;
+      // Re-read STATE — a concurrent loadCompletionsFromList may have rebuilt the array
+      const sFresh = STATE[team]?.[sub]?.[wk]?.[prep]?.[ji];
+      if (sFresh) { sFresh.listItemId = startItemId; sFresh.startItemId = null; }
     } else {
       const res = await fetch(
         `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`,
@@ -5678,7 +5680,8 @@ async function saveCompletionToList(team, sub, wk, prep, ji) {
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      s.listItemId = data.id;
+      const sFresh = STATE[team]?.[sub]?.[wk]?.[prep]?.[ji];
+      if (sFresh) sFresh.listItemId = data.id;
     }
   } catch(e) {
     console.warn('saveCompletionToList failed:', e.message);
@@ -6131,9 +6134,11 @@ const _paramTab = new URLSearchParams(window.location.search).get('tab') || '';
 if (_paramTab) sessionStorage.setItem('tabletTab', _paramTab);
 const TABLET_TAB = _paramTab || sessionStorage.getItem('tabletTab') || '';
 
+const _VALID_SUBS = new Set(['Arms', 'Backs', 'Seats']);
 const _paramSub = new URLSearchParams(window.location.search).get('sub') || '';
-if (_paramSub) sessionStorage.setItem('tabletSub', _paramSub);
-const TABLET_SUB = _paramSub || sessionStorage.getItem('tabletSub') || '';
+const _validatedSub = _VALID_SUBS.has(_paramSub) ? _paramSub : '';
+if (_validatedSub) sessionStorage.setItem('tabletSub', _validatedSub);
+const TABLET_SUB = _validatedSub || sessionStorage.getItem('tabletSub') || '';
 
 let msalInstance = null;
 let graphAccount  = null;
@@ -12390,6 +12395,7 @@ async function submitNearMiss() {
   } catch(e) {
     btn.disabled = false;
     btn.textContent = 'Submit Report';
+    try { toast('Failed to submit: ' + e.message, 'u'); } catch {}
     alert('Failed to submit: ' + e.message);
   }
 }
@@ -13947,8 +13953,19 @@ function cpExportPdf() {
     } catch (e) { /* tainted canvas — skip */ }
   });
 
+  // Use afterprint event so cleanup waits for the dialog to close —
+  // setTimeout(300) can fire mid-print on mobile/WebView where print is async
+  let cleanedUp = false;
+  const cleanup = () => {
+    if (cleanedUp) return;
+    cleanedUp = true;
+    restore.forEach(fn => fn());
+    window.removeEventListener('afterprint', cleanup);
+  };
+  window.addEventListener('afterprint', cleanup);
+  // Safety net: some very old browsers don't fire afterprint
+  setTimeout(cleanup, 10000);
   window.print();
-  setTimeout(() => { restore.forEach(fn => fn()); }, 300);
 }
 
 // ═══════════════════════════════════════════════
@@ -14910,6 +14927,7 @@ async function ccSubmit() {
     if (document.getElementById('view-cutting-checks')?.classList.contains('active')) ccRender();
   } catch(e) {
     console.error('[CC] submit:', e);
+    try { toast('Failed to submit: ' + e.message, 'u'); } catch {}
     alert('Failed to submit: ' + e.message);
     btn.disabled = false;
     btn.textContent = 'Submit Check';
