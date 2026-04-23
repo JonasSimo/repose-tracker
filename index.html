@@ -7380,8 +7380,17 @@ function alpha(hex, a) {
   return `rgba(${r},${g},${b},${a})`;
 }
 
+const _statsDetailTimers = new Set();
+function statsScheduleDraw(fn) {
+  const id = setTimeout(() => { _statsDetailTimers.delete(id); fn(); }, 0);
+  _statsDetailTimers.add(id);
+  return id;
+}
 function statsDestroyCharts() {
   if (statsSparkTimer !== null) { clearTimeout(statsSparkTimer); statsSparkTimer = null; }
+  // Cancel any pending detail-render timers so they don't create orphan charts after destroy
+  _statsDetailTimers.forEach(t => clearTimeout(t));
+  _statsDetailTimers.clear();
   Object.values(statsCharts).forEach(c => { try { c.destroy(); } catch(e){} });
   statsCharts = {};
   // Also destroy any Chart instance that escaped the registry (e.g. from a concurrent render)
@@ -8765,7 +8774,7 @@ function renderDetailCompletions() {
       </div>` : ''}
     </div>`;
 
-  setTimeout(() => {
+  statsScheduleDraw(() => {
     // Grouped bar: Complete + QC Verified
     const ctx1 = document.getElementById('ch-daily-comp');
     if (ctx1 && typeof Chart !== 'undefined') {
@@ -8943,7 +8952,7 @@ function renderDetailQC() {
       ${inspectorRows}
     </div>`;
 
-  setTimeout(() => {
+  statsScheduleDraw(() => {
     statsBarChart('ch-qc-daily', labels, spark.qc, '#0e7490');
     const donutCanvas = document.getElementById('ch-qc-donut');
     if (donutCanvas && typeof Chart !== 'undefined') {
@@ -9025,7 +9034,7 @@ function renderDetailPerPerson() {
     </div>
     <div class="detail-card">${rowsHtml}</div>`;
 
-  setTimeout(() => {
+  statsScheduleDraw(() => {
     const ctx = document.getElementById('ch-per-person');
     if (!ctx || !persons.length || typeof Chart === 'undefined') return;
     const show = persons.slice(0, 15);
@@ -9195,7 +9204,7 @@ function renderDetailChanges() {
   });
   body.appendChild(listDiv);
 
-  setTimeout(() => {
+  statsScheduleDraw(() => {
     const catLabels = activeChips.filter(c => c !== 'All');
     statsBarChart('ch-change-cats', catLabels, catLabels.map(c => chipCounts[c] || 0), '#d97706');
   }, 0);
@@ -9341,7 +9350,7 @@ function renderDetailScrap() {
   });
   body.appendChild(listDiv);
 
-  setTimeout(() => {
+  statsScheduleDraw(() => {
     const scrapLabels = Object.keys(byTeam);
     if (!scrapLabels.length || typeof Chart === 'undefined') return;
     const scrapColors = scrapLabels.map((_, i) => {
@@ -9584,7 +9593,7 @@ function renderDetailCPAR() {
   }).length);
   const runAvg = runData.length ? (runData.reduce((s,v)=>s+v,0) / runData.length) : 0;
 
-  setTimeout(() => {
+  statsScheduleDraw(() => {
     // Pareto
     if (paretoLabels.length) {
       statsCharts['ch-q-pareto'] = new Chart(document.getElementById('ch-q-pareto').getContext('2d'), {
