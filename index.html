@@ -8771,6 +8771,34 @@ function renderDetailQC() {
   const outstandingReps = [...allAssemblyReps].filter(r => !qcCompletedReps.has(r));
   const outstanding     = outstandingReps.length;
 
+  // Build details for each outstanding REP (Assembly completion date + worker)
+  const outstandingDetails = outstandingReps.map(rep => {
+    const comp = STATS_COMPLETIONS.find(c =>
+      c.fields.Team === 'Assembly' &&
+      String(c.fields.REP ?? '').replace(/\D/g, '').slice(-7) === rep
+    );
+    const initials = comp?.fields.Initials || '';
+    const name = STATS_OPERATORS.Assembly?.[initials] || initials || '—';
+    return {
+      rep: comp?.fields.REP || `REP${rep}`,
+      date: comp?.fields.CompletedDate || '',
+      _ts: (() => { const d = parseDdmmyyyy(comp?.fields.CompletedDate); return d ? d.getTime() : 0; })(),
+      name,
+    };
+  }).sort((a, b) => a._ts - b._ts);
+
+  const outstandingRowsHtml = outstandingDetails.length
+    ? outstandingDetails.map(o =>
+        `<div class="comp-row no-exp" style="padding-left:16px;background:#fef2f2">
+          <div class="row-team" style="font-weight:400;font-size:13px">
+            <span style="font-weight:600;color:#0e023a">${escHtml(o.rep)}</span>
+            <span style="color:var(--repose-grey);margin-left:8px">${escHtml(o.date)}</span>
+          </div>
+          <div class="row-count" style="font-size:12px;color:var(--repose-grey)">${escHtml(o.name)}</div>
+        </div>`
+      ).join('')
+    : `<div class="comp-row no-exp" style="padding-left:16px"><div class="row-team" style="font-size:13px;color:var(--repose-grey)">All Assembly completions are QC'd — nothing outstanding</div></div>`;
+
   // Inspector breakdown across all types
   const byInspector = {};
   qc.forEach(q => {
@@ -8802,10 +8830,12 @@ function renderDetailQC() {
       <div class="comp-row no-exp"><div class="row-team" style="font-weight:400;font-size:13px;color:var(--repose-grey)">— New Chairs</div><div class="row-count" style="color:#0e7490">${newChairReps.length}</div></div>
       <div class="comp-row no-exp"><div class="row-team" style="font-weight:400;font-size:13px;color:var(--repose-grey)">— Service Chairs</div><div class="row-count" style="color:#0e7490">${serviceChairs.length}</div></div>
       ${accessories.length ? `<div class="comp-row no-exp"><div class="row-team" style="font-weight:400;font-size:13px;color:var(--repose-grey)">— Accessories</div><div class="row-count" style="color:#64748b">${accessories.length}</div></div>` : ''}
-      <div class="comp-row no-exp" style="border-top:1px solid #e5e7eb;margin-top:4px;padding-top:4px">
+      <div class="comp-row" style="border-top:1px solid #e5e7eb;margin-top:4px;padding-top:4px;cursor:pointer" onclick="statsToggleExpand('outstanding-qc')">
         <div class="row-team" style="font-weight:700;color:#dc2626">Outstanding (Assembly done, not QC'd)</div>
         <div class="row-count" style="color:#dc2626;font-size:18px">${outstanding}</div>
+        <div class="row-expand" id="exp-outstanding-qc">›</div>
       </div>
+      <div class="sub-rows" id="sub-outstanding-qc">${outstandingRowsHtml}</div>
       <div class="comp-row no-exp"><div class="row-team" style="font-weight:400;font-size:13px;color:var(--repose-grey)">Assembly completions tracked</div><div class="row-count" style="color:#64748b">${allAssemblyReps.size}</div></div>
     </div>
     <div class="detail-card">
