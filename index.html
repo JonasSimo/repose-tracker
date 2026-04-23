@@ -14834,6 +14834,8 @@ async function ccSubmit() {
 
 const IVN_SITE_PATH = '/sites/ReposeFurniture-Quality';
 const IVN_LIST_NAME = 'Innovation Station';
+const IVN_SITE_ID_HARDCODED = 'reposefurniturelimited.sharepoint.com,ee248a0d-39e4-4523-b656-b7cb88b3cc58,dafff0e0-bfac-4926-b7a6-670902a22095';
+const IVN_LIST_ID_HARDCODED = '1e70dff1-9672-4715-9112-dc6c83ca2167';
 
 const IVN_FULL_ACCESS = new Set([
   'jonas.simonaitis@reposefurniture.co.uk',
@@ -14896,19 +14898,8 @@ let ivnIsManager    = false;
 let ivnUserEmail    = '';
 let _ivnLoaded      = false;
 
-async function ivnGetSiteId() {
-  if (_ivnSiteId) return _ivnSiteId;
-  const res = await graphGet(`https://graph.microsoft.com/v1.0/sites/${SP_HOST}:${IVN_SITE_PATH}`);
-  _ivnSiteId = res.id;
-  return _ivnSiteId;
-}
-
-async function ivnGetListId() {
-  if (_ivnListId) return _ivnListId;
-  const siteId = await ivnGetSiteId();
-  _ivnListId = await getListIdByNameOnSite(siteId, IVN_LIST_NAME);
-  return _ivnListId;
-}
+async function ivnGetSiteId() { return IVN_SITE_ID_HARDCODED; }
+async function ivnGetListId() { return IVN_LIST_ID_HARDCODED; }
 
 function ivnStatus(item) {
   const f = item.fields;
