@@ -15061,7 +15061,10 @@ function ivnRenderCard(item) {
           <span class="ivn-card-tag">${date}</span>
           ${dueChip}
         </div>
-        ${assigneeName ? `<span class="ivn-card-owner">${assigneeName}</span>` : `<span class="ivn-status ivn-status-${s}">${ivnStatusLabel(s)}</span>`}
+        <span style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+          ${s === 'completed' ? `<span class="ivn-status ivn-status-completed">${ivnStatusLabel('completed')}</span>` : ''}
+          ${assigneeName ? `<span class="ivn-card-owner">${assigneeName}</span>` : (s !== 'completed' ? `<span class="ivn-status ivn-status-${s}">${ivnStatusLabel(s)}</span>` : '')}
+        </span>
       </div>
     </div>`;
 }
