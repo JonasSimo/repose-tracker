@@ -10922,7 +10922,7 @@ function renderCPARCard(item) {
         ${CPAR_CAUSE_CODES.map(c=>`<button class="cpar-cause-option" data-cause="${escHtml(c)}" onclick="selectCPARCause('${item.id}',this)">${escHtml(c)}</button>`).join('')}
       </div>
       <div class="cpar-cause-label" style="margin-top:10px">Corrective Action Taken</div>
-      <textarea class="cpar-action-input" id="cpar-action-${item.id}" placeholder="Describe what was done to resolve this…"></textarea>
+      <textarea class="cpar-action-input" id="cpar-action-${item.id}" maxlength="10000" placeholder="Describe what was done to resolve this…"></textarea>
       <button class="cpar-confirm-close-btn" id="cpar-close-${item.id}" onclick="confirmCloseCPAR('${item.id}')" disabled>✓ Mark as Closed</button>
     </div>`}
   </div>`;
@@ -12617,7 +12617,7 @@ function renderNearMisses() {
       ${!isclosed ? `<div class="nms-close-form">
         <div>
           <div class="nms-close-label">Actions taken *</div>
-          <textarea class="nms-close-textarea" id="nms-actions-${item.id}" placeholder="Describe actions taken to resolve…"></textarea>
+          <textarea class="nms-close-textarea" id="nms-actions-${item.id}" maxlength="10000" placeholder="Describe actions taken to resolve…"></textarea>
         </div>
         <div class="nms-close-row">
           <div style="flex:1">
@@ -12824,7 +12824,7 @@ async function closeOutNearMiss(itemId) {
       <div id="cpar-cat-wrap" style="display:none"></div>
       <div>
         <div class="cpar-field-label">Description *</div>
-        <textarea class="cpar-desc-input" id="cpar-desc-input" placeholder="Describe the issue clearly…" oninput="cparFormState.desc=this.value"></textarea>
+        <textarea class="cpar-desc-input" id="cpar-desc-input" maxlength="10000" placeholder="Describe the issue clearly…" oninput="cparFormState.desc=this.value"></textarea>
       </div>
       <div>
         <div class="cpar-field-label">Chairs affected</div>
@@ -12896,7 +12896,7 @@ async function closeOutNearMiss(itemId) {
       </div>
       <div>
         <div class="nms-field-label">What is the issue? *</div>
-        <textarea class="nms-textarea" id="nms-issue" placeholder="Describe the near miss or hazard…"></textarea>
+        <textarea class="nms-textarea" id="nms-issue" maxlength="10000" placeholder="Describe the near miss or hazard…"></textarea>
       </div>
       <div>
         <div class="nms-field-label">Is the area safe? *</div>
@@ -12908,7 +12908,7 @@ async function closeOutNearMiss(itemId) {
       </div>
       <div>
         <div class="nms-field-label">Steps taken to keep everyone safe</div>
-        <textarea class="nms-textarea" id="nms-steps-taken" placeholder="Describe any immediate steps taken…" style="min-height:70px"></textarea>
+        <textarea class="nms-textarea" id="nms-steps-taken" maxlength="10000" placeholder="Describe any immediate steps taken…" style="min-height:70px"></textarea>
       </div>
       <div>
         <div class="nms-field-label">Has the issue been fully resolved and confirmed safe?</div>
@@ -13672,7 +13672,7 @@ function cpRenderForm(c) {
     <div class="cp-section">
       <div class="cp-section-title">${n}. ${SECTION_LABELS[n]}</div>
       ${n === 4 ? cpRenderFiveWhys(fiveWhys, editable) : ''}
-      <textarea class="cp-section-ta" id="cp-f-s${n}"${ro}>${escHtml(inv['Section'+n]||'')}</textarea>
+      <textarea class="cp-section-ta" id="cp-f-s${n}" maxlength="20000"${ro}>${escHtml(inv['Section'+n]||'')}</textarea>
     </div>`).join('');
 
   const actionsHeader  = editable
@@ -14917,7 +14917,7 @@ function ccRenderSubmitForm() {
       </div>
       <div style="margin-top:12px">
         <div class="ivn-field-label" style="margin-bottom:6px">Comments (optional)</div>
-        <textarea id="cc-comments" class="ivn-textarea" rows="3" placeholder="Any issues, notes or observations…"></textarea>
+        <textarea id="cc-comments" class="ivn-textarea" rows="3" maxlength="5000" placeholder="Any issues, notes or observations…"></textarea>
       </div>`;
   }
 
@@ -15312,7 +15312,7 @@ function ivnRenderDetail() {
         </div>
         <div id="ivn-reject-box" class="ivn-reject-box" style="display:none">
           <div class="ivn-field-label">Reason for rejection</div>
-          <textarea id="ivn-reject-reason" class="ivn-textarea" rows="3" placeholder="Optional — explain why this idea is being rejected"></textarea>
+          <textarea id="ivn-reject-reason" class="ivn-textarea" rows="3" maxlength="5000" placeholder="Optional — explain why this idea is being rejected"></textarea>
           <div class="ivn-action-row" style="margin-top:8px">
             <button class="ivn-btn ivn-btn-red" onclick="ivnConfirmReject()">Confirm Reject</button>
             <button class="ivn-btn" onclick="document.getElementById('ivn-reject-box').style.display='none'">Cancel</button>
@@ -15352,7 +15352,7 @@ function ivnRenderDetail() {
         </div>
         <div id="ivn-reject-box" class="ivn-reject-box" style="display:none">
           <div class="ivn-field-label">Reason for rejection</div>
-          <textarea id="ivn-reject-reason" class="ivn-textarea" rows="3" placeholder="Optional — explain why this idea is being rejected"></textarea>
+          <textarea id="ivn-reject-reason" class="ivn-textarea" rows="3" maxlength="5000" placeholder="Optional — explain why this idea is being rejected"></textarea>
           <div class="ivn-action-row" style="margin-top:8px">
             <button class="ivn-btn ivn-btn-red" onclick="ivnConfirmReject()">Confirm Reject</button>
             <button class="ivn-btn" onclick="document.getElementById('ivn-reject-box').style.display='none'">Cancel</button>
@@ -15366,7 +15366,7 @@ function ivnRenderDetail() {
         </div>
         <div id="ivn-complete-box" class="ivn-complete-box" style="display:none">
           <div class="ivn-field-label">Completion notes</div>
-          <textarea id="ivn-complete-notes" class="ivn-textarea" rows="3" placeholder="Describe what was done…"></textarea>
+          <textarea id="ivn-complete-notes" class="ivn-textarea" rows="3" maxlength="10000" placeholder="Describe what was done…"></textarea>
           <div class="ivn-action-row" style="margin-top:8px">
             <button class="ivn-btn ivn-btn-green" onclick="ivnComplete()">Confirm Complete</button>
             <button class="ivn-btn" onclick="document.getElementById('ivn-complete-box').style.display='none'">Cancel</button>
@@ -15390,7 +15390,7 @@ function ivnRenderDetail() {
       </div>
       <div id="ivn-complete-box" class="ivn-complete-box" style="display:none">
         <div class="ivn-field-label">Completion notes / reason if cannot be implemented</div>
-        <textarea id="ivn-complete-notes" class="ivn-textarea" rows="3" placeholder="Describe what was done, or explain why the idea cannot be implemented…"></textarea>
+        <textarea id="ivn-complete-notes" class="ivn-textarea" rows="3" maxlength="10000" placeholder="Describe what was done, or explain why the idea cannot be implemented…"></textarea>
         <div class="ivn-action-row" style="margin-top:8px">
           <button class="ivn-btn ivn-btn-green" onclick="ivnComplete()">Confirm Complete</button>
           <button class="ivn-btn" onclick="document.getElementById('ivn-complete-box').style.display='none'">Cancel</button>
@@ -15440,7 +15440,7 @@ function ivnRenderDetail() {
     ${(s === 'progress' || s === 'overdue' || s === 'completed') ? `
     <div class="ivn-section">
       <div class="ivn-section-title">Progress Notes</div>
-      <textarea id="ivn-notes-ta" class="ivn-textarea" rows="4" ${canNotes?'':'readonly'}
+      <textarea id="ivn-notes-ta" class="ivn-textarea" rows="4" maxlength="10000" ${canNotes?'':'readonly'}
         placeholder="${canNotes?'Add progress notes here…':'No progress notes yet.'}">${notes}</textarea>
       ${canNotes && s !== 'completed' ? `
       <div class="ivn-action-row">
