@@ -8807,7 +8807,21 @@ function renderDetailQC() {
       .map(c => String(c.fields.REP ?? '').replace(/\D/g, '').slice(-7))
       .filter(r => r.length === 7)
   );
-  const outstandingReps = [...allAssemblyReps].filter(r => !qcCompletedReps.has(r));
+  // Build a Set of 7-digit REPs that are mech-only (M-FT) or service chairs — these don't need chair QC
+  const _serviceReps = new Set();
+  for (const wk of Object.keys(PROD)) {
+    for (const prep of [1,2,3,4,5,'express']) {
+      (PROD[wk]?.[prep] || []).forEach(j => {
+        if (j.isService) {
+          const r7 = String(j.rep || '').replace(/\D/g, '').slice(-7);
+          if (r7.length === 7) _serviceReps.add(r7);
+        }
+      });
+    }
+  }
+  const isMechOnly = r7 => EXPRESS_TYPE_MAP.get(r7) === 'MFT';
+  const isExcluded = r7 => isMechOnly(r7) || _serviceReps.has(r7) || accQCDone.has(r7);
+  const outstandingReps = [...allAssemblyReps].filter(r => !qcCompletedReps.has(r) && !isExcluded(r));
   const outstanding     = outstandingReps.length;
 
   // Build details for each outstanding REP (latest Assembly completion per REP)
