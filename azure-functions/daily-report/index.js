@@ -91,9 +91,15 @@ async function getToken() {
   return _token;
 }
 
-async function graphGet(url) {
+async function graphGet(url, retries = 4) {
   const token = await getToken();
   const r = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
+  if (r.status === 429 || r.status === 503) {
+    if (retries <= 0) throw new Error(`Graph ${r.status} ${url}: ${await r.text()}`);
+    const retryAfter = parseInt(r.headers.get('Retry-After') || '20', 10);
+    await new Promise(res => setTimeout(res, retryAfter * 1000));
+    return graphGet(url, retries - 1);
+  }
   if (!r.ok) throw new Error(`Graph ${r.status} ${url}: ${await r.text()}`);
   return r.json();
 }
@@ -268,6 +274,7 @@ async function fetchAllData(context) {
     const itemId    = driveItem.id;
     const now = isoWeekNumber(new Date());
     for (const wn of [now-2, now-1, now, now+1]) {
+      await new Promise(res => setTimeout(res, 1500));
       const sheetName = `WK ${wn}`;
       const monday    = isoWeekMonday(wn);
       try {
