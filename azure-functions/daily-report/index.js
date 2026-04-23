@@ -91,14 +91,14 @@ async function getToken() {
   return _token;
 }
 
-async function graphGet(url, retries = 4) {
+async function graphGet(url, retries = 4, extraHeaders = {}) {
   const token = await getToken();
-  const r = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
+  const r = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json', ...extraHeaders } });
   if (r.status === 429 || r.status === 503) {
     if (retries <= 0) throw new Error(`Graph ${r.status} ${url}: ${await r.text()}`);
     const retryAfter = parseInt(r.headers.get('Retry-After') || '20', 10);
     await new Promise(res => setTimeout(res, retryAfter * 1000));
-    return graphGet(url, retries - 1);
+    return graphGet(url, retries - 1, extraHeaders);
   }
   if (!r.ok) throw new Error(`Graph ${r.status} ${url}: ${await r.text()}`);
   return r.json();
@@ -115,10 +115,10 @@ async function graphPost(url, body) {
   return r.status === 202 || r.status === 204 ? {} : r.json();
 }
 
-async function graphGetAll(url) {
+async function graphGetAll(url, extraHeaders = {}) {
   let items = [], nextUrl = url, guard = 0;
   while (nextUrl && guard++ < 200) {
-    const page = await graphGet(nextUrl);
+    const page = await graphGet(nextUrl, 4, extraHeaders);
     items = items.concat(page.value || []);
     nextUrl = page['@odata.nextLink'] || null;
   }
@@ -300,7 +300,7 @@ async function fetchAllData(context) {
     const listId = await getListIdByName(siteId, SP_LIST_NAME);
     const weekFilter = WEEKS.map(wk => `fields/Week eq '${wk}'`).join(' or ');
     const url = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999&$filter=${encodeURIComponent(weekFilter)}`;
-    const allItems = await graphGetAll(url);
+    const allItems = await graphGetAll(url, { 'Prefer': 'HonorNonIndexedQueriesWarningMayFailRandomly' });
 
     STATS_COMPLETIONS = allItems.filter(i => i.fields?.IsComplete === true);
 
