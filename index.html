@@ -3350,6 +3350,7 @@ let qcLastSyncTime  = null;   // Date of last successful sync
 let qcSyncError     = false;  // true if last sync failed
 let qcSyncing           = false;  // true while a sync is in progress
 let _completionsSyncing = false;
+const _pendingUndoItemIds = new Set(); // listItemIds currently being DELETEd — loadCompletionsFromList skips them
 let _prodSyncing        = false;
 let qcCompletedReps = new Set(); // 7-digit REP numbers confirmed done by QC sheet
 
@@ -4532,8 +4533,24 @@ function renderUndo() {
 
 function undoJob(team, sub, wc, prep, ji) {
   const s = STATE[team][sub][wc][prep][ji];
+  const listItemId = s.listItemId;
+  const snap = { done: s.done, doneAt: s.doneAt, initials: s.initials, doneDate: s.doneDate, listItemId };
   s.done = false; s.doneAt = ''; s.initials = ''; s.doneDate = ''; s.autoSync = false; s.qcAuto = false;
-  deleteCompletionFromList(team, sub, wc, prep, ji).catch(console.warn);
+  // Track this listItemId so a concurrent loadCompletionsFromList doesn't resurrect it
+  if (listItemId) _pendingUndoItemIds.add(String(listItemId));
+  deleteCompletionFromList(team, sub, wc, prep, ji)
+    .catch(e => {
+      console.warn('undoJob delete failed:', e.message);
+      // Roll back local state so the UI matches SharePoint reality
+      const cur = STATE[team]?.[sub]?.[wc]?.[prep]?.[ji];
+      if (cur) { cur.done = snap.done; cur.doneAt = snap.doneAt; cur.initials = snap.initials; cur.doneDate = snap.doneDate; cur.listItemId = snap.listItemId; }
+      applyStateToOvBadges();
+      renderJobs(); renderTeamSidebar();
+      toast('Undo failed — completion restored. Check connection.', 'u');
+    })
+    .finally(() => {
+      if (listItemId) _pendingUndoItemIds.delete(String(listItemId));
+    });
   const idx = recentDone.findIndex(r=>r.team===team&&r.sub===sub&&r.wc===wc&&r.prep===prep&&r.ji===ji);
   if (idx>=0) recentDone.splice(idx,1);
   applyStateToOvBadges();
@@ -5544,6 +5561,9 @@ async function loadCompletionsFromList() {
     // Apply each completion (and in-progress starts) from the list
     allItems.forEach(item => {
       const f = item.fields;
+      // Skip items we're currently DELETEing locally — otherwise the resurrection
+      // race marks STATE done again and the user sees undo "un-done"
+      if (_pendingUndoItemIds.has(String(item.id))) return;
       if (!f.Team || !f.Week) return; // skip incomplete/orphan records missing required fields
       if (!f.IsComplete && !f.Initials) return; // skip records with no actionable data
       if (!f.IsComplete) {
@@ -5695,19 +5715,20 @@ async function deleteCompletionFromList(team, sub, wk, prep, ji) {
     console.warn('undoJob: no listItemId — completion was not synced to SharePoint, local undo only');
     return;
   }
-  try {
-    const siteId = await getSpSiteId();
-    const listId = await getSpListId();
-    const token  = await getGraphToken();
-    const delRes = await fetch(
-      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${s.listItemId}`,
-      { method:'DELETE', headers:{ Authorization:`Bearer ${token}` } }
-    );
-    if (!delRes.ok) throw new Error(`HTTP ${delRes.status}`);
-    s.listItemId = null;
-  } catch(e) {
-    console.warn('deleteCompletionFromList failed:', e.message);
+  const siteId = await getSpSiteId();
+  const listId = await getSpListId();
+  const token  = await getGraphToken();
+  const delRes = await fetch(
+    `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${s.listItemId}`,
+    { method:'DELETE', headers:{ Authorization:`Bearer ${token}` } }
+  );
+  // 404 = already gone (idempotent success), 2xx = success
+  if (!delRes.ok && delRes.status !== 404) {
+    throw new Error(`HTTP ${delRes.status}`);
   }
+  // Re-read STATE in case a concurrent sync rebuilt the array
+  const sFresh = STATE[team]?.[sub]?.[wk]?.[prep]?.[ji];
+  if (sFresh) sFresh.listItemId = null;
 }
 
 // Completions refresh — runs every 1 minute
