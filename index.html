@@ -10821,7 +10821,8 @@ function renderIssuesList() {
     });
   }
   if (cparFilterTeam) {
-    const uphGroup = new Set(['Upholstery Arms','Upholstery Backs','Upholstery Seats','Assembly','Upholstery']);
+    // Must match the bulk email digest grouping (line 12328) — Assembly is its own team, not Upholstery
+    const uphGroup = new Set(['Upholstery','Upholstery Arms','Upholstery Backs','Upholstery Seats']);
     const teamMatch = t => cparFilterTeam === 'Upholstery' ? uphGroup.has(normaliseTeam(t)) : normaliseTeam(t) === cparFilterTeam;
     items = items.filter(i => teamMatch(i.fields?.SourceDept||i.fields?.RaisedByTeam||''));
   }
