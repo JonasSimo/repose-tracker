@@ -11105,10 +11105,13 @@ async function sendDailyDigest(btn) {
       return CPAR_ITEMS.filter(c => (c.fields?.LoggedAt||'').startsWith(ddPrefix));
     });
 
-    // Group by SourceDept for per-manager emails
+    // Group by SourceDept for per-manager emails — collapse Upholstery sub-teams
+    const uphGroup = new Set(['Upholstery','Upholstery Arms','Upholstery Backs','Upholstery Seats']);
+    const canonicalTeam = t => uphGroup.has(t) ? 'Upholstery' : t;
     const byTeam = {};
     allYest.forEach(c => {
-      const t = normaliseTeam(c.fields?.SourceDept||c.fields?.RaisedByTeam||'');
+      const raw = normaliseTeam(c.fields?.SourceDept||c.fields?.RaisedByTeam||'');
+      const t = canonicalTeam(raw);
       if (t) { if (!byTeam[t]) byTeam[t] = []; byTeam[t].push(c); }
     });
 
@@ -11116,12 +11119,16 @@ async function sendDailyDigest(btn) {
     const sent = [];
     const failed = [];
 
-    // Send per-team emails to all team recipients
+    // Send per-team emails — collapse Upholstery sub-variants so recipients get ONE email
+    const seenTeams = new Set();
     for (const [team, recipients] of Object.entries(TEAM_MANAGERS)) {
-      const teamCPARs = byTeam[team] || [];
+      const canonTeam = canonicalTeam(team);
+      if (seenTeams.has(canonTeam)) continue;
+      seenTeams.add(canonTeam);
+      const teamCPARs = byTeam[canonTeam] || [];
       if (!teamCPARs.length) continue; // no issues for this team yesterday — skip
-      const subject = `RepNet Issues Digest — ${team} · ${yestLabel}`;
-      const html    = buildDigestHtml(yestLabel, teamCPARs, team);
+      const subject = `RepNet Issues Digest — ${canonTeam} · ${yestLabel}`;
+      const html    = buildDigestHtml(yestLabel, teamCPARs, canonTeam);
       const recipList = [...new Set(recipients)];
       const body = {
         message: {
@@ -11137,8 +11144,8 @@ async function sendDailyDigest(btn) {
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         });
-        if (res.ok) sent.push(team); else failed.push(team);
-      } catch { failed.push(team); }
+        if (res.ok) sent.push(canonTeam); else failed.push(canonTeam);
+      } catch { failed.push(canonTeam); }
     }
 
     // If no per-team emails were sent (no issues yesterday) OR as a summary:
@@ -11839,6 +11846,10 @@ function updateTeamCounts() {
     const t = normaliseTeam(item.fields?.SourceDept || item.fields?.RaisedByTeam || '');
     counts[t] = (counts[t] || 0) + 1;
   }
+  // Roll up Upholstery sub-team counts into the parent 'Upholstery' chip so it
+  // matches the filter grouping (filtering by Upholstery includes all sub-teams)
+  const uphSubs = ['Upholstery Arms','Upholstery Backs','Upholstery Seats'];
+  uphSubs.forEach(sub => { if (counts[sub]) counts['Upholstery'] = (counts['Upholstery']||0) + counts[sub]; });
   document.querySelectorAll('.issues-team-chip').forEach(chip => {
     const team = chip.dataset.team;
     const badge = n => `<span style="background:rgba(220,38,38,.15);color:#dc2626;border-radius:10px;padding:1px 6px;font-size:11px;font-weight:700;margin-left:3px">${n}</span>`;
@@ -12294,7 +12305,13 @@ async function sendOpenCPARDigest() {
     // Helpers
     const teamOf = item => normaliseTeam(item.fields?.SourceDept || item.fields?.RaisedByTeam || '');
     const isOpenCPAR = item => { const s = getCPARStatus(item); return s === 'open' || s === 'amber' || s === 'red'; };
-    const raisedDate = item => { const f = item.fields||{}; return f.RaisedAt ? new Date(f.RaisedAt) : (item.createdDateTime ? new Date(item.createdDateTime) : null); };
+    const raisedDate = item => {
+      const f = item.fields||{};
+      if (f.RaisedAt) return new Date(f.RaisedAt);
+      if (item.createdDateTime) return new Date(item.createdDateTime);
+      if (f.LoggedAt) { const d = parseCPARDate(f.LoggedAt); return d && d.getTime() ? d : null; }
+      return null;
+    };
 
     const rowColour = (s) => s === 'red' ? '#fff8f8' : s === 'amber' ? '#fffbeb' : '#f0f7ff';
     const statusLabel = (s) => s === 'red' ? '🔴 4+ days' : s === 'amber' ? '🟡 48h+' : s === 'closed' ? '✅ Closed' : '🔵 Open';
