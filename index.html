@@ -9427,9 +9427,9 @@ function renderDetailCPAR() {
   const allPeriodCPARs = statsFilteredCPARs();
 
   // derive unique teams from all data in this period for the filter chips
-  const allTeams = [...new Set(allPeriodCPARs.map(c => normaliseTeam(c.fields?.SourceDept||'')).filter(Boolean))].sort();
+  const allTeams = [...new Set(allPeriodCPARs.map(c => normaliseTeam(c.fields?.SourceDept||c.fields?.RaisedByTeam||'')).filter(Boolean))].sort();
   // apply team filter on top of period filter
-  const cpars = cparStatTeam ? allPeriodCPARs.filter(c => normaliseTeam(c.fields?.SourceDept||'') === cparStatTeam) : allPeriodCPARs;
+  const cpars = cparStatTeam ? allPeriodCPARs.filter(c => normaliseTeam(c.fields?.SourceDept||c.fields?.RaisedByTeam||'') === cparStatTeam) : allPeriodCPARs;
 
   const body   = document.getElementById('stats-detail-body');
   if (typeof Chart === 'undefined') {
@@ -9475,7 +9475,7 @@ function renderDetailCPAR() {
   // QC-identified defects = CPARs raised BY QC team where the source dept matches the current filter
   const allPeriodQCCPARs = allPeriodCPARs.filter(c => normaliseTeam(c.fields?.RaisedByTeam||'') === 'QC');
   const rftQCCPARs = cparStatTeam
-    ? allPeriodQCCPARs.filter(c => normaliseTeam(c.fields?.SourceDept||'') === cparStatTeam)
+    ? allPeriodQCCPARs.filter(c => normaliseTeam(c.fields?.SourceDept||c.fields?.RaisedByTeam||'') === cparStatTeam)
     : allPeriodQCCPARs;
   const rftDefects  = rftQCCPARs.reduce((s, c) => s + (parseInt(c.fields?.QTY, 10)||1), 0);
   // Denominator = New Chairs QC'd this period (join QC to completions by REP to apply team filter)
@@ -9517,7 +9517,7 @@ function renderDetailCPAR() {
     <div class="q-two-col">
       <div class="q-section" style="margin-bottom:0">
         <div class="q-section-title">Issues by Team</div>
-        <div style="height:${Math.max(140, Object.keys((() => { const m={}; cpars.forEach(c=>{const k=normaliseTeam(c.fields?.SourceDept||'Unknown'); m[k]=(m[k]||0)+1;}); return m; })()).length * 30 + 20)}px"><canvas id="ch-q-team"></canvas></div>
+        <div style="height:${Math.max(140, Object.keys((() => { const m={}; cpars.forEach(c=>{const k=normaliseTeam(c.fields?.SourceDept||c.fields?.RaisedByTeam||'Unknown'); m[k]=(m[k]||0)+1;}); return m; })()).length * 30 + 20)}px"><canvas id="ch-q-team"></canvas></div>
       </div>
       <div class="q-section" style="margin-bottom:0">
         <div class="q-section-title">SLA Compliance (closed issues)</div>
@@ -9579,7 +9579,7 @@ function renderDetailCPAR() {
 
   // Team
   const teamMap = {};
-  cpars.forEach(c => { const k = normaliseTeam(c.fields?.SourceDept||'Unknown'); teamMap[k] = (teamMap[k]||0)+1; });
+  cpars.forEach(c => { const k = normaliseTeam(c.fields?.SourceDept||c.fields?.RaisedByTeam||'Unknown'); teamMap[k] = (teamMap[k]||0)+1; });
   const teamEntries = Object.entries(teamMap).sort((a,b) => b[1]-a[1]);
 
   // Root cause
@@ -10823,7 +10823,7 @@ function renderIssuesList() {
   if (cparFilterTeam) {
     const uphGroup = new Set(['Upholstery Arms','Upholstery Backs','Upholstery Seats','Assembly','Upholstery']);
     const teamMatch = t => cparFilterTeam === 'Upholstery' ? uphGroup.has(normaliseTeam(t)) : normaliseTeam(t) === cparFilterTeam;
-    items = items.filter(i => teamMatch(i.fields?.SourceDept||''));
+    items = items.filter(i => teamMatch(i.fields?.SourceDept||i.fields?.RaisedByTeam||''));
   }
 
   if (!items.length) {
@@ -11835,7 +11835,7 @@ function updateTeamCounts() {
   const openItems = CPAR_ITEMS.filter(i => getCPARStatus(i) !== 'closed');
   const counts = {};
   for (const item of openItems) {
-    const t = normaliseTeam(item.fields?.SourceDept || '');
+    const t = normaliseTeam(item.fields?.SourceDept || item.fields?.RaisedByTeam || '');
     counts[t] = (counts[t] || 0) + 1;
   }
   document.querySelectorAll('.issues-team-chip').forEach(chip => {
