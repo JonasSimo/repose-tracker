@@ -2434,16 +2434,26 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
   .mt-print-bar    { display:flex !important; align-items:center; justify-content:space-between; border-bottom:2pt solid #14a1e9; padding-bottom:7pt; margin-bottom:10pt; }
   .mt-print-bar img{ height:32pt; width:auto; }
   .mt-print-bar span{ color:#0e023a; font-size:9.5pt; font-weight:700; letter-spacing:.04em; }
-  .mt-print-h1     { font-size:14pt; color:#0e023a; margin:0 0 4pt; }
-  .mt-print-meta   { font-size:9pt; color:#444; margin-bottom:8pt; }
-  .mt-print-summary{ display:flex; gap:14pt; margin:6pt 0 10pt; font-size:9pt; }
+  .mt-print-h1     { font-size:14pt; color:#0e023a; margin:0 0 4pt; page-break-after:avoid; break-after:avoid; }
+  .mt-print-meta   { font-size:9pt; color:#444; margin-bottom:8pt; page-break-inside:avoid; break-inside:avoid; }
+  .mt-print-summary{ display:flex; flex-wrap:wrap; gap:8pt 14pt; margin:6pt 0 10pt; font-size:9pt; page-break-inside:avoid; break-inside:avoid; }
   .mt-print-summary div b { color:#0e023a; }
-  .mt-print-table  { width:100%; border-collapse:collapse; font-size:8pt; margin-bottom:8pt; }
+  /* Tables paginate cleanly: thead repeats on each page, rows don't split,
+     section heading stays attached to the first rows. */
+  .mt-print-table  { width:100%; border-collapse:collapse; font-size:8pt; margin-bottom:8pt; page-break-inside:auto; break-inside:auto; }
+  .mt-print-table thead { display:table-header-group; }   /* repeat header on every page */
+  .mt-print-table tfoot { display:table-footer-group; }
+  .mt-print-table tr    { page-break-inside:avoid; break-inside:avoid; page-break-after:auto; break-after:auto; }
   .mt-print-table th,
-  .mt-print-table td { border:0.5pt solid #999; padding:2pt 4pt; vertical-align:top; }
+  .mt-print-table td { border:0.5pt solid #999; padding:2pt 4pt; vertical-align:top; word-break:break-word; }
   .mt-print-table th { background:#f0f4f8; -webkit-print-color-adjust:exact; print-color-adjust:exact; font-size:7.5pt; }
-  .mt-print-section{ font-size:11pt; font-weight:700; color:#0e023a; margin:10pt 0 4pt; }
-  .mt-print-sig    { margin-top:14pt; font-size:9pt; }
+  .mt-print-section{ font-size:11pt; font-weight:700; color:#0e023a; margin:10pt 0 4pt; page-break-after:avoid; break-after:avoid; page-break-before:auto; break-before:auto; }
+  /* Keep section heading + first ~5 rows together on the same page when possible */
+  .mt-print-block  { page-break-inside:auto; break-inside:auto; }
+  .mt-print-block-keep { page-break-inside:avoid; break-inside:avoid; }
+  .mt-print-sig    { margin-top:14pt; font-size:9pt; padding-top:8pt; border-top:0.5pt solid #999; page-break-inside:avoid; break-inside:avoid; page-break-before:auto; break-before:auto; }
+  /* Page footer with page numbers — supported in Chrome/Edge for PDF export */
+  @page { @bottom-right { content: "Page " counter(page) " of " counter(pages); font-family: -apple-system, sans-serif; font-size: 7.5pt; color: #888; } }
   * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
 }
 #mt-print-overlay { display:none; }
@@ -16025,11 +16035,12 @@ async function mtAdapterGetSiteId() {
 function mtNormaliseInspection(team, fields) {
   let machineId;
   if (team.id === 'cutting') {
+    // raw has whitespace stripped, so "Pathfinder 1" → "pathfinder1" (no space).
     const raw = (fields.Machine || fields.MachineId || '').trim().toLowerCase().replace(/\s+/g, '');
-    machineId = raw.includes('lectra')                                          ? 'lectra'
-              : (raw.includes('pathfinder1') || raw.includes('pathfinder 1'))    ? 'pathfinder1'
-              : (raw.includes('pathfinder2') || raw.includes('pathfinder 2'))    ? 'pathfinder2'
-              : raw.includes('pathfinder')                                       ? 'pathfinder1'  // legacy split
+    machineId = raw.includes('lectra')      ? 'lectra'
+              : raw.includes('pathfinder1') ? 'pathfinder1'
+              : raw.includes('pathfinder2') ? 'pathfinder2'
+              : raw.includes('pathfinder')  ? 'pathfinder1'  // legacy: pre-split records
               : raw;
   } else {
     machineId = (fields.MachineId || fields.machineId || fields.Title || '').trim();
@@ -16571,32 +16582,34 @@ function mtExportPdf() {
     .map(r => `<tr>
         <td>${mtFormatDateUK(r.dateStr).replace(',', '')}</td>
         <td>${mtFormatTimeUK(r.inspectedAt)}</td>
-        <td>${team.name}</td>
-        <td>${r.machineName}</td>
-        <td>${r.operator || ''}</td>
+        <td>${escHtml(team.name)}</td>
+        <td>${escHtml(r.machineName)}</td>
+        <td>${escHtml(r.operator || '')}</td>
         <td>${r.status.toUpperCase()}</td>
-        <td>${(r.comment || '').replace(/</g,'&lt;')}</td>
+        <td>${escHtml(r.comment || '')}</td>
       </tr>`).join('');
 
   // Expanded failures
   const fails = recsForTeam
     .filter(r => r.status === 'fail' && days.includes(r.dateStr) && (!f.machineIds.length || f.machineIds.includes(r.machineId)));
   const failsHtml = fails.length ? `
-    <div class="mt-print-section">Expanded failures</div>
-    <table class="mt-print-table">
-      <thead><tr><th>Date</th><th>Machine</th><th>Failed item(s)</th><th>Comment</th></tr></thead>
-      <tbody>
-        ${fails.map(r => {
-          const failed = (r.items || []).filter(i => i.result === 'fail').map(i => i.label).join('; ') || '(no breakdown)';
-          return `<tr>
-            <td>${mtFormatDateUK(r.dateStr).replace(',', '')}</td>
-            <td>${r.machineName}</td>
-            <td>${failed}</td>
-            <td>${(r.comment || '').replace(/</g,'&lt;')}</td>
-          </tr>`;
-        }).join('')}
-      </tbody>
-    </table>` : '';
+    <div class="${fails.length <= 5 ? 'mt-print-block-keep' : 'mt-print-block'}">
+      <div class="mt-print-section">Expanded failures</div>
+      <table class="mt-print-table">
+        <thead><tr><th>Date</th><th>Machine</th><th>Failed item(s)</th><th>Comment</th></tr></thead>
+        <tbody>
+          ${fails.map(r => {
+            const failed = (r.items || []).filter(i => i.result === 'fail').map(i => escHtml(i.label)).join('; ') || '(no breakdown)';
+            return `<tr>
+              <td>${mtFormatDateUK(r.dateStr).replace(',', '')}</td>
+              <td>${escHtml(r.machineName)}</td>
+              <td>${failed}</td>
+              <td>${escHtml(r.comment || '')}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>` : '';
 
   // Missed days
   const missedRows = [];
@@ -16606,38 +16619,46 @@ function mtExportPdf() {
     if (!byCell[k]) missedRows.push({ machine: m.name, date: d });
   }
   const missedHtml = missedRows.length ? `
-    <div class="mt-print-section">Missed days</div>
-    <table class="mt-print-table">
-      <thead><tr><th>Date</th><th>Machine</th></tr></thead>
-      <tbody>${missedRows.map(r => `<tr><td>${mtFormatDateUK(r.date).replace(',', '')}</td><td>${r.machine}</td></tr>`).join('')}</tbody>
-    </table>` : '';
+    <div class="${missedRows.length <= 8 ? 'mt-print-block-keep' : 'mt-print-block'}">
+      <div class="mt-print-section">Missed days</div>
+      <table class="mt-print-table">
+        <thead><tr><th>Date</th><th>Machine</th></tr></thead>
+        <tbody>${missedRows.map(r => `<tr><td>${mtFormatDateUK(r.date).replace(',', '')}</td><td>${escHtml(r.machine)}</td></tr>`).join('')}</tbody>
+      </table>
+    </div>` : '';
 
   const html = `
     <div id="mt-print-overlay">
-      <div class="mt-print-bar">
-        <img src="./Repose_RGB_logo_Colour_with_strapline_1500pxW.png" alt="Repose">
-        <span>QHSE — MAINTENANCE AUDIT REPORT</span>
+      <!-- Header block — stays together on page 1 -->
+      <div class="mt-print-block-keep">
+        <div class="mt-print-bar">
+          <img src="./Repose_RGB_logo_Colour_with_strapline_1500pxW.png" alt="Repose">
+          <span>QHSE — MAINTENANCE AUDIT REPORT</span>
+        </div>
+        <h1 class="mt-print-h1">${escHtml(team.name)} — Daily Pre-use Audit</h1>
+        <div class="mt-print-meta">
+          <div><b>Doc:</b> ${docNo}</div>
+          <div><b>Range:</b> ${mtFormatDateUK(f.dateFrom)} → ${mtFormatDateUK(f.dateTo)}</div>
+          <div><b>Machines:</b> ${escHtml(f.machineIds.length ? machines.map(m => m.name).join(', ') : 'All')}</div>
+          <div><b>Generated:</b> ${mtFormatDateUK(new Date())} ${mtFormatTimeUK(new Date())} (UK)</div>
+        </div>
+        <div class="mt-print-summary">
+          <div><b>Total slots:</b> ${total}</div>
+          <div><b>Pass:</b> ${pass}</div>
+          <div><b>Fail:</b> ${fail}</div>
+          <div><b>Not in use:</b> ${dtCount}</div>
+          <div><b>Missed:</b> ${missed}</div>
+          <div><b>Compliance:</b> ${pct}%</div>
+        </div>
       </div>
-      <h1 class="mt-print-h1">${team.name} — Daily Pre-use Audit</h1>
-      <div class="mt-print-meta">
-        <div><b>Doc:</b> ${docNo}</div>
-        <div><b>Range:</b> ${mtFormatDateUK(f.dateFrom)} → ${mtFormatDateUK(f.dateTo)}</div>
-        <div><b>Machines:</b> ${f.machineIds.length ? machines.map(m => m.name).join(', ') : 'All'}</div>
-        <div><b>Generated:</b> ${mtFormatDateUK(new Date())} ${mtFormatTimeUK(new Date())} (UK)</div>
+      <!-- Records — table thead repeats automatically across pages, rows don't split -->
+      <div class="mt-print-block">
+        <div class="mt-print-section">Records</div>
+        <table class="mt-print-table">
+          <thead><tr><th>Date</th><th>Time (UK)</th><th>Team</th><th>Machine</th><th>Operator</th><th>Status</th><th>Comment</th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="7" style="text-align:center;color:#888">No records in range.</td></tr>'}</tbody>
+        </table>
       </div>
-      <div class="mt-print-summary">
-        <div><b>Total slots:</b> ${total}</div>
-        <div><b>Pass:</b> ${pass}</div>
-        <div><b>Fail:</b> ${fail}</div>
-        <div><b>Not in use:</b> ${dtCount}</div>
-        <div><b>Missed:</b> ${missed}</div>
-        <div><b>Compliance:</b> ${pct}%</div>
-      </div>
-      <div class="mt-print-section">Records</div>
-      <table class="mt-print-table">
-        <thead><tr><th>Date</th><th>Time (UK)</th><th>Team</th><th>Machine</th><th>Operator</th><th>Status</th><th>Comment</th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="7" style="text-align:center;color:#888">No records in range.</td></tr>'}</tbody>
-      </table>
       ${failsHtml}
       ${missedHtml}
       <div class="mt-print-sig">
@@ -16728,20 +16749,27 @@ function mtExportCsv() {
 }
 
 function mtBackToLanding() {
-  // Dismiss any lingering modals before re-rendering — guarded since
-  // some modal helpers are added in later tasks.
-  try { mtCloseCellModal(); }                                   catch {}
-  try { if (typeof mtCloseCompleteModal === 'function') mtCloseCompleteModal(); } catch {}
-  try { if (typeof mtCloseDrawer       === 'function') mtCloseDrawer();       } catch {}
-  // Hide modal/drawer DOM directly as a belt-and-braces fallback
-  const cell = document.getElementById('mt-cell-modal');     if (cell) cell.style.display = 'none';
-  const comp = document.getElementById('mt-complete-modal'); if (comp) comp.style.display = 'none';
-  const drB  = document.getElementById('mt-drawer-bg');      if (drB)  drB.classList.remove('on');
-  const dr   = document.getElementById('mt-drawer');         if (dr)   dr.classList.remove('on');
+  mtCloseCellModal();
+  mtCloseCompleteModal();
+  mtCloseCalendarDay();
+  mtCloseDrawer();
   mtState.page = 'landing';
   mtState.drillTeamId = null;
   mtRender();
 }
+
+// Global Escape-key handler — closes any open Maintenance modal/drawer.
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  const cell = document.getElementById('mt-cell-modal');
+  const comp = document.getElementById('mt-complete-modal');
+  const day  = document.getElementById('mt-day-modal');
+  const drBg = document.getElementById('mt-drawer-bg');
+  if (cell && cell.style.display !== 'none') { mtCloseCellModal(); return; }
+  if (comp && comp.style.display !== 'none') { mtCloseCompleteModal(); return; }
+  if (day  && day.style.display  !== 'none') { mtCloseCalendarDay();  return; }
+  if (drBg && drBg.classList.contains('on')) { mtCloseDrawer();       return; }
+});
 
 // ── Maintenance — Yearly / Statutory sub-tab ──────────────────────────────
 async function mtLoadYearly() {
