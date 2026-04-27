@@ -2331,8 +2331,8 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .mt-matrix thead th.mt-col-head.today .mt-col-dow  { color: var(--repose-blue); }
 .mt-matrix thead th.mt-col-head.today .mt-col-date { color: var(--repose-blue); }
 
-/* Row header — sticky, soft tint, compact */
-.mt-matrix tbody th { position: sticky; left: 0; z-index: 1; background: #f8fafb; text-align: left; font-weight: 600; color: var(--repose-navy); white-space: nowrap; min-width: 130px; padding: 6px 12px; border-radius: 6px; font-size: 12px; }
+/* Row header — sticky, soft tint, compact, fixed width so it doesn't stretch */
+.mt-matrix tbody th { position: sticky; left: 0; z-index: 1; background: #f8fafb; text-align: left; font-weight: 600; color: var(--repose-navy); white-space: nowrap; width: 140px; min-width: 140px; max-width: 140px; padding: 6px 12px; border-radius: 6px; font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
 
 /* Group rows (Saws / Machines / Benches etc.) */
 .mt-matrix tr.mt-grp-row td { background: transparent; padding: 10px 0 2px; }
@@ -16402,30 +16402,39 @@ function mtNormaliseInspection(team, fields) {
 }
 
 // Load all check records across the given teams in [dateFromUk, dateToUk] (inclusive UK days).
-async function mtAdapterLoadRange(teamIds, dateFromUk, dateToUk) {
-  const fromRange = mtUkDayToUtcRange(dateFromUk);
-  const toRange   = mtUkDayToUtcRange(dateToUk);
-  const fromIso   = fromRange.fromIso;
-  const toIso     = toRange.toIso;
-  const siteId    = await mtAdapterGetSiteId();
-  const teams     = teamIds.length ? MT_TEAMS.filter(t => teamIds.includes(t.id)) : MT_TEAMS;
-  const out       = [];
+// Per-team raw cache. Each entry is the full normalised record list.
+// Filter changes hit the cache (instant) — only Refresh re-pulls from Graph.
+async function mtAdapterLoadRange(teamIds, dateFromUk, dateToUk, forceRefresh = false) {
+  if (forceRefresh) mtState._allRecordsByTeam = {};
+  if (!mtState._allRecordsByTeam) mtState._allRecordsByTeam = {};
+  const cache  = mtState._allRecordsByTeam;
+  const siteId = await mtAdapterGetSiteId();
+  const teams  = teamIds.length ? MT_TEAMS.filter(t => teamIds.includes(t.id)) : MT_TEAMS;
+
+  // Fetch any uncached team in parallel
   await Promise.all(teams.map(async team => {
+    if (cache[team.id]) return;
     try {
       const listId = team.listId || await getListIdByNameOnSite(siteId, team.listName);
-      // No server-side $filter — some date columns aren't indexed; fetch all and filter client-side.
-      const url    = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999`;
-      const items  = await graphGetAll(url);
-      for (const it of items) {
-        const rec = mtNormaliseInspection(team, it.fields || {});
-        // Client-side date-range filter using the normalised UK day
-        if (rec.dateStr && rec.dateStr >= dateFromUk && rec.dateStr <= dateToUk) out.push(rec);
-      }
+      const items  = await graphGetAll(
+        `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999`
+      );
+      cache[team.id] = items
+        .map(it => mtNormaliseInspection(team, it.fields || {}))
+        .filter(r => r.dateStr);
     } catch (e) {
       console.warn('[mtAdapter] team', team.id, e.message);
+      cache[team.id] = [];
     }
   }));
-  // Sort newest first
+
+  // Filter from cache by date range
+  const out = [];
+  for (const team of teams) {
+    for (const r of (cache[team.id] || [])) {
+      if (r.dateStr >= dateFromUk && r.dateStr <= dateToUk) out.push(r);
+    }
+  }
   out.sort((a, b) => (b.inspectedAt || '').localeCompare(a.inspectedAt || ''));
   return out;
 }
@@ -16601,17 +16610,19 @@ function mtOpenDrill(teamId) {
   mtLoadDrill();          // then fetch
 }
 
-async function mtLoadDrill() {
+async function mtLoadDrill(forceRefresh = false) {
   const f = mtState.filters;
   document.getElementById('mt-matrix-host')?.replaceChildren(
     Object.assign(document.createElement('div'), { className: 'mt-loading', textContent: 'Loading…' })
   );
-  mtState.records = await mtAdapterLoadRange(f.teamIds, f.dateFrom, f.dateTo);
-  // Refresh downtime for the active teams (range-independent — the lists are tiny)
-  mtState._downtimeByTeam = {};
-  await Promise.all(MT_TEAMS.filter(t => f.teamIds.includes(t.id) && t.downtimeList).map(async t => {
-    mtState._downtimeByTeam[t.id] = await mtAdapterLoadDowntime(t);
-  }));
+  mtState.records = await mtAdapterLoadRange(f.teamIds, f.dateFrom, f.dateTo, forceRefresh);
+  // Refresh downtime only on explicit refresh (or when not yet cached)
+  if (forceRefresh || !mtState._downtimeByTeam) {
+    mtState._downtimeByTeam = {};
+    await Promise.all(MT_TEAMS.filter(t => f.teamIds.includes(t.id) && t.downtimeList).map(async t => {
+      mtState._downtimeByTeam[t.id] = await mtAdapterLoadDowntime(t);
+    }));
+  }
   mtRenderDailyDrillIn();
 }
 
@@ -16661,10 +16672,10 @@ function mtRenderDailyDrillIn() {
   // Group machines by their .group property (Saws / Machines / Benches for Woodmill;
   // Cutting machines have no group → render flat).
   const groups = [];
-  let currentGroup = null;
+  let lastGroup; // undefined sentinel — the first iter always pushes a group
   for (const m of machines) {
     const g = m.group || null;
-    if (g !== currentGroup) { groups.push({ name: g, machines: [] }); currentGroup = g; }
+    if (g !== lastGroup) { groups.push({ name: g, machines: [] }); lastGroup = g; }
     groups[groups.length - 1].machines.push(m);
   }
   const colspan = days.length + 1;
@@ -16713,7 +16724,7 @@ function mtRenderDailyDrillIn() {
       </div>
       <div class="mt-filter-actions">
         <button class="mt-btn" onclick="mtResetFilters()">Reset</button>
-        <button class="mt-btn" onclick="mtLoadDrill()">Refresh</button>
+        <button class="mt-btn" onclick="mtLoadDrill(true)">Refresh</button>
       </div>
     </div>
     <div class="mt-stats-strip">
@@ -17037,10 +17048,16 @@ function mtExportCsv() {
 }
 
 function mtBackToLanding() {
-  // Dismiss any lingering modals before re-rendering
-  mtCloseCellModal();
-  mtCloseCompleteModal();
-  mtCloseDrawer();
+  // Dismiss any lingering modals before re-rendering — guarded since
+  // some modal helpers are added in later tasks.
+  try { mtCloseCellModal(); }                                   catch {}
+  try { if (typeof mtCloseCompleteModal === 'function') mtCloseCompleteModal(); } catch {}
+  try { if (typeof mtCloseDrawer       === 'function') mtCloseDrawer();       } catch {}
+  // Hide modal/drawer DOM directly as a belt-and-braces fallback
+  const cell = document.getElementById('mt-cell-modal');     if (cell) cell.style.display = 'none';
+  const comp = document.getElementById('mt-complete-modal'); if (comp) comp.style.display = 'none';
+  const drB  = document.getElementById('mt-drawer-bg');      if (drB)  drB.classList.remove('on');
+  const dr   = document.getElementById('mt-drawer');         if (dr)   dr.classList.remove('on');
   mtState.page = 'landing';
   mtState.drillTeamId = null;
   mtRender();
