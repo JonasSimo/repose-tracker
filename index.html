@@ -16201,24 +16201,26 @@ function mtComputeTeamStatusToday(team) {
   const all   = cache[team.id] || [];
   const teamRecs = all.filter(r => r.dateStr === today);
   const dt = mtState._downtimeByTeam?.[team.id] || {};
-  // Latest record per machine
-  const latestByMachine = {};
+  // Aggregate per machine — bench-style submissions create one row per tool
+  // (Staple/Nail/Pin/Sander), so a machine is failed if ANY of its tools failed,
+  // not just the most-recently-submitted one.
+  const aggByMachine = {};
   for (const r of teamRecs) {
-    if (!latestByMachine[r.machineId] ||
-        (r.inspectedAt || '') > (latestByMachine[r.machineId].inspectedAt || '')) {
-      latestByMachine[r.machineId] = r;
-    }
+    const a = aggByMachine[r.machineId] || (aggByMachine[r.machineId] = { hasRec:false, anyFail:false, lastIso:'' });
+    a.hasRec  = true;
+    if (r.status === 'fail') a.anyFail = true;
+    if ((r.inspectedAt || '') > a.lastIso) a.lastIso = r.inspectedAt || '';
   }
   const total = team.machines.length;
   let checked = 0, fails = 0, lastIso = '';
   for (const m of team.machines) {
     const isDt = !!dt[`${m.id}|${today}`];
     if (isDt) { checked++; continue; }
-    const r = latestByMachine[m.id];
-    if (r) {
+    const a = aggByMachine[m.id];
+    if (a && a.hasRec) {
       checked++;
-      if (r.status === 'fail') fails++;
-      if ((r.inspectedAt || '') > lastIso) lastIso = r.inspectedAt;
+      if (a.anyFail) fails++;
+      if (a.lastIso > lastIso) lastIso = a.lastIso;
     }
   }
   let cls = 'warn', label = 'Pending';
@@ -16304,22 +16306,32 @@ function mtRenderDailyDrillIn() {
   const machines = team ? team.machines.filter(m => !f.machineIds.length || f.machineIds.includes(m.id)) : [];
   const dt      = mtState._downtimeByTeam?.[team?.id] || {};
 
-  // Index records by `${machineId}|${dateStr}` — keep latest per cell
+  // Aggregate records by `${machineId}|${dateStr}` — bench-style submissions create
+  // multiple rows per cell (one per tool), so a cell is failed if ANY record in it
+  // failed, not just the latest.
   const byCell = {};
   for (const r of mtState.records.filter(r => r.teamId === team?.id)) {
     const k = `${r.machineId}|${r.dateStr}`;
-    if (!byCell[k] || (r.inspectedAt || '') > (byCell[k].inspectedAt || '')) byCell[k] = r;
+    const a = byCell[k] || (byCell[k] = { hasRec:false, anyFail:false, allNa:true, latestIso:'', latestRec:null, comments:[], operators:new Set() });
+    a.hasRec = true;
+    if (r.status === 'fail') a.anyFail = true;
+    if (r.status !== 'na')   a.allNa   = false;
+    if ((r.inspectedAt || '') > a.latestIso) { a.latestIso = r.inspectedAt || ''; a.latestRec = r; }
+    if (r.operator) a.operators.add(r.operator);
+    if (r.comment)  a.comments.push(r.comment);
   }
+  // Convenience: cell status — 'fail' if any failed, 'na' if all na, else 'pass'.
+  const cellStatus = a => a.anyFail ? 'fail' : a.allNa ? 'na' : 'pass';
 
   // Stats strip
   let total = 0, pass = 0, fail = 0, dtCount = 0, missed = 0;
   for (const m of machines) for (const d of days) {
     const k = `${m.id}|${d}`;
     if (dt[k]) { dtCount++; total++; continue; }
-    const r = byCell[k];
-    if (r && (r.status === 'pass' || r.status === 'na')) { pass++; total++; }
-    else if (r && r.status === 'fail') { fail++; total++; }
-    else { missed++; }
+    const a = byCell[k];
+    if (!a || !a.hasRec) { missed++; continue; }
+    if (a.anyFail) fail++; else pass++;
+    total++;
   }
   const pct = total ? Math.round(((pass + dtCount) / (total)) * 100) : 0;
 
@@ -16359,11 +16371,13 @@ function mtRenderDailyDrillIn() {
         const k = `${m.id}|${d}`;
         const todayCls = d === todayStr ? ' today' : '';
         if (dt[k]) return `<td class="mt-cell dt${todayCls}" data-machine="${m.id}" data-date="${d}" onclick="mtOpenCellModal('${m.id}','${d}')" title="Marked not in use">—</td>`;
-        const r = byCell[k];
-        if (!r) return `<td class="mt-cell miss${todayCls}" data-machine="${m.id}" data-date="${d}" onclick="mtOpenCellModal('${m.id}','${d}')" title="No record"></td>`;
-        const sym = r.status === 'fail' ? '✕' : r.status === 'na' ? 'N/A' : '✓';
-        const tip = `${r.status === 'fail' ? 'Failed' : r.status === 'na' ? 'N/A' : 'Passed'} · ${r.operator || 'unknown'} · ${mtFormatTimeUK(r.inspectedAt)}`;
-        return `<td class="mt-cell ${r.status}${todayCls}" data-machine="${m.id}" data-date="${d}" onclick="mtOpenCellModal('${m.id}','${d}')" title="${tip.replace(/"/g,'&quot;')}">${sym}</td>`;
+        const a = byCell[k];
+        if (!a || !a.hasRec) return `<td class="mt-cell miss${todayCls}" data-machine="${m.id}" data-date="${d}" onclick="mtOpenCellModal('${m.id}','${d}')" title="No record"></td>`;
+        const status = cellStatus(a);
+        const sym = status === 'fail' ? '✕' : status === 'na' ? 'N/A' : '✓';
+        const ops  = Array.from(a.operators).join(', ') || 'unknown';
+        const tip  = `${status === 'fail' ? 'Failed' : status === 'na' ? 'N/A' : 'Passed'} · ${ops} · ${mtFormatTimeUK(a.latestIso)}`;
+        return `<td class="mt-cell ${status}${todayCls}" data-machine="${m.id}" data-date="${d}" onclick="mtOpenCellModal('${m.id}','${d}')" title="${escHtml(tip)}">${sym}</td>`;
       }).join('');
       return `<tr><th>${escHtml(m.name)}</th>${cells}</tr>`;
     }).join('');
@@ -16555,11 +16569,14 @@ function mtExportPdf() {
   const machines = team.machines.filter(m => !f.machineIds.length || f.machineIds.includes(m.id));
 
   const recsForTeam = mtState.records.filter(r => r.teamId === team.id);
-  // Latest per (machine, date)
+  // Aggregate per (machine, date) so bench-style multi-tool submissions don't
+  // mask a failure with a later passing tool.
   const byCell = {};
   for (const r of recsForTeam) {
     const k = `${r.machineId}|${r.dateStr}`;
-    if (!byCell[k] || (r.inspectedAt || '') > (byCell[k].inspectedAt || '')) byCell[k] = r;
+    const a = byCell[k] || (byCell[k] = { hasRec:false, anyFail:false });
+    a.hasRec = true;
+    if (r.status === 'fail') a.anyFail = true;
   }
 
   // Summary stats
@@ -16567,10 +16584,10 @@ function mtExportPdf() {
   for (const m of machines) for (const d of days) {
     const k = `${m.id}|${d}`;
     if (dt[k]) { dtCount++; total++; continue; }
-    const r = byCell[k];
-    if (r && (r.status === 'pass' || r.status === 'na')) { pass++; total++; }
-    else if (r && r.status === 'fail') { fail++; total++; }
-    else { missed++; }
+    const a = byCell[k];
+    if (!a || !a.hasRec) { missed++; continue; }
+    if (a.anyFail) fail++; else pass++;
+    total++;
   }
   const pct = total ? Math.round(((pass + dtCount) / total) * 100) : 0;
   const docNo = `REPO-MAINT-AUDIT-${new Date().toISOString().replace(/[-:T.Z]/g,'').slice(0,14)}`;
@@ -16689,11 +16706,9 @@ function mtExportCsv() {
   const dt   = mtState._downtimeByTeam?.[team.id] || {};
   const machines = team.machines.filter(m => !f.machineIds.length || f.machineIds.includes(m.id));
   const recsForTeam = mtState.records.filter(r => r.teamId === team.id);
-  const byCell = {};
-  for (const r of recsForTeam) {
-    const k = `${r.machineId}|${r.dateStr}`;
-    if (!byCell[k] || (r.inspectedAt || '') > (byCell[k].inspectedAt || '')) byCell[k] = r;
-  }
+  // Used only as a presence check for the missed-days section — boolean per cell.
+  const cellHas = {};
+  for (const r of recsForTeam) cellHas[`${r.machineId}|${r.dateStr}`] = true;
 
   // CSV escape
   const esc = v => {
@@ -16734,7 +16749,7 @@ function mtExportCsv() {
   lines.push(row(['Date','Machine']));
   for (const m of machines) for (const d of days) {
     if (dt[`${m.id}|${d}`]) continue;
-    if (!byCell[`${m.id}|${d}`]) lines.push(row([d, m.name]));
+    if (!cellHas[`${m.id}|${d}`]) lines.push(row([d, m.name]));
   }
 
   // UTF-8 BOM so Excel renders unicode correctly
@@ -16828,15 +16843,19 @@ function mtComputeYearlyStatus(item) {
   const today = new Date(mtTodayUkStr() + 'T00:00:00Z').getTime();
   // ScheduledFor (manual override) wins over computed LastDone + Frequency.
   const scheduledIso = (item.ScheduledFor || '').slice(0, 10);
-  let next;
+  let next = NaN;
   let manuallyScheduled = false;
   if (scheduledIso) {
     next = new Date(scheduledIso + 'T00:00:00Z').getTime();
     manuallyScheduled = true;
-  } else {
-    const last = item.LastDone ? new Date(item.LastDone).getTime() : null;
-    if (!last) return { nextDueIso: mtTodayUkStr(), daysUntil: -1, cls: 'overdue', label: 'Overdue', firstTime: true, manuallyScheduled: false };
-    next = last + mtFreqDays(item) * 86400000;
+  } else if (item.LastDone) {
+    const last = new Date(item.LastDone).getTime();
+    if (Number.isFinite(last)) next = last + mtFreqDays(item) * 86400000;
+  }
+  // Defensive: if ScheduledFor or LastDone was a malformed date string, `next`
+  // is NaN — fall back to "Overdue today" rather than crashing the render.
+  if (!Number.isFinite(next)) {
+    return { nextDueIso: mtTodayUkStr(), daysUntil: -1, cls: 'overdue', label: 'Overdue', firstTime: !item.LastDone, manuallyScheduled };
   }
   const daysUntil  = Math.round((next - today) / 86400000);
   const nextDueIso = new Date(next).toISOString().slice(0, 10);
@@ -17169,8 +17188,10 @@ function mtOpenCompleteModal(itemId) {
   document.getElementById('mt-complete-modal').style.display = '';
 }
 
+let _mtSaveCompleteInFlight = false;
 async function mtSaveComplete(itemId) {
   if (!mtIsManager) return;
+  if (_mtSaveCompleteInFlight) return;
   const item = mtState.yearlyItems.find(i => Number(i.id) === Number(itemId));
   if (!item) return;
   const date  = document.getElementById('mt-fc-date').value;
@@ -17182,6 +17203,8 @@ async function mtSaveComplete(itemId) {
   if (!date) { toast('Completion date is required', 'u'); return; }
   if (!doc)  { toast('Cert link is required for audit', 'u'); return; }
 
+  _mtSaveCompleteInFlight = true;
+  try {
   let siteId, histListId, yrListId;
   try {
     siteId      = await mtAdapterGetSiteId();
@@ -17224,6 +17247,9 @@ async function mtSaveComplete(itemId) {
   await mtLoadYearly();
   mtCloseCompleteModal();
   mtRenderYearly();
+  } finally {
+    _mtSaveCompleteInFlight = false;
+  }
 }
 
 // ── Maintenance — Yearly manager edit drawer ──────────────────────────────
@@ -17271,7 +17297,7 @@ function mtRenderYearlyForm(item) {
   const cats = ['Statutory','Annual Servicing','Legal Surveys','Insurance','Other'];
   const freqs = ['Annual','6-monthly','Quarterly','Monthly','Custom'];
   return `
-    <div class="mt-form-group"><label>Title</label><input id="mt-fy-title" value="${escHtml(item.Title || '')}"></div>
+    <div class="mt-form-group"><label>Title</label><input id="mt-fy-title" maxlength="255" value="${escHtml(item.Title || '')}"></div>
     <div class="mt-form-group"><label>Category</label>
       <select id="mt-fy-cat">${cats.map(c => `<option ${item.Category===c?'selected':''}>${c}</option>`).join('')}</select>
     </div>
@@ -17287,8 +17313,10 @@ function mtRenderYearlyForm(item) {
     <div class="mt-form-group"><label>Notes</label><textarea id="mt-fy-notes" rows="3">${escHtml(item.Notes || '')}</textarea></div>`;
 }
 
+let _mtSaveYearlyInFlight = false;
 async function mtSaveYearly(id) {
   if (!mtIsManager) return;
+  if (_mtSaveYearlyInFlight) return;
   const title = document.getElementById('mt-fy-title').value.trim();
   if (!title) { toast('Title is required', 'u'); return; }
   const frequency = document.getElementById('mt-fy-freq').value;
@@ -17308,6 +17336,7 @@ async function mtSaveYearly(id) {
     DocLink:       document.getElementById('mt-fy-doc').value.trim() || null,
     Notes:         document.getElementById('mt-fy-notes').value || null,
   };
+  _mtSaveYearlyInFlight = true;
   try {
     const siteId = await mtAdapterGetSiteId();
     const listId = await getListIdByNameOnSite(siteId, MT_YEARLY_LIST);
@@ -17323,6 +17352,8 @@ async function mtSaveYearly(id) {
     mtRenderYearly();
   } catch (e) {
     toast('Save failed: ' + (e.message || ''), 'u');
+  } finally {
+    _mtSaveYearlyInFlight = false;
   }
 }
 
