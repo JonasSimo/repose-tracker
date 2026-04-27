@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Maintenance Dashboard — Style Mockup</title>
+<style>
+  :root{
+    --repose-blue:#14a1e9;
+    --repose-navy:#0e023a;
+    --repose-grey:#706f6f;
+    --bg2:#ffffff;
+    --bg3:#f8fafb;
+    --border:#e1e6eb;
+    --border2:#c8d0d8;
+    --text:#0e023a;
+    --text2:#706f6f;
+    --text3:#a8a8a8;
+    --pass:#16a34a;
+    --pass-soft:#dcfce7;
+    --fail:#dc2626;
+    --fail-soft:#fee2e2;
+    --warn:#d97706;
+    --warn-soft:#fed7aa;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;color:var(--text);background:#eef1f5;padding:32px;min-height:100vh}
+  h1{font-size:22px;margin:0 0 4px;color:var(--repose-navy);letter-spacing:-.01em}
+  .lead{color:var(--text2);margin:0 0 28px;font-size:14px}
+
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start}
+  .frame{background:var(--bg2);border-radius:18px;overflow:hidden;box-shadow:0 8px 30px rgba(14,2,58,.08)}
+  .frame-head{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+  .frame-tag{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text2)}
+  .frame-name{font-size:14px;font-weight:700;color:var(--repose-navy)}
+  .pick{font-family:inherit;font-size:12px;font-weight:700;padding:8px 14px;border-radius:8px;border:1.5px solid var(--repose-blue);background:#fff;color:var(--repose-blue);cursor:pointer}
+  .pick:hover{background:var(--repose-blue);color:#fff}
+
+  /* ─────────────  DIRECTION A — Operations Hub  ───────────── */
+  .a-body{padding:24px;background:linear-gradient(180deg,#f8fafb 0%,#fff 220px)}
+  .a-tabs{display:flex;gap:4px;background:#eef2f6;padding:4px;border-radius:10px;width:fit-content;margin-bottom:20px}
+  .a-tab{padding:8px 16px;font-size:13px;font-weight:600;color:var(--text2);border-radius:7px;cursor:pointer}
+  .a-tab.on{background:#fff;color:var(--repose-navy);box-shadow:0 1px 3px rgba(14,2,58,.08)}
+  .a-hero{background:linear-gradient(135deg,var(--repose-navy) 0%,#1a1656 100%);color:#fff;border-radius:14px;padding:20px 24px;display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+  .a-hero-l{display:flex;flex-direction:column;gap:4px}
+  .a-hero-eyebrow{font-size:11px;letter-spacing:.1em;text-transform:uppercase;opacity:.7}
+  .a-hero-num{font-size:28px;font-weight:800;letter-spacing:-.02em}
+  .a-hero-num span{color:var(--repose-blue);}
+  .a-hero-sub{font-size:12px;opacity:.8}
+  .a-hero-r{display:flex;gap:16px}
+  .a-stat{text-align:right}
+  .a-stat-num{font-size:18px;font-weight:700}
+  .a-stat-num.pass{color:#4ade80}.a-stat-num.fail{color:#fca5a5}.a-stat-num.none{color:#fbbf24}
+  .a-stat-lab{font-size:10px;letter-spacing:.06em;text-transform:uppercase;opacity:.7}
+
+  .a-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+  .a-tile{background:#fff;border:1px solid var(--border);border-radius:14px;padding:16px;display:flex;align-items:center;gap:14px;transition:all .15s;cursor:pointer}
+  .a-tile:hover{border-color:var(--repose-blue);box-shadow:0 6px 20px rgba(20,161,233,.12);transform:translateY(-1px)}
+  .a-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;background:#f0f4f8;flex-shrink:0}
+  .a-tile.pass .a-icon{background:var(--pass-soft);color:var(--pass)}
+  .a-tile.fail .a-icon{background:var(--fail-soft);color:var(--fail)}
+  .a-tile.warn .a-icon{background:var(--warn-soft);color:var(--warn)}
+  .a-mid{flex:1;min-width:0}
+  .a-team{font-size:14px;font-weight:700;color:var(--repose-navy);margin-bottom:4px}
+  .a-progress{height:6px;background:#eef2f6;border-radius:3px;overflow:hidden;margin-bottom:6px}
+  .a-bar{height:100%;background:var(--pass);border-radius:3px}
+  .a-tile.fail .a-bar{background:var(--fail)}
+  .a-tile.warn .a-bar{background:var(--warn)}
+  .a-meta{font-size:11px;color:var(--text2);display:flex;gap:8px}
+  .a-meta b{color:var(--text)}
+  .a-pill{padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;flex-shrink:0}
+  .a-pill.pass{background:var(--pass-soft);color:var(--pass)}
+  .a-pill.fail{background:var(--fail-soft);color:var(--fail)}
+  .a-pill.warn{background:var(--warn-soft);color:var(--warn)}
+
+  /* ─────────────  DIRECTION B — Factory Floor  ───────────── */
+  .b-body{background:#0b1426;color:#fff}
+  .b-head{background:linear-gradient(135deg,#0b1426 0%,#152544 100%);padding:24px 24px 28px;border-bottom:3px solid var(--repose-blue)}
+  .b-eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--repose-blue);font-weight:800;margin-bottom:6px}
+  .b-title{font-size:22px;font-weight:800;margin:0;letter-spacing:-.01em}
+  .b-stats{display:flex;gap:24px;margin-top:16px;padding-top:16px;border-top:1px solid rgba(255,255,255,.08)}
+  .b-stat{display:flex;flex-direction:column;gap:2px}
+  .b-stat-num{font-size:24px;font-weight:800;line-height:1}
+  .b-stat-num.pass{color:#4ade80}.b-stat-num.fail{color:#fca5a5}.b-stat-num.none{color:#fbbf24}
+  .b-stat-lab{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.55)}
+
+  .b-tabs{display:flex;gap:0;background:#0b1426;padding:0 12px}
+  .b-tab{padding:14px 18px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:rgba(255,255,255,.5);border-bottom:3px solid transparent;cursor:pointer}
+  .b-tab.on{color:#fff;border-bottom-color:var(--repose-blue)}
+
+  .b-grid{padding:16px;display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+  .b-card{background:#152544;border:1px solid #233355;border-radius:12px;overflow:hidden;cursor:pointer;transition:all .15s}
+  .b-card:hover{border-color:var(--repose-blue);transform:translateY(-2px);box-shadow:0 8px 30px rgba(20,161,233,.18)}
+  .b-card-head{padding:14px 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid rgba(255,255,255,.06)}
+  .b-icon{width:38px;height:38px;border-radius:9px;background:#0b1426;display:flex;align-items:center;justify-content:center;font-size:18px}
+  .b-team{font-size:14px;font-weight:800;flex:1}
+  .b-status{padding:5px 11px;border-radius:6px;font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+  .b-status.pass{background:#14532d;color:#86efac}
+  .b-status.fail{background:#7f1d1d;color:#fca5a5}
+  .b-status.warn{background:#78350f;color:#fcd34d}
+
+  .b-strip{display:flex;gap:3px;padding:10px 16px}
+  .b-pip{flex:1;height:8px;border-radius:2px;background:#233355}
+  .b-pip.pass{background:#22c55e}.b-pip.fail{background:#ef4444}.b-pip.none{background:#475569}
+  .b-foot{padding:0 16px 14px;display:flex;justify-content:space-between;font-size:11px;color:rgba(255,255,255,.55)}
+  .b-foot b{color:#fff;font-weight:700}
+
+  .legend{margin-top:32px;display:flex;gap:24px;justify-content:center;font-size:12px;color:var(--text2)}
+  .legend b{color:var(--text)}
+  .note{margin-top:14px;padding:14px 18px;background:#fff;border-radius:12px;border:1px solid var(--border);font-size:13px;color:var(--text2)}
+  .note b{color:var(--repose-navy)}
+</style>
+</head>
+<body>
+
+<h1>Maintenance Dashboard — Two style directions</h1>
+<p class="lead">Same data, same layout structure. Pick the visual feel that doesn't feel "spreadsheet-y" to you. We'll polish whichever you choose.</p>
+
+<div class="split">
+
+  <!-- ============ DIRECTION A ============ -->
+  <div class="frame">
+    <div class="frame-head">
+      <div>
+        <div class="frame-tag">Direction A</div>
+        <div class="frame-name">Operations Hub — light, soft, modern SaaS</div>
+      </div>
+      <button class="pick" onclick="alert('Tell Claude: I prefer A')">Prefer A</button>
+    </div>
+    <div class="a-body">
+      <div class="a-tabs">
+        <div class="a-tab on">Daily Pre-use</div>
+        <div class="a-tab">Yearly / Statutory</div>
+      </div>
+      <div class="a-hero">
+        <div class="a-hero-l">
+          <div class="a-hero-eyebrow">Today · Mon 27 Apr</div>
+          <div class="a-hero-num">23<span>/</span>28 checks complete</div>
+          <div class="a-hero-sub">5 outstanding · 1 failure flagged</div>
+        </div>
+        <div class="a-hero-r">
+          <div class="a-stat"><div class="a-stat-num pass">22</div><div class="a-stat-lab">Pass</div></div>
+          <div class="a-stat"><div class="a-stat-num fail">1</div><div class="a-stat-lab">Fail</div></div>
+          <div class="a-stat"><div class="a-stat-num none">5</div><div class="a-stat-lab">Pending</div></div>
+        </div>
+      </div>
+      <div class="a-grid">
+
+        <div class="a-tile pass">
+          <div class="a-icon">🪵</div>
+          <div class="a-mid">
+            <div class="a-team">Woodmill</div>
+            <div class="a-progress"><div class="a-bar" style="width:100%"></div></div>
+            <div class="a-meta"><b>16/16</b> checked · <span>Last: 08:42</span></div>
+          </div>
+          <span class="a-pill pass">Pass</span>
+        </div>
+
+        <div class="a-tile fail">
+          <div class="a-icon">✂️</div>
+          <div class="a-mid">
+            <div class="a-team">Cutting</div>
+            <div class="a-progress"><div class="a-bar" style="width:100%"></div></div>
+            <div class="a-meta"><b>3/3</b> checked · <span style="color:var(--fail)">Pathfinder 2 — fail</span></div>
+          </div>
+          <span class="a-pill fail">Fail</span>
+        </div>
+
+        <div class="a-tile warn">
+          <div class="a-icon">🪡</div>
+          <div class="a-mid">
+            <div class="a-team">Sewing</div>
+            <div class="a-progress"><div class="a-bar" style="width:60%"></div></div>
+            <div class="a-meta"><b>3/5</b> checked</div>
+          </div>
+          <span class="a-pill warn">Pending</span>
+        </div>
+
+        <div class="a-tile pass">
+          <div class="a-icon">🧽</div>
+          <div class="a-mid">
+            <div class="a-team">Foam</div>
+            <div class="a-progress"><div class="a-bar" style="width:100%"></div></div>
+            <div class="a-meta"><b>4/4</b> checked</div>
+          </div>
+          <span class="a-pill pass">Pass</span>
+        </div>
+
+        <div class="a-tile warn">
+          <div class="a-icon">🛋️</div>
+          <div class="a-mid">
+            <div class="a-team">Upholstery</div>
+            <div class="a-progress"><div class="a-bar" style="width:50%"></div></div>
+            <div class="a-meta"><b>1/2</b> checked</div>
+          </div>
+          <span class="a-pill warn">Pending</span>
+        </div>
+
+        <div class="a-tile pass">
+          <div class="a-icon">🔧</div>
+          <div class="a-mid">
+            <div class="a-team">Assembly</div>
+            <div class="a-progress"><div class="a-bar" style="width:100%"></div></div>
+            <div class="a-meta"><b>2/2</b> checked</div>
+          </div>
+          <span class="a-pill pass">Pass</span>
+        </div>
+
+        <div class="a-tile pass" style="grid-column:span 2">
+          <div class="a-icon">🧪</div>
+          <div class="a-mid">
+            <div class="a-team">Development</div>
+            <div class="a-progress"><div class="a-bar" style="width:100%"></div></div>
+            <div class="a-meta"><b>2/2</b> checked · <span>Prototype shop — all clear</span></div>
+          </div>
+          <span class="a-pill pass">Pass</span>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ DIRECTION B ============ -->
+  <div class="frame">
+    <div class="frame-head">
+      <div>
+        <div class="frame-tag">Direction B</div>
+        <div class="frame-name">Factory Floor — dark, bold, on-brand</div>
+      </div>
+      <button class="pick" onclick="alert('Tell Claude: I prefer B')">Prefer B</button>
+    </div>
+    <div class="b-body">
+      <div class="b-head">
+        <div class="b-eyebrow">Daily Pre-use Checks · Mon 27 Apr</div>
+        <div class="b-title">Maintenance · Production Floor</div>
+        <div class="b-stats">
+          <div class="b-stat"><div class="b-stat-num">23<span style="opacity:.4">/28</span></div><div class="b-stat-lab">Complete</div></div>
+          <div class="b-stat"><div class="b-stat-num pass">22</div><div class="b-stat-lab">Pass</div></div>
+          <div class="b-stat"><div class="b-stat-num fail">1</div><div class="b-stat-lab">Fail</div></div>
+          <div class="b-stat"><div class="b-stat-num none">5</div><div class="b-stat-lab">Pending</div></div>
+        </div>
+      </div>
+      <div class="b-tabs">
+        <div class="b-tab on">Daily Pre-use</div>
+        <div class="b-tab">Yearly / Statutory</div>
+      </div>
+      <div class="b-grid">
+
+        <div class="b-card">
+          <div class="b-card-head">
+            <div class="b-icon">🪵</div>
+            <div class="b-team">Woodmill</div>
+            <span class="b-status pass">Pass</span>
+          </div>
+          <div class="b-strip">
+            <div class="b-pip pass"></div><div class="b-pip pass"></div><div class="b-pip pass"></div><div class="b-pip pass"></div>
+            <div class="b-pip pass"></div><div class="b-pip pass"></div><div class="b-pip pass"></div><div class="b-pip pass"></div>
+            <div class="b-pip pass"></div><div class="b-pip pass"></div><div class="b-pip pass"></div><div class="b-pip pass"></div>
+            <div class="b-pip pass"></div><div class="b-pip pass"></div><div class="b-pip pass"></div><div class="b-pip pass"></div>
+          </div>
+          <div class="b-foot"><span><b>16/16</b> machines</span><span>Last 08:42</span></div>
+        </div>
+
+        <div class="b-card">
+          <div class="b-card-head">
+            <div class="b-icon">✂️</div>
+            <div class="b-team">Cutting</div>
+            <span class="b-status fail">Fail</span>
+          </div>
+          <div class="b-strip">
+            <div class="b-pip pass"></div><div class="b-pip pass"></div><div class="b-pip fail"></div>
+          </div>
+          <div class="b-foot"><span><b>3/3</b> · 1 failure</span><span style="color:#fca5a5">Pathfinder 2</span></div>
+        </div>
+
+        <div class="b-card">
+          <div class="b-card-head">
+            <div class="b-icon">🪡</div>
+            <div class="b-team">Sewing</div>
+            <span class="b-status warn">Pending</span>
+          </div>
+          <div class="b-strip">
+            <div class="b-pip pass"></div><div class="b-pip pass"></div><div class="b-pip pass"></div><div class="b-pip none"></div><div class="b-pip none"></div>
+          </div>
+          <div class="b-foot"><span><b>3/5</b> machines</span><span>2 outstanding</span></div>
+        </div>
+
+        <div class="b-card">
+          <div class="b-card-head">
+            <div class="b-icon">🧽</div>
+            <div class="b-team">Foam</div>
+            <span class="b-status pass">Pass</span>
+          </div>
+          <div class="b-strip">
+            <div class="b-pip pass"></div><div class="b-pip pass"></div><div class="b-pip pass"></div><div class="b-pip pass"></div>
+          </div>
+          <div class="b-foot"><span><b>4/4</b> machines</span><span>Last 09:10</span></div>
+        </div>
+
+        <div class="b-card">
+          <div class="b-card-head">
+            <div class="b-icon">🛋️</div>
+            <div class="b-team">Upholstery</div>
+            <span class="b-status warn">Pending</span>
+          </div>
+          <div class="b-strip">
+            <div class="b-pip pass"></div><div class="b-pip none"></div>
+          </div>
+          <div class="b-foot"><span><b>1/2</b> machines</span><span>1 outstanding</span></div>
+        </div>
+
+        <div class="b-card">
+          <div class="b-card-head">
+            <div class="b-icon">🔧</div>
+            <div class="b-team">Assembly</div>
+            <span class="b-status pass">Pass</span>
+          </div>
+          <div class="b-strip">
+            <div class="b-pip pass"></div><div class="b-pip pass"></div>
+          </div>
+          <div class="b-foot"><span><b>2/2</b> machines</span><span>Last 08:55</span></div>
+        </div>
+
+        <div class="b-card" style="grid-column:span 2">
+          <div class="b-card-head">
+            <div class="b-icon">🧪</div>
+            <div class="b-team">Development</div>
+            <span class="b-status pass">Pass</span>
+          </div>
+          <div class="b-strip">
+            <div class="b-pip pass"></div><div class="b-pip pass"></div>
+          </div>
+          <div class="b-foot"><span><b>2/2</b> machines · Prototype shop</span><span>Last 09:20</span></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="legend">
+  <span><b style="color:var(--pass)">●</b> Pass</span>
+  <span><b style="color:var(--fail)">●</b> Fail</span>
+  <span><b style="color:var(--warn)">●</b> Pending</span>
+  <span><b style="color:var(--text3)">●</b> Not in use</span>
+</div>
+
+<div class="note">
+  <b>What's the same in both:</b> top status bar, two sub-tabs (Daily Pre-use / Yearly), one tile per team, click drills into machines, status pills/strips for at-a-glance read.<br>
+  <b>What differs:</b> A is a light SaaS dashboard (think Linear, modern admin panels), B is a confident dark "factory operations panel" using your navy + brand blue. Both are deliberately not spreadsheet-y.<br>
+  <b>You can also tell me:</b> "lean A but darker", "B but lighter", "mix the two", or "neither — show me C".
+</div>
+
+</body>
+</html>
