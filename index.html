@@ -2377,7 +2377,27 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .mt-empty             { text-align: center; padding: 48px 16px; color: var(--text2); font-size: 13px; }
 .mt-loading           { text-align: center; padding: 32px; color: var(--text2); font-size: 13px; }
 
-/* print overrides for audit PDF — handled in Task 11 */
+/* print overrides for audit PDF */
+@media print {
+  body.mt-printing > *:not(#mt-print-overlay) { display: none !important; }
+  #mt-print-overlay { display: block !important; position: static !important; padding: 0 !important; }
+  @page { size: A4 portrait; margin: 14mm 12mm; }
+  .mt-print-bar    { display:flex !important; align-items:center; justify-content:space-between; border-bottom:2pt solid #14a1e9; padding-bottom:7pt; margin-bottom:10pt; }
+  .mt-print-bar img{ height:32pt; width:auto; }
+  .mt-print-bar span{ color:#0e023a; font-size:9.5pt; font-weight:700; letter-spacing:.04em; }
+  .mt-print-h1     { font-size:14pt; color:#0e023a; margin:0 0 4pt; }
+  .mt-print-meta   { font-size:9pt; color:#444; margin-bottom:8pt; }
+  .mt-print-summary{ display:flex; gap:14pt; margin:6pt 0 10pt; font-size:9pt; }
+  .mt-print-summary div b { color:#0e023a; }
+  .mt-print-table  { width:100%; border-collapse:collapse; font-size:8pt; margin-bottom:8pt; }
+  .mt-print-table th,
+  .mt-print-table td { border:0.5pt solid #999; padding:2pt 4pt; vertical-align:top; }
+  .mt-print-table th { background:#f0f4f8; -webkit-print-color-adjust:exact; print-color-adjust:exact; font-size:7.5pt; }
+  .mt-print-section{ font-size:11pt; font-weight:700; color:#0e023a; margin:10pt 0 4pt; }
+  .mt-print-sig    { margin-top:14pt; font-size:9pt; }
+  * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
+}
+#mt-print-overlay { display:none; }
 
 /* Submit modal footer */
 .cc-modal-footer   { flex-shrink:0; padding:12px 16px; border-top:1px solid var(--border); display:flex; gap:8px; }
@@ -16745,6 +16765,131 @@ async function mtToggleDowntime(machineId, dateStr) {
   } catch (e) {
     toast('Failed: ' + (e.message || 'unknown'), 'u');
   }
+}
+
+function mtExportPdf() {
+  if (!mtIsManager) return;
+  const team = mtGetTeam(mtState.drillTeamId);
+  if (!team) return;
+  const f    = mtState.filters;
+  const days = mtEnumerateDays(f.dateFrom, f.dateTo);
+  const dt   = mtState._downtimeByTeam?.[team.id] || {};
+  const machines = team.machines.filter(m => !f.machineIds.length || f.machineIds.includes(m.id));
+
+  const recsForTeam = mtState.records.filter(r => r.teamId === team.id);
+  // Latest per (machine, date)
+  const byCell = {};
+  for (const r of recsForTeam) {
+    const k = `${r.machineId}|${r.dateStr}`;
+    if (!byCell[k] || (r.inspectedAt || '') > (byCell[k].inspectedAt || '')) byCell[k] = r;
+  }
+
+  // Summary stats
+  let total = 0, pass = 0, fail = 0, dtCount = 0, missed = 0;
+  for (const m of machines) for (const d of days) {
+    const k = `${m.id}|${d}`;
+    if (dt[k]) { dtCount++; total++; continue; }
+    const r = byCell[k];
+    if (r && (r.status === 'pass' || r.status === 'na')) { pass++; total++; }
+    else if (r && r.status === 'fail') { fail++; total++; }
+    else { missed++; }
+  }
+  const pct = total ? Math.round(((pass + dtCount) / total) * 100) : 0;
+  const docNo = `REPO-MAINT-AUDIT-${new Date().toISOString().replace(/[-:T.Z]/g,'').slice(0,14)}`;
+
+  // Per-row table
+  const rows = recsForTeam
+    .filter(r => days.includes(r.dateStr) && (!f.machineIds.length || f.machineIds.includes(r.machineId)))
+    .sort((a, b) => (a.inspectedAt || '').localeCompare(b.inspectedAt || ''))
+    .map(r => `<tr>
+        <td>${mtFormatDateUK(r.dateStr).replace(',', '')}</td>
+        <td>${mtFormatTimeUK(r.inspectedAt)}</td>
+        <td>${team.name}</td>
+        <td>${r.machineName}</td>
+        <td>${r.operator || ''}</td>
+        <td>${r.status.toUpperCase()}</td>
+        <td>${(r.comment || '').replace(/</g,'&lt;')}</td>
+      </tr>`).join('');
+
+  // Expanded failures
+  const fails = recsForTeam
+    .filter(r => r.status === 'fail' && days.includes(r.dateStr) && (!f.machineIds.length || f.machineIds.includes(r.machineId)));
+  const failsHtml = fails.length ? `
+    <div class="mt-print-section">Expanded failures</div>
+    <table class="mt-print-table">
+      <thead><tr><th>Date</th><th>Machine</th><th>Failed item(s)</th><th>Comment</th></tr></thead>
+      <tbody>
+        ${fails.map(r => {
+          const failed = (r.items || []).filter(i => i.result === 'fail').map(i => i.label).join('; ') || '(no breakdown)';
+          return `<tr>
+            <td>${mtFormatDateUK(r.dateStr).replace(',', '')}</td>
+            <td>${r.machineName}</td>
+            <td>${failed}</td>
+            <td>${(r.comment || '').replace(/</g,'&lt;')}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>` : '';
+
+  // Missed days
+  const missedRows = [];
+  for (const m of machines) for (const d of days) {
+    const k = `${m.id}|${d}`;
+    if (dt[k]) continue;
+    if (!byCell[k]) missedRows.push({ machine: m.name, date: d });
+  }
+  const missedHtml = missedRows.length ? `
+    <div class="mt-print-section">Missed days</div>
+    <table class="mt-print-table">
+      <thead><tr><th>Date</th><th>Machine</th></tr></thead>
+      <tbody>${missedRows.map(r => `<tr><td>${mtFormatDateUK(r.date).replace(',', '')}</td><td>${r.machine}</td></tr>`).join('')}</tbody>
+    </table>` : '';
+
+  const html = `
+    <div id="mt-print-overlay">
+      <div class="mt-print-bar">
+        <img src="./Repose_RGB_logo_Colour_with_strapline_1500pxW.png" alt="Repose">
+        <span>QHSE — MAINTENANCE AUDIT REPORT</span>
+      </div>
+      <h1 class="mt-print-h1">${team.name} — Daily Pre-use Audit</h1>
+      <div class="mt-print-meta">
+        <div><b>Doc:</b> ${docNo}</div>
+        <div><b>Range:</b> ${mtFormatDateUK(f.dateFrom)} → ${mtFormatDateUK(f.dateTo)}</div>
+        <div><b>Machines:</b> ${f.machineIds.length ? machines.map(m => m.name).join(', ') : 'All'}</div>
+        <div><b>Generated:</b> ${mtFormatDateUK(new Date())} ${mtFormatTimeUK(new Date())} (UK)</div>
+      </div>
+      <div class="mt-print-summary">
+        <div><b>Total slots:</b> ${total}</div>
+        <div><b>Pass:</b> ${pass}</div>
+        <div><b>Fail:</b> ${fail}</div>
+        <div><b>Not in use:</b> ${dtCount}</div>
+        <div><b>Missed:</b> ${missed}</div>
+        <div><b>Compliance:</b> ${pct}%</div>
+      </div>
+      <div class="mt-print-section">Records</div>
+      <table class="mt-print-table">
+        <thead><tr><th>Date</th><th>Time (UK)</th><th>Team</th><th>Machine</th><th>Operator</th><th>Status</th><th>Comment</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="7" style="text-align:center;color:#888">No records in range.</td></tr>'}</tbody>
+      </table>
+      ${failsHtml}
+      ${missedHtml}
+      <div class="mt-print-sig">
+        Reviewed by: ____________________________ &nbsp;&nbsp; Date: __________________
+      </div>
+    </div>`;
+
+  // Inject, print, clean up
+  let host = document.getElementById('mt-print-overlay');
+  if (host) host.remove();
+  document.body.insertAdjacentHTML('beforeend', html);
+  document.body.classList.add('mt-printing');
+  setTimeout(() => {
+    window.print();
+    setTimeout(() => {
+      document.body.classList.remove('mt-printing');
+      document.getElementById('mt-print-overlay')?.remove();
+    }, 600);
+  }, 50);
 }
 
 function mtBackToLanding() {
