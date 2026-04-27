@@ -16338,23 +16338,40 @@ async function mtAdapterGetSiteId() {
 }
 
 // Normalise one SharePoint item from any team's inspections list into the unified shape.
+// Field conventions across teams:
+//   - Woodmill (WMInspections): MachineId, InspectedAt, InspectorName, AnyFail, ChecksDetail (JSON), Comments
+//   - Cutting (CuttingChecks):  Machine (free-text → normalise to id), InspectedAt, InspectorName, AnyFail, ChecksDetail, Comments
 function mtNormaliseInspection(team, fields) {
-  const machineId = (fields.MachineId || fields.machineId || fields.Title || '').trim();
-  const machine   = team.machines.find(m => m.id === machineId);
-  const dateStr   = fields.InspectedAt ? wmDateStr(new Date(fields.InspectedAt)) : '';
-  const status    = (fields.Status || '').toLowerCase();   // 'pass' | 'fail' | 'na'
-  let items       = [];
-  try { if (fields.ItemsJson) items = JSON.parse(fields.ItemsJson); } catch {}
+  let machineId;
+  if (team.id === 'cutting') {
+    const raw = (fields.Machine || fields.MachineId || '').trim().toLowerCase().replace(/\s+/g, '');
+    machineId = raw.includes('lectra')                                          ? 'lectra'
+              : (raw.includes('pathfinder1') || raw.includes('pathfinder 1'))    ? 'pathfinder1'
+              : (raw.includes('pathfinder2') || raw.includes('pathfinder 2'))    ? 'pathfinder2'
+              : raw.includes('pathfinder')                                       ? 'pathfinder1'  // legacy split
+              : raw;
+  } else {
+    machineId = (fields.MachineId || fields.machineId || fields.Title || '').trim();
+  }
+  const machine = team.machines.find(m => m.id === machineId);
+  const dateStr = fields.InspectedAt
+    ? wmDateStr(new Date(fields.InspectedAt))
+    : (fields.Created ? wmDateStr(new Date(fields.Created)) : '');
+  // SP stores boolean fail flag as AnyFail (Yes/No → true/false/'true'/1).
+  const isFail = fields.AnyFail === true || fields.AnyFail === 'true' || fields.AnyFail === 1;
+  const status = isFail ? 'fail' : 'pass';
+  let items = [];
+  try { if (fields.ChecksDetail) items = JSON.parse(fields.ChecksDetail); } catch {}
   return {
     teamId:      team.id,
     machineId,
     machineName: machine ? machine.name : machineId,
     dateStr,
     inspectedAt: fields.InspectedAt || null,
-    status:      ['pass','fail','na'].includes(status) ? status : 'none',
+    status,
     operator:    fields.InspectorName || '',
     items,
-    comment:     fields.Comment || '',
+    comment:     fields.Comments || fields.Comment || '',
     raw:         fields,
   };
 }
