@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>CPAR — Pick your approach</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+:root{
+  --bg:#f4f6f8; --bg2:#fff; --bg3:#fafbfc; --bg4:#eef2f5;
+  --text:#0e023a; --text2:#3b3a5c; --text3:#706f6f;
+  --border:#e1e6eb; --border2:#d1d6da;
+  --blue:#14a1e9; --bbg:#e6f5fd;
+  --green:#059669; --gbg:#ecfdf5;
+  --amber:#d97706; --abg:#fff8e6;
+  --red:#dc2626; --rbg:#fff1f1;
+  --purple:#7c3aed; --pbg:#f4ecff;
+  --navy:#1e3a5f;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);line-height:1.5;padding:24px;max-width:1500px;margin:0 auto}
+h1{font-size:30px;font-weight:800;letter-spacing:-.5px;margin-bottom:6px}
+.lead{color:var(--text3);font-size:15px;margin-bottom:28px}
+.note{padding:11px 14px;background:var(--abg);border-left:4px solid var(--amber);border-radius:6px;font-size:13px;margin-bottom:22px}
+
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-bottom:24px}
+
+.card{background:#fff;border:2px solid var(--border);border-radius:14px;padding:20px;display:flex;flex-direction:column;position:relative;transition:.15s}
+.card.recommended{border-color:var(--green);box-shadow:0 0 0 4px rgba(5,150,105,.08)}
+.card .ribbon{position:absolute;top:-12px;right:14px;background:var(--green);color:#fff;font-size:10px;font-weight:700;padding:4px 10px;border-radius:10px;text-transform:uppercase;letter-spacing:.06em}
+.card .num{display:inline-block;width:34px;height:34px;border-radius:50%;background:var(--navy);color:#fff;font-weight:800;text-align:center;line-height:34px;font-size:16px;margin-bottom:10px}
+.card.recommended .num{background:var(--green)}
+.card h2{font-size:18px;font-weight:800;margin-bottom:4px;letter-spacing:-.3px}
+.card .tag{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:14px}
+.card .scope{font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:14px}
+
+.bar-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.bar-row .lab{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);width:84px;flex-shrink:0}
+.bar{flex:1;height:8px;background:var(--bg4);border-radius:4px;overflow:hidden}
+.bar > span{display:block;height:100%;border-radius:4px}
+.bar-val{font-size:11px;font-weight:700;color:var(--text2);width:46px;text-align:right;flex-shrink:0}
+
+.feat-list{margin-top:14px;border-top:1px solid var(--border);padding-top:12px;flex:1}
+.feat-list .lab{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:6px}
+.feat{display:flex;gap:8px;font-size:12px;padding:5px 0;line-height:1.4}
+.feat.yes{color:var(--text)}
+.feat.no{color:var(--text3);text-decoration:line-through;text-decoration-color:rgba(0,0,0,.2)}
+.feat .ic{flex-shrink:0;width:18px;text-align:center;font-weight:700}
+.feat.yes .ic{color:var(--green)}
+.feat.no .ic{color:#bbb}
+
+.iso-row{margin-top:14px;padding:10px;background:var(--bg3);border-radius:8px;border:1px solid var(--border)}
+.iso-row .iso-lab{font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text3);letter-spacing:.06em;margin-bottom:5px}
+.iso-pills{display:flex;flex-wrap:wrap;gap:4px}
+.iso-pill{font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px;font-family:'JetBrains Mono',monospace}
+.iso-pill.yes{background:var(--gbg);color:var(--green)}
+.iso-pill.no{background:#f4f4f4;color:#999;text-decoration:line-through}
+
+.pick-btn{margin-top:16px;width:100%;padding:11px;border:none;border-radius:9px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:.02em}
+.pick-btn.a1{background:var(--bg4);color:var(--text);border:1.5px solid var(--border2)}
+.pick-btn.a2{background:var(--green);color:#fff}
+.pick-btn.a3{background:var(--bbg);color:var(--blue);border:1.5px solid var(--blue)}
+
+.compare-table{background:#fff;border:1.5px solid var(--border);border-radius:12px;padding:18px;margin-top:30px}
+.compare-table h2{font-size:18px;font-weight:700;margin-bottom:12px;letter-spacing:-.3px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{padding:10px 8px;text-align:left;background:var(--bg4);font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);font-weight:700;border-bottom:1px solid var(--border)}
+td{padding:9px 8px;border-bottom:1px solid var(--border);vertical-align:top}
+td:first-child{font-weight:600}
+td .yes{color:var(--green);font-weight:700}
+td .no{color:#aaa}
+td .partial{color:var(--amber);font-weight:600}
+
+.preview-link{display:inline-flex;align-items:center;gap:6px;background:var(--navy);color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;margin-top:18px}
+.preview-link:hover{background:#0e2540}
+
+.cta{background:#fff;border:2px solid var(--green);border-radius:12px;padding:18px;margin-top:24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.cta-text{flex:1;min-width:300px;font-size:14px}
+.cta-text strong{color:var(--green)}
+
+@media (max-width:1000px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<h1>Pick your approach for the CPAR redesign</h1>
+<p class="lead">Three options, sized differently. Compare scope, effort, and ISO 9001 coverage side-by-side, then click your pick.</p>
+
+<div class="note">
+  <strong>For a deep look at Approach 2 specifically</strong> (cards, triage UI, printable NCR, bulk export — all the visual detail), open <code>cpar-redesign-mockups.html</code> in the same folder.
+</div>
+
+<div class="grid">
+
+  <!-- APPROACH 1 -->
+  <div class="card">
+    <span class="num">1</span>
+    <h2>Lifecycle-only — lean</h2>
+    <div class="tag">Smallest change · ships first</div>
+    <div class="scope">New status workflow + assignment + ECR ref bolted onto the <em>existing</em> CPAR card UI. No new tabs or queues. Single-CPAR PDF print and bulk Excel export added.</div>
+
+    <div class="bar-row"><span class="lab">Effort</span><div class="bar"><span style="width:30%;background:var(--green)"></span></div><span class="bar-val">~3 days</span></div>
+    <div class="bar-row"><span class="lab">ISO cover</span><div class="bar"><span style="width:55%;background:var(--amber)"></span></div><span class="bar-val">55%</span></div>
+    <div class="bar-row"><span class="lab">Audit risk</span><div class="bar"><span style="width:60%;background:var(--red)"></span></div><span class="bar-val">Med</span></div>
+
+    <div class="feat-list">
+      <div class="lab">What you get</div>
+      <div class="feat yes"><span class="ic">✓</span>Triage / Investigation / Closed states</div>
+      <div class="feat yes"><span class="ic">✓</span>Assign to Mark / Gareth</div>
+      <div class="feat yes"><span class="ic">✓</span>Disposition + Containment fields</div>
+      <div class="feat yes"><span class="ic">✓</span>Two-name sign-off (PE + QHSE)</div>
+      <div class="feat yes"><span class="ic">✓</span>ECR ref capture (mailto Prism)</div>
+      <div class="feat yes"><span class="ic">✓</span>Print single CPAR (NCR-style PDF)</div>
+      <div class="feat yes"><span class="ic">✓</span>Bulk register export (xlsx)</div>
+      <div class="feat no"><span class="ic">✕</span>Dedicated triage queue / PE inbox</div>
+      <div class="feat no"><span class="ic">✕</span>SLA countdowns &amp; overdue alerts</div>
+      <div class="feat no"><span class="ic">✕</span>Repeat-issue detection</div>
+      <div class="feat no"><span class="ic">✕</span>Effectiveness re-check after 30 days</div>
+    </div>
+
+    <div class="iso-row">
+      <div class="iso-lab">ISO 9001 clauses satisfied</div>
+      <div class="iso-pills">
+        <span class="iso-pill yes">§8.7.1</span>
+        <span class="iso-pill yes">§8.7.2</span>
+        <span class="iso-pill yes">§10.2.1 a–c</span>
+        <span class="iso-pill no">§10.2.1 d</span>
+        <span class="iso-pill no">§10.2.1 e</span>
+      </div>
+    </div>
+
+    <button class="pick-btn a1">Pick Approach 1</button>
+  </div>
+
+
+  <!-- APPROACH 2 — RECOMMENDED -->
+  <div class="card recommended">
+    <span class="ribbon">★ Recommended</span>
+    <span class="num">2</span>
+    <h2>Lifecycle + Triage view</h2>
+    <div class="tag">Right-sized for QHSE + 2 PEs</div>
+    <div class="scope">Everything in #1 <strong>plus</strong> a dedicated <strong>QHSE Review queue</strong> for you, a filtered <strong>PE inbox</strong> for Mark/Gareth, and per-card SLA countdowns. Floor staff still raise CPARs the same way; only the manager UX changes.</div>
+
+    <div class="bar-row"><span class="lab">Effort</span><div class="bar"><span style="width:55%;background:var(--amber)"></span></div><span class="bar-val">~6 days</span></div>
+    <div class="bar-row"><span class="lab">ISO cover</span><div class="bar"><span style="width:80%;background:var(--green)"></span></div><span class="bar-val">80%</span></div>
+    <div class="bar-row"><span class="lab">Audit risk</span><div class="bar"><span style="width:25%;background:var(--green)"></span></div><span class="bar-val">Low</span></div>
+
+    <div class="feat-list">
+      <div class="lab">Everything in #1, plus</div>
+      <div class="feat yes"><span class="ic">✓</span>QHSE Triage queue (your inbox)</div>
+      <div class="feat yes"><span class="ic">✓</span>Production Engineer view (Mark/Gareth's filter)</div>
+      <div class="feat yes"><span class="ic">✓</span>Stat tiles: To-Review · Investigating · Awaiting Sign-Off · Overdue</div>
+      <div class="feat yes"><span class="ic">✓</span>SLA countdown on each card</div>
+      <div class="feat yes"><span class="ic">✓</span>Auto-email PE on assignment</div>
+      <div class="feat yes"><span class="ic">✓</span>Behind existing Stats password gate</div>
+      <div class="feat no"><span class="ic">✕</span>Repeat-issue detection (model + cause &gt; N times)</div>
+      <div class="feat no"><span class="ic">✕</span>Monthly KPI / management-review export</div>
+      <div class="feat no"><span class="ic">✕</span>Effectiveness re-check after 30 days</div>
+    </div>
+
+    <div class="iso-row">
+      <div class="iso-lab">ISO 9001 clauses satisfied</div>
+      <div class="iso-pills">
+        <span class="iso-pill yes">§8.7.1</span>
+        <span class="iso-pill yes">§8.7.2</span>
+        <span class="iso-pill yes">§10.2.1 a–d</span>
+        <span class="iso-pill no">§10.2.1 e</span>
+      </div>
+    </div>
+
+    <button class="pick-btn a2">★ Pick Approach 2 (recommended)</button>
+  </div>
+
+
+  <!-- APPROACH 3 -->
+  <div class="card">
+    <span class="num">3</span>
+    <h2>Full ISO 9001 NCR module</h2>
+    <div class="tag">Belt &amp; braces · biggest scope</div>
+    <div class="scope">Everything in #2 <strong>plus</strong> repeat-issue auto-flagging, monthly management-review KPI export, effectiveness re-check workflow, and retention/archive policy.</div>
+
+    <div class="bar-row"><span class="lab">Effort</span><div class="bar"><span style="width:90%;background:var(--red)"></span></div><span class="bar-val">~12 days</span></div>
+    <div class="bar-row"><span class="lab">ISO cover</span><div class="bar"><span style="width:98%;background:var(--green)"></span></div><span class="bar-val">98%</span></div>
+    <div class="bar-row"><span class="lab">Audit risk</span><div class="bar"><span style="width:8%;background:var(--green)"></span></div><span class="bar-val">Min</span></div>
+
+    <div class="feat-list">
+      <div class="lab">Everything in #2, plus</div>
+      <div class="feat yes"><span class="ic">✓</span>Repeat-issue auto-flag (same model + cause &gt; N in 30d)</div>
+      <div class="feat yes"><span class="ic">✓</span>Monthly KPI export: open/closed counts, MTTR, top-cause table</div>
+      <div class="feat yes"><span class="ic">✓</span>Effectiveness re-check (30-day prompt + sign-off)</div>
+      <div class="feat yes"><span class="ic">✓</span>Linked NCR / 8D escalation for repeat issues</div>
+      <div class="feat yes"><span class="ic">✓</span>Retention / archive policy enforced</div>
+      <div class="feat yes"><span class="ic">✓</span>Trend charts in Quality dashboard</div>
+    </div>
+
+    <div class="iso-row">
+      <div class="iso-lab">ISO 9001 clauses satisfied</div>
+      <div class="iso-pills">
+        <span class="iso-pill yes">§8.7.1</span>
+        <span class="iso-pill yes">§8.7.2</span>
+        <span class="iso-pill yes">§10.2.1 a–e</span>
+        <span class="iso-pill yes">§10.2.2</span>
+        <span class="iso-pill yes">§9.1.3</span>
+      </div>
+    </div>
+
+    <button class="pick-btn a3">Pick Approach 3</button>
+  </div>
+
+</div>
+
+
+<div class="compare-table">
+  <h2>Quick comparison</h2>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:35%">Capability</th>
+        <th>Approach 1<br><small style="font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0">Lean</small></th>
+        <th>Approach 2<br><small style="font-weight:400;color:var(--green);text-transform:none;letter-spacing:0">Recommended</small></th>
+        <th>Approach 3<br><small style="font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0">Full NCR module</small></th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>QHSE triage stage</td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td></tr>
+      <tr><td>Assignment to PE (Mark / Gareth)</td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td></tr>
+      <tr><td>Disposition + Containment fields</td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td></tr>
+      <tr><td>Two-name sign-off (PE + QHSE)</td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td></tr>
+      <tr><td>ECR ref capture (mailto Prism)</td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td></tr>
+      <tr><td>Print single CPAR (NCR-style PDF)</td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td></tr>
+      <tr><td>Bulk register export (xlsx)</td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td></tr>
+      <tr><td>Dedicated triage queue UI</td><td><span class="no">—</span></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td></tr>
+      <tr><td>PE inbox view</td><td><span class="no">—</span></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td></tr>
+      <tr><td>SLA countdown / overdue tiles</td><td><span class="no">—</span></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td></tr>
+      <tr><td>Auto-email investigator on assignment</td><td><span class="partial">manual</span></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td></tr>
+      <tr><td>Repeat-issue auto-flag</td><td><span class="no">—</span></td><td><span class="no">—</span></td><td><span class="yes">✓</span></td></tr>
+      <tr><td>Monthly mgmt-review KPI export</td><td><span class="no">—</span></td><td><span class="no">—</span></td><td><span class="yes">✓</span></td></tr>
+      <tr><td>30-day effectiveness re-check (§10.2.1 e)</td><td><span class="no">—</span></td><td><span class="no">—</span></td><td><span class="yes">✓</span></td></tr>
+      <tr><td>Trend charts &amp; quality dashboard</td><td><span class="no">—</span></td><td><span class="no">—</span></td><td><span class="yes">✓</span></td></tr>
+      <tr style="background:var(--bg3)">
+        <td><strong>Estimated effort</strong></td>
+        <td><strong>~3 days</strong></td>
+        <td><strong>~6 days</strong></td>
+        <td><strong>~12 days</strong></td>
+      </tr>
+      <tr style="background:var(--bg3)">
+        <td><strong>ISO 9001 coverage</strong></td>
+        <td><strong>~55%</strong></td>
+        <td><strong>~80%</strong></td>
+        <td><strong>~98%</strong></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+
+<div class="cta">
+  <div class="cta-text">
+    <strong>Currently leaning Approach 2.</strong> Right size for one QHSE manager + 2 PEs — covers what an external auditor flags, leaves the heavy KPI/repeat-detection layer for phase 2 once you've got a few months of real triage data to base thresholds on.
+  </div>
+  <a href="cpar-redesign-mockups.html" class="preview-link">→ Preview Approach 2 in detail</a>
+</div>
+
+<p style="font-size:12px;color:var(--text3);margin-top:14px;text-align:center">
+  Effort estimates assume vanilla JS / single-file <code>index.html</code> pattern, additive SharePoint columns, no framework. Actual implementation time depends on testing / SharePoint column propagation / Mail.Send permissions.
+</p>
+
+</body>
+</html>
