@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>CPAR Redesign Mockups — RepNet</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+:root{
+  --bg:#f4f6f8; --bg2:#fff; --bg3:#fafbfc; --bg4:#eef2f5;
+  --text:#0e023a; --text2:#3b3a5c; --text3:#706f6f;
+  --border:#e1e6eb; --border2:#d1d6da;
+  --blue:#14a1e9; --bbg:#e6f5fd;
+  --green:#059669; --gbg:#ecfdf5;
+  --amber:#d97706; --abg:#fff8e6;
+  --red:#dc2626; --rbg:#fff1f1;
+  --purple:#7c3aed; --pbg:#f4ecff;
+  --navy:#1e3a5f;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);line-height:1.5;padding:24px;max-width:1400px;margin:0 auto}
+
+h1{font-size:28px;font-weight:800;margin-bottom:6px;letter-spacing:-.5px}
+.lead{color:var(--text3);font-size:15px;margin-bottom:32px}
+h2{font-size:20px;font-weight:700;margin:36px 0 6px;padding-bottom:8px;border-bottom:2px solid var(--navy);letter-spacing:-.3px}
+.section-sub{color:var(--text3);font-size:13px;margin-bottom:18px}
+h3{font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);margin-bottom:10px}
+
+.split{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.col-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.col-label .pill{padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700}
+.col-label .pill.now{background:var(--bg4);color:var(--text2)}
+.col-label .pill.new{background:var(--gbg);color:var(--green)}
+
+/* ── CPAR card replica ── */
+.cpar-card{border-radius:12px;background:var(--bg2);overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06);border:1.5px solid var(--border);margin-bottom:14px}
+.cpar-card.status-open{border-left:5px solid var(--blue)}
+.cpar-card.status-amber{border-left:5px solid var(--amber)}
+.cpar-card.status-investigation{border-left:5px solid var(--purple)}
+.cpar-card.status-pendingsignoff{border-left:5px solid var(--green)}
+.cpar-card.status-closed{border-left:5px solid var(--green);opacity:.75}
+
+.card-head{display:flex;align-items:center;gap:8px;padding:11px 14px 7px;flex-wrap:wrap}
+.ref{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:var(--text)}
+.badge{font-size:10px;font-weight:700;padding:3px 9px;border-radius:12px;text-transform:uppercase;letter-spacing:.04em}
+.badge.open{background:var(--bbg);color:var(--blue)}
+.badge.amber{background:var(--abg);color:var(--amber);border:1px solid #fde68a}
+.badge.investigation{background:var(--pbg);color:var(--purple)}
+.badge.pendingsignoff{background:var(--gbg);color:var(--green);border:1px solid #a7f3d0}
+.badge.closed{background:var(--gbg);color:var(--green)}
+.age{font-size:11px;color:var(--text3);margin-left:auto}
+
+.card-body{padding:0 14px 12px}
+.source-line{font-size:13px;font-weight:600;margin-bottom:3px}
+.source-tag{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px;background:var(--bg4);border:1px solid var(--border2);color:var(--text2);margin-right:5px}
+.cat{font-size:12px;color:var(--text2);margin-bottom:5px}
+.desc{font-size:13px;line-height:1.4;margin-bottom:6px}
+.meta{font-size:11px;color:var(--text3);display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+
+/* ISO callouts */
+.iso-flag{position:relative}
+.iso-flag::after{content:attr(data-iso);position:absolute;right:-2px;top:-8px;font-size:9px;font-weight:700;background:var(--red);color:#fff;padding:1px 5px;border-radius:8px;letter-spacing:.04em}
+.iso-note{display:inline-block;font-size:10px;font-weight:700;color:#fff;background:var(--red);padding:2px 7px;border-radius:8px;margin-left:6px;letter-spacing:.03em}
+.iso-note.ok{background:var(--green)}
+
+/* New blocks */
+.section-block{margin-top:10px;padding:10px 12px;border-radius:8px;background:var(--bg3);border:1px solid var(--border)}
+.section-block .lab{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:5px}
+.section-block .val{font-size:12px;color:var(--text);font-weight:500}
+.section-block.disposition{background:#fffaf0;border-color:#fde68a}
+.section-block.containment{background:#f0f9ff;border-color:#bae6fd}
+.section-block.investigation{background:var(--pbg);border-color:#ddd6fe}
+.section-block.signoff{background:var(--gbg);border-color:#a7f3d0}
+.section-block.ecr{background:#fef3c7;border-color:#fde68a}
+
+.foot-btn{display:block;width:100%;padding:11px;border:none;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;border-top:1.5px solid var(--border)}
+.foot-btn.triage{background:var(--bbg);color:var(--blue)}
+.foot-btn.assign{background:var(--pbg);color:var(--purple)}
+.foot-btn.investigate{background:var(--abg);color:var(--amber)}
+.foot-btn.signoff{background:var(--gbg);color:var(--green)}
+.foot-btn.print{background:var(--bg4);color:var(--text2)}
+
+/* Triage modal mockup */
+.triage-card{border-radius:12px;background:var(--bg2);border:1.5px solid var(--border);padding:18px;margin-bottom:14px}
+.triage-head{font-size:15px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.triage-options{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px}
+.triage-opt{padding:14px 10px;border-radius:8px;border:1.5px solid var(--border2);background:var(--bg3);cursor:pointer;text-align:center;font-size:11px;font-weight:600}
+.triage-opt.selected.close{border-color:var(--green);background:var(--gbg);color:var(--green)}
+.triage-opt.selected.assign{border-color:var(--purple);background:var(--pbg);color:var(--purple)}
+.triage-opt.selected.reject{border-color:var(--red);background:var(--rbg);color:var(--red)}
+.triage-opt .ico{font-size:20px;display:block;margin-bottom:4px}
+
+.assign-row{display:flex;gap:8px;margin-top:10px;padding:12px;background:var(--pbg);border-radius:8px;border:1px solid #ddd6fe}
+.assign-pill{padding:8px 14px;border-radius:6px;background:#fff;border:1.5px solid var(--purple);color:var(--purple);font-weight:700;font-size:12px;cursor:pointer}
+.assign-pill.selected{background:var(--purple);color:#fff}
+
+/* Sign-off block */
+.signoff-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px}
+.signoff-line{padding:10px;background:var(--bg2);border-radius:6px;border:1px dashed var(--border2)}
+.signoff-line .lab{font-size:9px;font-weight:700;text-transform:uppercase;color:var(--text3);margin-bottom:4px}
+.signoff-line .val{font-size:12px;font-weight:600}
+
+/* Queue cards */
+.queue-strip{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.queue-stat{padding:10px 16px;background:#fff;border:1.5px solid var(--border);border-radius:8px;min-width:140px}
+.queue-stat .num{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700}
+.queue-stat .lab{font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text3);letter-spacing:.04em;margin-top:1px}
+.queue-stat.review{border-left:4px solid var(--blue)}
+.queue-stat.investigation{border-left:4px solid var(--purple)}
+.queue-stat.pending{border-left:4px solid var(--amber)}
+.queue-stat.overdue{border-left:4px solid var(--red);background:var(--rbg)}
+
+.tab-row{display:flex;gap:6px;margin-bottom:14px;border-bottom:1.5px solid var(--border)}
+.tab{padding:9px 14px;font-size:12px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)}
+.tab.active{color:var(--text);border-bottom-color:var(--navy)}
+.tab .badge-mini{display:inline-block;padding:1px 7px;border-radius:10px;background:var(--red);color:#fff;font-size:10px;margin-left:5px}
+
+/* Printable NCR */
+.ncr-print{background:#fff;padding:32px 36px;max-width:760px;margin:0 auto;border:1px solid var(--border);box-shadow:0 4px 16px rgba(0,0,0,.06);font-size:12px}
+.ncr-print .logo-row{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid var(--navy);padding-bottom:10px;margin-bottom:16px}
+.ncr-print .logo{font-size:22px;font-weight:800;color:var(--navy);letter-spacing:-.5px}
+.ncr-print .logo-sub{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.1em}
+.ncr-print .doc-title{text-align:center;font-size:15px;font-weight:700;margin-bottom:14px;text-transform:uppercase;letter-spacing:.08em}
+.ncr-print table{width:100%;border-collapse:collapse;margin-bottom:14px}
+.ncr-print td{border:1px solid #999;padding:6px 8px;vertical-align:top}
+.ncr-print .lab{background:#f0f4f8;font-weight:700;font-size:10px;text-transform:uppercase;color:#444;letter-spacing:.04em;width:18%}
+.ncr-print .val{font-size:12px;font-weight:500}
+.ncr-print .full-cell{padding:10px;min-height:70px}
+.ncr-print h4{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;background:var(--navy);color:#fff;padding:5px 8px;margin:10px 0 0}
+.ncr-print .cause-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:0}
+.ncr-print .cause-cell{border:1px solid #999;padding:6px 8px;font-size:11px;display:flex;align-items:center;gap:6px}
+.ncr-print .check{display:inline-block;width:14px;height:14px;border:1.5px solid #555;text-align:center;line-height:13px;font-size:11px;font-weight:700}
+.ncr-print .check.tick{background:var(--navy);color:#fff;border-color:var(--navy)}
+.ncr-print .signature{padding:10px;display:grid;grid-template-columns:1fr 1fr;gap:14px;border:1px solid #999;margin-top:6px}
+.ncr-print .sig-line{font-size:11px}
+.ncr-print .sig-line .nm{font-weight:600;border-bottom:1px solid #333;padding-bottom:14px;display:block}
+.ncr-print .sig-line .lb{font-size:9px;color:#555;margin-top:3px;text-transform:uppercase;letter-spacing:.06em}
+.ncr-print .footer{font-size:9px;color:#777;margin-top:16px;border-top:1px solid #ccc;padding-top:6px;display:flex;justify-content:space-between}
+
+/* Toolbar */
+.export-bar{display:flex;gap:8px;padding:10px 14px;background:#fff;border:1.5px solid var(--border);border-radius:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+.btn{padding:8px 14px;border-radius:7px;border:1.5px solid var(--border2);background:#fff;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;color:var(--text2)}
+.btn.primary{background:var(--navy);color:#fff;border-color:var(--navy)}
+.btn.export{background:var(--green);color:#fff;border-color:var(--green)}
+.btn.print{background:var(--bg4)}
+
+.note{padding:10px 14px;background:var(--abg);border-left:4px solid var(--amber);border-radius:6px;font-size:13px;margin-bottom:14px}
+.note.ok{background:var(--gbg);border-left-color:var(--green)}
+
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--text3);margin-top:8px}
+.legend-item{display:flex;align-items:center;gap:5px}
+.legend-dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+
+/* Pipeline diagram */
+.pipeline{display:flex;align-items:stretch;gap:0;background:#fff;border:1.5px solid var(--border);border-radius:12px;padding:16px;overflow-x:auto;margin-bottom:14px}
+.stage{flex:1;min-width:140px;text-align:center;padding:14px 10px;position:relative}
+.stage:not(:last-child)::after{content:'→';position:absolute;right:-8px;top:50%;transform:translateY(-50%);font-size:24px;color:var(--border2);z-index:1}
+.stage .ico{font-size:24px;margin-bottom:6px}
+.stage .nm{font-size:12px;font-weight:700;margin-bottom:2px}
+.stage .who{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.04em}
+.stage .iso{font-size:9px;font-weight:700;background:var(--gbg);color:var(--green);padding:2px 6px;border-radius:8px;margin-top:5px;display:inline-block}
+
+@media (max-width:900px){.split{grid-template-columns:1fr}.triage-options{grid-template-columns:1fr}.signoff-row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<h1>CPAR Redesign — Visual Comparison</h1>
+<p class="lead">Approach 2: Lifecycle + dedicated Triage view. ISO 9001 §8.7 + §10.2 evidence trail, NCR-style print, bulk register export.</p>
+
+<div class="note">
+  <strong>How to read this page:</strong> Red <span class="iso-note">§8.7</span> tags mark ISO 9001 clauses currently missing from CPAR. Green <span class="iso-note ok">§ ok</span> marks fields the redesign satisfies. Hover any block for details.
+</div>
+
+<!-- ─────────────────────────────────────────────── -->
+<h2>1. Workflow pipeline</h2>
+<p class="section-sub">Stages a CPAR moves through. Red border = where it sits today; everything purple/green is new.</p>
+
+<div class="pipeline">
+  <div class="stage">
+    <div class="ico">📝</div>
+    <div class="nm">Raised</div>
+    <div class="who">Operator (floor)</div>
+    <div class="iso">existing</div>
+  </div>
+  <div class="stage" style="background:var(--bbg);border-radius:8px">
+    <div class="ico">🔍</div>
+    <div class="nm">QHSE Review</div>
+    <div class="who">Jonas (you)</div>
+    <div class="iso">NEW · §10.2</div>
+  </div>
+  <div class="stage" style="background:var(--pbg);border-radius:8px">
+    <div class="ico">🔧</div>
+    <div class="nm">Investigation</div>
+    <div class="who">Mark or Gareth</div>
+    <div class="iso">NEW · §10.2</div>
+  </div>
+  <div class="stage" style="background:var(--abg);border-radius:8px">
+    <div class="ico">✏️</div>
+    <div class="nm">Action Recorded</div>
+    <div class="who">PE / Dept Manager</div>
+    <div class="iso">NEW · §8.7</div>
+  </div>
+  <div class="stage" style="background:var(--gbg);border-radius:8px">
+    <div class="ico">✓</div>
+    <div class="nm">Closed</div>
+    <div class="who">Jonas final sign-off</div>
+    <div class="iso">existing+evidence</div>
+  </div>
+</div>
+
+<p class="section-sub" style="margin-top:8px">Branch: when triage = "no investigation needed" (typo, dupe, trivial), Jonas closes directly — skipping Investigation stage. Branch: when investigation = "Template/Spec issue", PE is told to raise an ECR — they email <code>ECR@prismmedical.co.uk</code>, paste the returned ECR ref into the CPAR, then close.</p>
+
+
+<!-- ─────────────────────────────────────────────── -->
+<h2>2. CPAR card — current vs proposed</h2>
+<p class="section-sub">Same CPAR (RP-03600 — Upholstery, staple sticking out of OSB) shown two ways.</p>
+
+<div class="split">
+  <!-- ─── CURRENT ─── -->
+  <div>
+    <div class="col-label">Current <span class="pill now">on RepNet now</span></div>
+
+    <div class="cpar-card status-open">
+      <div class="card-head">
+        <span class="ref">RP-03600</span>
+        <span class="badge open">Open</span>
+        <span class="age">2h ago</span>
+      </div>
+      <div class="card-body">
+        <div class="source-line">
+          <span class="source-tag">Upholstery</span>
+          Upholstery
+        </div>
+        <div class="cat">Poor Upholstery/Finish — Arms</div>
+        <div class="desc">Staple sticking out of OSB.</div>
+        <div class="meta">
+          <span>REP-23145 · Job 22 · Scroll Arm</span>
+          <span>QTY 1</span>
+        </div>
+      </div>
+      <button class="foot-btn signoff">Close Out Issue ▼</button>
+    </div>
+
+    <h3 style="margin-top:14px">What's missing for ISO 9001</h3>
+    <ul style="font-size:12px;line-height:1.7;color:var(--text2);padding-left:18px">
+      <li><strong>No disposition</strong> — was the part scrapped, reworked, used as-is, returned? <span class="iso-note">§8.7.1</span></li>
+      <li><strong>No containment</strong> — what was done to stop more bad ones reaching next stage? <span class="iso-note">§8.7.1</span></li>
+      <li><strong>No investigation owner</strong> — who looked at it? <span class="iso-note">§10.2.1 b</span></li>
+      <li><strong>No segregation of duties</strong> — same person who did rework also signs it off <span class="iso-note">§10.2.1</span></li>
+      <li><strong>No effectiveness check</strong> <span class="iso-note">§10.2.1 e</span></li>
+      <li><strong>No printable record</strong> for physical job folder / audit pack</li>
+      <li><strong>No bulk register export</strong> for management review meetings</li>
+    </ul>
+  </div>
+
+  <!-- ─── PROPOSED ─── -->
+  <div>
+    <div class="col-label">Proposed <span class="pill new">redesign</span></div>
+
+    <div class="cpar-card status-investigation">
+      <div class="card-head">
+        <span class="ref">RP-03600</span>
+        <span class="badge investigation">Investigation</span>
+        <span class="age">2h ago · 28h to SLA</span>
+      </div>
+      <div class="card-body">
+        <div class="source-line">
+          <span class="source-tag">Upholstery Arms</span>
+          Upholstery
+        </div>
+        <div class="cat">Poor Upholstery/Finish — Arms</div>
+        <div class="desc">Staple sticking out of OSB.</div>
+        <div class="meta">
+          <span>REP-23145 · Job 22 · Scroll Arm</span>
+          <span>QTY 1</span>
+          <span>Raised by D. Seymour</span>
+        </div>
+
+        <!-- NEW: QHSE triage -->
+        <div class="section-block" style="margin-top:10px">
+          <div class="lab">🔍 QHSE Triage <span class="iso-note ok">§10.2 ok</span></div>
+          <div class="val">Routed for investigation by <strong>Jonas Simonaitis</strong> · 27/04/2026 09:14</div>
+        </div>
+
+        <!-- NEW: Containment -->
+        <div class="section-block containment">
+          <div class="lab">🛑 Containment Action <span class="iso-note ok">§8.7.1 ok</span></div>
+          <div class="val">Job quarantined at upholstery — adjacent jobs in batch checked, none affected.</div>
+        </div>
+
+        <!-- NEW: Investigation owner -->
+        <div class="section-block investigation">
+          <div class="lab">🔧 Assigned to Production Engineer</div>
+          <div class="val"><strong>Mark Staniland</strong> · investigating · started 27/04 09:20</div>
+        </div>
+      </div>
+      <button class="foot-btn investigate">View / Continue Investigation ▼</button>
+    </div>
+
+    <h3 style="margin-top:14px">Closed-state view (after sign-off)</h3>
+
+    <div class="cpar-card status-closed">
+      <div class="card-head">
+        <span class="ref">RP-03600</span>
+        <span class="badge closed">✓ Closed</span>
+        <span class="age">closed 28/04 · 1d 6h</span>
+      </div>
+      <div class="card-body">
+        <div class="source-line">
+          <span class="source-tag">Upholstery Arms</span>
+          Upholstery
+        </div>
+        <div class="desc">Staple sticking out of OSB.</div>
+
+        <div class="section-block disposition">
+          <div class="lab">📦 Disposition <span class="iso-note ok">§8.7.1 ok</span></div>
+          <div class="val"><strong>Reworked</strong> — staple removed, area sanded and re-upholstered. Job released to Assembly.</div>
+        </div>
+
+        <div class="section-block investigation">
+          <div class="lab">🔍 Root Cause</div>
+          <div class="val"><strong>Human Error</strong> — operator using worn stapler, missed removal step.</div>
+        </div>
+
+        <div class="section-block">
+          <div class="lab">✏️ Corrective Action</div>
+          <div class="val">Stapler replaced. Tool-check added to start-of-shift checklist. Operator briefed.</div>
+        </div>
+
+        <div class="section-block ecr" style="display:none">
+          <div class="lab">📐 Linked ECR</div>
+          <div class="val">ECR-191 raised with Prism Engineering — 27/04/2026</div>
+        </div>
+
+        <div class="section-block signoff">
+          <div class="lab">✅ Sign-Off Trail <span class="iso-note ok">§10.2 ok</span></div>
+          <div class="signoff-row" style="margin-top:6px">
+            <div class="signoff-line"><div class="lab">Investigated by</div><div class="val">Mark Staniland · 27/04 14:32</div></div>
+            <div class="signoff-line"><div class="lab">Closed by (QHSE)</div><div class="val">Jonas Simonaitis · 28/04 16:10</div></div>
+          </div>
+        </div>
+      </div>
+      <button class="foot-btn print">🖨 Print Non-Conformance Report (PDF)</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ─────────────────────────────────────────────── -->
+<h2>3. New views — manager-only</h2>
+<p class="section-sub">Lives behind the existing Stats password gate, accessible from a new "Quality" tab. Floor staff don't see it.</p>
+
+<h3>3a. QHSE Triage queue (your view)</h3>
+
+<div class="queue-strip">
+  <div class="queue-stat review"><div class="num">7</div><div class="lab">Awaiting your review</div></div>
+  <div class="queue-stat investigation"><div class="num">12</div><div class="lab">Out for investigation</div></div>
+  <div class="queue-stat pending"><div class="num">3</div><div class="lab">Awaiting your sign-off</div></div>
+  <div class="queue-stat overdue"><div class="num">2</div><div class="lab">Overdue (&gt;5 days)</div></div>
+</div>
+
+<div class="tab-row">
+  <div class="tab active">To Review <span class="badge-mini">7</span></div>
+  <div class="tab">Investigating</div>
+  <div class="tab">Sign-Off</div>
+  <div class="tab">All Open</div>
+  <div class="tab">Register</div>
+</div>
+
+<div class="triage-card">
+  <div class="triage-head">
+    <span class="ref">RP-03601</span>
+    <span class="badge open">New</span>
+    <span style="margin-left:auto;font-size:11px;color:var(--text3)">raised 12 min ago by Dan S.</span>
+  </div>
+  <div style="font-size:13px;margin-bottom:6px"><strong>Cutting · Cut wrong/uneven — Back Section</strong></div>
+  <div style="font-size:13px;color:var(--text2);margin-bottom:14px">REP-23147 · Job 18 · Mocara · QTY 2 — "Lining cut 30mm short on backs, both pieces in batch."</div>
+
+  <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);margin-bottom:6px">Triage decision</div>
+  <div class="triage-options">
+    <div class="triage-opt selected close">
+      <div class="ico">⚡</div>
+      Close directly<br><span style="font-weight:400;font-size:10px;color:var(--text3)">No investigation — trivial / dup</span>
+    </div>
+    <div class="triage-opt selected assign">
+      <div class="ico">🔧</div>
+      Assign to PE<br><span style="font-weight:400;font-size:10px;color:var(--text3)">Needs investigation</span>
+    </div>
+    <div class="triage-opt">
+      <div class="ico">⏸</div>
+      Hold / merge<br><span style="font-weight:400;font-size:10px;color:var(--text3)">Wait for related issue</span>
+    </div>
+  </div>
+
+  <div class="assign-row">
+    <span style="font-size:11px;font-weight:700;color:var(--purple);text-transform:uppercase">Assign to:</span>
+    <span class="assign-pill selected">Mark Staniland</span>
+    <span class="assign-pill">Gareth Stringer</span>
+    <span style="margin-left:auto;font-size:11px;color:var(--text2)">SLA: <strong>30 hrs</strong></span>
+  </div>
+</div>
+
+<h3 style="margin-top:24px">3b. Production Engineer view (Mark/Gareth's view)</h3>
+
+<div class="triage-card">
+  <div class="triage-head">
+    <span class="ref">RP-03600</span>
+    <span class="badge investigation">Investigation · assigned to me</span>
+    <span style="margin-left:auto;font-size:11px;color:var(--text3)">28h to SLA</span>
+  </div>
+  <div style="font-size:13px;margin-bottom:6px"><strong>Upholstery · Poor Upholstery/Finish — Arms</strong></div>
+  <div style="font-size:13px;color:var(--text2);margin-bottom:14px">REP-23145 · Job 22 · Scroll Arm — "Staple sticking out of OSB."</div>
+
+  <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);margin-bottom:6px">Investigation outcome</div>
+  <div class="triage-options" style="grid-template-columns:1fr 1fr">
+    <div class="triage-opt selected close" style="grid-column:span 1">
+      <div class="ico">👤</div>
+      Human Error<br><span style="font-weight:400;font-size:10px;color:var(--text3)">Training / corrective action</span>
+    </div>
+    <div class="triage-opt" style="grid-column:span 1">
+      <div class="ico">📐</div>
+      Template / Spec Issue<br><span style="font-weight:400;font-size:10px;color:var(--text3)">→ Raise ECR</span>
+    </div>
+  </div>
+
+  <div style="margin-top:12px;padding:12px;background:var(--abg);border-radius:8px;border:1px solid #fde68a;display:none" id="ecr-prompt">
+    <div style="font-size:12px;font-weight:700;color:var(--amber);margin-bottom:6px">📐 Raise ECR</div>
+    <div style="font-size:12px;margin-bottom:8px">Template/spec issue — please raise an Engineering Change Request to <code>ECR@prismmedical.co.uk</code>.</div>
+    <button class="btn" style="background:var(--amber);color:#fff;border-color:var(--amber)">📧 Open pre-filled email to ECR team</button>
+    <input type="text" placeholder="Paste returned ECR ref (e.g. ECR-191)" style="margin-top:8px;width:100%;padding:8px 10px;border:1.5px solid #fde68a;border-radius:6px;font-family:'JetBrains Mono',monospace">
+  </div>
+</div>
+
+<!-- ─────────────────────────────────────────────── -->
+<h2>4. Printable Non-Conformance Report (single CPAR)</h2>
+<p class="section-sub">A4 portrait, fits on one page, mirrors the Excel "NCR Report" sheet. Generated client-side as PDF via window.print() — no extra library needed.</p>
+
+<div class="export-bar">
+  <span style="font-size:12px;font-weight:600;color:var(--text2)">Export options:</span>
+  <button class="btn print">🖨 Print this CPAR (NCR form)</button>
+  <button class="btn export">📊 Export Register (xlsx)</button>
+  <select class="btn" style="font-family:inherit">
+    <option>Date range: Last 30 days</option>
+    <option>Last 90 days</option>
+    <option>This year</option>
+    <option>Custom range…</option>
+  </select>
+  <select class="btn"><option>All teams</option></select>
+</div>
+
+<div class="ncr-print">
+  <div class="logo-row">
+    <div>
+      <div class="logo">Repose Furniture</div>
+      <div class="logo-sub">Quality Management System</div>
+    </div>
+    <div style="text-align:right;font-size:10px;color:var(--text3)">
+      <div><strong>Doc:</strong> PHCF-NCR-001</div>
+      <div><strong>Issue:</strong> 2 · Apr 2026</div>
+      <div><strong>Page:</strong> 1 of 1</div>
+    </div>
+  </div>
+
+  <div class="doc-title">Non-Conforming Job Note</div>
+
+  <table>
+    <tr><td class="lab">REF</td><td class="val" colspan="3" style="font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--navy)">RP-03600</td></tr>
+    <tr><td class="lab">Date Raised</td><td class="val">27/04/2026 09:08</td><td class="lab">Raised by</td><td class="val">Daniel Seymour (Upholstery)</td></tr>
+    <tr><td class="lab">Department</td><td class="val">Upholstery — Arms</td><td class="lab">Job Ref</td><td class="val">REP-23145 · Job 22</td></tr>
+    <tr><td class="lab">Model</td><td class="val">Scroll Arm</td><td class="lab">QTY Affected</td><td class="val">1</td></tr>
+    <tr><td class="lab">Source / Cat.</td><td class="val" colspan="3">Upholstery → Poor Upholstery/Finish — Arms</td></tr>
+  </table>
+
+  <h4>Concern / Issue / Fault</h4>
+  <table><tr><td class="full-cell">Staple sticking out of OSB on inner panel of right-hand scroll arm. Identified at upholstery, before assembly. Risk of injury to operator and damage to leather covering.</td></tr></table>
+
+  <h4>Containment Action <span style="font-size:9px;font-weight:400;background:none;color:#fff8e6;margin-left:6px">§8.7.1</span></h4>
+  <table><tr><td class="full-cell">Job quarantined at upholstery. Adjacent jobs in batch (REP-23146, 23148) inspected — no further occurrences.</td></tr></table>
+
+  <h4>Disposition</h4>
+  <table>
+    <tr>
+      <td class="cause-cell"><span class="check tick">✓</span> Reworked</td>
+      <td class="cause-cell"><span class="check"></span> Scrapped</td>
+      <td class="cause-cell"><span class="check"></span> Use-as-is (concession)</td>
+    </tr>
+    <tr>
+      <td class="cause-cell"><span class="check"></span> Returned to supplier</td>
+      <td class="cause-cell" colspan="2"><span class="check"></span> Other: ____</td>
+    </tr>
+  </table>
+
+  <h4>Possible Root Cause (one ticked)</h4>
+  <div class="cause-grid">
+    <div class="cause-cell"><span class="check tick">✓</span> Human Error</div>
+    <div class="cause-cell"><span class="check"></span> Design / Spec Error</div>
+    <div class="cause-cell"><span class="check"></span> Machine / Equipment Failure</div>
+    <div class="cause-cell"><span class="check"></span> Process / Procedure Issue</div>
+    <div class="cause-cell"><span class="check"></span> Measurement / Template Error</div>
+    <div class="cause-cell"><span class="check"></span> Material Defect</div>
+  </div>
+
+  <h4>Investigation Findings & Corrective Action</h4>
+  <table><tr><td class="full-cell">Operator was using a stapler with a worn driver — last few staples in cartridge driven inconsistently and one missed the removal step. Stapler replaced (out of service for sharpening). Tool-check added to start-of-shift checklist for upholstery arms. Operator briefed during morning meeting 28/04. Photo of replacement entry in checklist on file.</td></tr></table>
+
+  <h4>Linked ECR (if Template/Spec issue)</h4>
+  <table><tr><td class="full-cell" style="font-family:'JetBrains Mono',monospace;color:#777">— N/A —</td></tr></table>
+
+  <h4>Sign-Off</h4>
+  <div class="signature">
+    <div class="sig-line"><span class="nm">Mark Staniland</span><span class="lb">Production Engineer · Investigated · 27/04/2026 14:32</span></div>
+    <div class="sig-line"><span class="nm">Jonas Simonaitis</span><span class="lb">QHSE Manager · Approved &amp; Closed · 28/04/2026 16:10</span></div>
+  </div>
+
+  <div class="footer">
+    <span>Generated from RepNet · CPARLog/RP-03600</span>
+    <span>Retention: 7 years per ISO 9001 §7.5</span>
+  </div>
+</div>
+
+
+<!-- ─────────────────────────────────────────────── -->
+<h2>5. Bulk register export — what you'd open in Excel</h2>
+<p class="section-sub">Single Excel/CSV file. One row per CPAR. Columns chosen to match what auditors and management review meetings ask for.</p>
+
+<div style="background:#fff;border:1.5px solid var(--border);border-radius:10px;padding:14px;overflow-x:auto;font-size:11px">
+<table style="width:100%;border-collapse:collapse;min-width:1100px">
+<thead>
+  <tr style="background:var(--navy);color:#fff">
+    <th style="padding:7px;text-align:left">REF</th>
+    <th style="padding:7px;text-align:left">Date Raised</th>
+    <th style="padding:7px;text-align:left">Raised By</th>
+    <th style="padding:7px;text-align:left">Source Dept</th>
+    <th style="padding:7px;text-align:left">Category</th>
+    <th style="padding:7px;text-align:left">Job Ref</th>
+    <th style="padding:7px;text-align:right">QTY</th>
+    <th style="padding:7px;text-align:left">Description</th>
+    <th style="padding:7px;text-align:left">Triaged By / At</th>
+    <th style="padding:7px;text-align:left">Investigator</th>
+    <th style="padding:7px;text-align:left">Disposition</th>
+    <th style="padding:7px;text-align:left">Root Cause</th>
+    <th style="padding:7px;text-align:left">Corrective Action</th>
+    <th style="padding:7px;text-align:left">ECR Ref</th>
+    <th style="padding:7px;text-align:left">Closed By / At</th>
+    <th style="padding:7px;text-align:right">Days Open</th>
+    <th style="padding:7px;text-align:left">Status</th>
+  </tr>
+</thead>
+<tbody>
+  <tr style="border-bottom:1px solid var(--border)">
+    <td style="padding:6px;font-family:monospace;font-weight:700">RP-03600</td>
+    <td style="padding:6px">27/04/2026 09:08</td>
+    <td style="padding:6px">D. Seymour</td>
+    <td style="padding:6px">Upholstery Arms</td>
+    <td style="padding:6px">Poor Upholstery/Finish</td>
+    <td style="padding:6px;font-family:monospace">REP-23145/22</td>
+    <td style="padding:6px;text-align:right">1</td>
+    <td style="padding:6px">Staple sticking out…</td>
+    <td style="padding:6px">J. Simonaitis · 09:14</td>
+    <td style="padding:6px">M. Staniland</td>
+    <td style="padding:6px">Reworked</td>
+    <td style="padding:6px">Human Error</td>
+    <td style="padding:6px">Stapler replaced; checklist added</td>
+    <td style="padding:6px;color:var(--text3)">—</td>
+    <td style="padding:6px">J. Simonaitis · 28/04 16:10</td>
+    <td style="padding:6px;text-align:right">1.3</td>
+    <td style="padding:6px"><span class="badge closed">Closed</span></td>
+  </tr>
+  <tr style="border-bottom:1px solid var(--border);background:#fafbfc">
+    <td style="padding:6px;font-family:monospace;font-weight:700">RP-03601</td>
+    <td style="padding:6px">27/04/2026 11:42</td>
+    <td style="padding:6px">D. Seymour</td>
+    <td style="padding:6px">Cutting</td>
+    <td style="padding:6px">Cut wrong/uneven</td>
+    <td style="padding:6px;font-family:monospace">REP-23147/18</td>
+    <td style="padding:6px;text-align:right">2</td>
+    <td style="padding:6px">Lining cut 30mm short…</td>
+    <td style="padding:6px;color:var(--text3)">— pending —</td>
+    <td style="padding:6px;color:var(--text3)">—</td>
+    <td style="padding:6px;color:var(--text3)">—</td>
+    <td style="padding:6px;color:var(--text3)">—</td>
+    <td style="padding:6px;color:var(--text3)">—</td>
+    <td style="padding:6px;color:var(--text3)">—</td>
+    <td style="padding:6px;color:var(--text3)">—</td>
+    <td style="padding:6px;text-align:right">0.1</td>
+    <td style="padding:6px"><span class="badge open">Open</span></td>
+  </tr>
+  <tr style="border-bottom:1px solid var(--border)">
+    <td style="padding:6px;font-family:monospace;font-weight:700">RP-03598</td>
+    <td style="padding:6px">25/04/2026 14:30</td>
+    <td style="padding:6px">P. Jenkins</td>
+    <td style="padding:6px">Woodmill</td>
+    <td style="padding:6px">Back Error — Wrong D-nut holes</td>
+    <td style="padding:6px;font-family:monospace">REP-23120/05</td>
+    <td style="padding:6px;text-align:right">4</td>
+    <td style="padding:6px">D-nut positions 12mm…</td>
+    <td style="padding:6px">J. Simonaitis · 25/04 14:55</td>
+    <td style="padding:6px">G. Stringer</td>
+    <td style="padding:6px">Reworked + use-as-is</td>
+    <td style="padding:6px">Template Error</td>
+    <td style="padding:6px">Template revised, drawings updated</td>
+    <td style="padding:6px;font-family:monospace;font-weight:700;color:var(--amber)">ECR-189</td>
+    <td style="padding:6px">J. Simonaitis · 27/04 10:15</td>
+    <td style="padding:6px;text-align:right">1.8</td>
+    <td style="padding:6px"><span class="badge closed">Closed</span></td>
+  </tr>
+</tbody>
+</table>
+</div>
+
+
+<!-- ─────────────────────────────────────────────── -->
+<h2>6. ISO 9001 clauses covered</h2>
+<div style="background:#fff;border:1.5px solid var(--border);border-radius:10px;padding:14px">
+<table style="width:100%;border-collapse:collapse;font-size:13px">
+  <thead>
+    <tr style="background:var(--bg4)">
+      <th style="padding:8px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text3)">Clause</th>
+      <th style="padding:8px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text3)">Requirement</th>
+      <th style="padding:8px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text3)">Where it lives in the redesign</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr style="border-bottom:1px solid var(--border)"><td style="padding:8px;font-weight:700">8.7.1</td><td style="padding:8px">Identify &amp; control non-conforming output to prevent unintended use</td><td style="padding:8px"><strong>Containment Action</strong> field + status workflow keeps job out of next stage until disposition</td></tr>
+    <tr style="border-bottom:1px solid var(--border)"><td style="padding:8px;font-weight:700">8.7.1 a–d</td><td style="padding:8px">Disposition options (correct, segregate, return, etc.)</td><td style="padding:8px"><strong>Disposition</strong> field — Reworked / Scrapped / Use-as-is / Returned / Other</td></tr>
+    <tr style="border-bottom:1px solid var(--border)"><td style="padding:8px;font-weight:700">8.7.2</td><td style="padding:8px">Documented information on actions taken &amp; authority approving</td><td style="padding:8px">Two-name <strong>sign-off trail</strong> (PE + QHSE), stored in CPARLog SP list, exportable to PDF/xlsx</td></tr>
+    <tr style="border-bottom:1px solid var(--border)"><td style="padding:8px;font-weight:700">10.2.1 a</td><td style="padding:8px">React to nonconformity, contain, deal with consequences</td><td style="padding:8px">QHSE Triage stage — Jonas reviews every CPAR within SLA</td></tr>
+    <tr style="border-bottom:1px solid var(--border)"><td style="padding:8px;font-weight:700">10.2.1 b</td><td style="padding:8px">Evaluate need for action to eliminate cause</td><td style="padding:8px">Investigation stage — assigned to a named PE (Mark or Gareth)</td></tr>
+    <tr style="border-bottom:1px solid var(--border)"><td style="padding:8px;font-weight:700">10.2.1 c</td><td style="padding:8px">Implement action needed</td><td style="padding:8px"><strong>Corrective Action</strong> field — including ECR raise for spec issues</td></tr>
+    <tr style="border-bottom:1px solid var(--border)"><td style="padding:8px;font-weight:700">10.2.1 d</td><td style="padding:8px">Update risks and opportunities if necessary</td><td style="padding:8px">Linked ECR (Engineering Change Request) ref captured back to CPAR</td></tr>
+    <tr><td style="padding:8px;font-weight:700">10.2.2</td><td style="padding:8px">Retain documented information as evidence</td><td style="padding:8px">CPARLog SharePoint list (already exists); PDF print-out attached to physical job folder</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p style="font-size:12px;color:var(--text3);margin-top:14px"><strong>Not covered yet (deferred to Approach 3 / phase 2):</strong> §10.2.1 e — review effectiveness of corrective action after N days. Could add a "30-day re-check" prompt later.</p>
+
+
+<!-- ─────────────────────────────────────────────── -->
+<h2>7. Data model — new SharePoint columns needed</h2>
+<div style="background:#fff;border:1.5px solid var(--border);border-radius:10px;padding:14px;font-size:13px">
+<p style="margin-bottom:10px">Existing CPARLog columns reused as-is. <strong>New columns to add:</strong></p>
+<table style="width:100%;font-size:12px;border-collapse:collapse">
+  <thead><tr style="background:var(--bg4)">
+    <th style="padding:6px;text-align:left">Column</th>
+    <th style="padding:6px;text-align:left">Type</th>
+    <th style="padding:6px;text-align:left">Purpose</th>
+  </tr></thead>
+  <tbody>
+    <tr style="border-bottom:1px solid var(--border)"><td style="padding:6px"><code>TriagedBy</code> / <code>TriagedAt</code></td><td style="padding:6px">Person + DateTime</td><td style="padding:6px">QHSE review timestamp</td></tr>
+    <tr style="border-bottom:1px solid var(--border)"><td style="padding:6px"><code>InvestigatorAssigned</code></td><td style="padding:6px">Choice (Mark/Gareth)</td><td style="padding:6px">Production Engineer owner</td></tr>
+    <tr style="border-bottom:1px solid var(--border)"><td style="padding:6px"><code>InvestigatedBy</code> / <code>InvestigatedAt</code></td><td style="padding:6px">Person + DateTime</td><td style="padding:6px">Investigation completion</td></tr>
+    <tr style="border-bottom:1px solid var(--border)"><td style="padding:6px"><code>Containment</code></td><td style="padding:6px">Multi-line text</td><td style="padding:6px">What was done to stop spread (§8.7.1)</td></tr>
+    <tr style="border-bottom:1px solid var(--border)"><td style="padding:6px"><code>Disposition</code></td><td style="padding:6px">Choice</td><td style="padding:6px">Rework / Scrap / Use-as-is / Return / Other</td></tr>
+    <tr style="border-bottom:1px solid var(--border)"><td style="padding:6px"><code>DispositionNotes</code></td><td style="padding:6px">Multi-line text</td><td style="padding:6px">Free text qualifier on disposition</td></tr>
+    <tr style="border-bottom:1px solid var(--border)"><td style="padding:6px"><code>ECRRef</code></td><td style="padding:6px">Single-line text</td><td style="padding:6px">e.g. ECR-191 (free text — no FK constraint, ECR module is later)</td></tr>
+    <tr style="border-bottom:1px solid var(--border)"><td style="padding:6px"><code>ClosedAt</code></td><td style="padding:6px">DateTime</td><td style="padding:6px">Final QHSE close timestamp (already have <code>ClosedBy</code>)</td></tr>
+    <tr><td style="padding:6px"><code>Status</code> values</td><td style="padding:6px">Choice (extended)</td><td style="padding:6px">Open · Triaged-Direct · Investigation · Action-Recorded · Closed</td></tr>
+  </tbody>
+</table>
+<p style="margin-top:10px;font-size:11px;color:var(--text3)">All fields are additive. Historical CPARs (12k existing) keep working — they'll show as "Closed" with empty new fields, exactly as today.</p>
+</div>
+
+</body>
+</html>
