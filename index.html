@@ -5736,12 +5736,18 @@ async function deleteCompletionFromList(team, sub, wk, prep, ji) {
 
 // Completions refresh — runs every 1 minute
 async function refreshCompletions() {
+  // Skip when tab is hidden — TV display is the only "always visible" use case,
+  // and if the user is off the page we don't need fresh data right now.
+  if (document.hidden) return;
+  // Skip when Graph is in cooldown — adding more requests just extends the punishment window.
+  if (_isGraphThrottled()) return;
   await loadCompletionsFromList();
   await loadMechQCFromSharePoint().catch(console.warn);
 }
 
 // Full refresh — production data + load plan — runs every 10 minutes
 async function fullRefresh() {
+  if (document.hidden || _isGraphThrottled()) return;
   await loadProductionFromSharePoint();
   await loadLoadPlanFromSharePoint();
   const t = new Date().toTimeString().slice(0,5);
@@ -5769,6 +5775,8 @@ function findJobByRep(rep7) {
 async function autoSyncQCCompletions() {
   if (!QC_SHEET_SHARING_URL) return;
   if (qcSyncing) return;
+  // Skip when tab hidden or Graph is in cooldown — same logic as refreshCompletions.
+  if (document.hidden || _isGraphThrottled()) return;
   qcSyncing = true; // set before any await to prevent concurrent invocations
   const token = await getGraphToken().catch(() => null);
   if (!token) { qcSyncing = false; return; }
@@ -6302,16 +6310,24 @@ async function getGraphToken() {
   }
 }
 
-async function _graphFetchWithRetry(url, init, retries = 2) {
+// Tenant-level throttle flag — when Graph signals activityLimitReached we set this
+// and skip background auto-sync until it clears. Prevents the cascade where every
+// 60s tick adds more requests on top of an already-throttled tenant.
+let _graphThrottleUntil = 0;
+function _isGraphThrottled() { return Date.now() < _graphThrottleUntil; }
+
+async function _graphFetchWithRetry(url, init, retries = 4) {
   // Inject Prefer header for $filter URLs so non-indexed columns fall through gracefully (a 400 otherwise)
   if (typeof url === 'string' && url.includes('$filter=')) {
     init = { ...(init || {}), headers: { ...((init && init.headers) || {}), Prefer: 'HonorNonIndexedQueriesWarningMayFailRandomly' } };
   }
   let r = await fetch(url, init);
   while ((r.status === 429 || r.status === 503) && retries > 0) {
-    // Cap wait at 15s (was 60s) and add jitter so parallel calls don't thunder-herd back in lockstep
-    const baseSec   = Math.min(15, Math.max(1, parseInt(r.headers.get('Retry-After') || '3', 10)));
+    // Honour Retry-After up to 20s; default 4s when missing. Jitter prevents lockstep thunder-herd.
+    const baseSec   = Math.min(20, Math.max(1, parseInt(r.headers.get('Retry-After') || '4', 10)));
     const jitterSec = Math.random() * 2;
+    // Mark tenant cooldown so background sync skips its next tick.
+    _graphThrottleUntil = Date.now() + (baseSec + jitterSec + 5) * 1000;
     await new Promise(res => setTimeout(res, (baseSec + jitterSec) * 1000));
     r = await fetch(url, init);
     retries--;
@@ -14135,13 +14151,12 @@ function cpExportPdf() {
 
 const WM_QUALITY_SITE  = '/sites/ReposeFurniture-Quality';
 const WM_LIST_ID       = '6edbe08b-b3a2-4693-afb2-e11531bcda7a';
-let _wmSiteId = null;
 
 async function wmGetSiteId() {
-  if (_wmSiteId) return _wmSiteId;
+  if (_idCache.wmSiteId) return _idCache.wmSiteId;
   const res = await graphGet(`https://graph.microsoft.com/v1.0/sites/${SP_HOST}:${WM_QUALITY_SITE}`);
-  _wmSiteId = res.id;
-  return _wmSiteId;
+  _idCache.wmSiteId = res.id; _saveIdCache();
+  return _idCache.wmSiteId;
 }
 
 const WM_MACHINES = [
@@ -14658,25 +14673,23 @@ let ccByMachineDate = {}; // machineId → dateStr → [fields]
 let ccLoaded       = false;
 let ccViewMode     = 'week';
 let ccWeekStart    = wmGetMonday(new Date());
-let _ccSiteId      = null;
-let _ccListId      = null;
 
 // Submit state
 let ccSelectedMachine = null; // machine object
 let ccCheckResults    = [];   // array of 'pass'|'fail'|'na'|null per check item
 
 async function ccGetSiteId() {
-  if (_ccSiteId) return _ccSiteId;
+  if (_idCache.ccSiteId) return _idCache.ccSiteId;
   const res = await graphGet(`https://graph.microsoft.com/v1.0/sites/${SP_HOST}:${CC_SITE_PATH}`);
-  _ccSiteId = res.id;
-  return _ccSiteId;
+  _idCache.ccSiteId = res.id; _saveIdCache();
+  return _idCache.ccSiteId;
 }
 
 async function ccGetListId() {
-  if (_ccListId) return _ccListId;
+  if (_idCache.ccListId) return _idCache.ccListId;
   const siteId = await ccGetSiteId();
-  _ccListId = await getListIdByNameOnSite(siteId, CC_LIST_NAME);
-  return _ccListId;
+  _idCache.ccListId = await getListIdByNameOnSite(siteId, CC_LIST_NAME); _saveIdCache();
+  return _idCache.ccListId;
 }
 
 // ─── Data loading ────────────────────────────────────────────────────────────
