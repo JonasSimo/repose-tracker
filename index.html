@@ -6308,8 +6308,9 @@ async function loadMechQCFromSharePoint() {
     // Server-side $filter on Team column. Graph sometimes returns @odata.nextLink
     // *without* the original $filter query for non-fully-indexed columns, which
     // silently paginates through the entire list. Re-attach the filter on each page.
+    // $select narrows the per-item payload — only REP is used downstream.
     const baseUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items` +
-                    `?$expand=fields&$filter=fields/Team eq 'QC'&$top=999`;
+                    `?$expand=fields($select=REP)&$filter=fields/Team eq 'QC'&$top=2000`;
     const filterParam = '$filter=' + encodeURIComponent("fields/Team eq 'QC'");
     const items = [];
     let nextUrl = baseUrl;
@@ -6938,9 +6939,12 @@ async function initGraph() {
       loadCompletionsFromList().catch(e => console.warn('completions:', e.message)),
       loadLoadPlanFromSharePoint().catch(e => console.warn('loadplan:', e.message)),
     ]);
-    // MechSerials and SpecAlerts are not on the team-view critical path —
-    // fire-and-forget so they don't gate any UI.
+    // MechSerials, SpecAlerts and MechQC are not on the team-view critical path —
+    // fire-and-forget so they don't gate any UI. MechQC populates the green QC
+    // ticks on the Delivery view; previously it only ran via the 60s interval,
+    // so first-ever-opens of Delivery had to wait up to a minute for ticks.
     loadMechSerials().catch(e => console.warn('mechserials:', e.message));
+    loadMechQCFromSharePoint().catch(e => console.warn('mechQC:', e.message));
     fetchSpecAlerts().catch(console.warn);
     // Defer QC auto-sync 15s so the initial heavy load (production workbook + lists)
     // fully settles before the QC workbook starts. 5s wasn't enough — Graph was still
@@ -10256,7 +10260,7 @@ async function loadMechSerials() {
     // Server-side filter cuts the payload — only Assembly completions carry MechSerial
     const items  = await graphGetAll(
       `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items` +
-      `?$expand=fields&$filter=fields/Team eq 'Assembly'&$top=999`
+      `?$expand=fields($select=MechSerial,REP,Week,Prep)&$filter=fields/Team eq 'Assembly'&$top=2000`
     );
     items.forEach(item => {
       const f   = item.fields || {};
