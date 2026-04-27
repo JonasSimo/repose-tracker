@@ -2554,6 +2554,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <button class="nav-item" data-view="timing" id="timing-tab-btn" onclick="navTo('timing')" style="display:none">Job Timing</button>
         <button class="nav-item" data-view="woodmill" id="woodmill-tab-btn" onclick="navTo('woodmill')" style="display:none">Woodmill</button>
         <button class="nav-item" data-view="cutting-checks" id="cc-tab-btn" onclick="navTo('cutting-checks')" style="display:none">Cutting Checks</button>
+        <button class="nav-item" data-view="maintenance" id="mt-tab-btn" onclick="navTo('maintenance')">Maintenance</button>
         <button class="nav-item" data-view="safety" onclick="navTo('safety')">Near Misses</button>
         <button class="nav-item" data-view="complaints" onclick="navTo('complaints')">Complaints</button>
         <button class="nav-item" id="ivn-tab-btn" data-view="innovation" onclick="navTo('innovation')" style="display:none">Innovation</button>
@@ -3541,7 +3542,7 @@ let ppAutoSyncInterval = null;
 // ═══════════════════════════════════════════════
 // ROUTING
 // ═══════════════════════════════════════════════
-const NAV_LABELS = { 'team-select':'Team View','tracker':'Team View','overview':'Load Plan','loadsheet':'Delivery','production':'Production Plan','stats':'Stats','issues':'Issues','safety':'Safety','ordercheck':'Order Check','timing':'Job Timing','complaints':'Complaints','woodmill':'Woodmill','innovation':'Innovation Station','cutting-checks':'Cutting Checks' };
+const NAV_LABELS = { 'team-select':'Team View','tracker':'Team View','overview':'Load Plan','loadsheet':'Delivery','production':'Production Plan','stats':'Stats','issues':'Issues','safety':'Safety','ordercheck':'Order Check','timing':'Job Timing','complaints':'Complaints','woodmill':'Woodmill','innovation':'Innovation Station','cutting-checks':'Cutting Checks','maintenance':'Maintenance' };
 function showView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   const activeView = name === 'tracker' ? 'team-select' : name;
@@ -3566,6 +3567,7 @@ function showView(name) {
   if (name === 'complaints')  { cpOnOpen(); }
   if (name === 'woodmill')       { wmOnOpen(); }
   if (name === 'cutting-checks') { ccOnOpen(); }
+  if (name === 'maintenance')    { mtOnOpen(); }
   if (name === 'innovation')     { ivnOnOpen(); }
 }
 
@@ -6385,7 +6387,7 @@ const TABLET_TEAM = _validatedTeam || sessionStorage.getItem('tabletTeam') || ''
 // Single-tab lock — add ?tab=production (or any view name) to the URL
 // to lock the app to that tab only, hiding the nav menu
 // Preserve tab across MSAL redirect
-const _VALID_TABS = new Set(['team-select','overview','tracker','loadsheet','production','stats','issues','safety','ordercheck','timing','complaints','woodmill','cutting-checks','innovation']);
+const _VALID_TABS = new Set(['team-select','overview','tracker','loadsheet','production','stats','issues','safety','ordercheck','timing','complaints','woodmill','cutting-checks','maintenance','innovation']);
 const _paramTab = new URLSearchParams(window.location.search).get('tab') || '';
 const _validatedTab = _VALID_TABS.has(_paramTab) ? _paramTab : '';
 if (_validatedTab) sessionStorage.setItem('tabletTab', _validatedTab);
@@ -6932,7 +6934,7 @@ async function initGraph() {
     graphAccount = accounts[0];
     updateAuthBadge();
     const _deepView = new URLSearchParams(window.location.search).get('view');
-    const _validViews = new Set(['team-select','overview','tracker','loadsheet','production','stats','issues','safety','ordercheck','timing','complaints','woodmill','cutting-checks','innovation']);
+    const _validViews = new Set(['team-select','overview','tracker','loadsheet','production','stats','issues','safety','ordercheck','timing','complaints','woodmill','cutting-checks','maintenance','innovation']);
     if (_deepView && _validViews.has(_deepView)) navTo(_deepView);
     // PROD is the team-view critical path — it builds the job grid (renderJobs runs at
     // the end of loadProductionFromSharePoint). Run it alone first so jobs paint asap.
@@ -16401,6 +16403,12 @@ async function mtAdapterLoadYearly() {
     history: history.map(it => ({ id: it.id, ...(it.fields || {}) })),
   };
 }
+
+// ── Maintenance — open hook + sub-tab switch (stubs filled in Task 8) ─────
+async function mtOnOpen(forceRefresh = false) {
+  document.getElementById('mt-content').innerHTML = '<div class="mt-empty">Maintenance dashboard — coming up next.</div>';
+}
+function mtSwitchSub(/* sub */) { /* Filled in Task 8 */ }
 
 </script>
 </body>
