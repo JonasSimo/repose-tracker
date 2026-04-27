@@ -16493,6 +16493,10 @@ function mtCloseCellModal() {
   document.getElementById('mt-cell-modal').style.display = 'none';
 }
 
+// In-flight downtime keys, to suppress double-click races (would create
+// duplicate downtime rows in SharePoint).
+const _mtDowntimeInFlight = new Set();
+
 async function mtToggleDowntime(machineId, dateStr) {
   if (!mtIsManager) return;
   const team = mtGetTeam(mtState.drillTeamId);
@@ -16502,6 +16506,8 @@ async function mtToggleDowntime(machineId, dateStr) {
   }
   const dt = mtState._downtimeByTeam?.[team.id] || {};
   const key = `${machineId}|${dateStr}`;
+  if (_mtDowntimeInFlight.has(`${team.id}|${key}`)) return;
+  _mtDowntimeInFlight.add(`${team.id}|${key}`);
   const existingId = dt[key];
   try {
     const siteId = await mtAdapterGetSiteId();
@@ -16523,6 +16529,8 @@ async function mtToggleDowntime(machineId, dateStr) {
     mtRenderDailyDrillIn(); // repaint matrix
   } catch (e) {
     toast('Failed: ' + (e.message || 'unknown'), 'u');
+  } finally {
+    _mtDowntimeInFlight.delete(`${team.id}|${key}`);
   }
 }
 
@@ -17146,12 +17154,17 @@ async function mtSaveComplete(itemId) {
   if (!date) { toast('Completion date is required', 'u'); return; }
   if (!doc)  { toast('Cert link is required for audit', 'u'); return; }
 
+  let siteId, histListId, yrListId;
   try {
-    const siteId = await mtAdapterGetSiteId();
-    const histListId = await getListIdByNameOnSite(siteId, MT_YEARLY_HISTORY);
-    const yrListId   = await getListIdByNameOnSite(siteId, MT_YEARLY_LIST);
-
-    // 1) Add history row
+    siteId      = await mtAdapterGetSiteId();
+    histListId  = await getListIdByNameOnSite(siteId, MT_YEARLY_HISTORY);
+    yrListId    = await getListIdByNameOnSite(siteId, MT_YEARLY_LIST);
+  } catch (e) {
+    toast('Save failed: could not resolve SharePoint lists — ' + (e.message || ''), 'u');
+    return;
+  }
+  // 1) Add history row first — that's the audit-critical record.
+  try {
     await graphPost(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${histListId}/items`, {
       fields: {
         Title:       `${item.Title || ''} ${date}`,
@@ -17164,18 +17177,25 @@ async function mtSaveComplete(itemId) {
         CompletedBy: by || null,
       }
     });
-    // 2) Update master row
+  } catch (e) {
+    toast('Save failed: history row could not be saved — ' + (e.message || ''), 'u');
+    return;
+  }
+  // 2) Update master row. If this fails, the history row is already in — don't
+  //    let the user retry blindly (would create duplicate history).
+  try {
     await graphPatch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${yrListId}/items/${item.id}/fields`, {
       LastDone: date,
       DocLink:  doc,
     });
     toast('Completion saved', 's');
-    await mtLoadYearly();
-    mtCloseCompleteModal();
-    mtRenderYearly();
   } catch (e) {
-    toast('Save failed: ' + (e.message || ''), 'u');
+    // History saved; master update failed. Tell the user clearly.
+    toast('History saved, but updating Last Done on master failed. Edit the item manually to set LastDone=' + date + '.', 'u');
   }
+  await mtLoadYearly();
+  mtCloseCompleteModal();
+  mtRenderYearly();
 }
 
 // ── Maintenance — Yearly manager edit drawer ──────────────────────────────
@@ -17243,11 +17263,18 @@ async function mtSaveYearly(id) {
   if (!mtIsManager) return;
   const title = document.getElementById('mt-fy-title').value.trim();
   if (!title) { toast('Title is required', 'u'); return; }
+  const frequency = document.getElementById('mt-fy-freq').value;
+  const freqDays  = Number(document.getElementById('mt-fy-fd').value || 0) || null;
+  if (frequency === 'Custom' && (!freqDays || freqDays < 1)) {
+    toast('Custom frequency requires Frequency days (e.g. 30, 60, 730)', 'u');
+    document.getElementById('mt-fy-fd')?.focus();
+    return;
+  }
   const fields = {
     Title:         title,
     Category:      document.getElementById('mt-fy-cat').value,
-    Frequency:     document.getElementById('mt-fy-freq').value,
-    FrequencyDays: Number(document.getElementById('mt-fy-fd').value || 0) || null,
+    Frequency:     frequency,
+    FrequencyDays: freqDays,
     LastDone:      document.getElementById('mt-fy-last').value || null,
     ScheduledFor:  document.getElementById('mt-fy-sched').value || null,
     DocLink:       document.getElementById('mt-fy-doc').value.trim() || null,
