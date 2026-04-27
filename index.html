@@ -2319,42 +2319,42 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .mt-strip-num.warn    { color: #d97706; }
 .mt-strip-lab         { font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--text3); }
 
-.mt-matrix-wrap       { background: #fff; border: 1px solid var(--border); border-radius: 14px; overflow: auto; max-height: 72vh; padding: 6px; box-shadow: 0 4px 18px rgba(14,2,58,.04); }
-.mt-matrix            { border-collapse: separate; border-spacing: 4px; font-size: 12px; width: 100%; }
+.mt-matrix-wrap       { background: #fff; border: 1px solid var(--border); border-radius: 14px; overflow: auto; max-height: 72vh; padding: 4px; box-shadow: 0 4px 18px rgba(14,2,58,.04); }
+.mt-matrix            { border-collapse: separate; border-spacing: 2px; font-size: 12px; width: max-content; min-width: 100%; }
 
-/* Column headers — stacked weekday + date, navy chip */
+/* Column headers — stacked weekday + date, compact */
 .mt-matrix thead th         { position: sticky; top: 0; z-index: 2; background: #fff; padding: 0; }
-.mt-matrix thead th.mt-col-head { background: linear-gradient(180deg, #f1f5fa 0%, #fff 100%); border: 1px solid var(--border); border-radius: 10px; padding: 8px 6px; min-width: 60px; }
-.mt-matrix thead th.mt-col-head .mt-col-dow  { font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text3); display: block; }
-.mt-matrix thead th.mt-col-head .mt-col-date { font-size: 13px; font-weight: 700; color: var(--repose-navy); display: block; margin-top: 2px; }
-.mt-matrix thead th.mt-col-head.today        { background: linear-gradient(180deg, #e0f2fe 0%, #fff 100%); border-color: var(--repose-blue); }
+.mt-matrix thead th.mt-col-head { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 5px 4px; min-width: 44px; }
+.mt-matrix thead th.mt-col-head .mt-col-dow  { font-size: 9px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text3); display: block; line-height: 1; }
+.mt-matrix thead th.mt-col-head .mt-col-date { font-size: 11px; font-weight: 700; color: var(--repose-navy); display: block; margin-top: 1px; line-height: 1.1; }
+.mt-matrix thead th.mt-col-head.today        { background: #e0f2fe; border-color: var(--repose-blue); }
 .mt-matrix thead th.mt-col-head.today .mt-col-dow  { color: var(--repose-blue); }
 .mt-matrix thead th.mt-col-head.today .mt-col-date { color: var(--repose-blue); }
 
-/* Row header — sticky, soft tint */
-.mt-matrix tbody th { position: sticky; left: 0; z-index: 1; background: #f8fafb; text-align: left; font-weight: 600; color: var(--repose-navy); white-space: nowrap; min-width: 180px; padding: 10px 14px; border-radius: 10px; font-size: 13px; }
+/* Row header — sticky, soft tint, compact */
+.mt-matrix tbody th { position: sticky; left: 0; z-index: 1; background: #f8fafb; text-align: left; font-weight: 600; color: var(--repose-navy); white-space: nowrap; min-width: 130px; padding: 6px 12px; border-radius: 6px; font-size: 12px; }
 
 /* Group rows (Saws / Machines / Benches etc.) */
-.mt-matrix tr.mt-grp-row td { background: transparent; padding: 14px 0 4px; }
+.mt-matrix tr.mt-grp-row td { background: transparent; padding: 10px 0 2px; }
 .mt-matrix tr.mt-grp-row .mt-grp-label {
-  font-size: 10px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--text3);
-  display: inline-flex; align-items: center; gap: 8px; padding: 0 14px;
+  font-size: 9px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--text3);
+  display: inline-flex; align-items: center; gap: 6px; padding: 0 12px;
 }
-.mt-matrix tr.mt-grp-row .mt-grp-label::before { content: ''; width: 4px; height: 4px; border-radius: 50%; background: var(--text3); }
+.mt-matrix tr.mt-grp-row .mt-grp-label::before { content: ''; width: 3px; height: 3px; border-radius: 50%; background: var(--text3); }
 
-/* Cells */
-.mt-cell              { cursor: pointer; min-width: 60px; height: 44px; border-radius: 8px; padding: 0; text-align: center; font-size: 16px; font-weight: 700; transition: transform .12s, box-shadow .12s; position: relative; }
-.mt-cell.pass         { background: linear-gradient(180deg, #dcfce7 0%, #bbf7d0 100%); color: #15803d; box-shadow: inset 0 0 0 1px rgba(22,163,74,.18); }
-.mt-cell.fail         { background: linear-gradient(180deg, #fee2e2 0%, #fecaca 100%); color: #b91c1c; box-shadow: inset 0 0 0 1px rgba(220,38,38,.25); animation: mt-pulse-fail 2.4s ease-in-out infinite; }
-.mt-cell.na           { background: #f1f5f9; color: var(--text2); font-size: 11px; box-shadow: inset 0 0 0 1px rgba(100,116,139,.18); }
-.mt-cell.dt           { background: repeating-linear-gradient(135deg, #f1f5f9 0 6px, #e2e8f0 6px 12px); color: var(--text3); font-size: 18px; box-shadow: inset 0 0 0 1px var(--border2); }
-.mt-cell.miss         { background: #fff; color: var(--border2); font-size: 14px; box-shadow: inset 0 0 0 1px var(--border); }
+/* Cells — compact, saturated colours */
+.mt-cell              { cursor: pointer; min-width: 44px; width: 44px; height: 30px; border-radius: 6px; padding: 0; text-align: center; font-size: 14px; font-weight: 700; transition: transform .12s, box-shadow .12s; position: relative; }
+.mt-cell.pass         { background: #22c55e; color: #fff; }
+.mt-cell.fail         { background: #ef4444; color: #fff; animation: mt-pulse-fail 2.4s ease-in-out infinite; }
+.mt-cell.na           { background: #e2e8f0; color: var(--text2); font-size: 10px; }
+.mt-cell.dt           { background: repeating-linear-gradient(135deg, #f1f5f9 0 5px, #e2e8f0 5px 10px); color: var(--text3); font-size: 14px; }
+.mt-cell.miss         { background: #fff; color: var(--border2); font-size: 12px; box-shadow: inset 0 0 0 1px var(--border); }
 .mt-cell.miss::after  { content: '·'; }
-.mt-cell.today        { box-shadow: 0 0 0 2px var(--repose-blue), inset 0 0 0 1px var(--repose-blue); }
-.mt-cell:hover        { transform: translateY(-1px); box-shadow: 0 6px 14px rgba(14,2,58,.12), inset 0 0 0 1.5px var(--repose-blue); }
+.mt-cell.today        { outline: 2px solid var(--repose-blue); outline-offset: -2px; }
+.mt-cell:hover        { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(14,2,58,.16), 0 0 0 1.5px var(--repose-blue); }
 @keyframes mt-pulse-fail {
-  0%, 100% { box-shadow: inset 0 0 0 1px rgba(220,38,38,.25); }
-  50%      { box-shadow: inset 0 0 0 1.5px rgba(220,38,38,.55); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,.45); }
+  50%      { box-shadow: 0 0 0 4px rgba(239,68,68,0); }
 }
 
 /* yearly */
@@ -13194,13 +13194,13 @@ async function closeOutNearMiss(itemId) {
 </div>
 
 <!-- Maintenance: cell modal (filled by mt code) -->
-<div id="mt-cell-modal" class="modal-bg" style="display:none" onclick="if(event.target===this)mtCloseCellModal()">
-  <div class="modal" style="max-width:520px"><div id="mt-cell-modal-body"></div></div>
+<div id="mt-cell-modal" class="wm-modal-overlay" style="display:none" onclick="if(event.target===this)mtCloseCellModal()">
+  <div class="wm-modal-box" style="max-width:520px"><div id="mt-cell-modal-body"></div></div>
 </div>
 
 <!-- Maintenance: yearly mark-complete modal -->
-<div id="mt-complete-modal" class="modal-bg" style="display:none" onclick="if(event.target===this)mtCloseCompleteModal()">
-  <div class="modal" style="max-width:520px"><div id="mt-complete-modal-body"></div></div>
+<div id="mt-complete-modal" class="wm-modal-overlay" style="display:none" onclick="if(event.target===this)mtCloseCompleteModal()">
+  <div class="wm-modal-box" style="max-width:520px"><div id="mt-complete-modal-body"></div></div>
 </div>
 
 <!-- Maintenance: yearly manager edit drawer -->
@@ -16803,7 +16803,7 @@ function mtOpenCellModal(machineId, dateStr) {
       </div>
     </div>`;
   document.getElementById('mt-cell-modal-body').innerHTML = body;
-  document.getElementById('mt-cell-modal').style.display = 'flex';
+  document.getElementById('mt-cell-modal').style.display = '';
 }
 
 function mtCloseCellModal() {
@@ -17037,6 +17037,10 @@ function mtExportCsv() {
 }
 
 function mtBackToLanding() {
+  // Dismiss any lingering modals before re-rendering
+  mtCloseCellModal();
+  mtCloseCompleteModal();
+  mtCloseDrawer();
   mtState.page = 'landing';
   mtState.drillTeamId = null;
   mtRender();
