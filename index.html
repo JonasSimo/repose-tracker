@@ -16303,6 +16303,105 @@ function mtEnumerateDays(fromUkStr, toUkStr) {
   return out;
 }
 
+// ── Maintenance — adapter (reads) ─────────────────────────────────────────
+async function mtAdapterGetSiteId() {
+  if (_idCache.mtSiteId) return _idCache.mtSiteId;
+  const res = await graphGet(`https://graph.microsoft.com/v1.0/sites/${SP_HOST}:${MT_SITE_PATH}`);
+  _idCache.mtSiteId = res.id; _saveIdCache();
+  return _idCache.mtSiteId;
+}
+
+// Normalise one SharePoint item from any team's inspections list into the unified shape.
+function mtNormaliseInspection(team, fields) {
+  const machineId = (fields.MachineId || fields.machineId || fields.Title || '').trim();
+  const machine   = team.machines.find(m => m.id === machineId);
+  const dateStr   = fields.InspectedAt ? wmDateStr(new Date(fields.InspectedAt)) : '';
+  const status    = (fields.Status || '').toLowerCase();   // 'pass' | 'fail' | 'na'
+  let items       = [];
+  try { if (fields.ItemsJson) items = JSON.parse(fields.ItemsJson); } catch {}
+  return {
+    teamId:      team.id,
+    machineId,
+    machineName: machine ? machine.name : machineId,
+    dateStr,
+    inspectedAt: fields.InspectedAt || null,
+    status:      ['pass','fail','na'].includes(status) ? status : 'none',
+    operator:    fields.InspectorName || '',
+    items,
+    comment:     fields.Comment || '',
+    raw:         fields,
+  };
+}
+
+// Load all check records across the given teams in [dateFromUk, dateToUk] (inclusive UK days).
+async function mtAdapterLoadRange(teamIds, dateFromUk, dateToUk) {
+  const fromRange = mtUkDayToUtcRange(dateFromUk);
+  const toRange   = mtUkDayToUtcRange(dateToUk);
+  const fromIso   = fromRange.fromIso;
+  const toIso     = toRange.toIso;
+  const siteId    = await mtAdapterGetSiteId();
+  const teams     = teamIds.length ? MT_TEAMS.filter(t => teamIds.includes(t.id)) : MT_TEAMS;
+  const out       = [];
+  await Promise.all(teams.map(async team => {
+    try {
+      const listId = await getListIdByNameOnSite(siteId, team.listName);
+      const filter = encodeURIComponent(`fields/InspectedAt ge '${fromIso}' and fields/InspectedAt le '${toIso}'`);
+      const url    = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999&$filter=${filter}`;
+      const items  = await graphGetAll(url);
+      for (const it of items) out.push(mtNormaliseInspection(team, it.fields || {}));
+    } catch (e) {
+      console.warn('[mtAdapter] team', team.id, e.message);
+    }
+  }));
+  // Sort newest first
+  out.sort((a, b) => (b.inspectedAt || '').localeCompare(a.inspectedAt || ''));
+  return out;
+}
+
+// Load downtime markings for one team, keyed `${machineId}|${dateStr}` → spItemId.
+async function mtAdapterLoadDowntime(team) {
+  if (!team.downtimeList) return {};
+  const siteId = await mtAdapterGetSiteId();
+  try {
+    const listId = await getListIdByNameOnSite(siteId, team.downtimeList);
+    const items  = await graphGetAll(
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999`
+    );
+    const out = {};
+    for (const it of items) {
+      const t = (it.fields?.Title || '').trim();
+      if (t.includes('|')) out[t] = it.id;
+    }
+    return out;
+  } catch (e) {
+    console.warn('[mtAdapter] downtime', team.id, e.message);
+    return {};
+  }
+}
+
+// Yearly
+async function mtAdapterLoadYearly() {
+  const siteId = await mtAdapterGetSiteId();
+  const [items, history] = await Promise.all([
+    (async () => {
+      try {
+        const id = await getListIdByNameOnSite(siteId, MT_YEARLY_LIST);
+        return await graphGetAll(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${id}/items?$expand=fields&$top=999`);
+      } catch { return []; }
+    })(),
+    (async () => {
+      try {
+        const id = await getListIdByNameOnSite(siteId, MT_YEARLY_HISTORY);
+        return await graphGetAll(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${id}/items?$expand=fields&$top=999`);
+      } catch { return []; }
+    })(),
+  ]);
+  return {
+    items: items.map(it => ({ id: it.id, ...(it.fields || {}) })),
+    history: history.map(it => ({ id: it.id, ...(it.fields || {}) })),
+  };
+}
+
 </script>
 </body>
 </html>
