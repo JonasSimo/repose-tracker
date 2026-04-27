@@ -16744,7 +16744,8 @@ function mtComputeYearlyStatus(item) {
   return                  { nextDueIso: new Date(next).toISOString().slice(0,10), daysUntil, cls: 'ok',      label: 'OK' };
 }
 
-let mtYearlyChips = ['All']; // category filter (multi-select)
+let mtYearlyChips    = ['All']; // category filter (multi-select)
+let mtCalStartOffset = 0;       // months offset from current month (0 = current; -12 = a year back)
 
 function mtRenderYearly() {
   const items = mtState.yearlyItems.map(i => ({ ...i, _s: mtComputeYearlyStatus(i) }));
@@ -16783,7 +16784,7 @@ function mtRenderYearly() {
   }
 
   const months = Array.from({ length: 12 }, (_, k) => {
-    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + k, 1));
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + mtCalStartOffset + k, 1));
     return { year: d.getUTCFullYear(), month: d.getUTCMonth(), label: d.toLocaleDateString('en-GB', { timeZone: 'UTC', month: 'short', year: '2-digit' }) };
   });
 
@@ -16877,11 +16878,26 @@ function mtRenderYearly() {
       <span class="mt-cal-legend-key"><span class="mt-cal-legend-swatch today"></span>Today</span>
     </div>`;
 
+  // Calendar window label (e.g. "Apr 2026 — Mar 2027")
+  const winFirst = months[0], winLast = months[11];
+  const winLabel = `${new Date(Date.UTC(winFirst.year, winFirst.month, 1)).toLocaleDateString('en-GB',{timeZone:'UTC',month:'short',year:'numeric'})} — ${new Date(Date.UTC(winLast.year, winLast.month, 1)).toLocaleDateString('en-GB',{timeZone:'UTC',month:'short',year:'numeric'})}`;
+  const isCurrent = mtCalStartOffset === 0;
+  const calNav = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <button class="mt-btn" onclick="mtShiftCal(-12)" title="Back 12 months">◀</button>
+      <button class="mt-btn" onclick="mtShiftCal(-1)" title="Back 1 month">‹</button>
+      <div style="font-size:13px;font-weight:700;color:var(--repose-navy);flex:1;text-align:center">${escHtml(winLabel)}</div>
+      <button class="mt-btn" onclick="mtShiftCal(1)" title="Forward 1 month">›</button>
+      <button class="mt-btn" onclick="mtShiftCal(12)" title="Forward 12 months">▶</button>
+      ${isCurrent ? '' : `<button class="mt-btn" onclick="mtCalToday()" style="background:var(--repose-blue);color:#fff">Today</button>`}
+    </div>`;
+
   document.getElementById('mt-content').innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
       <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--text3)">Yearly · 12-month outlook</div>
       ${headerActions}
     </div>
+    ${calNav}
     ${legendHtml}
     ${calHtml}
     ${chipsHtml}
@@ -16891,6 +16907,15 @@ function mtRenderYearly() {
       </thead>
       <tbody>${rows}</tbody>
     </table>`;
+}
+
+function mtShiftCal(months) {
+  mtCalStartOffset += months;
+  mtRenderYearly();
+}
+function mtCalToday() {
+  mtCalStartOffset = 0;
+  mtRenderYearly();
 }
 
 function mtToggleChip(c) {
