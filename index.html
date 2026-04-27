@@ -16892,6 +16892,74 @@ function mtExportPdf() {
   }, 50);
 }
 
+function mtExportCsv() {
+  if (!mtIsManager) return;
+  const team = mtGetTeam(mtState.drillTeamId);
+  if (!team) return;
+  const f = mtState.filters;
+  const days = mtEnumerateDays(f.dateFrom, f.dateTo);
+  const dt   = mtState._downtimeByTeam?.[team.id] || {};
+  const machines = team.machines.filter(m => !f.machineIds.length || f.machineIds.includes(m.id));
+  const recsForTeam = mtState.records.filter(r => r.teamId === team.id);
+  const byCell = {};
+  for (const r of recsForTeam) {
+    const k = `${r.machineId}|${r.dateStr}`;
+    if (!byCell[k] || (r.inspectedAt || '') > (byCell[k].inspectedAt || '')) byCell[k] = r;
+  }
+
+  // CSV escape
+  const esc = v => {
+    const s = (v == null ? '' : String(v));
+    return /[",\n\r]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
+  };
+  const row = arr => arr.map(esc).join(',');
+
+  const lines = [];
+  lines.push('# Repose — Maintenance Audit Report');
+  lines.push(`# Team: ${team.name}`);
+  lines.push(`# Range: ${f.dateFrom} to ${f.dateTo}`);
+  lines.push(`# Machines: ${f.machineIds.length ? machines.map(m => m.name).join('; ') : 'All'}`);
+  lines.push(`# Generated: ${new Date().toISOString()} (UTC)`);
+  lines.push('');
+  lines.push('# Section: Records');
+  lines.push(row(['Date','Time (UK)','Team','Machine','Operator','Status','Comment']));
+  recsForTeam
+    .filter(r => days.includes(r.dateStr) && (!f.machineIds.length || f.machineIds.includes(r.machineId)))
+    .sort((a, b) => (a.inspectedAt || '').localeCompare(b.inspectedAt || ''))
+    .forEach(r => lines.push(row([
+      r.dateStr, mtFormatTimeUK(r.inspectedAt), team.name, r.machineName,
+      r.operator || '', r.status.toUpperCase(), r.comment || '',
+    ])));
+
+  lines.push('');
+  lines.push('# Section: Expanded failures');
+  lines.push(row(['Date','Machine','Failed item(s)','Comment']));
+  recsForTeam
+    .filter(r => r.status === 'fail' && days.includes(r.dateStr) && (!f.machineIds.length || f.machineIds.includes(r.machineId)))
+    .forEach(r => {
+      const failed = (r.items || []).filter(i => i.result === 'fail').map(i => i.label).join('; ');
+      lines.push(row([r.dateStr, r.machineName, failed, r.comment || '']));
+    });
+
+  lines.push('');
+  lines.push('# Section: Missed days');
+  lines.push(row(['Date','Machine']));
+  for (const m of machines) for (const d of days) {
+    if (dt[`${m.id}|${d}`]) continue;
+    if (!byCell[`${m.id}|${d}`]) lines.push(row([d, m.name]));
+  }
+
+  // UTF-8 BOM so Excel renders unicode correctly
+  const BOM = '﻿';
+  const blob = new Blob([BOM + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = `repose-maintenance-audit-${team.id}-${f.dateFrom}_to_${f.dateTo}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 function mtBackToLanding() {
   mtState.page = 'landing';
   mtState.drillTeamId = null;
