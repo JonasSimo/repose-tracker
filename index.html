@@ -17063,9 +17063,154 @@ function mtBackToLanding() {
   mtRender();
 }
 
-// Stubs filled in later tasks
-async function mtLoadYearly() { /* Task 13 */ }
-function mtRenderYearly()     { document.getElementById('mt-content').innerHTML = '<div class="mt-empty">Yearly view coming in Task 13.</div>'; }
+// ── Maintenance — Yearly / Statutory sub-tab ──────────────────────────────
+async function mtLoadYearly() {
+  document.getElementById('mt-content').innerHTML = '<div class="mt-loading">Loading yearly inspections…</div>';
+  const y = await mtAdapterLoadYearly();
+  mtState.yearlyItems   = y.items;
+  mtState.yearlyHistory = y.history;
+  mtState.loaded.yearly = true;
+}
+
+function mtFreqDays(item) {
+  const f = (item.Frequency || '').toLowerCase();
+  if (f === 'annual')    return 365;
+  if (f === '6-monthly') return 183;
+  if (f === 'quarterly') return 91;
+  if (f === 'monthly')   return 30;
+  if (f === 'custom')    return Number(item.FrequencyDays || 0) || 365;
+  return 365;
+}
+
+function mtComputeYearlyStatus(item) {
+  const today = new Date(mtTodayUkStr() + 'T00:00:00Z').getTime();
+  const last  = item.LastDone ? new Date(item.LastDone).getTime() : null;
+  const days  = mtFreqDays(item);
+  if (!last) return { nextDueIso: mtTodayUkStr(), daysUntil: -1, cls: 'overdue', label: 'Overdue', firstTime: true };
+  const next  = last + days * 86400000;
+  const daysUntil = Math.round((next - today) / 86400000);
+  if (daysUntil < 0)   return { nextDueIso: new Date(next).toISOString().slice(0,10), daysUntil, cls: 'overdue', label: 'Overdue' };
+  if (daysUntil <= 90) return { nextDueIso: new Date(next).toISOString().slice(0,10), daysUntil, cls: 'due',     label: 'Due Soon' };
+  return                  { nextDueIso: new Date(next).toISOString().slice(0,10), daysUntil, cls: 'ok',      label: 'OK' };
+}
+
+let mtYearlyChips = ['All']; // category filter (multi-select)
+
+function mtRenderYearly() {
+  const items = mtState.yearlyItems.map(i => ({ ...i, _s: mtComputeYearlyStatus(i) }));
+
+  // Calendar strip — 12 months from current
+  const now = new Date(mtTodayUkStr() + 'T00:00:00Z');
+  const months = Array.from({ length: 12 }, (_, k) => {
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + k, 1));
+    return { ymKey: `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}`, label: d.toLocaleDateString('en-GB',{ month:'short', year:'2-digit' }) };
+  });
+  const markersByMonth = {};
+  for (const it of items) {
+    const ym = it._s.nextDueIso.slice(0,7);
+    if (!markersByMonth[ym]) markersByMonth[ym] = [];
+    markersByMonth[ym].push(it);
+  }
+  const calHtml = `<div class="mt-cal-strip">${months.map(m => {
+    const list = markersByMonth[m.ymKey] || [];
+    const marks = list.map(it => `<span class="mt-cal-marker ${it._s.cls}" title="${escHtml((it.Title||'') + ' — ' + it._s.label)}" onclick="mtScrollToYearlyRow(${it.id})">${escHtml((it.Title||'').slice(0,18))}</span>`).join('');
+    return `<div class="mt-cal-month"><div class="mt-cal-mlabel">${m.label}</div>${marks}</div>`;
+  }).join('')}</div>`;
+
+  // Filter chips
+  const cats = ['All','Statutory','Annual Servicing','Legal Surveys','Insurance','Other','Overdue','Due Soon'];
+  const chipsHtml = `<div class="mt-chips">${cats.map(c => `
+    <button class="mt-chip ${mtYearlyChips.includes(c) ? 'on' : ''}" onclick="mtToggleChip(${JSON.stringify(c)})">${c}</button>
+  `).join('')}</div>`;
+
+  // Filter items by chips
+  const filtered = items.filter(it => {
+    if (mtYearlyChips.includes('All')) return true;
+    if (mtYearlyChips.includes(it.Category)) return true;
+    if (mtYearlyChips.includes('Overdue')   && it._s.cls === 'overdue') return true;
+    if (mtYearlyChips.includes('Due Soon')  && it._s.cls === 'due')     return true;
+    return false;
+  });
+
+  // Register table
+  const headerActions = mtIsManager ? `<button class="mt-btn" onclick="mtOpenDrawer('add')">&#9881; Manage</button>` : '';
+  const rows = filtered.length ? filtered.map(it => `
+    <tr id="mt-yr-row-${it.id}">
+      <td><b>${escHtml(it.Title || '')}</b></td>
+      <td>${escHtml(it.Category || '')}</td>
+      <td>${escHtml(it.Frequency || '')}${(it.Frequency||'').toLowerCase()==='custom' ? ` (${it.FrequencyDays||0}d)` : ''}</td>
+      <td>${it.LastDone ? mtFormatDateUK(it.LastDone).replace(',', '') : '—'}</td>
+      <td>${mtFormatDateUK(it._s.nextDueIso).replace(',', '')}</td>
+      <td><span class="mt-pill ${it._s.cls === 'overdue' ? 'fail' : it._s.cls === 'due' ? 'warn' : 'pass'}">${it._s.label}</span></td>
+      <td>${it.DocLink ? `<a href="${escHtml(it.DocLink)}" target="_blank" rel="noopener" title="Open latest cert">&#128206;</a>` : ''}</td>
+      <td>
+        <div class="mt-row-actions">
+          <button class="mt-icon-btn" title="History" onclick="mtToggleHistory(${it.id})">&#128194;</button>
+          ${mtIsManager ? `
+            <button class="mt-icon-btn" title="Mark complete" onclick="mtOpenCompleteModal(${it.id})">&#10003;</button>
+            <button class="mt-icon-btn" title="Edit" onclick="mtOpenDrawer('edit',${it.id})">&#9999;&#65039;</button>
+            <button class="mt-icon-btn" title="Delete" onclick="mtDeleteYearly(${it.id})">&#128465;</button>` : ''}
+        </div>
+      </td>
+    </tr>
+    <tr class="mt-history-row" id="mt-yr-hist-${it.id}" style="display:none">
+      <td colspan="8"><div class="mt-history-list" id="mt-yr-hist-body-${it.id}">Loading…</div></td>
+    </tr>
+  `).join('') : `<tr><td colspan="8"><div class="mt-empty">${mtState.yearlyItems.length === 0 ? 'No inspection items yet — click &#9881; Manage to add the first one.' : 'No items match the current filter.'}</div></td></tr>`;
+
+  document.getElementById('mt-content').innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--text3)">Yearly · 12-month outlook</div>
+      ${headerActions}
+    </div>
+    ${calHtml}
+    ${chipsHtml}
+    <table class="mt-table">
+      <thead>
+        <tr><th>Title</th><th>Category</th><th>Frequency</th><th>Last Done</th><th>Next Due</th><th>Status</th><th>Cert</th><th></th></tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function mtToggleChip(c) {
+  if (c === 'All') { mtYearlyChips = ['All']; mtRenderYearly(); return; }
+  if (mtYearlyChips.includes('All')) mtYearlyChips = mtYearlyChips.filter(x => x !== 'All');
+  mtYearlyChips = mtYearlyChips.includes(c) ? mtYearlyChips.filter(x => x !== c) : [...mtYearlyChips, c];
+  if (!mtYearlyChips.length) mtYearlyChips = ['All'];
+  mtRenderYearly();
+}
+
+function mtScrollToYearlyRow(id) {
+  document.getElementById(`mt-yr-row-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function mtToggleHistory(itemId) {
+  const row = document.getElementById(`mt-yr-hist-${itemId}`);
+  if (!row) return;
+  const isOpen = row.style.display !== 'none';
+  if (isOpen) { row.style.display = 'none'; return; }
+  const body = document.getElementById(`mt-yr-hist-body-${itemId}`);
+  const hist = mtState.yearlyHistory
+    .filter(h => Number(h.ItemId) === Number(itemId))
+    .sort((a, b) => (b.CompletedOn || '').localeCompare(a.CompletedOn || ''));
+  body.innerHTML = hist.length ? hist.map(h => `
+    <div class="mt-history-item">
+      <div style="min-width:90px"><b>${mtFormatDateUK(h.CompletedOn).replace(',', '')}</b></div>
+      <div style="flex:1">${escHtml(h.Contractor || '')}${h.Cost ? ' · £' + escHtml(String(h.Cost)) : ''}${h.Notes ? ' · ' + escHtml(h.Notes) : ''}</div>
+      <div>${h.DocLink ? `<a href="${escHtml(h.DocLink)}" target="_blank" rel="noopener">&#128206; cert</a>` : ''}</div>
+    </div>`).join('') : '<div class="mt-empty" style="padding:14px">No completion history yet.</div>';
+  row.style.display = '';
+}
+
+// Close handlers — final implementations (stubs for Open* are filled in Tasks 14-15)
+function mtCloseDrawer()        { document.getElementById('mt-drawer')?.classList.remove('on'); document.getElementById('mt-drawer-bg')?.classList.remove('on'); }
+function mtCloseCompleteModal() { const el = document.getElementById('mt-complete-modal'); if (el) el.style.display = 'none'; }
+
+// Stubs — replaced in Tasks 14 (Open/Save/Delete) and 15 (Complete)
+function mtOpenDrawer(/* mode, id */)  { toast('Drawer comes in Task 14', 'i'); }
+function mtOpenCompleteModal(/* id */) { toast('Mark-complete comes in Task 15', 'i'); }
+function mtDeleteYearly(/* id */)      { toast('Delete comes in Task 14', 'i'); }
 
 </script>
 </body>
