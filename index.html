@@ -13157,6 +13157,11 @@ async function closeOutNearMiss(itemId) {
   <div class="wm-modal-box" style="max-width:520px"><div id="mt-complete-modal-body"></div></div>
 </div>
 
+<!-- Maintenance: yearly calendar day-detail modal -->
+<div id="mt-day-modal" class="wm-modal-overlay" style="display:none" onclick="if(event.target===this)mtCloseCalendarDay()">
+  <div class="wm-modal-box" style="max-width:600px"><div id="mt-day-modal-body"></div></div>
+</div>
+
 <!-- Maintenance: yearly manager edit drawer -->
 <div id="mt-drawer-bg" class="mt-drawer-bg" onclick="mtCloseDrawer()"></div>
 <aside id="mt-drawer" class="mt-drawer">
@@ -16807,7 +16812,7 @@ function mtRenderYearly() {
         }
       }
       if (dStr === todayStr) classes.push('today');
-      const onclickAttr = scrollId ? `onclick="mtScrollToYearlyRow(${scrollId})"` : (state && state.doneItems.length ? `onclick="mtScrollToYearlyRow(${state.doneItems[0].ItemId || 0})"` : '');
+      const onclickAttr = state ? `onclick="mtOpenCalendarDay('${dStr}')"` : '';
       const titleAttr = tooltip ? `title="${escHtml(tooltip)}"` : '';
       dayCells.push(`<div class="${classes.join(' ')}" ${onclickAttr} ${titleAttr}>${day}</div>`);
     }
@@ -16895,6 +16900,96 @@ function mtToggleChip(c) {
 
 function mtScrollToYearlyRow(id) {
   document.getElementById(`mt-yr-row-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// Day-detail modal opened from a calendar cell click.
+function mtOpenCalendarDay(dateStr) {
+  const due  = mtState.yearlyItems.filter(it => mtComputeYearlyStatus(it).nextDueIso === dateStr);
+  const done = (mtState.yearlyHistory || []).filter(h => (h.CompletedOn || '').slice(0, 10) === dateStr);
+  if (!due.length && !done.length) return;
+
+  const masterById = Object.fromEntries(mtState.yearlyItems.map(i => [Number(i.id), i]));
+
+  const dueHtml = due.length ? `
+    <div style="margin-top:14px">
+      <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:6px">Due on this day</div>
+      ${due.map(it => {
+        const s = mtComputeYearlyStatus(it);
+        const pillCls = s.cls === 'overdue' ? 'fail' : s.cls === 'due' ? 'warn' : 'pass';
+        const docBtn = it.DocLink
+          ? `<a class="mt-btn" href="${escHtml(it.DocLink)}" target="_blank" rel="noopener" style="text-decoration:none;display:inline-block;margin-top:6px">📎 Latest cert</a>`
+          : '';
+        const completeBtn = mtIsManager
+          ? `<button class="mt-btn" style="background:var(--repose-blue);color:#fff;margin-top:6px;margin-left:6px" onclick="mtCloseCalendarDay();mtOpenCompleteModal(${it.id})">✓ Mark complete</button>`
+          : '';
+        return `<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
+            <div style="flex:1;min-width:200px">
+              <div style="font-size:14px;font-weight:700;color:var(--repose-navy)">${escHtml(it.Title || '')}</div>
+              <div style="font-size:11px;color:var(--text2);margin-top:2px">${escHtml(it.Category || '')} · ${escHtml(it.Frequency || '')}${(it.Frequency||'').toLowerCase()==='custom'?` (${it.FrequencyDays||0}d)`:''}</div>
+            </div>
+            <span class="mt-pill ${pillCls}">${s.label}</span>
+          </div>
+          <div style="font-size:12px;color:var(--text2);margin-top:6px">
+            <b>Last done:</b> ${it.LastDone ? mtFormatDateUK(it.LastDone).replace(',','') : 'Never'} ·
+            <b>Next due:</b> ${mtFormatDateUK(s.nextDueIso).replace(',','')}
+          </div>
+          ${it.Notes ? `<div style="font-size:12px;color:var(--text2);margin-top:6px;font-style:italic">${escHtml(it.Notes)}</div>` : ''}
+          <div>${docBtn}${completeBtn}</div>
+        </div>`;
+      }).join('')}
+    </div>` : '';
+
+  const doneHtml = done.length ? `
+    <div style="margin-top:14px">
+      <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:6px">Completed on this day</div>
+      ${done.map(h => {
+        const master = masterById[Number(h.ItemId)] || {};
+        const docBtn = h.DocLink
+          ? `<a class="mt-btn" href="${escHtml(h.DocLink)}" target="_blank" rel="noopener" style="text-decoration:none;display:inline-block;margin-top:6px">📎 View report</a>`
+          : '';
+        const meta = [
+          h.Contractor ? `<b>Contractor:</b> ${escHtml(h.Contractor)}` : '',
+          h.Cost ? `<b>Cost:</b> £${escHtml(String(h.Cost))}` : '',
+          h.CompletedBy ? `<b>By:</b> ${escHtml(h.CompletedBy)}` : '',
+        ].filter(Boolean).join(' · ');
+        return `<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:12px 14px;margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
+            <div style="flex:1;min-width:200px">
+              <div style="font-size:14px;font-weight:700;color:#15803d">${escHtml(master.Title || h.Title || '')}</div>
+              <div style="font-size:11px;color:var(--text2);margin-top:2px">${escHtml(master.Category || '')}${master.Frequency ? ' · ' + escHtml(master.Frequency) : ''}</div>
+            </div>
+            <span class="mt-pill pass">✓ Completed</span>
+          </div>
+          ${meta ? `<div style="font-size:12px;color:var(--text2);margin-top:6px">${meta}</div>` : ''}
+          ${h.Notes ? `<div style="font-size:12px;color:var(--text2);margin-top:6px;font-style:italic">${escHtml(h.Notes)}</div>` : ''}
+          ${docBtn}
+        </div>`;
+      }).join('')}
+    </div>` : '';
+
+  const dateLabel = mtFormatDateUK(dateStr);
+  document.getElementById('mt-day-modal-body').innerHTML = `
+    <div style="padding:18px 22px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div>
+          <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--text3)">Calendar day</div>
+          <div style="font-size:20px;font-weight:800;color:var(--repose-navy)">${escHtml(dateLabel)}</div>
+        </div>
+        <button class="mt-icon-btn" onclick="mtCloseCalendarDay()" aria-label="Close" style="font-size:18px">✕</button>
+      </div>
+      ${doneHtml}
+      ${dueHtml}
+      <div style="display:flex;justify-content:flex-end;margin-top:14px">
+        <button class="mt-btn" onclick="mtCloseCalendarDay()">Close</button>
+      </div>
+    </div>`;
+  document.getElementById('mt-day-modal').style.display = '';
+}
+
+function mtCloseCalendarDay() {
+  const el = document.getElementById('mt-day-modal');
+  if (el) el.style.display = 'none';
 }
 
 function mtToggleHistory(itemId) {
