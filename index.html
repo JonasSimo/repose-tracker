@@ -2252,7 +2252,7 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .cc-dash-label     { font-size:10px; color:var(--text3); }
 
 /* ─── MAINTENANCE DASHBOARD (Direction A — Operations Hub) ─── */
-.mt-body              { padding: 16px 20px 32px; background: linear-gradient(180deg, var(--bg3) 0%, var(--bg2) 220px); min-height: 100%; }
+.mt-body              { padding: 16px 20px 32px; background: linear-gradient(180deg, var(--bg3) 0%, var(--bg2) 220px); flex: 1; overflow-y: auto; min-height: 0; }
 
 /* sub-tab pill toggle */
 .mt-subtabs           { display: inline-flex; gap: 4px; background: #eef2f6; padding: 4px; border-radius: 10px; margin-bottom: 18px; }
@@ -14492,6 +14492,16 @@ const WM_MACHINES = [
   { id:'bench-f',        name:'Seats',             group:'Benches'  },
 ];
 
+// Development team — separate machine IDs (dev- prefix) so Power Automate
+// routes submissions to DEVInspections instead of WMInspections.
+const DEV_MACHINES = [
+  { id:'dev-pillar-drill', name:'Pillar Drill', group:'Machines'  },
+  { id:'dev-bandsaw',      name:'Bandsaw',      group:'Machines'  },
+  { id:'dev-staple-gun',   name:'Staple Gun',   group:'Air Tools' },
+  { id:'dev-pin-gun',      name:'Pin Gun',      group:'Air Tools' },
+  { id:'dev-nail-gun',     name:'Nail Gun',     group:'Air Tools' },
+];
+
 let wmInspections   = [];
 let wmByMachineDate = {}; // machineId → dateStr(YYYY-MM-DD) → [fields]
 let wmDowntime      = {}; // machineId → Set<dateStr>  (not-in-use markings)
@@ -15916,7 +15926,7 @@ const MT_YEARLY_HISTORY = 'MaintenanceYearlyHistory';
 const MT_TEAMS = [
   { id:'woodmill',    name:'Woodmill',    icon:'🪵', listId: WM_LIST_ID,        downtimeList:'WMDowntime',  machines: WM_MACHINES },
   { id:'cutting',     name:'Cutting',     icon:'✂️', listName: 'CuttingChecks', downtimeList: null,         machines: CC_MACHINES },
-  // Development added in Task 16 once DEV_MACHINES is defined
+  { id:'development', name:'Development', icon:'🧪', listName: 'DEVInspections', downtimeList:'DEVDowntime', machines: DEV_MACHINES },
 ];
 
 // State (single object, easy to inspect from devtools)

@@ -251,6 +251,13 @@ const MACHINES = {
   'bench-d':         { name: 'Blocking Bench D',  type: 'bench'        },
   'bench-e':         { name: 'Blocking Bench E',  type: 'bench'        },
   'bench-f':         { name: 'Seats',             type: 'bench'        },
+  // Development team — separate machine IDs (dev- prefix) so Power Automate
+  // can route writes to DEVInspections instead of WMInspections.
+  'dev-pillar-drill':{ name: 'Dev Pillar Drill',   type: 'pillar-drill'   },
+  'dev-bandsaw':     { name: 'Dev Bandsaw',        type: 'saw'            },
+  'dev-staple-gun':  { name: 'Dev Staple Gun',     type: 'pneumatic-tool' },
+  'dev-pin-gun':     { name: 'Dev Pin Gun',        type: 'pneumatic-tool' },
+  'dev-nail-gun':    { name: 'Dev Nail Gun',       type: 'pneumatic-tool' },
 };
 
 // ══════════════════════════════════════════════════════════════
@@ -309,6 +316,18 @@ const CHECKLISTS = {
     'Sanding pad/disc inspected for wear or damage',
     'Sanding pad/disc is securely attached',
     'Sander has been oiled as required',
+  ],
+  // Single-tool pneumatic check (Dev staple/pin/nail guns). Same 7 items as
+  // BENCH_CHECKS but used as a one-row checklist (one tool per QR scan)
+  // rather than a 4-tool bench-style submission.
+  'pneumatic-tool': [
+    'Air hose inspected for leaks, cracks, or wear',
+    'Air fittings and connections are tight and secure',
+    'Trigger operates smoothly — does not stick',
+    'No jams, damage, or debris — loads correctly',
+    'Safety tip / contact trip functions correctly (no firing without contact)',
+    'Tool is properly lubricated',
+    'Tool shows no visible damage or cracking',
   ],
 };
 
