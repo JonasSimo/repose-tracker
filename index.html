@@ -6600,6 +6600,18 @@ async function graphPost(url, body, sessionId) {
   return r.json();
 }
 
+async function graphPatch(url, body) {
+  const token = await getGraphToken();
+  if (!token) throw new Error('Not authenticated');
+  const r = await _graphFetchWithRetry(url, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) throw new Error(`Graph ${r.status}: ${await r.text()}`);
+  return r.json();
+}
+
 // Excel workbook sessions — POST /workbook/createSession returns an id; subsequent
 // reads with `workbook-session-id` header share one Excel-server instance, which
 // (a) skips the 5-10s "open workbook" cold-start per request, and (b) allows
@@ -17210,10 +17222,114 @@ function mtToggleHistory(itemId) {
 function mtCloseDrawer()        { document.getElementById('mt-drawer')?.classList.remove('on'); document.getElementById('mt-drawer-bg')?.classList.remove('on'); }
 function mtCloseCompleteModal() { const el = document.getElementById('mt-complete-modal'); if (el) el.style.display = 'none'; }
 
-// Stubs — replaced in Tasks 14 (Open/Save/Delete) and 15 (Complete)
-function mtOpenDrawer(/* mode, id */)  { toast('Drawer comes in Task 14', 'i'); }
+// Stub — replaced in Task 15 (Complete)
 function mtOpenCompleteModal(/* id */) { toast('Mark-complete comes in Task 15', 'i'); }
-function mtDeleteYearly(/* id */)      { toast('Delete comes in Task 14', 'i'); }
+
+// ── Maintenance — Yearly manager edit drawer ──────────────────────────────
+function mtOpenDrawer(mode, id) {
+  if (!mtIsManager) return;
+  const drawer = document.getElementById('mt-drawer');
+  const bg     = document.getElementById('mt-drawer-bg');
+  const body   = document.getElementById('mt-drawer-body');
+  const foot   = document.getElementById('mt-drawer-foot');
+  const title  = document.getElementById('mt-drawer-title');
+
+  const isEdit = mode === 'edit';
+  const item   = isEdit ? mtState.yearlyItems.find(i => Number(i.id) === Number(id)) : null;
+  title.textContent = isEdit ? 'Edit yearly item' : 'Manage yearly items';
+
+  if (isEdit && item) {
+    body.innerHTML = mtRenderYearlyForm(item);
+    foot.innerHTML = `
+      <button class="mt-btn" onclick="mtCloseDrawer()">Cancel</button>
+      <button class="mt-btn" onclick="mtSaveYearly(${item.id})" style="background:var(--repose-blue);color:#fff">Save</button>`;
+  } else {
+    // Manage mode — show "Add new" form on top, then list of existing items
+    const listHtml = mtState.yearlyItems.map(i => `
+      <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+        <span><b>${escHtml(i.Title || '')}</b> <span style="color:var(--text3)">· ${escHtml(i.Category || '')}</span></span>
+        <span>
+          <button class="mt-icon-btn" onclick="mtOpenDrawer('edit',${i.id})">✏️</button>
+          <button class="mt-icon-btn" onclick="mtDeleteYearly(${i.id})">🗑</button>
+        </span>
+      </div>`).join('');
+    body.innerHTML = `
+      <div class="mt-drawer-title" style="font-size:13px;margin-bottom:6px">Add new item</div>
+      ${mtRenderYearlyForm({})}
+      <div class="mt-drawer-title" style="font-size:13px;margin-top:18px;margin-bottom:6px">Existing items</div>
+      ${listHtml || '<div class="mt-empty" style="padding:8px">None yet.</div>'}`;
+    foot.innerHTML = `
+      <button class="mt-btn" onclick="mtCloseDrawer()">Close</button>
+      <button class="mt-btn" onclick="mtSaveYearly(null)" style="background:var(--repose-blue);color:#fff">Save new</button>`;
+  }
+  drawer.classList.add('on');
+  bg.classList.add('on');
+}
+
+function mtRenderYearlyForm(item) {
+  const cats = ['Statutory','Annual Servicing','Legal Surveys','Insurance','Other'];
+  const freqs = ['Annual','6-monthly','Quarterly','Monthly','Custom'];
+  return `
+    <div class="mt-form-group"><label>Title</label><input id="mt-fy-title" value="${escHtml(item.Title || '')}"></div>
+    <div class="mt-form-group"><label>Category</label>
+      <select id="mt-fy-cat">${cats.map(c => `<option ${item.Category===c?'selected':''}>${c}</option>`).join('')}</select>
+    </div>
+    <div class="mt-form-group"><label>Frequency</label>
+      <select id="mt-fy-freq" onchange="document.getElementById('mt-fy-freq-row').style.display = this.value==='Custom' ? '' : 'none'">${freqs.map(f => `<option ${item.Frequency===f?'selected':''}>${f}</option>`).join('')}</select>
+    </div>
+    <div class="mt-form-group" id="mt-fy-freq-row" style="${(item.Frequency||'').toLowerCase()==='custom'?'':'display:none'}">
+      <label>Frequency days</label><input id="mt-fy-fd" type="number" min="1" value="${item.FrequencyDays || ''}">
+    </div>
+    <div class="mt-form-group"><label>Last done</label><input id="mt-fy-last" type="date" value="${(item.LastDone || '').slice(0,10)}"></div>
+    <div class="mt-form-group"><label>Doc link (SharePoint URL)</label><input id="mt-fy-doc" value="${escHtml(item.DocLink || '')}" placeholder="https://reposefurniturelimited.sharepoint.com/..."></div>
+    <div class="mt-form-group"><label>Notes</label><textarea id="mt-fy-notes" rows="3">${escHtml(item.Notes || '')}</textarea></div>`;
+}
+
+async function mtSaveYearly(id) {
+  if (!mtIsManager) return;
+  const title = document.getElementById('mt-fy-title').value.trim();
+  if (!title) { toast('Title is required', 'u'); return; }
+  const fields = {
+    Title:         title,
+    Category:      document.getElementById('mt-fy-cat').value,
+    Frequency:     document.getElementById('mt-fy-freq').value,
+    FrequencyDays: Number(document.getElementById('mt-fy-fd').value || 0) || null,
+    LastDone:      document.getElementById('mt-fy-last').value || null,
+    DocLink:       document.getElementById('mt-fy-doc').value.trim() || null,
+    Notes:         document.getElementById('mt-fy-notes').value || null,
+  };
+  try {
+    const siteId = await mtAdapterGetSiteId();
+    const listId = await getListIdByNameOnSite(siteId, MT_YEARLY_LIST);
+    if (id) {
+      await graphPatch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}/fields`, fields);
+      toast('Item updated', 's');
+    } else {
+      await graphPost(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`, { fields });
+      toast('Item added', 's');
+    }
+    await mtLoadYearly();
+    mtCloseDrawer();
+    mtRenderYearly();
+  } catch (e) {
+    toast('Save failed: ' + (e.message || ''), 'u');
+  }
+}
+
+async function mtDeleteYearly(id) {
+  if (!mtIsManager) return;
+  if (!confirm('Delete this item? History rows will be kept for audit.')) return;
+  try {
+    const siteId = await mtAdapterGetSiteId();
+    const listId = await getListIdByNameOnSite(siteId, MT_YEARLY_LIST);
+    await graphDelete(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}`);
+    await mtLoadYearly();
+    mtRenderYearly();
+    toast('Item deleted', 's');
+  } catch (e) {
+    toast('Delete failed: ' + (e.message || ''), 'u');
+  }
+}
 
 </script>
 </body>
