@@ -2597,8 +2597,6 @@ document.addEventListener('DOMContentLoaded', () => {
         <button class="nav-item" data-view="stats" onclick="navTo('stats')">Stats</button>
         <button class="nav-item" data-view="issues" id="issues-tab-btn" onclick="navTo('issues')">CPARs</button>
         <button class="nav-item" data-view="timing" id="timing-tab-btn" onclick="navTo('timing')" style="display:none">Job Timing</button>
-        <button class="nav-item" data-view="woodmill" id="woodmill-tab-btn" onclick="navTo('woodmill')" style="display:none">Woodmill</button>
-        <button class="nav-item" data-view="cutting-checks" id="cc-tab-btn" onclick="navTo('cutting-checks')" style="display:none">Cutting Checks</button>
         <button class="nav-item" data-view="maintenance" id="mt-tab-btn" onclick="navTo('maintenance')">Maintenance</button>
         <button class="nav-item" data-view="safety" onclick="navTo('safety')">Near Misses</button>
         <button class="nav-item" data-view="complaints" onclick="navTo('complaints')">Complaints</button>
@@ -3073,41 +3071,6 @@ document.addEventListener('DOMContentLoaded', () => {
     <div id="tm-footer" class="tm-footer"></div>
   </div>
 </div>
-
-<!-- ═══════════════════════════════════════════════
-     VIEW: WOODMILL INSPECTIONS
-════════════════════════════════════════════════ -->
-<div class="view" id="view-woodmill">
-  <div class="wm-wrap">
-    <div class="wm-toolbar">
-      <div class="wm-toolbar-row">
-        <div class="wm-chips" id="wm-view-chips">
-          <button class="wm-chip active" onclick="wmSetView(this,'week')">Week</button>
-          <button class="wm-chip"        onclick="wmSetView(this,'month')">Month</button>
-        </div>
-        <button class="wm-refresh-btn" onclick="wmOnOpen(true)" title="Refresh">↻</button>
-        <div class="wm-nav" id="wm-nav">
-          <button class="wm-nav-btn" onclick="wmStepBack()">‹</button>
-          <span class="wm-nav-label" id="wm-nav-label"></span>
-          <button class="wm-nav-btn" onclick="wmStepForward()">›</button>
-        </div>
-      </div>
-    </div>
-    <div class="wm-stats" id="wm-stats" style="display:none"></div>
-    <div class="wm-body">
-      <div id="wm-loading" class="wm-loading" style="display:none">Loading…</div>
-      <div class="wm-legend">
-        <div class="wm-legend-item"><div class="wm-legend-swatch pass">✓</div>All pass</div>
-        <div class="wm-legend-item"><div class="wm-legend-swatch fail">⚠</div>Has failures</div>
-        <div class="wm-legend-item"><div class="wm-legend-swatch none">–</div>Not inspected</div>
-        <div class="wm-legend-item"><div class="wm-legend-swatch" style="background:var(--bg3);border:1.5px dashed var(--border2);color:var(--border2)">○</div>Not in use</div>
-      </div>
-      <div id="wm-grid"></div>
-    </div>
-    <div id="wm-footer" class="wm-footer"></div>
-  </div>
-</div>
-
 
 <!-- ═══════════════════════════════════════════════
      VIEW: COMPLAINTS
@@ -3587,7 +3550,7 @@ let ppAutoSyncInterval = null;
 // ═══════════════════════════════════════════════
 // ROUTING
 // ═══════════════════════════════════════════════
-const NAV_LABELS = { 'team-select':'Team View','tracker':'Team View','overview':'Load Plan','loadsheet':'Delivery','production':'Production Plan','stats':'Stats','issues':'Issues','safety':'Safety','ordercheck':'Order Check','timing':'Job Timing','complaints':'Complaints','woodmill':'Woodmill','innovation':'Innovation Station','cutting-checks':'Cutting Checks','maintenance':'Maintenance' };
+const NAV_LABELS = { 'team-select':'Team View','tracker':'Team View','overview':'Load Plan','loadsheet':'Delivery','production':'Production Plan','stats':'Stats','issues':'Issues','safety':'Safety','ordercheck':'Order Check','timing':'Job Timing','complaints':'Complaints','innovation':'Innovation Station','maintenance':'Maintenance' };
 function showView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   const activeView = name === 'tracker' ? 'team-select' : name;
@@ -3610,8 +3573,6 @@ function showView(name) {
   if (name === 'ordercheck')  { ocOnOpen(); }
   if (name === 'timing')      { tmOnOpen(); }
   if (name === 'complaints')  { cpOnOpen(); }
-  if (name === 'woodmill')       { wmOnOpen(); }
-  if (name === 'cutting-checks') { ccOnOpen(); }
   if (name === 'maintenance')    { mtOnOpen(); }
   if (name === 'innovation')     { ivnOnOpen(); }
 }
@@ -6432,7 +6393,7 @@ const TABLET_TEAM = _validatedTeam || sessionStorage.getItem('tabletTeam') || ''
 // Single-tab lock — add ?tab=production (or any view name) to the URL
 // to lock the app to that tab only, hiding the nav menu
 // Preserve tab across MSAL redirect
-const _VALID_TABS = new Set(['team-select','overview','tracker','loadsheet','production','stats','issues','safety','ordercheck','timing','complaints','woodmill','cutting-checks','maintenance','innovation']);
+const _VALID_TABS = new Set(['team-select','overview','tracker','loadsheet','production','stats','issues','safety','ordercheck','timing','complaints','maintenance','innovation']);
 const _paramTab = new URLSearchParams(window.location.search).get('tab') || '';
 const _validatedTab = _VALID_TABS.has(_paramTab) ? _paramTab : '';
 if (_validatedTab) sessionStorage.setItem('tabletTab', _validatedTab);
@@ -6929,14 +6890,8 @@ function updateAuthBadge() {
     const drBtn = document.getElementById('daily-report-btn');
     if (drBtn) drBtn.style.display = isJonas ? 'inline-flex' : 'none';
     const TIMING_ALLOWED = new Set(['jonas.simonaitis@reposefurniture.co.uk','richard.semmens@reposefurniture.co.uk','paul.jenkins@reposefurniture.co.uk','mitch@reposefurniture.co.uk']);
-    const WOODMILL_ALLOWED = new Set([...TIMING_ALLOWED, 'woodmill@reposefurniture.co.uk']);
     const timingBtn = document.getElementById('timing-tab-btn');
     if (timingBtn) timingBtn.style.display = TIMING_ALLOWED.has(graphAccount.username.toLowerCase()) ? '' : 'none';
-    const woodmillBtn = document.getElementById('woodmill-tab-btn');
-    if (woodmillBtn) woodmillBtn.style.display = WOODMILL_ALLOWED.has(graphAccount.username.toLowerCase()) ? '' : 'none';
-    const CC_TAB_ALLOWED = new Set([...TIMING_ALLOWED, 'woodmill@reposefurniture.co.uk']);
-    const ccTabBtn = document.getElementById('cc-tab-btn');
-    if (ccTabBtn) ccTabBtn.style.display = CC_TAB_ALLOWED.has(graphAccount.username.toLowerCase()) ? '' : 'none';
     wmIsManager = TIMING_ALLOWED.has(graphAccount.username.toLowerCase());
     mtIsManager = wmIsManager; // QHSE Managers gate — same set as Stats / Woodmill manager actions
     mtState.isManager = mtIsManager;
@@ -6991,7 +6946,7 @@ async function initGraph() {
     graphAccount = accounts[0];
     updateAuthBadge();
     const _deepView = new URLSearchParams(window.location.search).get('view');
-    const _validViews = new Set(['team-select','overview','tracker','loadsheet','production','stats','issues','safety','ordercheck','timing','complaints','woodmill','cutting-checks','maintenance','innovation']);
+    const _validViews = new Set(['team-select','overview','tracker','loadsheet','production','stats','issues','safety','ordercheck','timing','complaints','maintenance','innovation']);
     if (_deepView && _validViews.has(_deepView)) navTo(_deepView);
     // PROD is the team-view critical path — it builds the job grid (renderJobs runs at
     // the end of loadProductionFromSharePoint). Run it alone first so jobs paint asap.
@@ -13124,40 +13079,6 @@ async function closeOutNearMiss(itemId) {
   <div class="spec-card" id="specCard"></div>
 </div>
 
-<!-- ═══════════════════════════════════════════════
-     VIEW: CUTTING CHECKS
-════════════════════════════════════════════════ -->
-<div class="view" id="view-cutting-checks">
-  <div class="wm-wrap">
-    <div class="wm-toolbar">
-      <div class="wm-toolbar-row">
-        <div class="wm-chips" id="cc-view-chips">
-          <button class="wm-chip active" onclick="ccSetView(this,'week')">Week</button>
-          <button class="wm-chip"        onclick="ccSetView(this,'month')">Month</button>
-        </div>
-        <button class="wm-refresh-btn" onclick="ccOnOpen(true)" title="Refresh">↻</button>
-        <div class="wm-nav" id="cc-nav">
-          <button class="wm-nav-btn" onclick="ccStepBack()">‹</button>
-          <span class="wm-nav-label" id="cc-nav-label"></span>
-          <button class="wm-nav-btn" onclick="ccStepForward()">›</button>
-        </div>
-        <button class="wm-chip" style="margin-left:auto;border-color:#d97706;color:#d97706" onclick="ccOpenSubmitModal()">+ Do Today's Check</button>
-      </div>
-    </div>
-    <div class="wm-body">
-      <div id="cc-loading" class="wm-loading" style="display:none">Loading…</div>
-      <div id="cc-dashboard" class="cc-dashboard"></div>
-      <div class="wm-legend">
-        <div class="wm-legend-item"><div class="wm-legend-swatch pass">✓</div>All pass</div>
-        <div class="wm-legend-item"><div class="wm-legend-swatch fail">⚠</div>Has failures</div>
-        <div class="wm-legend-item"><div class="wm-legend-swatch none">–</div>Not checked</div>
-      </div>
-      <div id="cc-grid"></div>
-    </div>
-    <div id="cc-footer" class="wm-footer"></div>
-  </div>
-</div>
-
 <!-- Cutting Checks — View modal (read existing record) -->
 <div id="cc-view-modal" class="wm-modal-overlay" style="display:none" onclick="if(event.target===this)ccCloseViewModal()">
   <div class="wm-modal-box">
@@ -14687,196 +14608,6 @@ async function wmToggleDowntime(machineId) {
   wmRender();
 }
 
-function wmRender() {
-  if (wmViewMode === 'week') wmRenderWeek();
-  else wmRenderMonth();
-}
-
-const WM_GROUP_COLOR = { 'Saws':'#14a1e9', 'Machines':'#a78bfa', 'Benches':'#2dd4bf' };
-
-function wmRenderWeek() {
-  const grid    = document.getElementById('wm-grid');
-  const footer  = document.getElementById('wm-footer');
-  const stats   = document.getElementById('wm-stats');
-  const today   = wmDateStr(new Date());
-
-  // Build 5 weekdays (Mon–Fri)
-  const days = [];
-  for (let i = 0; i < 5; i++) {
-    const d = new Date(wmWeekStart);
-    d.setDate(d.getDate() + i);
-    days.push(d);
-  }
-
-  // Nav label
-  const start = days[0], end = days[4];
-  document.getElementById('wm-nav-label').textContent =
-    `${start.toLocaleDateString('en-GB',{day:'numeric',month:'short'})} – ${end.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}`;
-
-  // Stats strip — show today's counts if today is in this week
-  const todayInWeek = days.some(d => wmDateStr(d) === today);
-  if (todayInWeek) {
-    const todayStatuses = WM_MACHINES.map(m => wmStatus(m.id, today));
-    const todayPass     = todayStatuses.filter(s => s === 'pass').length;
-    const todayFail     = todayStatuses.filter(s => s === 'fail').length;
-    const todayDT       = todayStatuses.filter(s => s === 'downtime').length;
-    const todayNone     = WM_MACHINES.length - todayPass - todayFail - todayDT;
-    stats.style.display = '';
-    stats.innerHTML = `
-      <div class="wm-stat">
-        <div class="wm-stat-icon" style="color:#22c55e">✓</div>
-        <div><div class="wm-stat-val">${todayPass}</div><div class="wm-stat-label">Passed today</div></div>
-      </div>
-      <div class="wm-stat">
-        <div class="wm-stat-icon" style="color:#f59e0b">⚠</div>
-        <div><div class="wm-stat-val">${todayFail}</div><div class="wm-stat-label">Failures today</div></div>
-      </div>
-      <div class="wm-stat">
-        <div class="wm-stat-icon" style="color:var(--border2)">–</div>
-        <div><div class="wm-stat-val">${todayNone}</div><div class="wm-stat-label">Not done today</div></div>
-      </div>
-      ${todayDT > 0 ? `<div class="wm-stat">
-        <div class="wm-stat-icon" style="color:var(--border2)">○</div>
-        <div><div class="wm-stat-val">${todayDT}</div><div class="wm-stat-label">Not in use today</div></div>
-      </div>` : ''}`;
-  } else {
-    stats.style.display = 'none';
-  }
-
-  // Build table
-  let html = `<table class="wm-table"><thead><tr>
-    <th class="wm-th-name">Machine</th>
-    ${days.map(d => {
-      const ds = wmDateStr(d);
-      const isToday = ds === today;
-      return `<th style="${isToday?'color:var(--repose-blue);':''}">
-        ${d.toLocaleDateString('en-GB',{weekday:'short'})}<br>
-        <span style="font-size:10px;font-weight:500">${d.toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</span>
-      </th>`;
-    }).join('')}
-  </tr></thead><tbody>`;
-
-  let lastGroup = '';
-  for (const m of WM_MACHINES) {
-    if (m.group !== lastGroup) {
-      html += `<tr class="wm-group-hdr"><td colspan="${days.length + 1}">${m.group}</td></tr>`;
-      lastGroup = m.group;
-    }
-    const gcolor = WM_GROUP_COLOR[m.group] || 'var(--repose-blue)';
-    const isDowntimeToday = todayInWeek && wmDowntime[m.id]?.has(today);
-    const dtBtnHtml = wmIsManager && todayInWeek
-      ? `<button class="wm-downtime-btn${isDowntimeToday ? ' active' : ''}"
-           onclick="wmToggleDowntime('${m.id}')" title="${isDowntimeToday ? 'Remove not-in-use marking' : 'Mark as not in use today'}"
-           >${isDowntimeToday ? '● Not in use' : '○ Not in use'}</button>`
-      : '';
-    html += `<tr>
-      <td><div class="wm-machine-name">
-        <div class="wm-m-indicator" style="background:${gcolor}"></div>${m.name}${dtBtnHtml}
-      </div></td>`;
-    for (const d of days) {
-      const ds     = wmDateStr(d);
-      const status = wmStatus(m.id, ds);
-      const isToday = ds === today;
-      const icon   = status === 'pass' ? '✓' : status === 'fail' ? '⚠' : status === 'downtime' ? '○' : '–';
-      const clickable = status !== 'downtime';
-      html += `<td><div class="wm-cell"><div class="wm-dot-cell ${status}${isToday?' today-col':''}"
-        ${clickable ? `data-mid="${m.id}" data-date="${ds}" data-name="${m.name}"
-        onclick="wmOpenModal(this.dataset.mid,this.dataset.date,this.dataset.name)"` : ''}
-        title="${m.name} · ${d.toLocaleDateString('en-GB')}${status === 'downtime' ? ' — Not in use' : ''}">${icon}</div></div></td>`;
-    }
-    html += `</tr>`;
-  }
-  html += `</tbody></table>`;
-  grid.innerHTML = html;
-
-  // Footer stats
-  const allStatuses  = WM_MACHINES.flatMap(m => days.map(d => wmStatus(m.id, wmDateStr(d))));
-  const passCells    = allStatuses.filter(s => s === 'pass').length;
-  const failCells    = allStatuses.filter(s => s === 'fail').length;
-  const dtCells      = allStatuses.filter(s => s === 'downtime').length;
-  const noneCells    = allStatuses.filter(s => s === 'none').length;
-  footer.textContent = `Week: ${passCells} inspected · ${failCells} with failures · ${noneCells} missing · ${dtCells} not in use`;
-}
-
-function wmRenderMonth() {
-  const grid   = document.getElementById('wm-grid');
-  const footer = document.getElementById('wm-footer');
-  const stats  = document.getElementById('wm-stats');
-  const today  = wmDateStr(new Date());
-  const year   = wmWeekStart.getFullYear();
-  const month  = wmWeekStart.getMonth();
-
-  document.getElementById('wm-nav-label').textContent =
-    new Date(year, month, 1).toLocaleDateString('en-GB', { month:'long', year:'numeric' });
-
-  // Hide today stats strip in month view
-  stats.style.display = 'none';
-
-  // Collect all Mon-Fri days in this month
-  const days = [];
-  const d = new Date(year, month, 1);
-  while (d.getMonth() === month) {
-    const dow = d.getDay();
-    if (dow !== 0 && dow !== 6) days.push(new Date(d));
-    d.setDate(d.getDate() + 1);
-  }
-
-  // Group days by week
-  const weeks = [];
-  let week = [];
-  for (const day of days) {
-    if (day.getDay() === 1 && week.length) { weeks.push(week); week = []; }
-    week.push(day);
-  }
-  if (week.length) weeks.push(week);
-
-  let html = `<table class="wm-table"><thead><tr>
-    <th class="wm-th-name">Machine</th>
-    ${weeks.map(w => `<th>Wk ${isoWeekNumber(w[0])}<br><span style="font-size:9px;font-weight:500">${w[0].toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</span></th>`).join('')}
-  </tr></thead><tbody>`;
-
-  let lastGroup = '';
-  for (const m of WM_MACHINES) {
-    if (m.group !== lastGroup) {
-      html += `<tr class="wm-group-hdr"><td colspan="${weeks.length + 1}">${m.group}</td></tr>`;
-      lastGroup = m.group;
-    }
-    const gcolor = WM_GROUP_COLOR[m.group] || 'var(--repose-blue)';
-    html += `<tr>
-      <td><div class="wm-machine-name">
-        <div class="wm-m-indicator" style="background:${gcolor}"></div>${m.name}
-      </div></td>`;
-    for (const w of weeks) {
-      const dayStatuses   = w.map(day => wmStatus(m.id, wmDateStr(day)));
-      const pass          = dayStatuses.filter(s => s === 'pass').length;
-      const fail          = dayStatuses.filter(s => s === 'fail').length;
-      const dt            = dayStatuses.filter(s => s === 'downtime').length;
-      const working       = w.length - dt;
-      const overallStatus = fail > 0 ? 'fail' : pass > 0 ? 'pass' : dt === w.length ? 'downtime' : 'none';
-      const icon          = overallStatus === 'pass' ? '✓' : overallStatus === 'fail' ? '⚠' : overallStatus === 'downtime' ? '○' : '–';
-      const label         = pass > 0 || fail > 0 ? `${pass + fail}/${working}d` : '';
-      const clickable     = overallStatus !== 'downtime';
-      html += `<td style="text-align:center">
-        <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
-          <div class="wm-dot-cell wm-month-cell ${overallStatus}"
-            ${clickable ? `data-mid="${m.id}" data-week="${wmDateStr(w[0])}" data-name="${m.name}"
-            onclick="wmOpenWeekModal(this.dataset.mid,this.dataset.week,this.dataset.name)"` : ''}
-            title="${m.name} · Wk ${isoWeekNumber(w[0])}">${icon}</div>
-          ${label ? `<span style="font-size:9px;color:var(--text2)">${label}</span>` : ''}
-        </div>
-      </td>`;
-    }
-    html += `</tr>`;
-  }
-  html += `</tbody></table>`;
-  grid.innerHTML = html;
-
-  const totalDays  = WM_MACHINES.length * days.length;
-  const passDays   = WM_MACHINES.reduce((n, m) => n + days.filter(d => wmStatus(m.id, wmDateStr(d)) === 'pass').length, 0);
-  const failDays   = WM_MACHINES.reduce((n, m) => n + days.filter(d => wmStatus(m.id, wmDateStr(d)) === 'fail').length, 0);
-  footer.textContent = `${new Date(year,month,1).toLocaleDateString('en-GB',{month:'long',year:'numeric'})} · ${passDays} inspected · ${failDays} with failures · ${totalDays-passDays-failDays} missing`;
-}
-
 function wmOpenModal(machineId, dateStr, machineName) {
   const insps = wmByMachineDate[machineId]?.[dateStr] || [];
   const [_y, _m, _d] = dateStr.split('-').map(Number);
@@ -15104,31 +14835,6 @@ function ccStatus(machineId, dateStr) {
   return insps.some(f => f.AnyFail === true || f.AnyFail === 'true' || f.AnyFail === 1) ? 'fail' : 'pass';
 }
 
-function ccRender() {
-  ccRenderDashboard();
-  if (ccViewMode === 'week') ccRenderWeek();
-  else ccRenderMonth();
-}
-
-function ccRenderDashboard() {
-  const dash = document.getElementById('cc-dashboard');
-  if (!dash) return;
-  const today = wmDateStr(new Date());
-  dash.innerHTML = CC_MACHINES.map(m => {
-    const status = ccStatus(m.id, today);
-    const icon   = status === 'pass' ? '✓' : status === 'fail' ? '⚠' : '–';
-    const label  = status === 'pass' ? 'Checked' : status === 'fail' ? 'Failures' : 'Not done';
-    return `<div class="cc-dash-card ${status}"
-      onclick="ccOpenViewModal('${m.id}','${today}','${escHtml(m.name)}')"
-      title="${escHtml(m.name)} — today's status">
-      <div class="cc-dash-icon">${m.icon}</div>
-      <div class="cc-dash-name">${escHtml(m.name)}</div>
-      <div class="cc-dash-status">${icon}</div>
-      <div class="cc-dash-label">${label}</div>
-    </div>`;
-  }).join('');
-}
-
 function ccSetView(btn, mode) {
   document.querySelectorAll('#cc-view-chips .wm-chip').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
@@ -15146,106 +14852,6 @@ function ccStepForward() {
   if (ccViewMode === 'week') ccWeekStart = new Date(ccWeekStart.getTime() + 7 * 86400000);
   else { ccWeekStart.setMonth(ccWeekStart.getMonth() + 1); ccWeekStart = new Date(ccWeekStart); }
   ccRender();
-}
-
-function ccRenderWeek() {
-  const grid   = document.getElementById('cc-grid');
-  const footer = document.getElementById('cc-footer');
-  const today  = wmDateStr(new Date());
-
-  document.getElementById('cc-nav-label').textContent =
-    `Wk ${isoWeekNumber(ccWeekStart)} · ${ccWeekStart.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })}`;
-
-  const days = [];
-  for (let i = 0; i < 5; i++) {
-    const d = new Date(ccWeekStart);
-    d.setDate(d.getDate() + i);
-    days.push(d);
-  }
-
-  let html = `<table class="wm-table"><thead><tr>
-    <th class="wm-th-name">Machine</th>
-    ${days.map(d => `<th class="${wmDateStr(d)===today?'wm-today-col':''}">${wmFormatDay(d)}</th>`).join('')}
-  </tr></thead><tbody>`;
-
-  for (const m of CC_MACHINES) {
-    html += `<tr><td><div class="wm-machine-name">
-      <div class="wm-m-indicator" style="background:${m.color}"></div>${m.name}
-    </div></td>`;
-    for (const d of days) {
-      const ds = wmDateStr(d);
-      const status = ccStatus(m.id, ds);
-      const isToday = ds === today;
-      const icon = status === 'pass' ? '✓' : status === 'fail' ? '⚠' : '–';
-      html += `<td><div class="wm-cell"><div class="wm-dot-cell ${status}${isToday?' today-col':''}"
-        data-mid="${m.id}" data-date="${ds}" data-name="${escHtml(m.name)}"
-        onclick="ccOpenViewModal(this.dataset.mid,this.dataset.date,this.dataset.name)"
-        title="${m.name} · ${d.toLocaleDateString('en-GB')}">${icon}</div></div></td>`;
-    }
-    html += `</tr>`;
-  }
-  html += `</tbody></table>`;
-  grid.innerHTML = html;
-
-  const allStatuses = CC_MACHINES.flatMap(m => days.map(d => ccStatus(m.id, wmDateStr(d))));
-  const pass = allStatuses.filter(s => s === 'pass').length;
-  const fail = allStatuses.filter(s => s === 'fail').length;
-  const none = allStatuses.filter(s => s === 'none').length;
-  footer.textContent = `Week: ${pass} checked · ${fail} with failures · ${none} not done`;
-}
-
-function ccRenderMonth() {
-  const grid   = document.getElementById('cc-grid');
-  const footer = document.getElementById('cc-footer');
-  const year   = ccWeekStart.getFullYear();
-  const month  = ccWeekStart.getMonth();
-
-  document.getElementById('cc-nav-label').textContent =
-    new Date(year, month, 1).toLocaleDateString('en-GB', { month:'long', year:'numeric' });
-
-  const days = [];
-  const d = new Date(year, month, 1);
-  while (d.getMonth() === month) {
-    const dow = d.getDay();
-    if (dow !== 0 && dow !== 6) days.push(new Date(d));
-    d.setDate(d.getDate() + 1);
-  }
-
-  const weeks = [];
-  let week = [];
-  for (const day of days) {
-    if (day.getDay() === 1 && week.length) { weeks.push(week); week = []; }
-    week.push(day);
-  }
-  if (week.length) weeks.push(week);
-
-  let html = `<table class="wm-table"><thead><tr>
-    <th class="wm-th-name">Machine</th>
-    ${weeks.map(w => `<th>Wk ${isoWeekNumber(w[0])}<br><span style="font-size:9px;font-weight:500">${w[0].toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</span></th>`).join('')}
-  </tr></thead><tbody>`;
-
-  for (const m of CC_MACHINES) {
-    html += `<tr><td><div class="wm-machine-name">
-      <div class="wm-m-indicator" style="background:${m.color}"></div>${m.name}
-    </div></td>`;
-    for (const w of weeks) {
-      const statuses = w.map(day => ccStatus(m.id, wmDateStr(day)));
-      const overall = statuses.some(s=>s==='fail') ? 'fail' : statuses.some(s=>s==='pass') ? 'pass' : 'none';
-      const icon = overall === 'pass' ? '✓' : overall === 'fail' ? '⚠' : '–';
-      html += `<td><div class="wm-cell"><div class="wm-dot-cell ${overall}"
-        onclick="ccOpenWeekModal('${m.id}','${wmDateStr(w[0])}','${escHtml(m.name)}')"
-        title="${m.name} · Wk ${isoWeekNumber(w[0])}">${icon}</div></div></td>`;
-    }
-    html += `</tr>`;
-  }
-  html += `</tbody></table>`;
-  grid.innerHTML = html;
-
-  const all = CC_MACHINES.flatMap(m => weeks.map(w => {
-    const st = w.map(day => ccStatus(m.id, wmDateStr(day)));
-    return st.some(s=>s==='fail') ? 'fail' : st.some(s=>s==='pass') ? 'pass' : 'none';
-  }));
-  footer.textContent = `${new Date(year,month,1).toLocaleDateString('en-GB',{month:'long',year:'numeric'})} · ${all.filter(s=>s==='pass').length} checked · ${all.filter(s=>s==='fail').length} with failures`;
 }
 
 // ─── View modal (read existing) ──────────────────────────────────────────────
