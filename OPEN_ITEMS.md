@@ -64,6 +64,18 @@ Last updated after round 7.
 
 ---
 
+## 7. Maintenance dashboard (2026-04-27) — known leftovers
+
+**Status:** dashboard is live and functional; these are minor follow-ups.
+
+- **Development team not yet wired:** `MT_TEAMS` registry has only Woodmill + Cutting. Adding Development requires (a) a `DEV_MACHINES` constant with each machine's id/name/group/checks, and (b) `DEVInspections` + `DEVDowntime` SharePoint Lists on the Quality site. Both deferred until Jonas confirms the Development machine list.
+- **Legacy dead helpers:** Task 17 removed the standalone Woodmill + Cutting Checks dashboards but intentionally left `wmSetView`, `wmStepBack`, `wmStepForward`, `ccSetView`, `ccStepBack`, `ccStepForward`, `wmToggleDowntime`, `wmOnOpen`, `ccOnOpen` in place. They have no callers now and reference deleted functions — safe but should be cleaned up in a follow-up PR after a soak period.
+- **Complaints print rule too greedy:** `body > *:not(#view-complaints) { display:none !important }` at index.html ~line 2496 fires on ANY `window.print()` and was hiding the maintenance audit PDF. Worked around by boosting maintenance-print specificity (commit b0b742f). Proper fix is to scope the complaints rule to `body.cp-printing > ...` and have the complaints export set/clear that class — left for future cleanup since both flows now coexist correctly.
+- **Yearly "Scheduled" semantics:** Jonas asked how to log specific-date scheduled inspections (e.g. "LOLER booked for 12 May 2027") — currently next-due is always computed from `LastDone + Frequency`. Optional `ScheduledFor` override field deferred (he said "leave it as-is for now").
+- **LastDone vs history mismatch:** if a user sets `LastDone` directly via the edit form (instead of using "✓ Mark complete"), the calendar doesn't show that date as Completed because Completed is read from `MaintenanceYearlyHistory`. Same product decision deferred.
+
+---
+
 ## 6. Two separate document click handlers
 
 **Severity:** LOW (maintenance/readability)
