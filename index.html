@@ -5376,7 +5376,9 @@ function _restoreSnapshot() {
     (snap.WEEKS || []).forEach(w => WEEKS.push(w));
     Object.keys(STATE).forEach(k => delete STATE[k]);
     Object.assign(STATE, snap.STATE || {});
-    LS_RAW = snap.LS_RAW || [];
+    // LS_RAW entries have a `date` Date object that JSON-serialises to a string —
+    // rehydrate it so localDateKey / renderLoadSheet don't blow up.
+    LS_RAW = (snap.LS_RAW || []).map(col => ({ ...col, date: col.date ? new Date(col.date) : null }));
     OV_RAW = snap.OV_RAW || {};
     MECH_SERIALS.clear();
     (snap.MECH_SERIALS || []).forEach(([k, v]) => MECH_SERIALS.set(k, v));
