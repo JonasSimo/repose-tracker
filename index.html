@@ -2319,7 +2319,7 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .mt-strip-num.warn    { color: #d97706; }
 .mt-strip-lab         { font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--text3); }
 
-.mt-matrix-wrap       { background: #fff; border: 1px solid var(--border); border-radius: 14px; overflow: auto; max-height: 72vh; padding: 4px; box-shadow: 0 4px 18px rgba(14,2,58,.04); }
+.mt-matrix-wrap       { background: #fff; border: 1px solid var(--border); border-radius: 14px; overflow-x: auto; padding: 4px; box-shadow: 0 4px 18px rgba(14,2,58,.04); }
 .mt-matrix            { border-collapse: separate; border-spacing: 2px; font-size: 12px; width: max-content; min-width: 100%; }
 
 /* Column headers — stacked weekday + date, compact */
@@ -16038,6 +16038,7 @@ function mtNormaliseInspection(team, fields) {
     teamId:      team.id,
     machineId,
     machineName: machine ? machine.name : machineId,
+    toolName:    fields.ToolName || '',
     dateStr,
     inspectedAt: fields.InspectedAt || null,
     status,
@@ -16424,40 +16425,52 @@ function mtOpenCellModal(machineId, dateStr) {
   const machine = mtGetMachine(team.id, machineId);
   const dt      = mtState._downtimeByTeam?.[team.id] || {};
   const isDt    = !!dt[`${machineId}|${dateStr}`];
-  // Find latest record for that cell
-  const recs = mtState.records.filter(r => r.teamId === team.id && r.machineId === machineId && r.dateStr === dateStr);
-  recs.sort((a, b) => (b.inspectedAt || '').localeCompare(a.inspectedAt || ''));
-  const r = recs[0] || null;
+  // Use the per-team cache (full record set) so the modal also works after Back-and-forward.
+  const cache  = mtState._allRecordsByTeam?.[team.id] || mtState.records || [];
+  const recs   = cache.filter(r => r.teamId === team.id && r.machineId === machineId && r.dateStr === dateStr)
+                      .sort((a, b) => {
+                        // Sort: newest first, then by toolName for stable ordering of same-time benches
+                        const t = (b.inspectedAt || '').localeCompare(a.inspectedAt || '');
+                        return t || (a.toolName || '').localeCompare(b.toolName || '');
+                      });
 
-  const itemsHtml = (r && Array.isArray(r.items) && r.items.length)
-    ? `<div style="margin-top:10px;font-size:12px">
-         <div style="font-weight:700;margin-bottom:4px">Check items</div>
-         <ul style="margin:0;padding-left:18px">
-           ${r.items.map(it => {
-             const cls = it.result === 'pass' ? '#16a34a' : it.result === 'fail' ? '#dc2626' : 'var(--text3)';
-             return `<li style="color:${cls}">${(it.result || '').toUpperCase()} — ${it.label || ''}</li>`;
-           }).join('')}
-         </ul>
-       </div>`
-    : '';
+  const renderItems = (r) => (r && Array.isArray(r.items) && r.items.length)
+    ? `<ul style="margin:6px 0 0;padding-left:18px;font-size:12px">
+         ${r.items.map(it => {
+           const c = it.result === 'pass' ? '#16a34a' : it.result === 'fail' ? '#dc2626' : 'var(--text3)';
+           return `<li style="color:${c}">${(it.result || '').toUpperCase()} — ${escHtml(it.label || '')}</li>`;
+         }).join('')}
+       </ul>` : '';
+
+  // One section per record — bench-style submissions create one row per tool, so
+  // a single "click on Bench A" can return up to 4 records (Staple/Nail/Pin/Sander).
+  const recordsHtml = recs.length
+    ? recs.map(r => `
+        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-top:10px">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+            <div style="font-size:13px;font-weight:700;color:var(--repose-navy)">
+              ${r.toolName ? escHtml(r.toolName) : 'Inspection'}
+            </div>
+            <span class="mt-pill ${r.status === 'fail' ? 'fail' : 'pass'}">${r.status.toUpperCase()}</span>
+          </div>
+          <div style="font-size:12px;color:var(--text2);margin-top:4px">
+            <b>Operator:</b> ${escHtml(r.operator || '—')} · <b>Time:</b> ${mtFormatTimeUK(r.inspectedAt)} (UK)
+          </div>
+          ${r.comment ? `<div style="font-size:12px;margin-top:6px;color:var(--text);font-style:italic">💬 ${escHtml(r.comment)}</div>` : ''}
+          ${renderItems(r)}
+        </div>`).join('')
+    : `<div style="color:var(--text2);font-size:13px;margin-top:10px">${isDt ? 'Marked not in use.' : 'No record for this day.'}</div>`;
 
   const dtToggleHtml = mtIsManager
-    ? `<button class="mt-btn" style="margin-top:10px" onclick="mtToggleDowntime('${machineId}','${dateStr}')">${isDt ? 'Clear ' : 'Mark '}not in use</button>`
+    ? `<button class="mt-btn" onclick="mtToggleDowntime('${machineId}','${dateStr}')">${isDt ? 'Clear ' : 'Mark '}not in use</button>`
     : '';
 
   const body = `
-    <div style="padding:18px 20px">
-      <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--text3)">${team.name} · ${mtFormatDateUK(dateStr)}</div>
-      <div style="font-size:18px;font-weight:700;color:var(--repose-navy);margin:4px 0 12px">${machine ? machine.name : machineId}</div>
-      ${r ? `
-        <div style="font-size:13px;color:var(--text)">
-          <div><b>Status:</b> <span style="color:${r.status==='fail'?'#dc2626':r.status==='pass'?'#16a34a':'var(--text2)'}">${r.status.toUpperCase()}</span></div>
-          <div><b>Operator:</b> ${r.operator || '—'}</div>
-          <div><b>Time:</b> ${mtFormatTimeUK(r.inspectedAt)} (UK)</div>
-          ${r.comment ? `<div style="margin-top:6px"><b>Comment:</b> ${r.comment}</div>` : ''}
-          ${itemsHtml}
-        </div>` : `
-        <div style="color:var(--text2);font-size:13px">${isDt ? 'Marked not in use.' : 'No record for this day.'}</div>`}
+    <div style="padding:18px 20px;max-height:75vh;overflow:auto">
+      <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--text3)">${escHtml(team.name)} · ${mtFormatDateUK(dateStr)}</div>
+      <div style="font-size:18px;font-weight:700;color:var(--repose-navy);margin:4px 0 4px">${escHtml(machine ? machine.name : machineId)}</div>
+      ${recs.length > 1 ? `<div style="font-size:11px;color:var(--text3)">${recs.length} submissions on this day</div>` : ''}
+      ${recordsHtml}
       <div style="display:flex;gap:8px;margin-top:14px">
         ${dtToggleHtml}
         <button class="mt-btn" onclick="mtCloseCellModal()" style="margin-left:auto">Close</button>
