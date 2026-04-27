@@ -16722,6 +16722,29 @@ async function mtLoadYearly() {
   mtState.loaded.yearly = true;
 }
 
+// Augment yearlyHistory with synthetic completions derived from each master's
+// LastDone — so back-filled dates entered via the edit form (without the formal
+// "Mark complete" flow) still light up on the calendar and show in the day modal.
+function _mtAugmentedHistory() {
+  const real = mtState.yearlyHistory || [];
+  const realKey = new Set(real.map(h => `${h.ItemId}|${(h.CompletedOn || '').slice(0, 10)}`));
+  const out = real.slice();
+  for (const it of (mtState.yearlyItems || [])) {
+    const d = (it.LastDone || '').slice(0, 10);
+    if (!d) continue;
+    if (realKey.has(`${it.id}|${d}`)) continue;
+    out.push({
+      Title:       it.Title,
+      ItemId:      it.id,
+      CompletedOn: d + 'T12:00:00Z',
+      DocLink:     it.DocLink,
+      Notes:       '(from Last done — added via edit form)',
+      _synthetic:  true,
+    });
+  }
+  return out;
+}
+
 function mtFreqDays(item) {
   const f = (item.Frequency || '').toLowerCase();
   if (f === 'annual')    return 365;
@@ -16773,7 +16796,7 @@ function mtRenderYearly() {
     if (!dayState[d]) dayState[d] = { dueItems: [], doneItems: [] };
     dayState[d].dueItems.push(it);
   }
-  for (const h of (mtState.yearlyHistory || [])) {
+  for (const h of _mtAugmentedHistory()) {
     const d = (h.CompletedOn || '').slice(0, 10);
     if (!d) continue;
     if (!dayState[d]) dayState[d] = { dueItems: [], doneItems: [] };
@@ -16942,7 +16965,7 @@ function mtScrollToYearlyRow(id) {
 // Day-detail modal opened from a calendar cell click.
 function mtOpenCalendarDay(dateStr) {
   const due  = mtState.yearlyItems.filter(it => mtComputeYearlyStatus(it).nextDueIso === dateStr);
-  const done = (mtState.yearlyHistory || []).filter(h => (h.CompletedOn || '').slice(0, 10) === dateStr);
+  const done = _mtAugmentedHistory().filter(h => (h.CompletedOn || '').slice(0, 10) === dateStr);
   if (!due.length && !done.length) return;
 
   const masterById = Object.fromEntries(mtState.yearlyItems.map(i => [Number(i.id), i]));
