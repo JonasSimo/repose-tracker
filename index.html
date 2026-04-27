@@ -16470,7 +16470,7 @@ function mtOpenCellModal(machineId, dateStr) {
         </div>`).join('')
     : `<div style="color:var(--text2);font-size:13px;margin-top:10px">${isDt ? 'Marked not in use.' : 'No record for this day.'}</div>`;
 
-  const dtToggleHtml = mtIsManager
+  const dtToggleHtml = (mtIsManager && team.downtimeList)
     ? `<button class="mt-btn" onclick="mtToggleDowntime('${machineId}','${dateStr}')">${isDt ? 'Clear ' : 'Mark '}not in use</button>`
     : '';
 
@@ -16744,6 +16744,17 @@ async function mtLoadYearly() {
   mtState.loaded.yearly = true;
 }
 
+// Defence-in-depth for DocLink hrefs — strip any javascript:/data: scheme so a
+// malicious manager-supplied URL can't execute on click. Returns '#' for unsafe
+// or empty inputs; HTML-escapes the safe URL before interpolation into href="".
+function _mtSafeUrl(u) {
+  const s = String(u || '').trim();
+  if (!s) return '#';
+  if (/^(https?:|\/|#)/i.test(s)) return escHtml(s);
+  if (/^mailto:/i.test(s))        return escHtml(s);
+  return '#';
+}
+
 // Augment yearlyHistory with synthetic completions derived from each master's
 // LastDone — so back-filled dates entered via the edit form (without the formal
 // "Mark complete" flow) still light up on the calendar and show in the day modal.
@@ -16907,7 +16918,7 @@ function mtRenderYearly() {
       <td>${it.LastDone ? mtFormatDateUK(it.LastDone).replace(',', '') : '—'}</td>
       <td>${mtFormatDateUK(it._s.nextDueIso).replace(',', '')}${it._s.manuallyScheduled ? ' <span title="Manually scheduled" style="font-size:10px;color:var(--text3)">📅</span>' : ''}</td>
       <td><span class="mt-pill ${it._s.cls === 'overdue' ? 'fail' : it._s.cls === 'due' ? 'warn' : 'pass'}">${it._s.label}</span></td>
-      <td>${it.DocLink ? `<a href="${escHtml(it.DocLink)}" target="_blank" rel="noopener" title="Open latest cert">📎</a>` : ''}</td>
+      <td>${it.DocLink ? `<a href="${_mtSafeUrl(it.DocLink)}" target="_blank" rel="noopener" title="Open latest cert">📎</a>` : ''}</td>
       <td>
         <div class="mt-row-actions">
           <button class="mt-icon-btn" title="History" onclick="mtToggleHistory(${it.id})">📂</button>
@@ -16999,7 +17010,7 @@ function mtOpenCalendarDay(dateStr) {
         const s = mtComputeYearlyStatus(it);
         const pillCls = s.cls === 'overdue' ? 'fail' : s.cls === 'due' ? 'warn' : 'pass';
         const docBtn = it.DocLink
-          ? `<a class="mt-btn" href="${escHtml(it.DocLink)}" target="_blank" rel="noopener" style="text-decoration:none;display:inline-block;margin-top:6px">📎 Latest cert</a>`
+          ? `<a class="mt-btn" href="${_mtSafeUrl(it.DocLink)}" target="_blank" rel="noopener" style="text-decoration:none;display:inline-block;margin-top:6px">📎 Latest cert</a>`
           : '';
         const completeBtn = mtIsManager
           ? `<button class="mt-btn" style="background:var(--repose-blue);color:#fff;margin-top:6px;margin-left:6px" onclick="mtCloseCalendarDay();mtOpenCompleteModal(${it.id})">✓ Mark complete</button>`
@@ -17028,7 +17039,7 @@ function mtOpenCalendarDay(dateStr) {
       ${done.map(h => {
         const master = masterById[Number(h.ItemId)] || {};
         const docBtn = h.DocLink
-          ? `<a class="mt-btn" href="${escHtml(h.DocLink)}" target="_blank" rel="noopener" style="text-decoration:none;display:inline-block;margin-top:6px">📎 View report</a>`
+          ? `<a class="mt-btn" href="${_mtSafeUrl(h.DocLink)}" target="_blank" rel="noopener" style="text-decoration:none;display:inline-block;margin-top:6px">📎 View report</a>`
           : '';
         const meta = [
           h.Contractor ? `<b>Contractor:</b> ${escHtml(h.Contractor)}` : '',
@@ -17087,7 +17098,7 @@ function mtToggleHistory(itemId) {
     <div class="mt-history-item">
       <div style="min-width:90px"><b>${mtFormatDateUK(h.CompletedOn).replace(',', '')}</b></div>
       <div style="flex:1">${escHtml(h.Contractor || '')}${h.Cost ? ' · £' + escHtml(String(h.Cost)) : ''}${h.Notes ? ' · ' + escHtml(h.Notes) : ''}</div>
-      <div>${h.DocLink ? `<a href="${escHtml(h.DocLink)}" target="_blank" rel="noopener">&#128206; cert</a>` : ''}</div>
+      <div>${h.DocLink ? `<a href="${_mtSafeUrl(h.DocLink)}" target="_blank" rel="noopener">📎 cert</a>` : ''}</div>
     </div>`).join('') : '<div class="mt-empty" style="padding:14px">No completion history yet.</div>';
   row.style.display = '';
 }
