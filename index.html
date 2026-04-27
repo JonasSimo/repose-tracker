@@ -16528,7 +16528,10 @@ function mtRender() {
 // Compute today's status per team: pass / fail / pending / no-machines
 function mtComputeTeamStatusToday(team) {
   const today = mtTodayUkStr();
-  const teamRecs = mtState.records.filter(r => r.teamId === team.id && r.dateStr === today);
+  // Read from the per-team cache, NOT mtState.records (which gets mutated by drill-in).
+  const cache = mtState._allRecordsByTeam || {};
+  const all   = cache[team.id] || [];
+  const teamRecs = all.filter(r => r.dateStr === today);
   const dt = mtState._downtimeByTeam?.[team.id] || {};
   // Latest record per machine
   const latestByMachine = {};
@@ -17133,7 +17136,7 @@ function mtRenderYearly() {
   });
 
   // Register table
-  const headerActions = mtIsManager ? `<button class="mt-btn" onclick="mtOpenDrawer('add')">&#9881; Manage</button>` : '';
+  const headerActions = mtIsManager ? `<button class="mt-btn" onclick="mtOpenDrawer('add')">⚙ Manage</button>` : '';
   const rows = filtered.length ? filtered.map(it => `
     <tr id="mt-yr-row-${it.id}">
       <td><b>${escHtml(it.Title || '')}</b></td>
@@ -17142,21 +17145,21 @@ function mtRenderYearly() {
       <td>${it.LastDone ? mtFormatDateUK(it.LastDone).replace(',', '') : '—'}</td>
       <td>${mtFormatDateUK(it._s.nextDueIso).replace(',', '')}</td>
       <td><span class="mt-pill ${it._s.cls === 'overdue' ? 'fail' : it._s.cls === 'due' ? 'warn' : 'pass'}">${it._s.label}</span></td>
-      <td>${it.DocLink ? `<a href="${escHtml(it.DocLink)}" target="_blank" rel="noopener" title="Open latest cert">&#128206;</a>` : ''}</td>
+      <td>${it.DocLink ? `<a href="${escHtml(it.DocLink)}" target="_blank" rel="noopener" title="Open latest cert">📎</a>` : ''}</td>
       <td>
         <div class="mt-row-actions">
-          <button class="mt-icon-btn" title="History" onclick="mtToggleHistory(${it.id})">&#128194;</button>
+          <button class="mt-icon-btn" title="History" onclick="mtToggleHistory(${it.id})">📂</button>
           ${mtIsManager ? `
-            <button class="mt-icon-btn" title="Mark complete" onclick="mtOpenCompleteModal(${it.id})">&#10003;</button>
-            <button class="mt-icon-btn" title="Edit" onclick="mtOpenDrawer('edit',${it.id})">&#9999;&#65039;</button>
-            <button class="mt-icon-btn" title="Delete" onclick="mtDeleteYearly(${it.id})">&#128465;</button>` : ''}
+            <button class="mt-icon-btn" title="Mark complete" onclick="mtOpenCompleteModal(${it.id})">✓</button>
+            <button class="mt-icon-btn" title="Edit" onclick="mtOpenDrawer('edit',${it.id})">✏️</button>
+            <button class="mt-icon-btn" title="Delete" onclick="mtDeleteYearly(${it.id})">🗑</button>` : ''}
         </div>
       </td>
     </tr>
     <tr class="mt-history-row" id="mt-yr-hist-${it.id}" style="display:none">
       <td colspan="8"><div class="mt-history-list" id="mt-yr-hist-body-${it.id}">Loading…</div></td>
     </tr>
-  `).join('') : `<tr><td colspan="8"><div class="mt-empty">${mtState.yearlyItems.length === 0 ? 'No inspection items yet — click &#9881; Manage to add the first one.' : 'No items match the current filter.'}</div></td></tr>`;
+  `).join('') : `<tr><td colspan="8"><div class="mt-empty">${mtState.yearlyItems.length === 0 ? 'No inspection items yet — click ⚙ Manage to add the first one.' : 'No items match the current filter.'}</div></td></tr>`;
 
   document.getElementById('mt-content').innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
