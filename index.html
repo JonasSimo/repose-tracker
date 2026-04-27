@@ -6685,13 +6685,18 @@ async function initGraph() {
     const _deepView = new URLSearchParams(window.location.search).get('view');
     const _validViews = new Set(['team-select','overview','tracker','loadsheet','production','stats','issues','safety','ordercheck','timing','complaints','woodmill','cutting-checks','innovation']);
     if (_deepView && _validViews.has(_deepView)) navTo(_deepView);
-    // Serialize startup loads — the production workbook gets thrashed otherwise.
-    // Order: production sheets first (heaviest), then load plan (same drive),
-    // then SP lists, then mech serials. Auto-sync deferred so workbook can recover.
+    // PROD is the team-view critical path — it builds the job grid (renderJobs runs at
+    // the end of loadProductionFromSharePoint). Run it alone first so jobs paint asap.
     await loadProductionFromSharePoint();
-    await loadLoadPlanFromSharePoint().catch(e => console.warn('loadplan:', e.message));
-    await loadCompletionsFromList().catch(e => console.warn('completions:', e.message));
-    await loadMechSerials().catch(e => console.warn('mechserials:', e.message));
+    // Completions (SP list) and LoadPlan (workbook) are different resources, safe to
+    // parallelise — gets ticks on the team view ~2-3s sooner than full serial.
+    await Promise.all([
+      loadCompletionsFromList().catch(e => console.warn('completions:', e.message)),
+      loadLoadPlanFromSharePoint().catch(e => console.warn('loadplan:', e.message)),
+    ]);
+    // MechSerials and SpecAlerts are not on the team-view critical path —
+    // fire-and-forget so they don't gate any UI.
+    loadMechSerials().catch(e => console.warn('mechserials:', e.message));
     fetchSpecAlerts().catch(console.warn);
     // Defer QC auto-sync 15s so the initial heavy load (production workbook + lists)
     // fully settles before the QC workbook starts. 5s wasn't enough — Graph was still
@@ -7614,19 +7619,22 @@ async function loadStatsData() {
     return;
   }
 
-  // Each list loaded independently so one failure doesn't block others
+  // Each list loaded independently so one failure doesn't block others.
+  // statsAfter is ~400 days back; Created is auto-indexed so the server-side
+  // filter is safe. Cuts each list from "all time" to ~13 months of data.
+  const dateFilter = `&$filter=${encodeURIComponent("fields/Created ge '" + statsAfter + "'")}`;
   try {
   await Promise.allSettled([
     getListIdByName('ProductionCompletions').then(id =>
-      graphGetAll(`${base}/${id}/items?$expand=fields&$top=999`)
-    ).then(r => { STATS_COMPLETIONS = r.filter(i => i.fields?.IsComplete === true); }).catch(e => console.warn('stats (completions):', e.message)),
+      graphGetAll(`${base}/${id}/items?$expand=fields&$top=999${dateFilter}`)
+    ).then(r => { STATS_COMPLETIONS = r.filter(i => i.fields?.IsComplete === true); console.log(`stats (completions): loaded ${r.length} rows, ${STATS_COMPLETIONS.length} complete`); }).catch(e => console.warn('stats (completions):', e.message)),
 
     getListIdByName('SpecAlerts').then(id =>
-      graphGetAll(`${base}/${id}/items?$expand=fields&$top=999`)
+      graphGetAll(`${base}/${id}/items?$expand=fields&$top=999${dateFilter}`)
     ).then(r => { STATS_ALERTS = r; }).catch(e => console.warn('stats (alerts):', e.message)),
 
     getListIdByName('ScrapLog').then(id =>
-      graphGetAll(`${base}/${id}/items?$expand=fields&$top=999`)
+      graphGetAll(`${base}/${id}/items?$expand=fields&$top=999${dateFilter}`)
     ).then(r => { STATS_SCRAP = r; }).catch(e => console.warn('stats (scrap):', e.message)),
 
     getListIdByName(SP_CPAR_LIST).then(id =>
@@ -7648,12 +7656,19 @@ async function loadStatsData() {
     const CHUNK = 5000;
     const ranges = [];
     for (let r = 1; r <= lastRow; r += CHUNK) ranges.push([r, Math.min(r + CHUNK - 1, lastRow)]);
-    const chunks = await Promise.all(ranges.map(([r, end]) =>
-      graphGet(
-        `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}` +
-        `/workbook/worksheets('${encodeURIComponent(QC_SHEET_NAME)}')/range(address='A${r}:D${end}')?$select=values`
-      )
-    ));
+    // Sequential — same workbook chunks in parallel = FileOpenHostTooManyRequests.
+    const chunks = [];
+    for (const [r, end] of ranges) {
+      try {
+        const c = await graphGet(
+          `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}` +
+          `/workbook/worksheets('${encodeURIComponent(QC_SHEET_NAME)}')/range(address='A${r}:D${end}')?$select=values`
+        );
+        chunks.push(c);
+      } catch(e) {
+        console.warn(`stats QC chunk A${r}:D${end} failed:`, e.message);
+      }
+    }
     const seen = new Set();
     const qcRows = [];
     chunks.forEach(chunk => {
