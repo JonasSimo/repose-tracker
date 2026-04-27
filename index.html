@@ -2251,6 +2251,134 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .cc-dash-card.none .cc-dash-status { color:var(--text3); }
 .cc-dash-label     { font-size:10px; color:var(--text3); }
 
+/* ─── MAINTENANCE DASHBOARD (Direction A — Operations Hub) ─── */
+.mt-body              { padding: 16px 20px 32px; background: linear-gradient(180deg, var(--bg3) 0%, var(--bg2) 220px); min-height: 100%; }
+
+/* sub-tab pill toggle */
+.mt-subtabs           { display: inline-flex; gap: 4px; background: #eef2f6; padding: 4px; border-radius: 10px; margin-bottom: 18px; }
+.mt-subtab            { padding: 8px 16px; font-size: 13px; font-weight: 600; color: var(--text2); border-radius: 7px; cursor: pointer; border: none; background: transparent; font-family: inherit; }
+.mt-subtab.on         { background: #fff; color: var(--repose-navy); box-shadow: 0 1px 3px rgba(14,2,58,.08); }
+
+/* hero */
+.mt-hero              { background: linear-gradient(135deg, var(--repose-navy) 0%, #1a1656 100%); color: #fff; border-radius: 14px; padding: 18px 22px; display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
+.mt-hero-l            { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.mt-hero-eyebrow      { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; opacity: .7; }
+.mt-hero-num          { font-size: 26px; font-weight: 800; letter-spacing: -.02em; }
+.mt-hero-num span     { color: var(--repose-blue); margin: 0 2px; }
+.mt-hero-sub          { font-size: 12px; opacity: .8; }
+.mt-hero-r            { display: flex; gap: 16px; }
+.mt-stat              { text-align: right; }
+.mt-stat-num          { font-size: 18px; font-weight: 700; line-height: 1; }
+.mt-stat-num.pass     { color: #4ade80; }
+.mt-stat-num.fail     { color: #fca5a5; }
+.mt-stat-num.warn     { color: #fbbf24; }
+.mt-stat-lab          { font-size: 10px; letter-spacing: .06em; text-transform: uppercase; opacity: .7; margin-top: 2px; }
+
+/* team tile grid */
+.mt-grid              { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.mt-tile              { background: #fff; border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; display: flex; align-items: center; gap: 12px; transition: all .15s; cursor: pointer; }
+.mt-tile:hover        { border-color: var(--repose-blue); box-shadow: 0 6px 20px rgba(20,161,233,.12); transform: translateY(-1px); }
+.mt-icon              { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; background: #f0f4f8; flex-shrink: 0; }
+.mt-tile.pass .mt-icon{ background: #dcfce7; }
+.mt-tile.fail .mt-icon{ background: #fee2e2; }
+.mt-tile.warn .mt-icon{ background: #fed7aa; }
+.mt-mid               { flex: 1; min-width: 0; }
+.mt-team              { font-size: 14px; font-weight: 700; color: var(--repose-navy); margin-bottom: 4px; }
+.mt-progress          { height: 6px; background: #eef2f6; border-radius: 3px; overflow: hidden; margin-bottom: 6px; }
+.mt-bar               { height: 100%; background: #16a34a; border-radius: 3px; }
+.mt-tile.fail .mt-bar { background: #dc2626; }
+.mt-tile.warn .mt-bar { background: #d97706; }
+.mt-meta              { font-size: 11px; color: var(--text2); display: flex; gap: 8px; }
+.mt-meta b            { color: var(--text); }
+.mt-pill              { padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+.mt-pill.pass         { background: #dcfce7; color: #16a34a; }
+.mt-pill.fail         { background: #fee2e2; color: #dc2626; }
+.mt-pill.warn         { background: #fed7aa; color: #d97706; }
+
+/* drill-in */
+.mt-drill-head        { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.mt-back              { background: transparent; border: 1.5px solid var(--border2); color: var(--text2); padding: 6px 12px; font-size: 13px; border-radius: 8px; cursor: pointer; font-family: inherit; }
+.mt-back:hover        { border-color: var(--repose-blue); color: var(--repose-blue); }
+.mt-drill-title       { font-size: 18px; font-weight: 700; color: var(--repose-navy); flex: 1; }
+.mt-actions           { display: flex; gap: 8px; }
+.mt-btn               { font-family: inherit; font-size: 12px; font-weight: 700; padding: 8px 14px; border-radius: 8px; border: 1.5px solid var(--repose-blue); background: #fff; color: var(--repose-blue); cursor: pointer; }
+.mt-btn:hover         { background: var(--repose-blue); color: #fff; }
+
+.mt-filters           { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; padding: 12px 14px; background: #fff; border: 1px solid var(--border); border-radius: 12px; margin-bottom: 12px; }
+.mt-filter            { display: flex; flex-direction: column; gap: 4px; min-width: 140px; }
+.mt-filter label      { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text3); }
+.mt-filter select,
+.mt-filter input      { font-family: inherit; font-size: 13px; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border2); background: #fff; color: var(--text); }
+.mt-filter-actions    { display: flex; gap: 6px; margin-left: auto; }
+
+.mt-stats-strip       { display: flex; gap: 18px; padding: 12px 14px; background: #fff; border: 1px solid var(--border); border-radius: 12px; margin-bottom: 12px; }
+.mt-strip-stat        { display: flex; flex-direction: column; gap: 2px; }
+.mt-strip-num         { font-size: 18px; font-weight: 700; color: var(--repose-navy); line-height: 1; }
+.mt-strip-num.pass    { color: #16a34a; }
+.mt-strip-num.fail    { color: #dc2626; }
+.mt-strip-num.warn    { color: #d97706; }
+.mt-strip-lab         { font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--text3); }
+
+.mt-matrix-wrap       { background: #fff; border: 1px solid var(--border); border-radius: 12px; overflow: auto; max-height: 70vh; }
+.mt-matrix            { border-collapse: separate; border-spacing: 0; font-size: 12px; }
+.mt-matrix th,
+.mt-matrix td         { padding: 8px 10px; border-bottom: 1px solid var(--border); border-right: 1px solid var(--border); text-align: center; min-width: 56px; }
+.mt-matrix thead th   { position: sticky; top: 0; background: var(--bg3); z-index: 1; font-size: 11px; font-weight: 700; color: var(--text2); }
+.mt-matrix tbody th   { position: sticky; left: 0; background: #fff; z-index: 0; text-align: left; font-weight: 600; color: var(--repose-navy); white-space: nowrap; min-width: 160px; }
+.mt-cell              { cursor: pointer; }
+.mt-cell.pass         { background: #dcfce7; color: #16a34a; }
+.mt-cell.fail         { background: #fee2e2; color: #dc2626; font-weight: 700; }
+.mt-cell.dt           { background: #f3f4f6; color: var(--text3); }
+.mt-cell.miss         { background: #fff; color: var(--text3); }
+.mt-cell:hover        { outline: 2px solid var(--repose-blue); outline-offset: -2px; }
+
+/* yearly */
+.mt-cal-strip         { display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px; padding: 14px; background: #fff; border: 1px solid var(--border); border-radius: 12px; margin-bottom: 12px; }
+.mt-cal-month         { display: flex; flex-direction: column; gap: 4px; padding: 8px 4px; border-radius: 6px; min-height: 80px; background: var(--bg3); }
+.mt-cal-mlabel        { font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--text3); text-align: center; }
+.mt-cal-marker        { font-size: 10px; padding: 2px 4px; border-radius: 3px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mt-cal-marker.overdue{ background: #fee2e2; color: #dc2626; }
+.mt-cal-marker.due    { background: #fed7aa; color: #d97706; }
+.mt-cal-marker.ok     { background: #dcfce7; color: #16a34a; }
+
+.mt-chips             { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.mt-chip              { padding: 6px 12px; border-radius: 999px; border: 1.5px solid var(--border2); background: #fff; font-size: 12px; font-weight: 600; color: var(--text2); cursor: pointer; font-family: inherit; }
+.mt-chip.on           { border-color: var(--repose-blue); background: var(--repose-blue); color: #fff; }
+
+.mt-table             { width: 100%; border-collapse: collapse; background: #fff; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); font-size: 13px; }
+.mt-table th,
+.mt-table td          { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+.mt-table th          { background: var(--bg3); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--text2); }
+.mt-table tr:last-child td { border-bottom: 0; }
+.mt-row-actions       { display: flex; gap: 4px; }
+.mt-icon-btn          { background: transparent; border: none; cursor: pointer; padding: 4px 6px; border-radius: 4px; font-size: 14px; }
+.mt-icon-btn:hover    { background: var(--bg3); }
+
+.mt-history-row       { background: var(--bg3); }
+.mt-history-list      { padding: 8px 12px; }
+.mt-history-item      { display: flex; gap: 12px; padding: 6px 0; border-bottom: 1px dashed var(--border); font-size: 12px; }
+.mt-history-item:last-child { border-bottom: 0; }
+
+/* manager edit drawer */
+.mt-drawer-bg         { position: fixed; inset: 0; background: rgba(14,2,58,.45); z-index: 100; display: none; }
+.mt-drawer-bg.on      { display: block; }
+.mt-drawer            { position: fixed; top: 0; right: 0; width: min(480px, 92vw); height: 100%; background: #fff; box-shadow: -8px 0 30px rgba(14,2,58,.2); z-index: 101; transform: translateX(100%); transition: transform .25s; display: flex; flex-direction: column; }
+.mt-drawer.on         { transform: translateX(0); }
+.mt-drawer-head       { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.mt-drawer-title      { font-size: 16px; font-weight: 700; color: var(--repose-navy); }
+.mt-drawer-body       { flex: 1; overflow: auto; padding: 16px 18px; }
+.mt-drawer-foot       { padding: 12px 18px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; }
+.mt-form-group        { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.mt-form-group label  { font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text3); }
+.mt-form-group input,
+.mt-form-group select,
+.mt-form-group textarea { font-family: inherit; font-size: 13px; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border2); background: #fff; color: var(--text); }
+
+.mt-empty             { text-align: center; padding: 48px 16px; color: var(--text2); font-size: 13px; }
+.mt-loading           { text-align: center; padding: 32px; color: var(--text2); font-size: 13px; }
+
+/* print overrides for audit PDF — handled in Task 11 */
+
 /* Submit modal footer */
 .cc-modal-footer   { flex-shrink:0; padding:12px 16px; border-top:1px solid var(--border); display:flex; gap:8px; }
 .cc-submit-btn     { flex:1; font-family:inherit; font-size:14px; font-weight:700; padding:10px; border-radius:8px;
