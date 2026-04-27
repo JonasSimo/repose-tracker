@@ -16406,6 +16406,10 @@ async function mtAdapterLoadYearly() {
 
 // ── Maintenance — open hook + sub-tab switch ──────────────────────────────
 async function mtOnOpen(forceRefresh = false) {
+  if (!graphAccount) {
+    document.getElementById('mt-content').innerHTML = '<div class="mt-empty">Sign in to view maintenance data.</div>';
+    return;
+  }
   if (forceRefresh) mtState.loaded.daily = mtState.loaded.yearly = false;
   if (!mtState.loaded.daily && mtState.subTab === 'daily')   await mtLoadDaily();
   if (!mtState.loaded.yearly && mtState.subTab === 'yearly') await mtLoadYearly();
