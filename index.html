@@ -2358,13 +2358,23 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 }
 
 /* yearly */
-.mt-cal-strip         { display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px; padding: 14px; background: #fff; border: 1px solid var(--border); border-radius: 12px; margin-bottom: 12px; }
-.mt-cal-month         { display: flex; flex-direction: column; gap: 4px; padding: 8px 4px; border-radius: 6px; min-height: 80px; background: var(--bg3); }
-.mt-cal-mlabel        { font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--text3); text-align: center; }
-.mt-cal-marker        { font-size: 10px; padding: 2px 4px; border-radius: 3px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mt-cal-marker.overdue{ background: #fee2e2; color: #dc2626; }
-.mt-cal-marker.due    { background: #fed7aa; color: #d97706; }
-.mt-cal-marker.ok     { background: #dcfce7; color: #16a34a; }
+.mt-cal-strip         { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; padding: 12px; background: #fff; border: 1px solid var(--border); border-radius: 12px; margin-bottom: 12px; }
+.mt-cal-month         { background: var(--bg3); border-radius: 8px; padding: 8px 8px 6px; }
+.mt-cal-mlabel        { font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--repose-navy); text-align: center; margin-bottom: 6px; letter-spacing: .05em; }
+.mt-cal-grid          { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.mt-cal-dow           { font-size: 9px; font-weight: 700; color: var(--text3); text-align: center; padding: 2px 0 4px; text-transform: uppercase; }
+.mt-cal-day           { font-size: 10px; font-weight: 600; color: var(--text2); text-align: center; padding: 0; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; border-radius: 4px; cursor: default; position: relative; background: #fff; }
+.mt-cal-day.empty     { background: transparent; visibility: hidden; }
+.mt-cal-day.today     { outline: 1.5px solid var(--repose-blue); outline-offset: -1px; color: var(--repose-blue); font-weight: 800; }
+.mt-cal-day.overdue   { background: #ef4444; color: #fff; cursor: pointer; font-weight: 800; }
+.mt-cal-day.due       { background: #f59e0b; color: #fff; cursor: pointer; font-weight: 800; }
+.mt-cal-day.ok        { background: #22c55e; color: #fff; cursor: pointer; font-weight: 800; }
+.mt-cal-day.done      { background: #15803d; color: #fff; cursor: pointer; font-weight: 800; }
+.mt-cal-day.done.overdue,
+.mt-cal-day.done.due,
+.mt-cal-day.done.ok   { background: #15803d; }   /* completed always wins visually */
+.mt-cal-day.done::after { content: '✓'; position: absolute; top: -3px; right: -2px; font-size: 7px; background: #fff; color: #15803d; border-radius: 50%; width: 9px; height: 9px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 1px #15803d; line-height: 1; }
+.mt-cal-day:hover:not(.empty) { transform: scale(1.05); box-shadow: 0 0 0 1.5px var(--repose-blue); z-index: 1; }
 
 .mt-chips             { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
 .mt-chip              { padding: 6px 12px; border-radius: 999px; border: 1.5px solid var(--border2); background: #fff; font-size: 12px; font-weight: 600; color: var(--text2); cursor: pointer; font-family: inherit; }
@@ -16720,22 +16730,82 @@ let mtYearlyChips = ['All']; // category filter (multi-select)
 function mtRenderYearly() {
   const items = mtState.yearlyItems.map(i => ({ ...i, _s: mtComputeYearlyStatus(i) }));
 
-  // Calendar strip — 12 months from current
-  const now = new Date(mtTodayUkStr() + 'T00:00:00Z');
+  // Calendar — 12 mini-monthly grids with day cells.
+  // Each day cell is highlighted by its most-urgent due item that day,
+  // and overlaid with a "done" indicator if a history record exists for that day.
+  const todayStr = mtTodayUkStr();
+  const now = new Date(todayStr + 'T00:00:00Z');
+
+  // Build dayState[YYYY-MM-DD] = { dueItems: [...], doneItems: [...] }
+  const dayState = {};
+  for (const it of items) {
+    const d = it._s.nextDueIso;
+    if (!d) continue;
+    if (!dayState[d]) dayState[d] = { dueItems: [], doneItems: [] };
+    dayState[d].dueItems.push(it);
+  }
+  for (const h of (mtState.yearlyHistory || [])) {
+    const d = (h.CompletedOn || '').slice(0, 10);
+    if (!d) continue;
+    if (!dayState[d]) dayState[d] = { dueItems: [], doneItems: [] };
+    dayState[d].doneItems.push(h);
+  }
+
+  // Pick most-urgent due class for a list of items: overdue > due > ok
+  function _mtMostUrgent(list) {
+    let best = null;
+    for (const it of list) {
+      const c = it._s.cls;
+      if (c === 'overdue') return it;
+      if (c === 'due' && (!best || best._s.cls !== 'overdue')) best = it;
+      if (c === 'ok' && !best) best = it;
+    }
+    return best || list[0];
+  }
+
   const months = Array.from({ length: 12 }, (_, k) => {
     const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + k, 1));
-    return { ymKey: `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}`, label: d.toLocaleDateString('en-GB',{ month:'short', year:'2-digit' }) };
+    return { year: d.getUTCFullYear(), month: d.getUTCMonth(), label: d.toLocaleDateString('en-GB', { timeZone: 'UTC', month: 'short', year: '2-digit' }) };
   });
-  const markersByMonth = {};
-  for (const it of items) {
-    const ym = it._s.nextDueIso.slice(0,7);
-    if (!markersByMonth[ym]) markersByMonth[ym] = [];
-    markersByMonth[ym].push(it);
-  }
+
+  const dowLabels = ['M','T','W','T','F','S','S']; // UK week starts Monday
+
   const calHtml = `<div class="mt-cal-strip">${months.map(m => {
-    const list = markersByMonth[m.ymKey] || [];
-    const marks = list.map(it => `<span class="mt-cal-marker ${it._s.cls}" title="${escHtml((it.Title||'') + ' — ' + it._s.label)}" onclick="mtScrollToYearlyRow(${it.id})">${escHtml((it.Title||'').slice(0,18))}</span>`).join('');
-    return `<div class="mt-cal-month"><div class="mt-cal-mlabel">${m.label}</div>${marks}</div>`;
+    const firstDow = (new Date(Date.UTC(m.year, m.month, 1)).getUTCDay() + 6) % 7; // Mon=0
+    const daysInMonth = new Date(Date.UTC(m.year, m.month + 1, 0)).getUTCDate();
+
+    const dayCells = [];
+    for (let i = 0; i < firstDow; i++) dayCells.push('<div class="mt-cal-day empty"></div>');
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dStr = `${m.year}-${String(m.month + 1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+      const state = dayState[dStr];
+      const classes = ['mt-cal-day'];
+      let scrollId = null;
+      let tooltip = '';
+      if (state) {
+        if (state.dueItems.length) {
+          const top = _mtMostUrgent(state.dueItems);
+          classes.push(top._s.cls);
+          scrollId = top.id;
+          tooltip = state.dueItems.map(it => `${it._s.label}: ${it.Title || ''}`).join('\n');
+        }
+        if (state.doneItems.length) {
+          classes.push('done');
+          const doneTitles = state.doneItems.map(h => `✓ ${h.Title || ''}`).join('\n');
+          tooltip = tooltip ? `${tooltip}\n${doneTitles}` : doneTitles;
+        }
+      }
+      if (dStr === todayStr) classes.push('today');
+      const onclickAttr = scrollId ? `onclick="mtScrollToYearlyRow(${scrollId})"` : (state && state.doneItems.length ? `onclick="mtScrollToYearlyRow(${state.doneItems[0].ItemId || 0})"` : '');
+      const titleAttr = tooltip ? `title="${escHtml(tooltip)}"` : '';
+      dayCells.push(`<div class="${classes.join(' ')}" ${onclickAttr} ${titleAttr}>${day}</div>`);
+    }
+
+    const dowHeader = dowLabels.map(d => `<div class="mt-cal-dow">${d}</div>`).join('');
+    return `<div class="mt-cal-month">
+      <div class="mt-cal-mlabel">${m.label}</div>
+      <div class="mt-cal-grid">${dowHeader}${dayCells.join('')}</div>
+    </div>`;
   }).join('')}</div>`;
 
   // Filter chips
