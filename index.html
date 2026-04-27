@@ -16237,9 +16237,11 @@ const MT_YEARLY_HISTORY = 'MaintenanceYearlyHistory';
 
 // Per-team registry — single source of truth for what teams the dashboard knows about.
 // To add a new team: define MACHINES constant + create SP list + add entry below.
+// listId (GUID) is preferred when available — some SP lists have internal names that don't
+// resolve via getListIdByNameOnSite. listName is used only as a fallback.
 const MT_TEAMS = [
-  { id:'woodmill',    name:'Woodmill',    icon:'🪵', listName:'WMInspections',  downtimeList:'WMDowntime',  machines: WM_MACHINES },
-  { id:'cutting',     name:'Cutting',     icon:'✂️', listName:'CCInspections',  downtimeList: null,         machines: CC_MACHINES },
+  { id:'woodmill',    name:'Woodmill',    icon:'🪵', listId: WM_LIST_ID,        downtimeList:'WMDowntime',  machines: WM_MACHINES },
+  { id:'cutting',     name:'Cutting',     icon:'✂️', listName: 'CuttingChecks', downtimeList: null,         machines: CC_MACHINES },
   // Development added in Task 16 once DEV_MACHINES is defined
 ];
 
@@ -16366,11 +16368,15 @@ async function mtAdapterLoadRange(teamIds, dateFromUk, dateToUk) {
   const out       = [];
   await Promise.all(teams.map(async team => {
     try {
-      const listId = await getListIdByNameOnSite(siteId, team.listName);
-      const filter = encodeURIComponent(`fields/InspectedAt ge '${fromIso}' and fields/InspectedAt le '${toIso}'`);
-      const url    = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999&$filter=${filter}`;
+      const listId = team.listId || await getListIdByNameOnSite(siteId, team.listName);
+      // No server-side $filter — some date columns aren't indexed; fetch all and filter client-side.
+      const url    = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999`;
       const items  = await graphGetAll(url);
-      for (const it of items) out.push(mtNormaliseInspection(team, it.fields || {}));
+      for (const it of items) {
+        const rec = mtNormaliseInspection(team, it.fields || {});
+        // Client-side date-range filter using the normalised UK day
+        if (rec.dateStr && rec.dateStr >= dateFromUk && rec.dateStr <= dateToUk) out.push(rec);
+      }
     } catch (e) {
       console.warn('[mtAdapter] team', team.id, e.message);
     }
