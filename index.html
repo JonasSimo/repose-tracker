@@ -16546,13 +16546,124 @@ async function mtLoadDrill() {
 }
 
 function mtRenderDailyDrillIn() {
-  // Filled in Task 9 — leave a placeholder for now so Task 8 verifies cleanly
+  const team    = mtGetTeam(mtState.drillTeamId);
+  const f       = mtState.filters;
+  const days    = mtEnumerateDays(f.dateFrom, f.dateTo);
+  const machines = team ? team.machines.filter(m => !f.machineIds.length || f.machineIds.includes(m.id)) : [];
+  const dt      = mtState._downtimeByTeam?.[team?.id] || {};
+
+  // Index records by `${machineId}|${dateStr}` — keep latest per cell
+  const byCell = {};
+  for (const r of mtState.records.filter(r => r.teamId === team?.id)) {
+    const k = `${r.machineId}|${r.dateStr}`;
+    if (!byCell[k] || (r.inspectedAt || '') > (byCell[k].inspectedAt || '')) byCell[k] = r;
+  }
+
+  // Stats strip
+  let total = 0, pass = 0, fail = 0, dtCount = 0, missed = 0;
+  for (const m of machines) for (const d of days) {
+    const k = `${m.id}|${d}`;
+    if (dt[k]) { dtCount++; total++; continue; }
+    const r = byCell[k];
+    if (r && (r.status === 'pass' || r.status === 'na')) { pass++; total++; }
+    else if (r && r.status === 'fail') { fail++; total++; }
+    else { missed++; }
+  }
+  const pct = total ? Math.round(((pass + dtCount) / (total)) * 100) : 0;
+
+  // Filter bar
+  const teamOpts = MT_TEAMS.map(t => `<option value="${t.id}" ${f.teamIds.includes(t.id) ? 'selected' : ''}>${t.name}</option>`).join('');
+  const machineOpts = team ? team.machines.map(m => `<option value="${m.id}" ${f.machineIds.includes(m.id) ? 'selected' : ''}>${m.name}</option>`).join('') : '';
+  const exportBtns = mtIsManager ? `
+    <button class="mt-btn" onclick="mtExportPdf()">Export PDF</button>
+    <button class="mt-btn" onclick="mtExportCsv()">Export Excel/CSV</button>` : '';
+
+  // Matrix table
+  const headDays = days.map(d => `<th>${mtFormatDateUK(d).replace(',', '')}</th>`).join('');
+  const rows = machines.map(m => {
+    const cells = days.map(d => {
+      const k = `${m.id}|${d}`;
+      if (dt[k]) return `<td class="mt-cell dt" data-machine="${m.id}" data-date="${d}" onclick="mtOpenCellModal('${m.id}','${d}')">—</td>`;
+      const r = byCell[k];
+      if (!r) return `<td class="mt-cell miss" data-machine="${m.id}" data-date="${d}" onclick="mtOpenCellModal('${m.id}','${d}')"></td>`;
+      const sym = r.status === 'fail' ? '✗' : r.status === 'na' ? 'N/A' : '✓';
+      return `<td class="mt-cell ${r.status}" data-machine="${m.id}" data-date="${d}" onclick="mtOpenCellModal('${m.id}','${d}')">${sym}</td>`;
+    }).join('');
+    return `<tr><th>${m.name}</th>${cells}</tr>`;
+  }).join('');
+
   document.getElementById('mt-content').innerHTML = `
     <div class="mt-drill-head">
       <button class="mt-back" onclick="mtBackToLanding()">← Back</button>
-      <div class="mt-drill-title">${mtGetTeam(mtState.drillTeamId)?.name || ''} drill-in</div>
+      <div class="mt-drill-title">${team ? team.name : 'Drill-in'}</div>
+      <div class="mt-actions">${exportBtns}</div>
     </div>
-    <div id="mt-matrix-host"><div class="mt-loading">Drill-in coming in Task 9.</div></div>`;
+    <div class="mt-filters">
+      <div class="mt-filter">
+        <label>Team</label>
+        <select id="mt-f-team" multiple size="3" onchange="mtOnFilterChange()">${teamOpts}</select>
+      </div>
+      <div class="mt-filter">
+        <label>Machine</label>
+        <select id="mt-f-machine" multiple size="3" onchange="mtOnFilterChange()">${machineOpts}</select>
+      </div>
+      <div class="mt-filter">
+        <label>From</label>
+        <input id="mt-f-from" type="date" value="${f.dateFrom}" onchange="mtOnFilterChange()">
+      </div>
+      <div class="mt-filter">
+        <label>To</label>
+        <input id="mt-f-to" type="date" value="${f.dateTo}" onchange="mtOnFilterChange()">
+      </div>
+      <div class="mt-filter-actions">
+        <button class="mt-btn" onclick="mtResetFilters()">Reset</button>
+        <button class="mt-btn" onclick="mtLoadDrill()">Refresh</button>
+      </div>
+    </div>
+    <div class="mt-stats-strip">
+      <div class="mt-strip-stat"><div class="mt-strip-num">${total}</div><div class="mt-strip-lab">Slots</div></div>
+      <div class="mt-strip-stat"><div class="mt-strip-num pass">${pass}</div><div class="mt-strip-lab">Pass</div></div>
+      <div class="mt-strip-stat"><div class="mt-strip-num fail">${fail}</div><div class="mt-strip-lab">Fail</div></div>
+      <div class="mt-strip-stat"><div class="mt-strip-num">${dtCount}</div><div class="mt-strip-lab">Not in use</div></div>
+      <div class="mt-strip-stat"><div class="mt-strip-num warn">${missed}</div><div class="mt-strip-lab">Missed</div></div>
+      <div class="mt-strip-stat"><div class="mt-strip-num">${pct}%</div><div class="mt-strip-lab">Compliance</div></div>
+    </div>
+    <div id="mt-matrix-host" class="mt-matrix-wrap">
+      ${machines.length === 0
+        ? '<div class="mt-empty">No machines in selection.</div>'
+        : `<table class="mt-matrix"><thead><tr><th>Machine</th>${headDays}</tr></thead><tbody>${rows}</tbody></table>`}
+    </div>`;
+}
+
+function mtOnFilterChange() {
+  const teamSel    = document.getElementById('mt-f-team');
+  const machineSel = document.getElementById('mt-f-machine');
+  const from       = document.getElementById('mt-f-from').value;
+  const to         = document.getElementById('mt-f-to').value;
+  if (!from || !to || from > to) return;          // ignore invalid windows
+  mtState.filters.teamIds    = Array.from(teamSel.selectedOptions).map(o => o.value);
+  mtState.filters.machineIds = Array.from(machineSel.selectedOptions).map(o => o.value);
+  mtState.filters.dateFrom   = from;
+  mtState.filters.dateTo     = to;
+  // If team selection changed away from drillTeamId, repoint the drill
+  if (mtState.filters.teamIds.length === 1) mtState.drillTeamId = mtState.filters.teamIds[0];
+  mtLoadDrill();
+}
+
+function mtResetFilters() {
+  const today = mtTodayUkStr();
+  mtState.filters = {
+    teamIds:    [mtState.drillTeamId],
+    machineIds: [],
+    dateFrom:   mtAddDays(today, -6),
+    dateTo:     today,
+  };
+  mtLoadDrill();
+}
+
+// Stub for Task 10 — replaced there
+function mtOpenCellModal(/* machineId, dateStr */) {
+  toast('Cell modal coming in Task 10', 'i');
 }
 
 function mtBackToLanding() {
