@@ -212,7 +212,7 @@
 const WEBHOOK_URL = 'https://defaultef6548a32d0d4c08b052ffc7b491d0.8e.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/2836425ad4fd4abeab6c406c63833e98/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=5ox6VH49l_YOXmGnG5kUd7RmqTEEFjFhs5hzQdlSUjo';
 
 // Full names of woodmill workers
-const WORKERS = [
+const WOODMILL_WORKERS = [
   'Bryan Patrick',
   'Dale Holden',
   'Harry Barnes',
@@ -228,6 +228,18 @@ const WORKERS = [
   'Steven Hadlington',
   'Tom Ashmore',
 ];
+
+// Development team — only these 4 can complete pre-use checks on dev-* machines
+const DEV_WORKERS = [
+  'Brian Carter',
+  'Gareth Stringer',
+  'Ryan Evans',
+  'Thomas Hillitt',
+];
+
+function getInspectorsForMachine(mid) {
+  return (mid || '').startsWith('dev-') ? DEV_WORKERS : WOODMILL_WORKERS;
+}
 
 // ══════════════════════════════════════════════════════════════
 //  MACHINE DEFINITIONS
@@ -255,9 +267,8 @@ const MACHINES = {
   // can route writes to DEVInspections instead of WMInspections.
   'dev-pillar-drill':{ name: 'Dev Pillar Drill',   type: 'pillar-drill'   },
   'dev-bandsaw':     { name: 'Dev Bandsaw',        type: 'saw'            },
-  'dev-staple-gun':  { name: 'Dev Staple Gun',     type: 'pneumatic-tool' },
-  'dev-pin-gun':     { name: 'Dev Pin Gun',        type: 'pneumatic-tool' },
-  'dev-nail-gun':    { name: 'Dev Nail Gun',       type: 'pneumatic-tool' },
+  // One QR for all 3 air tools — each gets its own row in DEVInspections (one per tool)
+  'dev-air-tools':   { name: 'Dev Air Tools',      type: 'dev-bench'      },
 };
 
 // ══════════════════════════════════════════════════════════════
@@ -317,23 +328,16 @@ const CHECKLISTS = {
     'Sanding pad/disc is securely attached',
     'Sander has been oiled as required',
   ],
-  // Single-tool pneumatic check (Dev staple/pin/nail guns). Same 7 items as
-  // BENCH_CHECKS but used as a one-row checklist (one tool per QR scan)
-  // rather than a 4-tool bench-style submission.
-  'pneumatic-tool': [
-    'Air hose inspected for leaks, cracks, or wear',
-    'Air fittings and connections are tight and secure',
-    'Trigger operates smoothly — does not stick',
-    'No jams, damage, or debris — loads correctly',
-    'Safety tip / contact trip functions correctly (no firing without contact)',
-    'Tool is properly lubricated',
-    'Tool shows no visible damage or cracking',
-  ],
 };
 
-// Blocking bench: worker picks the tool, same 7 checks apply to each
-const BENCH_TOOLS   = ['Staple Gun', 'Nail Gun', 'Pin Gun', 'Sander'];
-const BENCH_CHECKS  = [
+// Bench-style tools — one form lets you submit checks for several tools at once.
+// 'bench'     = Woodmill blocking bench (4 tools incl. sander)
+// 'dev-bench' = Development air-tools station (3 tools, no sander)
+const TOOLS_BY_BENCH_TYPE = {
+  'bench':     ['Staple Gun', 'Nail Gun', 'Pin Gun', 'Sander'],
+  'dev-bench': ['Staple Gun', 'Nail Gun', 'Pin Gun'],
+};
+const BENCH_CHECKS = [
   'Air hose inspected for leaks, cracks, or wear',
   'Air fittings and connections are tight and secure',
   'Trigger operates smoothly — does not stick',
@@ -342,6 +346,8 @@ const BENCH_CHECKS  = [
   'Tool is properly lubricated',
   'Tool shows no visible damage or cracking',
 ];
+function isBenchStyle(type) { return !!TOOLS_BY_BENCH_TYPE[type]; }
+function getBenchTools(type) { return TOOLS_BY_BENCH_TYPE[type] || []; }
 
 // ══════════════════════════════════════════════════════════════
 //  STATE
@@ -363,9 +369,9 @@ function init() {
 
   if (!machine) { showScreen('unknown'); return; }
 
-  // Worker dropdown
+  // Worker dropdown — scoped per team based on machineId prefix
   const sel = document.getElementById('inspector-select');
-  WORKERS.sort().forEach(name => {
+  getInspectorsForMachine(machineId).slice().sort().forEach(name => {
     const o = document.createElement('option');
     o.value = o.textContent = name;
     sel.appendChild(o);
@@ -378,9 +384,9 @@ function init() {
   // Bench: build all-tools checklist immediately, no selection step needed
   buildChecklist();
 
-  // Update submit button label for bench
-  if (machine.type === 'bench') {
-    document.getElementById('submit-btn').textContent = `Submit All ${BENCH_TOOLS.length} Inspections`;
+  // Update submit button label for bench-style machines
+  if (isBenchStyle(machine.type)) {
+    document.getElementById('submit-btn').textContent = `Submit All ${getBenchTools(machine.type).length} Inspections`;
   }
 
   // Offline events
@@ -407,10 +413,11 @@ function buildChecklist() {
   const container = document.getElementById('checklist-container');
   container.innerHTML = '';
 
-  if (machine.type === 'bench') {
+  if (isBenchStyle(machine.type)) {
     // One section per tool — all on the same form
-    totalItems = BENCH_TOOLS.length * BENCH_CHECKS.length;
-    BENCH_TOOLS.forEach((tool, ti) => {
+    const tools = getBenchTools(machine.type);
+    totalItems = tools.length * BENCH_CHECKS.length;
+    tools.forEach((tool, ti) => {
       const hdr = document.createElement('div');
       hdr.className = 'section-hdr';
       hdr.textContent = tool;
@@ -502,8 +509,9 @@ async function handleSubmit() {
   if (unanswered > 0) {
     alert(`${unanswered} check${unanswered > 1 ? 's' : ''} still need a Pass or Fail — please scroll up and complete them.`);
     // Scroll to first unanswered
-    if (machine.type === 'bench') {
-      outer: for (let ti = 0; ti < BENCH_TOOLS.length; ti++) {
+    if (isBenchStyle(machine.type)) {
+      const tools = getBenchTools(machine.type);
+      outer: for (let ti = 0; ti < tools.length; ti++) {
         for (let ci = 0; ci < BENCH_CHECKS.length; ci++) {
           if (!answers[`t${ti}-${ci}`]) {
             document.getElementById(`ci-t${ti}-${ci}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -560,8 +568,8 @@ async function handleSubmit() {
 
 function buildPayloads(inspector, comments) {
   const now = new Date().toISOString();
-  if (machine.type === 'bench') {
-    return BENCH_TOOLS.map((tool, ti) => {
+  if (isBenchStyle(machine.type)) {
+    return getBenchTools(machine.type).map((tool, ti) => {
       const checks = BENCH_CHECKS.map((label, ci) => ({
         label, result: answers[`t${ti}-${ci}`] || 'pass'
       }));
@@ -589,7 +597,7 @@ function showSuccess(inspector, queued) {
   document.getElementById('s-title').textContent = anyFail ? 'Inspection Recorded — Failures Noted' : 'Inspection Passed';
 
   const time = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-  const toolLine = machine.type === 'bench' ? ` · ${BENCH_TOOLS.join(', ')}` : '';
+  const toolLine = isBenchStyle(machine.type) ? ` · ${getBenchTools(machine.type).join(', ')}` : '';
   document.getElementById('s-meta').textContent = `${inspector} · ${machine.name}${toolLine} · ${time}`;
   document.getElementById('s-queued').style.display = queued ? '' : 'none';
 

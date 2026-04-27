@@ -175,9 +175,8 @@ const BASE_URL = 'https://JonasSimo.github.io/repose-tracker/inspect.html?m=';
 const MACHINES = [
   { id: 'dev-pillar-drill', name: 'Pillar Drill', group: 'Machines'  },
   { id: 'dev-bandsaw',      name: 'Bandsaw',      group: 'Machines'  },
-  { id: 'dev-staple-gun',   name: 'Staple Gun',   group: 'Air Tools' },
-  { id: 'dev-pin-gun',      name: 'Pin Gun',      group: 'Air Tools' },
-  { id: 'dev-nail-gun',     name: 'Nail Gun',     group: 'Air Tools' },
+  // One QR for all 3 air tools — operator scans once and fills checks for Staple/Nail/Pin
+  { id: 'dev-air-tools',    name: 'Air Tools',    group: 'Air Tools' },
 ];
 
 const grid = document.getElementById('grid');
