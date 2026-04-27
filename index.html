@@ -16661,9 +16661,90 @@ function mtResetFilters() {
   mtLoadDrill();
 }
 
-// Stub for Task 10 — replaced there
-function mtOpenCellModal(/* machineId, dateStr */) {
-  toast('Cell modal coming in Task 10', 'i');
+function mtOpenCellModal(machineId, dateStr) {
+  const team   = mtGetTeam(mtState.drillTeamId);
+  if (!team) return;
+  const machine = mtGetMachine(team.id, machineId);
+  const dt      = mtState._downtimeByTeam?.[team.id] || {};
+  const isDt    = !!dt[`${machineId}|${dateStr}`];
+  // Find latest record for that cell
+  const recs = mtState.records.filter(r => r.teamId === team.id && r.machineId === machineId && r.dateStr === dateStr);
+  recs.sort((a, b) => (b.inspectedAt || '').localeCompare(a.inspectedAt || ''));
+  const r = recs[0] || null;
+
+  const itemsHtml = (r && Array.isArray(r.items) && r.items.length)
+    ? `<div style="margin-top:10px;font-size:12px">
+         <div style="font-weight:700;margin-bottom:4px">Check items</div>
+         <ul style="margin:0;padding-left:18px">
+           ${r.items.map(it => {
+             const cls = it.result === 'pass' ? '#16a34a' : it.result === 'fail' ? '#dc2626' : 'var(--text3)';
+             return `<li style="color:${cls}">${(it.result || '').toUpperCase()} — ${it.label || ''}</li>`;
+           }).join('')}
+         </ul>
+       </div>`
+    : '';
+
+  const dtToggleHtml = mtIsManager
+    ? `<button class="mt-btn" style="margin-top:10px" onclick="mtToggleDowntime('${machineId}','${dateStr}')">${isDt ? 'Clear ' : 'Mark '}not in use</button>`
+    : '';
+
+  const body = `
+    <div style="padding:18px 20px">
+      <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--text3)">${team.name} · ${mtFormatDateUK(dateStr)}</div>
+      <div style="font-size:18px;font-weight:700;color:var(--repose-navy);margin:4px 0 12px">${machine ? machine.name : machineId}</div>
+      ${r ? `
+        <div style="font-size:13px;color:var(--text)">
+          <div><b>Status:</b> <span style="color:${r.status==='fail'?'#dc2626':r.status==='pass'?'#16a34a':'var(--text2)'}">${r.status.toUpperCase()}</span></div>
+          <div><b>Operator:</b> ${r.operator || '—'}</div>
+          <div><b>Time:</b> ${mtFormatTimeUK(r.inspectedAt)} (UK)</div>
+          ${r.comment ? `<div style="margin-top:6px"><b>Comment:</b> ${r.comment}</div>` : ''}
+          ${itemsHtml}
+        </div>` : `
+        <div style="color:var(--text2);font-size:13px">${isDt ? 'Marked not in use.' : 'No record for this day.'}</div>`}
+      <div style="display:flex;gap:8px;margin-top:14px">
+        ${dtToggleHtml}
+        <button class="mt-btn" onclick="mtCloseCellModal()" style="margin-left:auto">Close</button>
+      </div>
+    </div>`;
+  document.getElementById('mt-cell-modal-body').innerHTML = body;
+  document.getElementById('mt-cell-modal').style.display = 'flex';
+}
+
+function mtCloseCellModal() {
+  document.getElementById('mt-cell-modal').style.display = 'none';
+}
+
+async function mtToggleDowntime(machineId, dateStr) {
+  if (!mtIsManager) return;
+  const team = mtGetTeam(mtState.drillTeamId);
+  if (!team || !team.downtimeList) {
+    toast('No downtime list configured for this team', 'u');
+    return;
+  }
+  const dt = mtState._downtimeByTeam?.[team.id] || {};
+  const key = `${machineId}|${dateStr}`;
+  const existingId = dt[key];
+  try {
+    const siteId = await mtAdapterGetSiteId();
+    const listId = await getListIdByNameOnSite(siteId, team.downtimeList);
+    if (existingId) {
+      await graphDelete(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${existingId}`);
+      delete dt[key];
+      toast('Cleared not-in-use', 's');
+    } else {
+      const res = await graphPost(
+        `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`,
+        { fields: { Title: key } }
+      );
+      dt[key] = res.id;
+      toast('Marked not-in-use', 's');
+    }
+    mtState._downtimeByTeam[team.id] = dt;
+    mtCloseCellModal();
+    mtRenderDailyDrillIn(); // repaint matrix
+  } catch (e) {
+    toast('Failed: ' + (e.message || 'unknown'), 'u');
+  }
 }
 
 function mtBackToLanding() {
