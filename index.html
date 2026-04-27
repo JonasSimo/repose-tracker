@@ -5792,12 +5792,20 @@ async function autoSyncQCCompletions() {
       ranges.push([r, Math.min(r + CHUNK - 1, lastRow)]);
     }
 
-    const chunkResults = await Promise.all(ranges.map(([r, end]) =>
-      graphGet(
-        `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}` +
-        `/workbook/worksheets('${encodeURIComponent(QC_SHEET_NAME)}')/range(address='A${r}:D${end}')?$select=values`
-      )
-    ));
+    // Sequential — parallel chunks of the same workbook trigger FileOpenHostTooManyRequests.
+    // 19k rows / 10k chunk size = 2 sequential calls, fast enough.
+    const chunkResults = [];
+    for (const [r, end] of ranges) {
+      try {
+        const chunk = await graphGet(
+          `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}` +
+          `/workbook/worksheets('${encodeURIComponent(QC_SHEET_NAME)}')/range(address='A${r}:D${end}')?$select=values`
+        );
+        chunkResults.push(chunk);
+      } catch(e) {
+        console.warn(`QC chunk A${r}:D${end} failed:`, e.message);
+      }
+    }
 
     const repNums = new Set();
     chunkResults.forEach(chunk => {
@@ -6089,12 +6097,25 @@ async function loadMechQCFromSharePoint() {
   try {
     const siteId = await getSpSiteId();
     const listId = await getListIdByName('ProductionCompletions');
-    const items  = await graphGetAll(
-      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items` +
-      `?$expand=fields&$top=999`
-    );
-    const qcItems = items.filter(i => (i.fields?.Team || '') === 'QC');
-    qcItems.forEach(item => {
+    // Server-side $filter on Team column. Graph sometimes returns @odata.nextLink
+    // *without* the original $filter query for non-fully-indexed columns, which
+    // silently paginates through the entire list. Re-attach the filter on each page.
+    const baseUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items` +
+                    `?$expand=fields&$filter=fields/Team eq 'QC'&$top=999`;
+    const filterParam = '$filter=' + encodeURIComponent("fields/Team eq 'QC'");
+    const items = [];
+    let nextUrl = baseUrl;
+    let guard = 0;
+    while (nextUrl && guard++ < 50) {
+      let url = nextUrl;
+      if (!/[?&]\$filter=/.test(url)) {
+        url += (url.includes('?') ? '&' : '?') + filterParam;
+      }
+      const page = await graphGet(url);
+      (page.value || []).forEach(i => items.push(i));
+      nextUrl = page['@odata.nextLink'] || null;
+    }
+    items.forEach(item => {
       const rep  = String(item.fields?.REP ?? '').trim();
       const m7   = rep.match(/(?<!\d)(\d{7})(?!\d)/);
       if (m7) mechQCDone.add(m7[1]);
@@ -6272,11 +6293,17 @@ async function getGraphToken() {
   }
 }
 
-async function _graphFetchWithRetry(url, init, retries = 3) {
+async function _graphFetchWithRetry(url, init, retries = 2) {
+  // Inject Prefer header for $filter URLs so non-indexed columns fall through gracefully (a 400 otherwise)
+  if (typeof url === 'string' && url.includes('$filter=')) {
+    init = { ...(init || {}), headers: { ...((init && init.headers) || {}), Prefer: 'HonorNonIndexedQueriesWarningMayFailRandomly' } };
+  }
   let r = await fetch(url, init);
   while ((r.status === 429 || r.status === 503) && retries > 0) {
-    const waitSec = Math.min(60, Math.max(1, parseInt(r.headers.get('Retry-After') || '5', 10))) + 1;
-    await new Promise(res => setTimeout(res, waitSec * 1000));
+    // Cap wait at 15s (was 60s) and add jitter so parallel calls don't thunder-herd back in lockstep
+    const baseSec   = Math.min(15, Math.max(1, parseInt(r.headers.get('Retry-After') || '3', 10)));
+    const jitterSec = Math.random() * 2;
+    await new Promise(res => setTimeout(res, (baseSec + jitterSec) * 1000));
     r = await fetch(url, init);
     retries--;
   }
@@ -6473,11 +6500,13 @@ async function loadProductionFromSharePoint() {
     const now = currentISOWeek();
     const weekNums = [now-2, now-1, now, now+1];
 
-    // 3. Fetch all 4 week sheets in parallel (biggest startup win — was sequential)
+    // 3. Fetch 4 week sheets sequentially. Parallel was faster on a quiet workbook
+    // but triggers FileOpenHostTooManyRequests when the workbook is also being read
+    // by autoSyncQCCompletions / loadLoadPlan / other devices — recovery takes minutes.
     const newPROD  = {};
     const newWEEKS = weekNums.map(wn => `WK ${wn}`);
     const parsedBySheet = {};
-    await Promise.all(weekNums.map(async wn => {
+    for (const wn of weekNums) {
       const sheetName = `WK ${wn}`;
       const monday    = isoWeekMonday(wn);
       const wc        = ddmmyyyy(monday);
@@ -6492,7 +6521,7 @@ async function loadProductionFromSharePoint() {
         console.warn(`Sheet ${sheetName} unavailable:`, e.message);
         newPROD[sheetName] = { wc, 1:[], 2:[], 3:[], 4:[], 5:[], express:[] };
       }
-    }));
+    }
 
     // 3a. Populate MECH_SERIALS from the Excel data we just parsed (no extra API calls)
     for (const sheetName of newWEEKS) {
@@ -6631,16 +6660,17 @@ async function initGraph() {
     const _deepView = new URLSearchParams(window.location.search).get('view');
     const _validViews = new Set(['team-select','overview','tracker','loadsheet','production','stats','issues','safety','ordercheck','timing','complaints','woodmill','cutting-checks','innovation']);
     if (_deepView && _validViews.has(_deepView)) navTo(_deepView);
-    await Promise.all([
-      loadProductionFromSharePoint(),
-      loadLoadPlanFromSharePoint().catch(e => console.warn('loadplan:', e.message)),
-    ]);
-    await Promise.all([
-      loadCompletionsFromList().catch(e => console.warn('completions:', e.message)),
-      loadMechSerials().catch(e => console.warn('mechserials:', e.message)),
-    ]);
-    startQCAutoSync();
+    // Serialize startup loads — the production workbook gets thrashed otherwise.
+    // Order: production sheets first (heaviest), then load plan (same drive),
+    // then SP lists, then mech serials. Auto-sync deferred so workbook can recover.
+    await loadProductionFromSharePoint();
+    await loadLoadPlanFromSharePoint().catch(e => console.warn('loadplan:', e.message));
+    await loadCompletionsFromList().catch(e => console.warn('completions:', e.message));
+    await loadMechSerials().catch(e => console.warn('mechserials:', e.message));
     fetchSpecAlerts().catch(console.warn);
+    // Defer QC auto-sync 5s so the production workbook session has a moment to recover
+    // before the QC workbook starts getting hammered.
+    setTimeout(() => { if (graphAccount) startQCAutoSync(); }, 5000);
     if (!_refreshInterval)     _refreshInterval     = setInterval(refreshCompletions, 60 * 1000);
     if (!_fullRefreshInterval) _fullRefreshInterval = setInterval(fullRefresh, 10 * 60 * 1000);
   }
@@ -7574,8 +7604,8 @@ async function loadStatsData() {
     ).then(r => { STATS_SCRAP = r; }).catch(e => console.warn('stats (scrap):', e.message)),
 
     getListIdByName(SP_CPAR_LIST).then(id =>
-      graphGetAll(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${id}/items?$expand=fields&$top=999`)
-    ).then(r => { STATS_CPARS = r; console.log(`stats (CPARs): loaded ${r.length} records`); }).catch(e => console.warn('stats (CPARLog):', e.message)),
+      graphGetAll(_cparFilterUrl(siteId, id))
+    ).then(r => { STATS_CPARS = r; console.log(`stats (CPARs): loaded ${r.length} records (filtered: open + last ${CPAR_HISTORY_DAYS}d)`); }).catch(e => console.warn('stats (CPARLog):', e.message)),
   ]);
 
   // Load QC completions from the QC sheet (col A = REP, col B = ISO timestamp)
@@ -9695,8 +9725,15 @@ function renderDetailCPAR() {
 // Step 1: load production plan (needed so STATE job indices map correctly).
 // Step 2: load completions into STATE.
 // Step 3: re-render once data is ready.
+let _ensureDeliveryLastLoad = 0;
 async function ensureDeliveryStateLoaded() {
   if (!graphAccount) return;
+  // Skip reload if last sync was within 30s — auto-sync (refreshCompletions every 60s) keeps data fresh
+  if (Date.now() - _ensureDeliveryLastLoad < 30000) {
+    if (document.getElementById('view-loadsheet')?.classList.contains('active')) renderLoadSheet();
+    return;
+  }
+  _ensureDeliveryLastLoad = Date.now();
   const prodHasData = Object.values(PROD).some(wk =>
     Object.values(wk).some(v => Array.isArray(v) && v.length > 0)
   );
@@ -10648,15 +10685,34 @@ function openIssuesView() {
   else renderIssuesList();
 }
 
+// Filter: open CPARs (any age) + everything created in the last CPAR_HISTORY_DAYS.
+// Status indexed manually; Created is auto-indexed by SharePoint.
+// 365d window matched ~3875 of 12k rows in practice — most CPARs <1y old aren't yet closed.
+// 90d still covers the active triage horizon and cuts to a few hundred rows.
+const CPAR_HISTORY_DAYS = 90;
+function _cparFilterUrl(siteId, listId) {
+  const cutoff = new Date(Date.now() - CPAR_HISTORY_DAYS * 86400000).toISOString();
+  const filter = `fields/Status ne 'Closed' or fields/Created ge '${cutoff}'`;
+  return `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items` +
+         `?$expand=fields&$top=999&$filter=${encodeURIComponent(filter)}`;
+}
+
 async function fetchCPARs() {
   const listEl = document.getElementById('issues-list');
   if (listEl) listEl.innerHTML = '<div class="issues-loading">Loading issues…</div>';
   try {
     const siteId = await getSpSiteId();
     const listId = await getListIdByName(SP_CPAR_LIST);
-    const items  = await graphGetAll(
-      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999`
-    );
+    let items;
+    try {
+      items = await graphGetAll(_cparFilterUrl(siteId, listId));
+    } catch(filterErr) {
+      // Fallback to full fetch if the filter ever breaks (column gets renamed/unindexed)
+      console.warn('fetchCPARs: filter failed, falling back to full fetch:', filterErr.message);
+      items = await graphGetAll(
+        `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999`
+      );
+    }
     CPAR_ITEMS = items.sort((a,b) => parseCPARDate(b.fields?.LoggedAt) - parseCPARDate(a.fields?.LoggedAt));
     cparListLoaded = true;
     renderIssuesList();
