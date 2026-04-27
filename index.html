@@ -16734,14 +16734,23 @@ function mtFreqDays(item) {
 
 function mtComputeYearlyStatus(item) {
   const today = new Date(mtTodayUkStr() + 'T00:00:00Z').getTime();
-  const last  = item.LastDone ? new Date(item.LastDone).getTime() : null;
-  const days  = mtFreqDays(item);
-  if (!last) return { nextDueIso: mtTodayUkStr(), daysUntil: -1, cls: 'overdue', label: 'Overdue', firstTime: true };
-  const next  = last + days * 86400000;
-  const daysUntil = Math.round((next - today) / 86400000);
-  if (daysUntil < 0)   return { nextDueIso: new Date(next).toISOString().slice(0,10), daysUntil, cls: 'overdue', label: 'Overdue' };
-  if (daysUntil <= 90) return { nextDueIso: new Date(next).toISOString().slice(0,10), daysUntil, cls: 'due',     label: 'Due Soon' };
-  return                  { nextDueIso: new Date(next).toISOString().slice(0,10), daysUntil, cls: 'ok',      label: 'OK' };
+  // ScheduledFor (manual override) wins over computed LastDone + Frequency.
+  const scheduledIso = (item.ScheduledFor || '').slice(0, 10);
+  let next;
+  let manuallyScheduled = false;
+  if (scheduledIso) {
+    next = new Date(scheduledIso + 'T00:00:00Z').getTime();
+    manuallyScheduled = true;
+  } else {
+    const last = item.LastDone ? new Date(item.LastDone).getTime() : null;
+    if (!last) return { nextDueIso: mtTodayUkStr(), daysUntil: -1, cls: 'overdue', label: 'Overdue', firstTime: true, manuallyScheduled: false };
+    next = last + mtFreqDays(item) * 86400000;
+  }
+  const daysUntil  = Math.round((next - today) / 86400000);
+  const nextDueIso = new Date(next).toISOString().slice(0, 10);
+  if (daysUntil < 0)   return { nextDueIso, daysUntil, cls: 'overdue', label: 'Overdue', manuallyScheduled };
+  if (daysUntil <= 90) return { nextDueIso, daysUntil, cls: 'due',     label: 'Due Soon', manuallyScheduled };
+  return                  { nextDueIso, daysUntil, cls: 'ok',      label: 'OK',       manuallyScheduled };
 }
 
 let mtYearlyChips    = ['All']; // category filter (multi-select)
@@ -16851,7 +16860,7 @@ function mtRenderYearly() {
       <td>${escHtml(it.Category || '')}</td>
       <td>${escHtml(it.Frequency || '')}${(it.Frequency||'').toLowerCase()==='custom' ? ` (${it.FrequencyDays||0}d)` : ''}</td>
       <td>${it.LastDone ? mtFormatDateUK(it.LastDone).replace(',', '') : '—'}</td>
-      <td>${mtFormatDateUK(it._s.nextDueIso).replace(',', '')}</td>
+      <td>${mtFormatDateUK(it._s.nextDueIso).replace(',', '')}${it._s.manuallyScheduled ? ' <span title="Manually scheduled" style="font-size:10px;color:var(--text3)">📅</span>' : ''}</td>
       <td><span class="mt-pill ${it._s.cls === 'overdue' ? 'fail' : it._s.cls === 'due' ? 'warn' : 'pass'}">${it._s.label}</span></td>
       <td>${it.DocLink ? `<a href="${escHtml(it.DocLink)}" target="_blank" rel="noopener" title="Open latest cert">📎</a>` : ''}</td>
       <td>
@@ -17169,6 +17178,7 @@ function mtRenderYearlyForm(item) {
       <label>Frequency days</label><input id="mt-fy-fd" type="number" min="1" value="${item.FrequencyDays || ''}">
     </div>
     <div class="mt-form-group"><label>Last done</label><input id="mt-fy-last" type="date" value="${(item.LastDone || '').slice(0,10)}"></div>
+    <div class="mt-form-group"><label>Scheduled for (overrides next due — leave blank to use last done + frequency)</label><input id="mt-fy-sched" type="date" value="${(item.ScheduledFor || '').slice(0,10)}"></div>
     <div class="mt-form-group"><label>Doc link (SharePoint URL)</label><input id="mt-fy-doc" value="${escHtml(item.DocLink || '')}" placeholder="https://reposefurniturelimited.sharepoint.com/..."></div>
     <div class="mt-form-group"><label>Notes</label><textarea id="mt-fy-notes" rows="3">${escHtml(item.Notes || '')}</textarea></div>`;
 }
@@ -17183,6 +17193,7 @@ async function mtSaveYearly(id) {
     Frequency:     document.getElementById('mt-fy-freq').value,
     FrequencyDays: Number(document.getElementById('mt-fy-fd').value || 0) || null,
     LastDone:      document.getElementById('mt-fy-last').value || null,
+    ScheduledFor:  document.getElementById('mt-fy-sched').value || null,
     DocLink:       document.getElementById('mt-fy-doc').value.trim() || null,
     Notes:         document.getElementById('mt-fy-notes').value || null,
   };
