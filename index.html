@@ -2426,7 +2426,10 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 /* print overrides for audit PDF */
 @media print {
   body.mt-printing > *:not(#mt-print-overlay) { display: none !important; }
-  #mt-print-overlay { display: block !important; position: static !important; padding: 0 !important; }
+  /* Higher specificity (body.class + ID) so this beats the complaints-print rule
+     `body > *:not(#view-complaints) { display:none !important }` which would
+     otherwise hide our overlay on any window.print() call. */
+  body.mt-printing #mt-print-overlay { display: block !important; position: static !important; padding: 0 !important; }
   @page { size: A4 portrait; margin: 14mm 12mm; }
   .mt-print-bar    { display:flex !important; align-items:center; justify-content:space-between; border-bottom:2pt solid #14a1e9; padding-bottom:7pt; margin-bottom:10pt; }
   .mt-print-bar img{ height:32pt; width:auto; }
