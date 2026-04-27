@@ -2376,6 +2376,17 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .mt-cal-day.done::after { content: '✓'; position: absolute; top: -3px; right: -2px; font-size: 7px; background: #fff; color: #15803d; border-radius: 50%; width: 9px; height: 9px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 1px #15803d; line-height: 1; }
 .mt-cal-day:hover:not(.empty) { transform: scale(1.05); box-shadow: 0 0 0 1.5px var(--repose-blue); z-index: 1; }
 
+/* Calendar legend */
+.mt-cal-legend        { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; padding: 8px 14px; background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; font-size: 11px; color: var(--text2); }
+.mt-cal-legend-key    { display: inline-flex; align-items: center; gap: 6px; }
+.mt-cal-legend-swatch { width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; }
+.mt-cal-legend-swatch.overdue { background: #ef4444; }
+.mt-cal-legend-swatch.due     { background: #f59e0b; }
+.mt-cal-legend-swatch.ok      { background: #22c55e; }
+.mt-cal-legend-swatch.done    { background: #15803d; position: relative; }
+.mt-cal-legend-swatch.done::after { content: '✓'; position: absolute; top: -3px; right: -3px; font-size: 7px; background: #fff; color: #15803d; border-radius: 50%; width: 9px; height: 9px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 1px #15803d; line-height: 1; }
+.mt-cal-legend-swatch.today   { background: #fff; box-shadow: inset 0 0 0 1.5px var(--repose-blue); }
+
 .mt-chips             { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
 .mt-chip              { padding: 6px 12px; border-radius: 999px; border: 1.5px solid var(--border2); background: #fff; font-size: 12px; font-weight: 600; color: var(--text2); cursor: pointer; font-family: inherit; }
 .mt-chip.on           { border-color: var(--repose-blue); background: var(--repose-blue); color: #fff; }
@@ -16849,11 +16860,21 @@ function mtRenderYearly() {
     </tr>
   `).join('') : `<tr><td colspan="8"><div class="mt-empty">${mtState.yearlyItems.length === 0 ? 'No inspection items yet — click ⚙ Manage to add the first one.' : 'No items match the current filter.'}</div></td></tr>`;
 
+  const legendHtml = `
+    <div class="mt-cal-legend">
+      <span class="mt-cal-legend-key"><span class="mt-cal-legend-swatch overdue"></span>Overdue</span>
+      <span class="mt-cal-legend-key"><span class="mt-cal-legend-swatch due"></span>Due within 90 days</span>
+      <span class="mt-cal-legend-key"><span class="mt-cal-legend-swatch ok"></span>Scheduled</span>
+      <span class="mt-cal-legend-key"><span class="mt-cal-legend-swatch done"></span>Completed</span>
+      <span class="mt-cal-legend-key"><span class="mt-cal-legend-swatch today"></span>Today</span>
+    </div>`;
+
   document.getElementById('mt-content').innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
       <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--text3)">Yearly · 12-month outlook</div>
       ${headerActions}
     </div>
+    ${legendHtml}
     ${calHtml}
     ${chipsHtml}
     <table class="mt-table">
