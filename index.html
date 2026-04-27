@@ -8916,8 +8916,10 @@ function renderDetailTeamToken() {
           const name = STATS_OPERATORS[team]?.[f.Initials] ?? f.Initials ?? '—';
           const subBadge = f.SubTeam ? `<span style="background:${tc}18;color:${tc};border-radius:6px;padding:1px 7px;font-size:10px;font-weight:600;margin-left:4px">${escHtml(f.SubTeam)}</span>` : '';
           const expBadge = f.Prep === 'express' ? `<span style="background:#fff7ed;color:#92400e;border:1px solid #fed7aa;border-radius:6px;padding:1px 7px;font-size:10px;font-weight:700;margin-left:4px">EXP</span>` : '';
+          const jobMeta = (f.JobNo || f.WCDate) ? `<div style="font-size:11px;color:var(--repose-grey);font-family:'JetBrains Mono',monospace;white-space:nowrap">${f.JobNo ? 'Job ' + escHtml(String(f.JobNo)) : ''}${f.JobNo && f.WCDate ? ' · ' : ''}${f.WCDate ? 'w/c ' + escHtml(f.WCDate) : ''}</div>` : '';
           return `<div style="display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--border2);border-radius:10px;padding:8px 12px">
             <div style="font-size:13px;font-weight:600;color:var(--text);flex:1">${escHtml(f.REP||'—')} ${subBadge}${expBadge}</div>
+            ${jobMeta}
             <div style="font-size:12px;color:var(--text2)">${escHtml(name)}</div>
             <div style="font-size:11px;color:var(--repose-grey);font-family:'JetBrains Mono',monospace">${escHtml(f.CompletedTime||'—')}</div>
           </div>`;
