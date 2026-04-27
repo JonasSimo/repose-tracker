@@ -6879,6 +6879,8 @@ function updateAuthBadge() {
     const ccTabBtn = document.getElementById('cc-tab-btn');
     if (ccTabBtn) ccTabBtn.style.display = CC_TAB_ALLOWED.has(graphAccount.username.toLowerCase()) ? '' : 'none';
     wmIsManager = TIMING_ALLOWED.has(graphAccount.username.toLowerCase());
+    mtIsManager = wmIsManager; // QHSE Managers gate — same set as Stats / Woodmill manager actions
+    mtState.isManager = mtIsManager;
     cpIsManager = COMPLAINTS_MANAGERS.has(graphAccount.username.toLowerCase());
     const _statsAccess = STATS_TEAM_ACCESS[graphAccount.username.toLowerCase()];
     if (_statsAccess) { statsAllowedTeams = _statsAccess; statsUnlocked = true; }
