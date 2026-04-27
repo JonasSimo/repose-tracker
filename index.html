@@ -32,6 +32,18 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Repose Tracker">
 <link rel="apple-touch-icon" href="/icon.svg">
+<link rel="preconnect" href="https://graph.microsoft.com" crossorigin>
+<link rel="preconnect" href="https://login.microsoftonline.com" crossorigin>
+<link rel="preconnect" href="https://reposefurniturelimited.sharepoint.com" crossorigin>
+<script>
+// Register service worker for app shell caching. Stale-while-revalidate so
+// users see the cached shell instantly and the next reload picks up deploys.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/service-worker.js').catch(e => console.warn('SW register failed:', e.message));
+  });
+}
+</script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
@@ -5193,6 +5205,63 @@ const ID_CACHE_KEY = 'rep_id_cache_v1';
 const _idCache = (() => { try { return JSON.parse(localStorage.getItem(ID_CACHE_KEY) || '{}'); } catch { return {}; } })();
 function _saveIdCache() { try { localStorage.setItem(ID_CACHE_KEY, JSON.stringify(_idCache)); } catch {} }
 
+// Data snapshot — paint last-known production / state / load plan instantly on reload,
+// before Graph responds. Saves ~5-10s of "blank loading" on every cold load.
+// Live data overwrites the cache when it arrives; we keep snapshots for 24h max.
+const SNAPSHOT_KEY = 'rep_snapshot_v1';
+const SNAPSHOT_MAX_AGE_MS = 24 * 3600 * 1000;
+let _snapshotSaveTimer = null;
+function _saveSnapshot() {
+  // Debounce — multiple loads landing in quick succession only write once.
+  if (_snapshotSaveTimer) return;
+  _snapshotSaveTimer = setTimeout(() => {
+    _snapshotSaveTimer = null;
+    try {
+      const snap = {
+        savedAt: Date.now(),
+        PROD,
+        WEEKS: [...WEEKS],
+        STATE,
+        LS_RAW,
+        OV_RAW,
+        MECH_SERIALS: [...MECH_SERIALS.entries()],
+        EXPRESS_TYPE_MAP: [...EXPRESS_TYPE_MAP.entries()],
+      };
+      localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snap));
+    } catch (e) {
+      // Quota / serialisation failures are non-fatal — just skip this write.
+      console.warn('snapshot save failed:', e.message);
+    }
+  }, 500);
+}
+function _restoreSnapshot() {
+  try {
+    const raw = localStorage.getItem(SNAPSHOT_KEY);
+    if (!raw) return false;
+    const snap = JSON.parse(raw);
+    if (!snap || !snap.savedAt) return false;
+    if (Date.now() - snap.savedAt > SNAPSHOT_MAX_AGE_MS) return false;
+    // Clear hardcoded WK 10-13 defaults so they don't leak into the restored view.
+    Object.keys(PROD).forEach(k => delete PROD[k]);
+    Object.assign(PROD, snap.PROD || {});
+    WEEKS.length = 0;
+    (snap.WEEKS || []).forEach(w => WEEKS.push(w));
+    Object.keys(STATE).forEach(k => delete STATE[k]);
+    Object.assign(STATE, snap.STATE || {});
+    LS_RAW = snap.LS_RAW || [];
+    OV_RAW = snap.OV_RAW || {};
+    MECH_SERIALS.clear();
+    (snap.MECH_SERIALS || []).forEach(([k, v]) => MECH_SERIALS.set(k, v));
+    EXPRESS_TYPE_MAP.clear();
+    (snap.EXPRESS_TYPE_MAP || []).forEach(([k, v]) => EXPRESS_TYPE_MAP.set(k, v));
+    if (WEEKS.length && !WEEKS.includes(activeWC)) activeWC = WEEKS[0];
+    return true;
+  } catch (e) {
+    console.warn('snapshot restore failed:', e.message);
+    return false;
+  }
+}
+
 async function getNmsSiteId() {
   if (_idCache.nmsSiteId) return _idCache.nmsSiteId;
   const res = await graphGet(`https://graph.microsoft.com/v1.0/sites/${SP_HOST}:${NMS_SITE_PATH}`);
@@ -5509,8 +5578,10 @@ async function loadCompletionsFromList() {
     // Filter to current 4-week window only — dramatically reduces items fetched.
     // Requires 'Week' column to be indexed in SharePoint; falls back to full fetch if not.
     const weekFilter = WEEKS.map(wk => `fields/Week eq '${wk}'`).join(' or ');
-    const filteredUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999&$filter=${encodeURIComponent(weekFilter)}`;
-    const fullUrl     = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999`;
+    // $top=2000 (was 999): SharePoint Graph supports up to 5000 per page; 2000 cuts
+    // the 4-week completions paginated fetch from ~5 pages to ~2-3.
+    const filteredUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=2000&$filter=${encodeURIComponent(weekFilter)}`;
+    const fullUrl     = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=2000`;
 
     let firstUrl = filteredUrl;
     let firstRes;
@@ -5653,6 +5724,7 @@ async function loadCompletionsFromList() {
     renderPriorityBtn();
     applyStateToOvBadges();
     if (document.getElementById('view-production')?.classList.contains('active')) renderProductionPlan();
+    _saveSnapshot();
   } catch(e) {
     console.warn('loadCompletionsFromList failed:', e.message);
   } finally {
@@ -5783,18 +5855,16 @@ async function autoSyncQCCompletions() {
   if (activeTeam === 'QC') renderQCSyncBar();
 
   try {
-    // Resolve sharing URL → driveItem
-    const encoded   = encodeSharingUrl(QC_SHEET_SHARING_URL);
-    const driveItem = await graphGet(`https://graph.microsoft.com/v1.0/shares/${encoded}/driveItem`);
-    const driveId   = driveItem.parentReference.driveId;
-    const itemId    = driveItem.id;
+    const { driveId, itemId } = await resolveDriveItem(QC_SHEET_SHARING_URL, 'qc');
+    const sessionId = await getWorkbookSession(driveId, itemId);
 
-    // Get row count, then fetch all chunks in parallel (no rows skipped — correct > fast)
+    // Get row count, then fetch all chunks in parallel under one workbook session.
     const CHUNK = 10000;
 
     const dims = await graphGet(
       `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}` +
-      `/workbook/worksheets('${encodeURIComponent(QC_SHEET_NAME)}')/usedRange?$select=rowCount`
+      `/workbook/worksheets('${encodeURIComponent(QC_SHEET_NAME)}')/usedRange?$select=rowCount`,
+      sessionId
     );
     const lastRow = dims.rowCount || 1;
 
@@ -5803,20 +5873,13 @@ async function autoSyncQCCompletions() {
       ranges.push([r, Math.min(r + CHUNK - 1, lastRow)]);
     }
 
-    // Sequential — parallel chunks of the same workbook trigger FileOpenHostTooManyRequests.
-    // 19k rows / 10k chunk size = 2 sequential calls, fast enough.
-    const chunkResults = [];
-    for (const [r, end] of ranges) {
-      try {
-        const chunk = await graphGet(
-          `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}` +
-          `/workbook/worksheets('${encodeURIComponent(QC_SHEET_NAME)}')/range(address='A${r}:D${end}')?$select=values`
-        );
-        chunkResults.push(chunk);
-      } catch(e) {
-        console.warn(`QC chunk A${r}:D${end} failed:`, e.message);
-      }
-    }
+    const chunkResults = await Promise.all(ranges.map(([r, end]) =>
+      graphGet(
+        `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}` +
+        `/workbook/worksheets('${encodeURIComponent(QC_SHEET_NAME)}')/range(address='A${r}:D${end}')?$select=values`,
+        sessionId
+      ).catch(e => { console.warn(`QC chunk A${r}:D${end} failed:`, e.message); return { values: [] }; })
+    ));
 
     const repNums = new Set();
     chunkResults.forEach(chunk => {
@@ -5958,17 +6021,15 @@ async function loadLoadPlanFromSharePoint() {
   if (pill) { pill.className = 'sync-pill syncing'; lbl.textContent = 'Syncing load plan…'; }
 
   try {
-    const encoded   = encodeSharingUrl(OV_LOAD_PLAN_URL);
-    const driveItem = await graphGet(`https://graph.microsoft.com/v1.0/shares/${encoded}/driveItem`);
-    const driveId   = driveItem.parentReference.driveId;
-    const itemId    = driveItem.id;
+    const { driveId, itemId } = await resolveDriveItem(OV_LOAD_PLAN_URL, 'ov');
+    const sessionId = await getWorkbookSession(driveId, itemId);
 
     const baseUrl = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}` +
       `/workbook/worksheets('${encodeURIComponent(OV_LOAD_PLAN_SHEET)}')/usedRange`;
 
     // Fetch values+address together, then use concrete range address for getCellProperties
     // (getCellProperties is not supported on the dynamic /usedRange endpoint)
-    const range = await graphGet(`${baseUrl}?$select=values,address`);
+    const range = await graphGet(`${baseUrl}?$select=values,address`, sessionId);
     const values = range.values || [];
     const rangeAddr = (range.address || '').split('!')[1]; // e.g. "A1:Z312"
     const sheetBase = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}` +
@@ -5981,7 +6042,8 @@ async function loadLoadPlanFromSharePoint() {
     const cellCount = rows * cols;
     const cellProps = (rangeAddr && cellCount > 0 && cellCount <= 10000) ? await graphPost(
       `${sheetBase}/range(address='${rangeAddr}')/getCellProperties`,
-      { cellPropertiesLoadOptions: { format: { fill: { color: true }, font: { color: true } } } }
+      { cellPropertiesLoadOptions: { format: { fill: { color: true }, font: { color: true } } } },
+      sessionId
     ).catch(() => null) : null;
     // cellProps.value is a 2D array matching values rows/cols
     const cellColors = cellProps?.value || [];
@@ -6074,6 +6136,7 @@ async function loadLoadPlanFromSharePoint() {
     // Atomic swap
     OV_RAW = newRaw;
     LS_RAW  = newLS;
+    _saveSnapshot();
 
     // Flag items that are new in this load (skip on first load when prevByDate is empty)
     const changeNow = Date.now();
@@ -6335,24 +6398,64 @@ async function _graphFetchWithRetry(url, init, retries = 4) {
   return r;
 }
 
-async function graphGet(url) {
+async function graphGet(url, sessionId) {
   const token = await getGraphToken();
   if (!token) throw new Error('Not authenticated');
-  const r = await _graphFetchWithRetry(url, { headers: { Authorization: `Bearer ${token}` } });
+  const headers = { Authorization: `Bearer ${token}` };
+  if (sessionId) headers['workbook-session-id'] = sessionId;
+  const r = await _graphFetchWithRetry(url, { headers });
   if (!r.ok) throw new Error(`Graph ${r.status}: ${await r.text()}`);
   return r.json();
 }
 
-async function graphPost(url, body) {
+async function graphPost(url, body, sessionId) {
   const token = await getGraphToken();
   if (!token) throw new Error('Not authenticated');
+  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+  if (sessionId) headers['workbook-session-id'] = sessionId;
   const r = await _graphFetchWithRetry(url, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(body),
   });
   if (!r.ok) throw new Error(`Graph ${r.status}: ${await r.text()}`);
   return r.json();
+}
+
+// Excel workbook sessions — POST /workbook/createSession returns an id; subsequent
+// reads with `workbook-session-id` header share one Excel-server instance, which
+// (a) skips the 5-10s "open workbook" cold-start per request, and (b) allows
+// parallel reads without FileOpenHostTooManyRequests. Sessions idle out after
+// ~5min, so cache for 4min then re-create.
+const _wbSessions = new Map();
+async function getWorkbookSession(driveId, itemId) {
+  const key = `${driveId}::${itemId}`;
+  const cached = _wbSessions.get(key);
+  if (cached && Date.now() < cached.expires) return cached.id;
+  try {
+    const res = await graphPost(
+      `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/createSession`,
+      { persistChanges: false }
+    );
+    _wbSessions.set(key, { id: res.id, expires: Date.now() + 240000 });
+    return res.id;
+  } catch (e) {
+    console.warn('createSession failed (proceeding without session):', e.message);
+    return null;
+  }
+}
+
+// driveItem resolution from a sharing URL is a stable mapping — cache forever.
+// Clear _idCache from localStorage if a workbook is moved/recreated in SharePoint.
+async function resolveDriveItem(sharingUrl, cacheKeyPrefix) {
+  if (!_idCache[cacheKeyPrefix + 'DriveId'] || !_idCache[cacheKeyPrefix + 'ItemId']) {
+    const encoded = encodeSharingUrl(sharingUrl);
+    const di = await graphGet(`https://graph.microsoft.com/v1.0/shares/${encoded}/driveItem`);
+    _idCache[cacheKeyPrefix + 'DriveId'] = di.parentReference.driveId;
+    _idCache[cacheKeyPrefix + 'ItemId']  = di.id;
+    _saveIdCache();
+  }
+  return { driveId: _idCache[cacheKeyPrefix + 'DriveId'], itemId: _idCache[cacheKeyPrefix + 'ItemId'] };
 }
 
 async function graphDelete(url) {
@@ -6513,31 +6616,31 @@ async function loadProductionFromSharePoint() {
   _setProdSyncUI('syncing', 'Loading from SharePoint…');
 
   try {
-    // 1. Resolve sharing link to driveItem
-    const encoded  = encodeSharingUrl(PROD_SHARING_URL);
-    const driveItem = await graphGet(`https://graph.microsoft.com/v1.0/shares/${encoded}/driveItem`);
-    const driveId  = driveItem.parentReference.driveId;
-    const itemId   = driveItem.id;
-    PROD_DRIVE_ID  = driveId;
-    PROD_ITEM_ID   = itemId;
+    // 1. Resolve sharing link → driveItem (cached in localStorage; one-off cost ever).
+    const { driveId, itemId } = await resolveDriveItem(PROD_SHARING_URL, 'prod');
+    PROD_DRIVE_ID = driveId;
+    PROD_ITEM_ID  = itemId;
 
     // 2. Determine 4-week window
     const now = currentISOWeek();
     const weekNums = [now-2, now-1, now, now+1];
 
-    // 3. Fetch 4 week sheets sequentially. Parallel was faster on a quiet workbook
-    // but triggers FileOpenHostTooManyRequests when the workbook is also being read
-    // by autoSyncQCCompletions / loadLoadPlan / other devices — recovery takes minutes.
+    // 3. Open one workbook session and read all 4 sheets in parallel under it.
+    // Without a session this would either be 4 cold-start sequential reads (~25s on
+    // first hit) or 4 parallel reads that trigger FileOpenHostTooManyRequests.
+    // With a session, parallel reads share one Excel-server instance — fast and safe.
+    const sessionId = await getWorkbookSession(driveId, itemId);
     const newPROD  = {};
     const newWEEKS = weekNums.map(wn => `WK ${wn}`);
     const parsedBySheet = {};
-    for (const wn of weekNums) {
+    await Promise.all(weekNums.map(async wn => {
       const sheetName = `WK ${wn}`;
       const monday    = isoWeekMonday(wn);
       const wc        = ddmmyyyy(monday);
       try {
         const range = await graphGet(
-          `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/worksheets('${encodeURIComponent(sheetName)}')/usedRange`
+          `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/worksheets('${encodeURIComponent(sheetName)}')/usedRange?$select=values`,
+          sessionId
         );
         const jobs = parseSheetValues(range.values || []);
         parsedBySheet[sheetName] = jobs;
@@ -6546,7 +6649,7 @@ async function loadProductionFromSharePoint() {
         console.warn(`Sheet ${sheetName} unavailable:`, e.message);
         newPROD[sheetName] = { wc, 1:[], 2:[], 3:[], 4:[], 5:[], express:[] };
       }
-    }
+    }));
 
     // 3a. Populate MECH_SERIALS from the Excel data we just parsed (no extra API calls)
     for (const sheetName of newWEEKS) {
@@ -6598,6 +6701,7 @@ async function loadProductionFromSharePoint() {
     _setProdSyncUI('synced', `Live · synced ${now2}`);
     toast('Production data loaded from SharePoint', 's');
     populateCustomerDropdown();
+    _saveSnapshot();
     // Await fetch so SPEC_ALERTS is populated before change detection runs (needed for dedup)
     await fetchSpecAlerts().catch(e => console.warn('fetchSpecAlerts:', e.message));
     checkForSpecChanges().catch(e => console.warn('checkForSpecChanges:', e.message));
@@ -6669,6 +6773,18 @@ function updateAuthBadge() {
 
 async function initGraph() {
   updateAuthBadge(); // show initial state
+  // Paint last-known data from localStorage snapshot before Graph responds.
+  // The user sees a populated team view immediately; live data overwrites it
+  // when loadProductionFromSharePoint and loadCompletionsFromList land.
+  if (_restoreSnapshot()) {
+    try {
+      renderWeekList();
+      renderJobs();
+      renderTeamSidebar();
+      renderPriorityBtn();
+      applyStateToOvBadges();
+    } catch (e) { /* render may fail if a referenced DOM element isn't ready yet — non-fatal */ }
+  }
   if (!GRAPH_READY || typeof msal === 'undefined') return;
   initMSAL();
   try {
@@ -12175,7 +12291,7 @@ async function ocLoadHistLedger(kv) {
 
   const range = await graphGet(
     `https://graph.microsoft.com/v1.0/drives/${ledgerDriveId}/items/${ledgerItemId}` +
-    `/workbook/worksheets('${encodeURIComponent(sheetName)}')/usedRange`
+    `/workbook/worksheets('${encodeURIComponent(sheetName)}')/usedRange?$select=values`
   );
 
   const rows = range.values || [];
@@ -12358,7 +12474,7 @@ async function ocRunCheck() {
 
     const range = await graphGet(
       `https://graph.microsoft.com/v1.0/drives/${PROD_DRIVE_ID}/items/${PROD_ITEM_ID}` +
-      `/workbook/worksheets('${encodeURIComponent(weekName)}')/usedRange`
+      `/workbook/worksheets('${encodeURIComponent(weekName)}')/usedRange?$select=values`
     );
 
     const jobs    = parseSheetValues(range.values || []);
