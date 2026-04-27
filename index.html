@@ -5185,24 +5185,29 @@ const SP_SITE_PATH = '/sites/ReposeFurniture-PlanningRepose';
 // NMS (Near Miss) — Health & Safety site
 const NMS_SITE_PATH = '/sites/ReposeFurniture-HealthandSafety';
 const NMS_LIST_ID   = '8481E1E4-8C93-4CCD-A38A-9736011EFEAB';
-let _nmsSiteId = null;
+
+// Site/list IDs never change — persist to localStorage so reloads don't re-fetch them.
+// Eliminates a stack of redundant Graph GETs on every page load (was the
+// reason Near-Miss took seconds even though the list itself is small).
+const ID_CACHE_KEY = 'rep_id_cache_v1';
+const _idCache = (() => { try { return JSON.parse(localStorage.getItem(ID_CACHE_KEY) || '{}'); } catch { return {}; } })();
+function _saveIdCache() { try { localStorage.setItem(ID_CACHE_KEY, JSON.stringify(_idCache)); } catch {} }
 
 async function getNmsSiteId() {
-  if (_nmsSiteId) return _nmsSiteId;
+  if (_idCache.nmsSiteId) return _idCache.nmsSiteId;
   const res = await graphGet(`https://graph.microsoft.com/v1.0/sites/${SP_HOST}:${NMS_SITE_PATH}`);
-  _nmsSiteId = res.id;
-  return _nmsSiteId;
+  _idCache.nmsSiteId = res.id; _saveIdCache();
+  return _idCache.nmsSiteId;
 }
 
 // Complaints — Service site
 const CP_SITE_PATH = '/sites/ReposeFurniture-Service';
-let _cpSiteId = null;
 
 async function cpGetSiteId() {
-  if (_cpSiteId) return _cpSiteId;
+  if (_idCache.cpSiteId) return _idCache.cpSiteId;
   const res = await graphGet(`https://graph.microsoft.com/v1.0/sites/${SP_HOST}:${CP_SITE_PATH}`);
-  _cpSiteId = res.id;
-  return _cpSiteId;
+  _idCache.cpSiteId = res.id; _saveIdCache();
+  return _idCache.cpSiteId;
 }
 const SP_LIST_NAME        = 'ProductionCompletions';
 // SpecAlerts columns: Title(REP), JobNo, Week, Prep, FieldKey, FieldLabel, OldValue, NewValue, DetectedAt, Status, AcknowledgedAt
@@ -5210,23 +5215,19 @@ const SP_SPEC_ALERTS_LIST = 'SpecAlerts';
 // ScrapLog columns: Title(REP), JobNo, Week, Prep, Team, FieldLabel, OldValue, NewValue, LoggedAt, Reason
 const SP_SCRAP_LOG_LIST   = 'ScrapLog';
 
-let _spSiteId = null;
-let _spListId = null;
-const _spListIdCache = {};
-
 async function getSpSiteId() {
-  if (_spSiteId) return _spSiteId;
+  if (_idCache.spSiteId) return _idCache.spSiteId;
   const res = await graphGet(`https://graph.microsoft.com/v1.0/sites/${SP_HOST}:${SP_SITE_PATH}`);
-  _spSiteId = res.id;
-  return _spSiteId;
+  _idCache.spSiteId = res.id; _saveIdCache();
+  return _idCache.spSiteId;
 }
 
 async function getSpListId() {
-  if (_spListId) return _spListId;
+  if (_idCache.spListId) return _idCache.spListId;
   const siteId = await getSpSiteId();
   const res = await graphGet(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${SP_LIST_NAME}`);
-  _spListId = res.id;
-  return _spListId;
+  _idCache.spListId = res.id; _saveIdCache();
+  return _idCache.spListId;
 }
 
 // Returns an ISO datetime string N days ago — used for server-side date filters
@@ -5238,18 +5239,20 @@ function spAfterDate(daysBack) {
 }
 
 async function getListIdByName(name) {
-  if (_spListIdCache[name]) return _spListIdCache[name];
+  if (!_idCache.lists) _idCache.lists = {};
+  if (_idCache.lists[name]) return _idCache.lists[name];
   const siteId = await getSpSiteId();
   const res = await graphGet(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${name}`);
-  _spListIdCache[name] = res.id;
+  _idCache.lists[name] = res.id; _saveIdCache();
   return res.id;
 }
 
 async function getListIdByNameOnSite(siteId, name) {
+  if (!_idCache.lists) _idCache.lists = {};
   const cacheKey = `${siteId}::${name}`;
-  if (_spListIdCache[cacheKey]) return _spListIdCache[cacheKey];
+  if (_idCache.lists[cacheKey]) return _idCache.lists[cacheKey];
   const res = await graphGet(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${name}`);
-  _spListIdCache[cacheKey] = res.id;
+  _idCache.lists[cacheKey] = res.id; _saveIdCache();
   return res.id;
 }
 
@@ -5962,7 +5965,13 @@ async function loadLoadPlanFromSharePoint() {
     const rangeAddr = (range.address || '').split('!')[1]; // e.g. "A1:Z312"
     const sheetBase = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}` +
       `/workbook/worksheets('${encodeURIComponent(OV_LOAD_PLAN_SHEET)}')`;
-    const cellProps = rangeAddr ? await graphPost(
+    // getCellProperties has a cell-count limit (~10k); the load plan usedRange is often
+    // ~15k cells (IA*65) which 400s. Skip the call in that case — formatting falls back
+    // to regex-only detection, which is fine for the cases that matter.
+    const rows = values.length;
+    const cols = Math.max(0, ...values.map(r => r?.length ?? 0));
+    const cellCount = rows * cols;
+    const cellProps = (rangeAddr && cellCount > 0 && cellCount <= 10000) ? await graphPost(
       `${sheetBase}/range(address='${rangeAddr}')/getCellProperties`,
       { cellPropertiesLoadOptions: { format: { fill: { color: true }, font: { color: true } } } }
     ).catch(() => null) : null;
@@ -6668,9 +6677,10 @@ async function initGraph() {
     await loadCompletionsFromList().catch(e => console.warn('completions:', e.message));
     await loadMechSerials().catch(e => console.warn('mechserials:', e.message));
     fetchSpecAlerts().catch(console.warn);
-    // Defer QC auto-sync 5s so the production workbook session has a moment to recover
-    // before the QC workbook starts getting hammered.
-    setTimeout(() => { if (graphAccount) startQCAutoSync(); }, 5000);
+    // Defer QC auto-sync 15s so the initial heavy load (production workbook + lists)
+    // fully settles before the QC workbook starts. 5s wasn't enough — Graph was still
+    // tenant-throttling user-initiated nav requests (Near-Miss site lookup) on top.
+    setTimeout(() => { if (graphAccount) startQCAutoSync(); }, 15000);
     if (!_refreshInterval)     _refreshInterval     = setInterval(refreshCompletions, 60 * 1000);
     if (!_fullRefreshInterval) _fullRefreshInterval = setInterval(fullRefresh, 10 * 60 * 1000);
   }
