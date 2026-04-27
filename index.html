@@ -16203,6 +16203,43 @@ function ivnBackScorecard() {
   ivnRenderList();
 }
 
+// ═══════════════════════════════════════════════════
+// MAINTENANCE DASHBOARD
+// ═══════════════════════════════════════════════════
+
+const MT_SITE_PATH      = '/sites/ReposeFurniture-PlanningRepose';   // same site as WMInspections
+const MT_YEARLY_LIST    = 'MaintenanceYearly';
+const MT_YEARLY_HISTORY = 'MaintenanceYearlyHistory';
+
+// Per-team registry — single source of truth for what teams the dashboard knows about.
+// To add a new team: define MACHINES constant + create SP list + add entry below.
+const MT_TEAMS = [
+  { id:'woodmill',    name:'Woodmill',    icon:'🪵', listName:'WMInspections',  downtimeList:'WMDowntime',  machines: WM_MACHINES },
+  { id:'cutting',     name:'Cutting',     icon:'✂️', listName:'CCInspections',  downtimeList: null,         machines: CC_MACHINES },
+  // Development added in Task 16 once DEV_MACHINES is defined
+];
+
+// State (single object, easy to inspect from devtools)
+let mtState = {
+  subTab:        'daily',                // 'daily' | 'yearly'
+  page:          'landing',              // 'landing' | 'drill'
+  drillTeamId:   null,                   // when on drill-in
+  filters:       { teamIds: [], machineIds: [], dateFrom: null, dateTo: null },
+  records:       [],                     // normalised daily records in current range
+  yearlyItems:   [],
+  yearlyHistory: [],
+  loaded:        { daily: false, yearly: false },
+  isManager:     false,
+};
+let mtIsManager = false;                 // mirror; set in the auth callback (Task 4)
+
+// Convenience lookup
+function mtGetTeam(teamId)    { return MT_TEAMS.find(t => t.id === teamId) || null; }
+function mtGetMachine(teamId, machineId) {
+  const t = mtGetTeam(teamId);
+  return t ? (t.machines.find(m => m.id === machineId) || null) : null;
+}
+
 </script>
 </body>
 </html>
