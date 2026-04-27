@@ -16393,7 +16393,7 @@ function mtRenderDailyDrillIn() {
     <div class="mt-filters">
       <div class="mt-filter">
         <label>Team</label>
-        <select id="mt-f-team" multiple size="3" onchange="mtOnFilterChange()">${teamOpts}</select>
+        <select id="mt-f-team" onchange="mtOnFilterChange()">${teamOpts}</select>
       </div>
       <div class="mt-filter">
         <label>Machine</label>
@@ -16433,12 +16433,17 @@ function mtOnFilterChange() {
   const from       = document.getElementById('mt-f-from').value;
   const to         = document.getElementById('mt-f-to').value;
   if (!from || !to || from > to) return;          // ignore invalid windows
-  mtState.filters.teamIds    = Array.from(teamSel.selectedOptions).map(o => o.value);
-  mtState.filters.machineIds = Array.from(machineSel.selectedOptions).map(o => o.value);
+  // Team is single-select — value, not selectedOptions.
+  const teamId         = teamSel.value || mtState.drillTeamId;
+  const teamChanged    = teamId !== mtState.drillTeamId;
+  // Machine select is multi — but its options belong to the *previous* team if
+  // the team just changed. Drop machine filter when switching teams to avoid
+  // filtering against IDs that don't exist on the new team.
+  mtState.filters.teamIds    = [teamId];
+  mtState.filters.machineIds = teamChanged ? [] : Array.from(machineSel.selectedOptions).map(o => o.value);
   mtState.filters.dateFrom   = from;
   mtState.filters.dateTo     = to;
-  // If team selection changed away from drillTeamId, repoint the drill
-  if (mtState.filters.teamIds.length === 1) mtState.drillTeamId = mtState.filters.teamIds[0];
+  mtState.drillTeamId        = teamId;
   mtLoadDrill();
 }
 
@@ -17173,7 +17178,7 @@ function mtOpenCompleteModal(itemId) {
     <div style="padding:18px 20px">
       <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--text3)">Mark complete</div>
       <div style="font-size:18px;font-weight:700;color:var(--repose-navy);margin:4px 0 12px">${escHtml(item.Title || '')}</div>
-      <div class="mt-form-group"><label>Completion date</label><input id="mt-fc-date" type="date" value="${today}"></div>
+      <div class="mt-form-group"><label>Completion date</label><input id="mt-fc-date" type="date" max="${today}" value="${today}"></div>
       <div class="mt-form-group"><label>Cert link (SharePoint URL) — required</label><input id="mt-fc-doc" placeholder="https://reposefurniturelimited.sharepoint.com/..."></div>
       <div class="mt-form-group"><label>Contractor</label><input id="mt-fc-contr"></div>
       <div class="mt-form-group"><label>Cost (£) — optional</label><input id="mt-fc-cost" type="number" step="0.01" min="0"></div>
@@ -17201,6 +17206,7 @@ async function mtSaveComplete(itemId) {
   const notes = document.getElementById('mt-fc-notes').value;
   const by    = document.getElementById('mt-fc-by').value;
   if (!date) { toast('Completion date is required', 'u'); return; }
+  if (date > mtTodayUkStr()) { toast('Completion date can\'t be in the future', 'u'); return; }
   if (!doc)  { toast('Cert link is required for audit', 'u'); return; }
 
   _mtSaveCompleteInFlight = true;
