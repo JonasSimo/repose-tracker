@@ -13127,6 +13127,42 @@ async function closeOutNearMiss(itemId) {
   </div>
 </div>
 
+<!-- ════════════════════════════════════════════════════
+     VIEW: MAINTENANCE
+════════════════════════════════════════════════════ -->
+<div class="view" id="view-maintenance">
+  <div class="mt-body">
+    <!-- sub-tab toggle -->
+    <div class="mt-subtabs" id="mt-subtabs">
+      <button class="mt-subtab on" data-sub="daily" onclick="mtSwitchSub('daily')">Daily Pre-use</button>
+      <button class="mt-subtab" data-sub="yearly" onclick="mtSwitchSub('yearly')">Yearly / Statutory</button>
+    </div>
+    <!-- where rendered content goes -->
+    <div id="mt-content"><div class="mt-loading">Loading…</div></div>
+  </div>
+</div>
+
+<!-- Maintenance: cell modal (filled by mt code) -->
+<div id="mt-cell-modal" class="modal-bg" style="display:none" onclick="if(event.target===this)mtCloseCellModal()">
+  <div class="modal" style="max-width:520px"><div id="mt-cell-modal-body"></div></div>
+</div>
+
+<!-- Maintenance: yearly mark-complete modal -->
+<div id="mt-complete-modal" class="modal-bg" style="display:none" onclick="if(event.target===this)mtCloseCompleteModal()">
+  <div class="modal" style="max-width:520px"><div id="mt-complete-modal-body"></div></div>
+</div>
+
+<!-- Maintenance: yearly manager edit drawer -->
+<div id="mt-drawer-bg" class="mt-drawer-bg" onclick="mtCloseDrawer()"></div>
+<aside id="mt-drawer" class="mt-drawer">
+  <div class="mt-drawer-head">
+    <div class="mt-drawer-title" id="mt-drawer-title">Manage yearly items</div>
+    <button class="mt-icon-btn" onclick="mtCloseDrawer()" aria-label="Close">✕</button>
+  </div>
+  <div class="mt-drawer-body" id="mt-drawer-body"></div>
+  <div class="mt-drawer-foot" id="mt-drawer-foot"></div>
+</aside>
+
 <!-- Woodmill Inspection Detail Modal -->
 <div id="wm-modal" class="wm-modal-overlay" style="display:none" onclick="if(event.target===this)wmCloseModal()">
   <div class="wm-modal-box">
