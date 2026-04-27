@@ -16404,11 +16404,162 @@ async function mtAdapterLoadYearly() {
   };
 }
 
-// ── Maintenance — open hook + sub-tab switch (stubs filled in Task 8) ─────
+// ── Maintenance — open hook + sub-tab switch ──────────────────────────────
 async function mtOnOpen(forceRefresh = false) {
-  document.getElementById('mt-content').innerHTML = '<div class="mt-empty">Maintenance dashboard — coming up next.</div>';
+  if (forceRefresh) mtState.loaded.daily = mtState.loaded.yearly = false;
+  if (!mtState.loaded.daily && mtState.subTab === 'daily')   await mtLoadDaily();
+  if (!mtState.loaded.yearly && mtState.subTab === 'yearly') await mtLoadYearly();
+  mtRender();
 }
-function mtSwitchSub(/* sub */) { /* Filled in Task 8 */ }
+
+function mtSwitchSub(sub) {
+  if (mtState.subTab === sub) return;
+  mtState.subTab = sub;
+  mtState.page = 'landing';
+  for (const el of document.querySelectorAll('.mt-subtab')) el.classList.toggle('on', el.dataset.sub === sub);
+  mtOnOpen();
+}
+
+async function mtLoadDaily() {
+  document.getElementById('mt-content').innerHTML = '<div class="mt-loading">Loading checks…</div>';
+  const today = mtTodayUkStr();
+  // Default range for the landing screen: today only (per-team status). Drill-in extends.
+  mtState.records = await mtAdapterLoadRange([], today, today);
+  // Also load downtime for any team that has it, so 'not in use' renders correctly today
+  mtState._downtimeByTeam = {};
+  await Promise.all(MT_TEAMS.filter(t => t.downtimeList).map(async t => {
+    mtState._downtimeByTeam[t.id] = await mtAdapterLoadDowntime(t);
+  }));
+  mtState.loaded.daily = true;
+}
+
+function mtRender() {
+  if (mtState.subTab === 'daily') {
+    if (mtState.page === 'landing') mtRenderDailyLanding();
+    else if (mtState.page === 'drill') mtRenderDailyDrillIn();
+  } else {
+    mtRenderYearly();
+  }
+}
+
+// Compute today's status per team: pass / fail / pending / no-machines
+function mtComputeTeamStatusToday(team) {
+  const today = mtTodayUkStr();
+  const teamRecs = mtState.records.filter(r => r.teamId === team.id && r.dateStr === today);
+  const dt = mtState._downtimeByTeam?.[team.id] || {};
+  // Latest record per machine
+  const latestByMachine = {};
+  for (const r of teamRecs) {
+    if (!latestByMachine[r.machineId] ||
+        (r.inspectedAt || '') > (latestByMachine[r.machineId].inspectedAt || '')) {
+      latestByMachine[r.machineId] = r;
+    }
+  }
+  const total = team.machines.length;
+  let checked = 0, fails = 0, lastIso = '';
+  for (const m of team.machines) {
+    const isDt = !!dt[`${m.id}|${today}`];
+    if (isDt) { checked++; continue; }
+    const r = latestByMachine[m.id];
+    if (r) {
+      checked++;
+      if (r.status === 'fail') fails++;
+      if ((r.inspectedAt || '') > lastIso) lastIso = r.inspectedAt;
+    }
+  }
+  let cls = 'warn', label = 'Pending';
+  if (total === 0) { cls = 'warn'; label = 'No machines'; }
+  else if (fails > 0) { cls = 'fail'; label = 'Fail'; }
+  else if (checked === total) { cls = 'pass'; label = 'Pass'; }
+  return { cls, label, checked, total, fails, lastIso };
+}
+
+function mtRenderDailyLanding() {
+  // Aggregate hero stats
+  let totalExpected = 0, totalChecked = 0, pass = 0, fail = 0;
+  const tilesHtml = MT_TEAMS.map(team => {
+    const s = mtComputeTeamStatusToday(team);
+    totalExpected += s.total;
+    totalChecked  += s.checked;
+    fail          += s.fails;
+    pass          += Math.max(0, s.checked - s.fails);
+    const pct = s.total ? Math.round((s.checked / s.total) * 100) : 0;
+    return `
+      <div class="mt-tile ${s.cls}" onclick="mtOpenDrill('${team.id}')" role="button">
+        <div class="mt-icon">${team.icon}</div>
+        <div class="mt-mid">
+          <div class="mt-team">${team.name}</div>
+          <div class="mt-progress"><div class="mt-bar" style="width:${pct}%"></div></div>
+          <div class="mt-meta"><b>${s.checked}/${s.total}</b> machines${s.lastIso ? ` · Last ${mtFormatTimeUK(s.lastIso)}` : ''}</div>
+        </div>
+        <span class="mt-pill ${s.cls}">${s.label}</span>
+      </div>`;
+  }).join('');
+  const pending = Math.max(0, totalExpected - totalChecked);
+  const heroHtml = `
+    <div class="mt-hero">
+      <div class="mt-hero-l">
+        <div class="mt-hero-eyebrow">Today · ${mtFormatDateUK(new Date())}</div>
+        <div class="mt-hero-num">${totalChecked}<span>/</span>${totalExpected} checks complete</div>
+        <div class="mt-hero-sub">${pending} outstanding · ${fail} failure${fail === 1 ? '' : 's'} flagged</div>
+      </div>
+      <div class="mt-hero-r">
+        <div class="mt-stat"><div class="mt-stat-num pass">${pass}</div><div class="mt-stat-lab">Pass</div></div>
+        <div class="mt-stat"><div class="mt-stat-num fail">${fail}</div><div class="mt-stat-lab">Fail</div></div>
+        <div class="mt-stat"><div class="mt-stat-num warn">${pending}</div><div class="mt-stat-lab">Pending</div></div>
+      </div>
+    </div>`;
+  document.getElementById('mt-content').innerHTML = heroHtml + `<div class="mt-grid">${tilesHtml}</div>`;
+}
+
+function mtOpenDrill(teamId) {
+  mtState.page = 'drill';
+  mtState.drillTeamId = teamId;
+  // Default filter window: last 7 UK days
+  const today = mtTodayUkStr();
+  mtState.filters = {
+    teamIds:    [teamId],
+    machineIds: [],
+    dateFrom:   mtAddDays(today, -6),
+    dateTo:     today,
+  };
+  mtRenderDailyDrillIn(); // shell first
+  mtLoadDrill();          // then fetch
+}
+
+async function mtLoadDrill() {
+  const f = mtState.filters;
+  document.getElementById('mt-matrix-host')?.replaceChildren(
+    Object.assign(document.createElement('div'), { className: 'mt-loading', textContent: 'Loading…' })
+  );
+  mtState.records = await mtAdapterLoadRange(f.teamIds, f.dateFrom, f.dateTo);
+  // Refresh downtime for the active teams (range-independent — the lists are tiny)
+  mtState._downtimeByTeam = {};
+  await Promise.all(MT_TEAMS.filter(t => f.teamIds.includes(t.id) && t.downtimeList).map(async t => {
+    mtState._downtimeByTeam[t.id] = await mtAdapterLoadDowntime(t);
+  }));
+  mtRenderDailyDrillIn();
+}
+
+function mtRenderDailyDrillIn() {
+  // Filled in Task 9 — leave a placeholder for now so Task 8 verifies cleanly
+  document.getElementById('mt-content').innerHTML = `
+    <div class="mt-drill-head">
+      <button class="mt-back" onclick="mtBackToLanding()">← Back</button>
+      <div class="mt-drill-title">${mtGetTeam(mtState.drillTeamId)?.name || ''} drill-in</div>
+    </div>
+    <div id="mt-matrix-host"><div class="mt-loading">Drill-in coming in Task 9.</div></div>`;
+}
+
+function mtBackToLanding() {
+  mtState.page = 'landing';
+  mtState.drillTeamId = null;
+  mtRender();
+}
+
+// Stubs filled in later tasks
+async function mtLoadYearly() { /* Task 13 */ }
+function mtRenderYearly()     { document.getElementById('mt-content').innerHTML = '<div class="mt-empty">Yearly view coming in Task 13.</div>'; }
 
 </script>
 </body>
