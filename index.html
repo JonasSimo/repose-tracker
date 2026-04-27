@@ -17222,8 +17222,76 @@ function mtToggleHistory(itemId) {
 function mtCloseDrawer()        { document.getElementById('mt-drawer')?.classList.remove('on'); document.getElementById('mt-drawer-bg')?.classList.remove('on'); }
 function mtCloseCompleteModal() { const el = document.getElementById('mt-complete-modal'); if (el) el.style.display = 'none'; }
 
-// Stub — replaced in Task 15 (Complete)
-function mtOpenCompleteModal(/* id */) { toast('Mark-complete comes in Task 15', 'i'); }
+// ── Maintenance — Yearly mark-complete modal ──────────────────────────────
+function mtOpenCompleteModal(itemId) {
+  if (!mtIsManager) return;
+  const item = mtState.yearlyItems.find(i => Number(i.id) === Number(itemId));
+  if (!item) return;
+  const me = (typeof graphAccount !== 'undefined' && graphAccount?.username) || '';
+  const today = mtTodayUkStr();
+  const body = `
+    <div style="padding:18px 20px">
+      <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--text3)">Mark complete</div>
+      <div style="font-size:18px;font-weight:700;color:var(--repose-navy);margin:4px 0 12px">${escHtml(item.Title || '')}</div>
+      <div class="mt-form-group"><label>Completion date</label><input id="mt-fc-date" type="date" value="${today}"></div>
+      <div class="mt-form-group"><label>Cert link (SharePoint URL) — required</label><input id="mt-fc-doc" placeholder="https://reposefurniturelimited.sharepoint.com/..."></div>
+      <div class="mt-form-group"><label>Contractor</label><input id="mt-fc-contr"></div>
+      <div class="mt-form-group"><label>Cost (£) — optional</label><input id="mt-fc-cost" type="number" step="0.01" min="0"></div>
+      <div class="mt-form-group"><label>Notes</label><textarea id="mt-fc-notes" rows="3"></textarea></div>
+      <input id="mt-fc-by" type="hidden" value="${escHtml(me)}">
+      <div style="display:flex;gap:8px;margin-top:6px;justify-content:flex-end">
+        <button class="mt-btn" onclick="mtCloseCompleteModal()">Cancel</button>
+        <button class="mt-btn" style="background:var(--repose-blue);color:#fff" onclick="mtSaveComplete(${item.id})">Save</button>
+      </div>
+    </div>`;
+  document.getElementById('mt-complete-modal-body').innerHTML = body;
+  document.getElementById('mt-complete-modal').style.display = '';
+}
+
+async function mtSaveComplete(itemId) {
+  if (!mtIsManager) return;
+  const item = mtState.yearlyItems.find(i => Number(i.id) === Number(itemId));
+  if (!item) return;
+  const date  = document.getElementById('mt-fc-date').value;
+  const doc   = document.getElementById('mt-fc-doc').value.trim();
+  const contr = document.getElementById('mt-fc-contr').value.trim();
+  const cost  = Number(document.getElementById('mt-fc-cost').value) || null;
+  const notes = document.getElementById('mt-fc-notes').value;
+  const by    = document.getElementById('mt-fc-by').value;
+  if (!date) { toast('Completion date is required', 'u'); return; }
+  if (!doc)  { toast('Cert link is required for audit', 'u'); return; }
+
+  try {
+    const siteId = await mtAdapterGetSiteId();
+    const histListId = await getListIdByNameOnSite(siteId, MT_YEARLY_HISTORY);
+    const yrListId   = await getListIdByNameOnSite(siteId, MT_YEARLY_LIST);
+
+    // 1) Add history row
+    await graphPost(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${histListId}/items`, {
+      fields: {
+        Title:       `${item.Title || ''} ${date}`,
+        ItemId:      Number(item.id),
+        CompletedOn: new Date(`${date}T12:00:00Z`).toISOString(), // noon UTC to avoid TZ day-shift
+        DocLink:     doc,
+        Contractor:  contr || null,
+        Cost:        cost,
+        Notes:       notes || null,
+        CompletedBy: by || null,
+      }
+    });
+    // 2) Update master row
+    await graphPatch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${yrListId}/items/${item.id}/fields`, {
+      LastDone: date,
+      DocLink:  doc,
+    });
+    toast('Completion saved', 's');
+    await mtLoadYearly();
+    mtCloseCompleteModal();
+    mtRenderYearly();
+  } catch (e) {
+    toast('Save failed: ' + (e.message || ''), 'u');
+  }
+}
 
 // ── Maintenance — Yearly manager edit drawer ──────────────────────────────
 function mtOpenDrawer(mode, id) {
