@@ -11923,7 +11923,15 @@ async function sendReturnEmail(item, note) {
   const f = item.fields || {};
   const to = f.ClosedOutBy;
   if (!to) return;
-  const cc = (TEAM_MANAGERS[normaliseTeam(f.SourceDept)] || []).filter(e => e !== to);
+  const uphGroupLc = new Set(['upholstery','upholstery arms','upholstery backs','upholstery seats']);
+  const canonicalTeam = t => {
+    const norm = (t || '').trim();
+    if (!norm) return '';
+    if (uphGroupLc.has(norm.toLowerCase())) return 'Upholstery';
+    return norm;
+  };
+  const teamLookup = canonicalTeam(normaliseTeam(f.SourceDept || f.RaisedByTeam || ''));
+  const cc = (TEAM_MANAGERS[teamLookup] || TEAM_MANAGERS[normaliseTeam(f.SourceDept)] || []).filter(e => e !== to);
   const repnetUrl = location.origin + location.pathname;
   const recipientName = (to.split('@')[0] || '').replace(/\./g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   const subject = `[CPAR ${f.Title}] Returned for revision — please update`;
@@ -12912,7 +12920,12 @@ function updateCPARPeriodStats() {
   const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const prevMonthEnd   = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
 
-  const rd = item => { const f = item.fields||{}; return f.RaisedAt ? new Date(f.RaisedAt) : (item.createdDateTime ? new Date(item.createdDateTime) : null); };
+  const rd = item => {
+    const f = item.fields || {};
+    if (f.LoggedAt) { const d = parseCPARDate(f.LoggedAt); if (d.getTime()) return d; }
+    if (item.createdDateTime) return new Date(item.createdDateTime);
+    return null;
+  };
   const count = (from, to) => CPAR_ITEMS.filter(i => { const d = rd(i); return d && d >= from && (!to || d <= to); }).length;
 
   const todayCount      = count(todayStart);
@@ -14783,7 +14796,7 @@ async function sendOpenCPARDigest() {
 
     // Helpers
     const teamOf = item => normaliseTeam(item.fields?.SourceDept || item.fields?.RaisedByTeam || '');
-    const isOpenCPAR = item => { const s = getCPARStatus(item); return s === 'open' || s === 'amber' || s === 'red'; };
+    const isOpenCPAR = item => { const s = getCPARStatus(item); return s === 'open' || s === 'amber' || s === 'red' || s === 'return'; };
     const raisedDate = item => {
       const f = item.fields||{};
       if (f.RaisedAt) return new Date(f.RaisedAt);
