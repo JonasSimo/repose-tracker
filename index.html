@@ -11501,7 +11501,114 @@ async function sendReturnEmail(item, note) {
   });
 }
 
-function renderPEView() { return '<div style="padding:24px;text-align:center;color:var(--text3)">PE View — Task 17</div>'; }
+function renderPEView() {
+  const me = msalInstance.getAllAccounts()[0]?.username || '';
+  const mine = CPAR_ITEMS.filter(i => i.fields?.InvestigatorAssigned === me && i.fields?.Status === CPAR_STATUS.INVESTIGATION);
+  const all  = CPAR_ITEMS.filter(i => i.fields?.Status === CPAR_STATUS.INVESTIGATION);
+  if (!mine.length && !all.length) {
+    return '<div style="padding:24px;text-align:center;color:var(--text3)">No CPARs in investigation.</div>';
+  }
+  const cards = mine.length ? mine.map(renderPECard).join('') : '';
+  const others = all.filter(i => !mine.includes(i)).map(i =>
+    `<li>${escHtml(i.fields.Title)} — ${escHtml((i.fields.InvestigatorAssigned||'').split('@')[0])}</li>`
+  ).join('');
+  return `
+    <div style="margin-bottom:14px;font-size:12px;color:var(--text2)">Logged in as: <strong>${escHtml(me)}</strong></div>
+    <h3 style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Assigned to me (${mine.length})</h3>
+    <div style="display:flex;flex-direction:column;gap:10px">${cards || '<div style="color:var(--text3);padding:14px">Nothing assigned to you.</div>'}</div>
+    ${others ? `<details style="margin-top:18px"><summary style="font-size:12px;color:var(--text3);cursor:pointer">Other PE workload (${all.length-mine.length})</summary><ul style="font-size:11px;color:var(--text3);padding-left:20px;margin-top:6px">${others}</ul></details>` : ''}
+  `;
+}
+
+function renderPECard(item) {
+  const f = item.fields || {};
+  return `
+  <div class="cpar-card status-invest">
+    <div class="cpar-card-header">
+      <span class="cpar-ref">${escHtml(f.Title||'')}</span>
+      <span class="cpar-status-badge invest">Investigation</span>
+      ${f.IsRepeat ? '<span style="background:#fff1f1;color:#991b1b;border:1px solid #fca5a5;font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px;margin-left:6px">REPEAT</span>' : ''}
+    </div>
+    <div class="cpar-card-body">
+      <div class="cpar-source-line"><span class="cpar-source-badge">${escHtml(f.SourceDept||'?')}</span>${escHtml(f.IssueCategory||'')}</div>
+      ${f.Description ? `<div class="cpar-desc">${escHtml(f.Description)}</div>` : ''}
+      <div style="font-size:11px;color:var(--text3)">Closed-out by ${escHtml((f.ClosedOutBy||'').split('@')[0])}</div>
+      <div style="display:flex;gap:6px;margin-top:10px">
+        <button class="qbtn approve"  onclick="peOutcome('${item.id}','Human Error')">Mark Human Error</button>
+        <button class="qbtn escalate" onclick="peOutcome('${item.id}','Template-Spec Issue')">Mark Template/Spec issue</button>
+      </div>
+      <div id="ecr-prompt-${item.id}"></div>
+    </div>
+  </div>`;
+}
+
+async function peOutcome(id, outcome) {
+  const item = CPAR_ITEMS.find(i => i.id === id);
+  if (!item) return;
+  if (outcome === 'Template-Spec Issue') return showECRPrompt(id);
+  await peCompleteInvestigation(id, outcome, '');
+}
+
+function showECRPrompt(id) {
+  const item = CPAR_ITEMS.find(i => i.id === id);
+  const f = item.fields || {};
+  const subject = encodeURIComponent(`[CPAR ${f.Title}] ECR request — ${f.PrimaryModel||''}`);
+  const bodyText = `CPAR Ref: ${f.Title}
+Model: ${f.PrimaryModel||''}
+REP/Job: ${f.PrimaryREP||''} / ${f.PrimaryJobNo||''}
+Source: ${f.SourceDept||''}
+Cause: ${f.CauseCode||''}
+
+Description:
+${f.Description||''}
+
+Corrective action so far:
+${f.CorrectiveAction||''}
+`;
+  const body = encodeURIComponent(bodyText);
+  const mailto = `mailto:${ECR_EMAIL}?subject=${subject}&body=${body}`;
+  document.getElementById('ecr-prompt-'+id).innerHTML = `
+    <div style="margin-top:10px;padding:12px;background:#fff8e6;border:1px solid #fde68a;border-radius:8px">
+      <div style="font-size:12px;font-weight:700;color:#d97706;margin-bottom:6px">📐 Raise ECR with Prism Engineering</div>
+      <a href="${mailto}" style="display:inline-block;padding:8px 14px;background:#d97706;color:#fff;text-decoration:none;border-radius:6px;font-size:12px;font-weight:700">📧 Open pre-filled ECR email</a>
+      <input type="text" id="ecr-ref-${id}" placeholder="Paste ECR ref (e.g. ECR-191)" style="display:block;margin-top:10px;padding:8px;border:1.5px solid #fde68a;border-radius:6px;font-family:'JetBrains Mono',monospace;width:100%;box-sizing:border-box">
+      <button class="qbtn approve" onclick="peSubmitECR('${id}')" style="margin-top:8px">Save &amp; complete investigation</button>
+    </div>`;
+}
+
+async function peSubmitECR(id) {
+  const ref = document.getElementById('ecr-ref-'+id).value.trim();
+  if (!ref) { toast('Paste the ECR ref first', 'w'); return; }
+  await peCompleteInvestigation(id, 'Template-Spec Issue', ref);
+}
+
+async function peCompleteInvestigation(id, outcome, ecrRef) {
+  const item = CPAR_ITEMS.find(i => i.id === id);
+  if (!item) return;
+  const me = msalInstance.getAllAccounts()[0]?.username || '?';
+  if (me === '?') { toast('Sign-in expired — refresh', 'u'); return; }
+  const now = new Date().toISOString();
+  const newHistory = appendCPARHistory(item.fields?.History || '', { by:me, ev:'investigated', outcome, ecrRef });
+  const fields = {
+    Status: CPAR_STATUS.AWAITING_SIGNOFF,
+    InvestigatedBy: me, InvestigatedAt: now,
+    InvestigationOutcome: outcome, ECRRef: ecrRef,
+    History: newHistory,
+  };
+  try {
+    const token  = await getGraphToken();
+    const siteId = await getSpSiteId();
+    const listId = await getListIdByName(SP_CPAR_LIST);
+    const r = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}/fields`, {
+      method:'PATCH', headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' },
+      body: JSON.stringify(fields)
+    });
+    if (!r.ok) throw new Error(r.status+' '+await r.text());
+    Object.assign(item.fields, fields);
+    toast('Investigation complete — sent to QHSE', 's');
+    renderQualitySubview();
+  } catch(e) { toast('Failed: '+e.message, 'u'); }
+}
 function renderRegister() { return '<div style="padding:24px;text-align:center;color:var(--text3)">Register — Task 18</div>'; }
 function renderQualityDashboard(host) { host.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text3)">Dashboard — Phase 6</div>'; }
 
