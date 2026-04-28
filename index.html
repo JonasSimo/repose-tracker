@@ -12132,8 +12132,20 @@ function peSelectOutcome(id, outcome, btn) {
   if (root) root.dataset.outcome = outcome;
   // For Template/Spec issue, expand the ECR prompt
   if (outcome === 'Template-Spec Issue') {
+    // Preserve existing ECR ref value if user is toggling back
+    const cachedRef = document.getElementById('ecr-ref-'+id)?.value || '';
     showECRPrompt(id);
+    if (cachedRef) {
+      const newInput = document.getElementById('ecr-ref-'+id);
+      if (newInput) newInput.value = cachedRef;
+    }
   } else {
+    // Save current ref before clearing so a future toggle-back can restore it
+    const root = document.getElementById('pe-submit-'+id);
+    if (root) {
+      const cur = document.getElementById('ecr-ref-'+id)?.value || '';
+      if (cur) root.dataset.cachedEcrRef = cur;
+    }
     document.getElementById('ecr-prompt-'+id).innerHTML = '';
   }
   refreshPESubmitState(id);
@@ -12166,7 +12178,7 @@ ${f.CorrectiveAction||''}
     <div style="margin-top:10px;padding:12px;background:#fff8e6;border:1px solid #fde68a;border-radius:8px">
       <div style="font-size:12px;font-weight:700;color:#d97706;margin-bottom:6px">📐 Raise ECR with Prism Engineering</div>
       ${buttonHtml}
-      <input type="text" id="ecr-ref-${id}" placeholder="Paste ECR ref (e.g. ECR-191)" oninput="refreshPESubmitState('${id}')" style="display:block;margin-top:10px;padding:8px;border:1.5px solid #fde68a;border-radius:6px;font-family:'JetBrains Mono',monospace;width:100%;box-sizing:border-box">
+      <input type="text" id="ecr-ref-${id}" placeholder="Paste ECR ref (e.g. ECR-191)" oninput="refreshPESubmitState('${id}')" value="${escHtml(document.getElementById('pe-submit-'+id)?.dataset.cachedEcrRef || '')}" style="display:block;margin-top:10px;padding:8px;border:1.5px solid #fde68a;border-radius:6px;font-family:'JetBrains Mono',monospace;width:100%;box-sizing:border-box">
     </div>`;
 }
 
