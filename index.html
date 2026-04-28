@@ -6689,6 +6689,14 @@ async function _graphFetchWithRetry(url, init, retries = 4) {
   return r;
 }
 
+// Detect 404 (CPAR deleted by another user) and clean up local state
+function _handleCparPatch404(id, ref) {
+  const idx = (typeof CPAR_ITEMS !== 'undefined') ? CPAR_ITEMS.findIndex(i => i.id === id) : -1;
+  if (idx >= 0) CPAR_ITEMS.splice(idx, 1);
+  if (typeof toast === 'function') toast(`CPAR ${ref} was deleted by another user — refreshed`, 'u');
+  if (typeof renderQualitySubview === 'function') renderQualitySubview();
+}
+
 async function graphGet(url, sessionId) {
   const token = await getGraphToken();
   if (!token) throw new Error('Not authenticated');
@@ -11773,7 +11781,15 @@ async function qhseApprove(id) {
       if (typeof _invalidateRecurrenceMap === 'function') _invalidateRecurrenceMap();
       toast('Closed', 's');
       renderQualitySubview();
-    } catch(e) { toast('Failed: '+e.message, 'u'); }
+    } catch(e) {
+      console.error('qhseApprove', e);
+      if (e.message && e.message.startsWith('404')) {
+        const it = CPAR_ITEMS.find(i => i.id === id);
+        _handleCparPatch404(id, it?.fields?.Title || id);
+      } else {
+        toast('Failed: '+e.message, 'u');
+      }
+    }
   } finally {
     _clearBusy(id);
   }
@@ -11820,7 +11836,15 @@ async function qhseEscalateConfirm(toEmail) {
       sendInvestigatorEmail(item, toEmail).catch(e => console.warn('investigator email:', e.message));
       toast('Escalated to '+toEmail.split('@')[0], 's');
       renderQualitySubview();
-    } catch(e) { toast('Failed: '+e.message, 'u'); }
+    } catch(e) {
+      console.error('qhseEscalateConfirm', e);
+      if (e.message && e.message.startsWith('404')) {
+        const it = CPAR_ITEMS.find(i => i.id === id);
+        _handleCparPatch404(id, it?.fields?.Title || id);
+      } else {
+        toast('Failed: '+e.message, 'u');
+      }
+    }
   } finally {
     _clearBusy(id);
   }
@@ -11914,7 +11938,15 @@ async function qhseReturnConfirm() {
       sendReturnEmail(item, note).catch(e => console.warn('return email:', e.message));
       toast('Returned', 's');
       renderQualitySubview();
-    } catch(e) { toast('Failed: '+e.message, 'u'); }
+    } catch(e) {
+      console.error('qhseReturnConfirm', e);
+      if (e.message && e.message.startsWith('404')) {
+        const it = CPAR_ITEMS.find(i => i.id === id);
+        _handleCparPatch404(id, it?.fields?.Title || id);
+      } else {
+        toast('Failed: '+e.message, 'u');
+      }
+    }
   } finally {
     _clearBusy(id);
   }
@@ -12039,7 +12071,13 @@ async function effVerify(id, verified, recurrenceNote='') {
     toast(verified ? 'Archived — verified effective' : `Archived — recurrence ${recurrenceRef}`, 's');
     renderQualitySubview();
   } catch(e) {
-    toast('Failed: '+e.message, 'u');
+    console.error('effVerify', e);
+    if (e.message && e.message.startsWith('404')) {
+      const it = CPAR_ITEMS.find(i => i.id === id);
+      _handleCparPatch404(id, it?.fields?.Title || id);
+    } else {
+      toast('Failed: '+e.message, 'u');
+    }
   } finally {
     _clearBusy(id);
   }
@@ -12386,7 +12424,15 @@ async function peCompleteInvestigation(id, outcome, ecrRef, investigationNotes='
     if (typeof _invalidateRecurrenceMap === 'function') _invalidateRecurrenceMap();
     toast('Investigation complete — sent to QHSE', 's');
     renderQualitySubview();
-  } catch(e) { toast('Failed: '+e.message, 'u'); }
+  } catch(e) {
+    console.error('peCompleteInvestigation', e);
+    if (e.message && e.message.startsWith('404')) {
+      const it = CPAR_ITEMS.find(i => i.id === id);
+      _handleCparPatch404(id, it?.fields?.Title || id);
+    } else {
+      toast('Failed: '+e.message, 'u');
+    }
+  }
 }
 let regFromDate = '';
 let regToDate = '';
@@ -14381,7 +14427,7 @@ async function submitCPARCloseout(id, ev) {
       { method:'PATCH', headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' },
         body: JSON.stringify(updateFields) }
     );
-    if (!r.ok) throw new Error('PATCH '+r.status+' '+await r.text());
+    if (!r.ok) throw new Error(r.status+' PATCH '+await r.text());
     Object.assign(item.fields, updateFields);
     _clearCparDrafts(id);
     _invalidateChartCache();
@@ -14391,11 +14437,16 @@ async function submitCPARCloseout(id, ev) {
     if (typeof updateIssuesTabBadge === 'function') updateIssuesTabBadge();
   } catch(e) {
     console.error('submitCPARCloseout', e);
-    toast('Failed: '+e.message, 'u');
-    // Restore button so user can retry
-    const card = document.querySelector(`#cpar-card-${id}`);
-    const submitBtn = card ? card.querySelector('#cpar-close-'+id) : document.getElementById('cpar-close-'+id);
-    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Submit close-out → QHSE Review'; }
+    if (e.message && e.message.startsWith('404')) {
+      const it = CPAR_ITEMS.find(i => i.id === id);
+      _handleCparPatch404(id, it?.fields?.Title || id);
+    } else {
+      toast('Failed: '+e.message, 'u');
+      // Restore button so user can retry
+      const card = document.querySelector(`#cpar-card-${id}`);
+      const submitBtn = card ? card.querySelector('#cpar-close-'+id) : document.getElementById('cpar-close-'+id);
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Submit close-out → QHSE Review'; }
+    }
   } finally {
     _clearBusy(id);
   }
