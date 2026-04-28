@@ -11634,6 +11634,7 @@ async function autoMoveToEffCheck() {
         item.fields.Status = CPAR_STATUS.AWAITING_EFF_CHECK;
         item.fields.History = newHistory;
         _invalidateChartCache();
+        if (typeof _invalidateRecurrenceMap === 'function') _invalidateRecurrenceMap();
       } else {
         console.warn('autoMoveToEffCheck PATCH '+id+':', r.status);
       }
@@ -11749,6 +11750,7 @@ async function qhseApprove(id) {
       if (!r.ok) throw new Error(r.status+' '+await r.text());
       Object.assign(item.fields, fields);
       _invalidateChartCache();
+      if (typeof _invalidateRecurrenceMap === 'function') _invalidateRecurrenceMap();
       toast('Closed', 's');
       renderQualitySubview();
     } catch(e) { toast('Failed: '+e.message, 'u'); }
@@ -11793,6 +11795,7 @@ async function qhseEscalateConfirm(toEmail) {
       if (!r.ok) throw new Error(r.status+' '+await r.text());
       Object.assign(item.fields, fields);
       _invalidateChartCache();
+      if (typeof _invalidateRecurrenceMap === 'function') _invalidateRecurrenceMap();
       document.getElementById('modal-escalate').style.display = 'none';
       sendInvestigatorEmail(item, toEmail).catch(e => console.warn('investigator email:', e.message));
       toast('Escalated to '+toEmail.split('@')[0], 's');
@@ -11886,6 +11889,7 @@ async function qhseReturnConfirm() {
       if (!r.ok) throw new Error(r.status+' '+await r.text());
       Object.assign(item.fields, fields);
       _invalidateChartCache();
+      if (typeof _invalidateRecurrenceMap === 'function') _invalidateRecurrenceMap();
       document.getElementById('modal-return').style.display = 'none';
       sendReturnEmail(item, note).catch(e => console.warn('return email:', e.message));
       toast('Returned', 's');
@@ -12003,6 +12007,7 @@ async function effVerify(id, verified, recurrenceNote='') {
     Object.assign(item.fields, fields);
     delete item._pendingRecurrenceRef; // clear marker on success
     if (typeof _invalidateChartCache === 'function') _invalidateChartCache();
+    if (typeof _invalidateRecurrenceMap === 'function') _invalidateRecurrenceMap();
     toast(verified ? 'Archived — verified effective' : `Archived — recurrence ${recurrenceRef}`, 's');
     renderQualitySubview();
   } catch(e) {
@@ -12048,6 +12053,7 @@ async function effCreateRecurrence(originalItem, recurrenceNote) {
   const created = await r.json();
   CPAR_ITEMS.unshift({ id: created.id, fields });
   _invalidateChartCache();
+  if (typeof _invalidateRecurrenceMap === 'function') _invalidateRecurrenceMap();
   return newRef;
 }
 
@@ -12159,6 +12165,21 @@ function renderPECard(item) {
 }
 
 const _peEcrRefCache = new Map(); // CPAR id → last-typed ECR ref, survives card re-renders
+
+// Pre-built lookup: original CPAR Title → recurrence CPAR (for "Recurred — see X" display)
+let _recurrenceMap = null;
+let _recurrenceMapStamp = 0;
+function _getRecurrenceMap() {
+  if (_recurrenceMap && (Date.now() - _recurrenceMapStamp < 5000)) return _recurrenceMap;
+  _recurrenceMap = new Map();
+  for (const c of CPAR_ITEMS) {
+    const linkedFrom = c.fields?.LinkedFromRef;
+    if (linkedFrom) _recurrenceMap.set(linkedFrom, c);
+  }
+  _recurrenceMapStamp = Date.now();
+  return _recurrenceMap;
+}
+function _invalidateRecurrenceMap() { _recurrenceMap = null; _recurrenceMapStamp = 0; }
 
 const _cparDraftCache = new Map(); // key: id+'|'+field, value: typed text
 function _draftKey(id, field) { return id + '|' + field; }
@@ -12315,6 +12336,7 @@ async function peCompleteInvestigation(id, outcome, ecrRef, investigationNotes='
     Object.assign(item.fields, fields);
     _peEcrRefCache.delete(id);
     _invalidateChartCache();
+    if (typeof _invalidateRecurrenceMap === 'function') _invalidateRecurrenceMap();
     toast('Investigation complete — sent to QHSE', 's');
     renderQualitySubview();
   } catch(e) { toast('Failed: '+e.message, 'u'); }
@@ -13037,7 +13059,7 @@ function renderCPARCard(item) {
         ${f.ClosedBy ? `<span>Closed: ${escHtml(f.ClosedBy.split('@')[0])} · ${escHtml((f.ClosedAt||'').slice(0,16))}</span>` : ''}
       </div>
       ${f.EffectivenessVerified === true ? `<div style="margin-top:4px;font-size:11px;color:var(--green)">✓ Effectiveness verified ${escHtml((f.EffectivenessVerifiedAt||'').slice(0,10))}</div>` : ''}
-      ${f.EffectivenessVerified === false ? `<div style="margin-top:4px;font-size:11px;color:var(--red)">✗ Recurred — see ${escHtml((CPAR_ITEMS.find(x => x.fields?.LinkedFromRef === f.Title)?.fields?.Title) || '(linked CPAR)')}</div>` : ''}
+      ${f.EffectivenessVerified === false ? `<div style="margin-top:4px;font-size:11px;color:var(--red)">✗ Recurred — see ${escHtml(_getRecurrenceMap().get(f.Title)?.fields?.Title || '(linked CPAR)')}</div>` : ''}
       <details style="margin-top:6px"><summary style="font-size:11px;color:var(--text3);cursor:pointer">History</summary>
         <pre style="font-size:10px;background:var(--bg);padding:6px;border-radius:4px;max-height:160px;overflow:auto;font-family:'JetBrains Mono',monospace;white-space:pre-wrap">${escHtml(f.History||'(no history)')}</pre>
       </details>
@@ -14301,6 +14323,7 @@ async function submitCPARCloseout(id, ev) {
     Object.assign(item.fields, updateFields);
     _clearCparDrafts(id);
     _invalidateChartCache();
+    if (typeof _invalidateRecurrenceMap === 'function') _invalidateRecurrenceMap();
     toast('Closed out — sent to QHSE Review', 's');
     renderQualitySubview();
     if (typeof updateIssuesTabBadge === 'function') updateIssuesTabBadge();
