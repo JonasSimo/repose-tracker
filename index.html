@@ -14211,7 +14211,11 @@ async function submitCPARCloseout(id, ev) {
     const containment = (q('#cpar-containment-'+id)?.value || '').trim();
     const dispNotes   = (q('#cpar-disp-notes-'+id)?.value || '').trim();
 
-    if (!disposition || !cause || !action) return;
+    if (!disposition) { toast('Pick a disposition', 'w'); return; }
+    if (!cause) { toast('Pick a root cause', 'w'); return; }
+    if (!action) { toast('Enter the corrective action', 'w'); return; }
+    if (disposition === 'Other' && !dispNotes) { toast('Disposition notes required for "Other"', 'w'); return; }
+    if (disposition !== 'Use-as-is' && !containment) { toast('Containment required (unless Use-as-is)', 'w'); return; }
     const me = msalInstance.getAllAccounts()[0]?.username || '?';
     if (!me || me === '?') { toast('Sign-in expired — refresh and try again', 'u'); return; }
 
