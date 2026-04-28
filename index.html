@@ -1319,14 +1319,15 @@ body.tablet-mode .uh-token-icon { font-size:14px; }
 .issues-wrap { display:flex; flex-direction:column; height:100%; overflow:hidden; }
 .issues-header { background:var(--bg2); border-bottom:1px solid var(--border); padding:10px 14px; display:flex; flex-direction:column; gap:8px; flex-shrink:0; }
 .issues-filter-row { display:flex; gap:6px; align-items:center; }
-.issues-team-row { display:flex; gap:5px; overflow-x:auto; padding-bottom:2px; scrollbar-width:none; }
+.issues-team-row { display:flex; gap:5px; overflow-x:auto; padding:6px 0 4px; scrollbar-width:none; border-top:1px dashed var(--border); }
 .issues-team-row::-webkit-scrollbar { display:none; }
 .issues-chip { padding:6px 14px; border-radius:20px; border:1.5px solid var(--border2); background:var(--bg3); font-size:12px; font-weight:600; cursor:pointer; color:var(--text2); font-family:inherit; transition:.1s; white-space:nowrap; flex-shrink:0; }
 .issues-chip.active { background:var(--repose-navy); color:#fff; border-color:var(--repose-navy); }
 .issues-chip.amber.active { background:var(--amber); border-color:var(--amber); color:#fff; }
 .issues-chip.red.active { background:var(--red); border-color:var(--red); color:#fff; }
 .issues-chip.green.active { background:var(--green); border-color:var(--green); color:#fff; }
-.issues-team-chip { padding:6px 14px; border-radius:20px; border:1.5px solid var(--border2); background:var(--bg3); font-size:12px; font-weight:600; cursor:pointer; color:var(--text2); font-family:inherit; transition:.1s; white-space:nowrap; flex-shrink:0; }
+.issues-team-chip { padding:5px 11px; border-radius:14px; border:1.5px solid var(--border2); background:var(--bg3); font-size:11px; font-weight:600; cursor:pointer; color:var(--text2); font-family:inherit; transition:.1s; white-space:nowrap; flex-shrink:0; }
+.issues-team-chip:hover { border-color:var(--repose-blue); }
 .issues-team-chip.active { background:var(--repose-navy); color:#fff; border-color:var(--repose-navy); }
 .issues-list-wrap { flex:1; overflow-y:auto; padding:10px 14px; }
 .issues-empty { text-align:center; padding:40px 20px; color:var(--text3); font-size:13px; }
@@ -3050,6 +3051,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <button class="issues-team-chip" data-team="Upholstery" onclick="setIssueTeam(this,'Upholstery')">Upholstery</button>
         <button class="issues-team-chip" data-team="Foam" onclick="setIssueTeam(this,'Foam')">Foam</button>
         <button class="issues-team-chip" data-team="Stores" onclick="setIssueTeam(this,'Stores')">Stores</button>
+        <button class="issues-team-chip" data-team="Assembly" onclick="setIssueTeam(this,'Assembly')">Assembly</button>
         <button class="issues-team-chip" data-team="QC" onclick="setIssueTeam(this,'QC')">QC</button>
         <button class="issues-team-chip" data-team="Admin" onclick="setIssueTeam(this,'Admin')">Admin</button>
       </div>
