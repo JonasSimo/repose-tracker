@@ -11609,7 +11609,70 @@ async function peCompleteInvestigation(id, outcome, ecrRef) {
     renderQualitySubview();
   } catch(e) { toast('Failed: '+e.message, 'u'); }
 }
-function renderRegister() { return '<div style="padding:24px;text-align:center;color:var(--text3)">Register — Task 18</div>'; }
+let regFromDate = '';
+let regToDate = '';
+let regTeamFilter = '';
+let regStatusFilter = '';
+
+function renderRegister() {
+  if (!regFromDate) { const d = new Date(); d.setDate(d.getDate()-30); regFromDate = d.toISOString().slice(0,10); }
+  if (!regToDate)   { regToDate = new Date().toISOString().slice(0,10); }
+  const teamOpts = ['', ...new Set(CPAR_ITEMS.map(i => i.fields?.SourceDept).filter(Boolean))];
+  const statusOpts = ['', ...Object.values(CPAR_STATUS), 'Closed' /* legacy */];
+
+  const filtered = CPAR_ITEMS.filter(i => {
+    const f = i.fields || {};
+    const d = parseCPARDate(f.LoggedAt);
+    if (!d.getTime()) return false;
+    if (d < new Date(regFromDate)) return false;
+    if (d > new Date(regToDate+'T23:59:59')) return false;
+    if (regTeamFilter && f.SourceDept !== regTeamFilter) return false;
+    if (regStatusFilter && f.Status !== regStatusFilter) return false;
+    return true;
+  }).sort((a,b) => parseCPARDate(b.fields.LoggedAt) - parseCPARDate(a.fields.LoggedAt));
+
+  return `
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
+      <input type="date" value="${regFromDate}" onchange="regFromDate=this.value;renderQualitySubview()" style="padding:6px;border:1px solid var(--border);border-radius:6px;font-family:inherit">
+      <span style="color:var(--text3)">to</span>
+      <input type="date" value="${regToDate}" onchange="regToDate=this.value;renderQualitySubview()" style="padding:6px;border:1px solid var(--border);border-radius:6px;font-family:inherit">
+      <select onchange="regTeamFilter=this.value;renderQualitySubview()" style="padding:6px;border:1px solid var(--border);border-radius:6px;font-family:inherit">
+        ${teamOpts.map(t => `<option value="${escHtml(t)}" ${t===regTeamFilter?'selected':''}>${t||'All teams'}</option>`).join('')}
+      </select>
+      <select onchange="regStatusFilter=this.value;renderQualitySubview()" style="padding:6px;border:1px solid var(--border);border-radius:6px;font-family:inherit">
+        ${statusOpts.map(s => `<option value="${escHtml(s)}" ${s===regStatusFilter?'selected':''}>${s||'All statuses'}</option>`).join('')}
+      </select>
+      <button class="qbtn approve" onclick="exportRegisterCSV()" style="margin-left:auto">📊 Export CSV (${filtered.length})</button>
+    </div>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;overflow:auto;max-height:60vh">
+      <table style="width:100%;border-collapse:collapse;font-size:11px">
+        <thead style="position:sticky;top:0;background:var(--text);color:#fff">
+          <tr>
+            <th style="padding:6px;text-align:left">REF</th><th style="padding:6px;text-align:left">Date</th><th style="padding:6px;text-align:left">Source</th><th style="padding:6px;text-align:left">Cat.</th>
+            <th style="padding:6px;text-align:left">Job</th><th style="padding:6px;text-align:left">Model</th><th style="padding:6px;text-align:left">QTY</th><th style="padding:6px;text-align:left">Cause</th>
+            <th style="padding:6px;text-align:left">Status</th><th style="padding:6px;text-align:center">Repeat</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${filtered.map(i => { const f = i.fields||{}; return `<tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:5px;font-family:monospace;font-weight:700">${escHtml(f.Title||'')}</td>
+            <td style="padding:5px">${escHtml((f.LoggedAt||'').slice(0,10))}</td>
+            <td style="padding:5px">${escHtml(f.SourceDept||'')}</td>
+            <td style="padding:5px">${escHtml(f.IssueCategory||'')}</td>
+            <td style="padding:5px;font-family:monospace">${escHtml((f.PrimaryREP||'')+'/'+(f.PrimaryJobNo||''))}</td>
+            <td style="padding:5px">${escHtml(f.PrimaryModel||'')}</td>
+            <td style="padding:5px;text-align:right">${escHtml(String(f.QTY||1))}</td>
+            <td style="padding:5px">${escHtml(f.CauseCode||'')}</td>
+            <td style="padding:5px">${escHtml(f.Status||'')}</td>
+            <td style="padding:5px;text-align:center">${f.IsRepeat?'<span style="color:#dc2626;font-weight:700">●</span>':''}</td>
+          </tr>`; }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function exportRegisterCSV() { /* Task 19 */ toast('Export — wiring in Task 19', 'w'); }
 function renderQualityDashboard(host) { host.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text3)">Dashboard — Phase 6</div>'; }
 
 // Filter: open CPARs (any age) + everything created in the last CPAR_HISTORY_DAYS.
