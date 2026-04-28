@@ -11467,15 +11467,18 @@ function renderIssuesIntoQuality(host) {
   };
   // Compute open-CPAR count per team (open = not Closed and not Archived and not Awaiting Eff. Check)
   const teamCounts = {};
+  const teamsForMatch = teams.filter(Boolean).slice().sort((a, b) => b.length - a.length);
   for (const i of items) {
     const s = i.fields?.Status;
     if (s === CPAR_STATUS.CLOSED || s === 'Closed' || s === CPAR_STATUS.ARCHIVED || s === CPAR_STATUS.AWAITING_EFF_CHECK) continue;
-    const t = (i.fields?.SourceDept || i.fields?.RaisedByTeam || '').trim();
-    if (!t) continue;
-    // Match team name loosely (e.g. "Upholstery Arms" → counted under "Upholstery" too)
-    for (const team of teams) {
-      if (!team) continue;
-      if (t.toLowerCase().includes(team.toLowerCase())) teamCounts[team] = (teamCounts[team]||0) + 1;
+    const tLc = (i.fields?.SourceDept || i.fields?.RaisedByTeam || '').toLowerCase().trim();
+    if (!tLc) continue;
+    // Pick the FIRST team that matches (longest first) — avoids double-counting.
+    for (const team of teamsForMatch) {
+      if (tLc.includes(team.toLowerCase())) {
+        teamCounts[team] = (teamCounts[team] || 0) + 1;
+        break;
+      }
     }
   }
   const totalOpen = items.filter(i => {
