@@ -11888,7 +11888,53 @@ function exportRegisterCSV() {
   document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
   toast(`Exported ${rows.length} CPARs`, 's');
 }
-function renderQualityDashboard(host) { host.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text3)">Dashboard — Phase 6</div>'; }
+function renderQualityDashboard(host) {
+  const items = CPAR_ITEMS;
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const isClosed = i => {
+    const s = i.fields?.Status;
+    return s === CPAR_STATUS.CLOSED || s === CPAR_STATUS.ARCHIVED || s === 'Closed';
+  };
+  const openCount = items.filter(i => !isClosed(i)).length;
+  const closedThisMonth = items.filter(i => {
+    if (!isClosed(i)) return false;
+    const d = parseCPARDate(i.fields?.ClosedAt);
+    return d.getTime() && d >= monthStart;
+  }).length;
+  const mttrSamples = items
+    .filter(i => isClosed(i) && i.fields?.ClosedAt && parseCPARDate(i.fields.ClosedAt) >= monthStart)
+    .map(i => workingHoursBetween(parseCPARDate(i.fields.LoggedAt), parseCPARDate(i.fields.ClosedAt)))
+    .filter(h => h > 0);
+  const avgMTTR = mttrSamples.length
+    ? Math.round(mttrSamples.reduce((a,b) => a+b, 0) / mttrSamples.length * 10) / 10
+    : '—';
+  const repeatThisMonth = items.filter(i =>
+    i.fields?.IsRepeat && parseCPARDate(i.fields?.LoggedAt) >= monthStart
+  ).length;
+
+  host.innerHTML = `
+    <div class="quality-tiles">
+      <div class="quality-tile review"><div class="num">${openCount}</div><div class="lab">Open total</div></div>
+      <div class="quality-tile signoff"><div class="num">${closedThisMonth}</div><div class="lab">Closed this month</div></div>
+      <div class="quality-tile invest"><div class="num">${avgMTTR}<span style="font-size:11px"> hrs</span></div><div class="lab">Avg MTTR (this month)</div></div>
+      <div class="quality-tile overdue"><div class="num">${repeatThisMonth}</div><div class="lab">Repeat-flagged this month</div></div>
+    </div>
+    <div id="dash-chart-1" style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:14px"></div>
+    <div id="dash-chart-2" style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:14px"></div>
+    <div id="dash-chart-3" style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:14px"></div>
+    <div id="dash-recent-repeats" style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:14px"></div>
+  `;
+  drawChartRaisedClosed();
+  drawChartTopCauses();
+  drawChartMTTR();
+  renderRecentRepeats();
+}
+
+function drawChartRaisedClosed() { document.getElementById('dash-chart-1').innerHTML = '<div style="color:var(--text3);padding:14px">Chart 1 — Task 24</div>'; }
+function drawChartTopCauses()    { document.getElementById('dash-chart-2').innerHTML = '<div style="color:var(--text3);padding:14px">Chart 2 — Task 25</div>'; }
+function drawChartMTTR()         { document.getElementById('dash-chart-3').innerHTML = '<div style="color:var(--text3);padding:14px">Chart 3 — Task 26</div>'; }
+function renderRecentRepeats()   { document.getElementById('dash-recent-repeats').innerHTML = '<div style="color:var(--text3);padding:14px">Repeats — Task 27</div>'; }
 
 // Filter: open CPARs (any age) + everything created in the last CPAR_HISTORY_DAYS.
 // Status indexed manually; Created is auto-indexed by SharePoint.
