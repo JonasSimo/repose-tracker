@@ -2613,6 +2613,33 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 </script>
+<style id="cpar-print-stylesheet">
+@media print {
+  body * { visibility: hidden !important; }
+  #cpar-print-area, #cpar-print-area * { visibility: visible !important; }
+  #cpar-print-area { position: absolute; left: 0; top: 0; width: 100%; padding: 16mm; background: #fff; }
+  @page { size: A4 portrait; margin: 0; }
+}
+#cpar-print-area { display: none; }
+#cpar-print-area .h { display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #1e3a5f; padding-bottom:8px; margin-bottom:12px }
+#cpar-print-area .h .lg { font-size:20px; font-weight:800; color:#1e3a5f }
+#cpar-print-area .h .lgs { font-size:9px; color:#666; text-transform:uppercase; letter-spacing:.1em }
+#cpar-print-area .h .meta { text-align:right; font-size:9px; color:#666 }
+#cpar-print-area .title { text-align:center; font-size:14px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; margin-bottom:10px }
+#cpar-print-area table { width:100%; border-collapse:collapse; margin-bottom:8px; font-size:11px }
+#cpar-print-area td { border:1px solid #888; padding:5px 7px; vertical-align:top }
+#cpar-print-area td.lab { background:#f0f4f8; font-weight:700; font-size:9px; text-transform:uppercase; letter-spacing:.04em; width:18% }
+#cpar-print-area h4 { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; background:#1e3a5f; color:#fff; padding:4px 7px; margin:8px 0 0 }
+#cpar-print-area .full td { padding:8px; min-height:50px }
+#cpar-print-area .grid3 { display:grid; grid-template-columns:repeat(3,1fr) }
+#cpar-print-area .grid3 .c { border:1px solid #888; padding:5px 7px; font-size:11px; display:flex; align-items:center; gap:5px }
+#cpar-print-area .ck { display:inline-block; width:13px; height:13px; border:1.5px solid #555; text-align:center; line-height:11px; font-size:10px; font-weight:700 }
+#cpar-print-area .ck.t { background:#1e3a5f; color:#fff; border-color:#1e3a5f }
+#cpar-print-area .sig { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; padding:8px; border:1px solid #888; margin-top:4px }
+#cpar-print-area .sig .nm { font-weight:600; border-bottom:1px solid #333; padding-bottom:12px }
+#cpar-print-area .sig .lb { font-size:8px; color:#555; margin-top:2px; text-transform:uppercase; letter-spacing:.05em }
+#cpar-print-area .ft { font-size:8px; color:#777; margin-top:12px; border-top:1px solid #ccc; padding-top:4px; display:flex; justify-content:space-between }
+</style>
 </head>
 <body>
 
