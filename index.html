@@ -6628,6 +6628,9 @@ async function graphSignOut() {
   if (typeof ovCustomerFilter !== 'undefined') ovCustomerFilter = '';
   // Privacy: clear cached CPAR drafts + ECR refs on sign-out (shared devices)
   if (typeof _cparDraftCache !== 'undefined') _cparDraftCache.clear();
+  if (typeof _cparPhotoCache !== 'undefined') {
+    Object.keys(_cparPhotoCache).forEach(k => delete _cparPhotoCache[k]);
+  }
   if (typeof _peEcrRefCache !== 'undefined') _peEcrRefCache.clear();
   updateAuthBadge();
   if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
