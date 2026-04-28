@@ -184,7 +184,7 @@ module.exports = async function (context, myTimer) {
           <li><strong>Period</strong> — month covered</li>
           <li><strong>Team</strong> — one row per Source Dept + a final ALL row</li>
           <li><strong>Opened / Closed / Still Open EOM</strong> — counts for the period</li>
-          <li><strong>MTTR</strong> — mean time to resolve, in working hours (Mon–Fri 06:00–17:00)</li>
+          <li><strong>MTTR</strong> — mean time to resolve, in working hours (Mon–Thu 07:00–16:00, Fri 07:00–12:00 — 41 working hrs/wk)</li>
           <li><strong>Top Cause + Count</strong> — most-frequent cause for that team that month</li>
           <li><strong>Repeat-flagged / ECR-linked / Eff. Verified / Eff. Failed</strong> — quality metrics</li>
         </ul>
