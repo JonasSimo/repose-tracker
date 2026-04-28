@@ -11614,6 +11614,7 @@ async function autoMoveToEffCheck() {
       if (r.ok) {
         item.fields.Status = CPAR_STATUS.AWAITING_EFF_CHECK;
         item.fields.History = newHistory;
+        _invalidateChartCache();
       } else {
         console.warn('autoMoveToEffCheck PATCH '+id+':', r.status);
       }
@@ -11727,6 +11728,7 @@ async function qhseApprove(id) {
       });
       if (!r.ok) throw new Error(r.status+' '+await r.text());
       Object.assign(item.fields, fields);
+      _invalidateChartCache();
       toast('Closed', 's');
       renderQualitySubview();
     } catch(e) { toast('Failed: '+e.message, 'u'); }
@@ -11768,6 +11770,7 @@ async function qhseEscalateConfirm(toEmail) {
       });
       if (!r.ok) throw new Error(r.status+' '+await r.text());
       Object.assign(item.fields, fields);
+      _invalidateChartCache();
       document.getElementById('modal-escalate').style.display = 'none';
       sendInvestigatorEmail(item, toEmail).catch(e => console.warn('investigator email:', e.message));
       toast('Escalated to '+toEmail.split('@')[0], 's');
@@ -11858,6 +11861,7 @@ async function qhseReturnConfirm() {
       });
       if (!r.ok) throw new Error(r.status+' '+await r.text());
       Object.assign(item.fields, fields);
+      _invalidateChartCache();
       document.getElementById('modal-return').style.display = 'none';
       sendReturnEmail(item, note).catch(e => console.warn('return email:', e.message));
       toast('Returned', 's');
@@ -11960,6 +11964,7 @@ async function effVerify(id, verified, recurrenceNote='') {
       });
       if (!r.ok) throw new Error(r.status+' '+await r.text());
       Object.assign(item.fields, fields);
+      _invalidateChartCache();
       toast(verified ? 'Archived — verified effective' : `Archived — recurrence created (${recurrenceRef})`, 's');
       renderQualitySubview();
     } catch(e) { toast('Failed: '+e.message, 'u'); }
@@ -12002,6 +12007,7 @@ async function effCreateRecurrence(originalItem, recurrenceNote) {
   if (!r.ok) throw new Error('create '+r.status+' '+await r.text());
   const created = await r.json();
   CPAR_ITEMS.unshift({ id: created.id, fields });
+  _invalidateChartCache();
   return newRef;
 }
 
@@ -12241,6 +12247,7 @@ async function peCompleteInvestigation(id, outcome, ecrRef, investigationNotes='
     });
     if (!r.ok) throw new Error(r.status+' '+await r.text());
     Object.assign(item.fields, fields);
+    _invalidateChartCache();
     toast('Investigation complete — sent to QHSE', 's');
     renderQualitySubview();
   } catch(e) { toast('Failed: '+e.message, 'u'); }
@@ -12403,6 +12410,7 @@ function renderQualityDashboard(host) {
 
 let _chartItemsCache = null;
 let _chartItemsCacheAt = 0;
+function _invalidateChartCache() { _chartItemsCache = null; _chartItemsCacheAt = 0; }
 async function fetchCPARsForChart() {
   // Use cached data if fetched within last 5 minutes
   if (_chartItemsCache && (Date.now() - _chartItemsCacheAt < 300000)) return _chartItemsCache;
@@ -14173,6 +14181,7 @@ async function submitCPARCloseout(id, ev) {
     );
     if (!r.ok) throw new Error('PATCH '+r.status+' '+await r.text());
     Object.assign(item.fields, updateFields);
+    _invalidateChartCache();
     toast('Closed out — sent to QHSE Review', 's');
     renderQualitySubview();
     if (typeof updateIssuesTabBadge === 'function') updateIssuesTabBadge();
