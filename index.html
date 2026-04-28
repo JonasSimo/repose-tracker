@@ -11646,7 +11646,7 @@ async function autoMoveToEffCheck() {
     if (!item) continue;
     const newHistory = appendCPARHistory(item.fields?.History || '', { by:'system', ev:'auto-eff-check-due' });
     try {
-      const r = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}/fields`, {
+      const r = await _graphFetchWithRetry(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}/fields`, {
         method:'PATCH', headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' },
         body: JSON.stringify({ Status: CPAR_STATUS.AWAITING_EFF_CHECK, History: newHistory })
       });
@@ -11763,7 +11763,7 @@ async function qhseApprove(id) {
       const token  = await getGraphToken();
       const siteId = await getSpSiteId();
       const listId = await getListIdByName(SP_CPAR_LIST);
-      const r = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}/fields`, {
+      const r = await _graphFetchWithRetry(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}/fields`, {
         method:'PATCH', headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' },
         body: JSON.stringify(fields)
       });
@@ -11808,7 +11808,7 @@ async function qhseEscalateConfirm(toEmail) {
       const token  = await getGraphToken();
       const siteId = await getSpSiteId();
       const listId = await getListIdByName(SP_CPAR_LIST);
-      const r = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}/fields`, {
+      const r = await _graphFetchWithRetry(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}/fields`, {
         method:'PATCH', headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' },
         body: JSON.stringify(fields)
       });
@@ -11902,7 +11902,7 @@ async function qhseReturnConfirm() {
       const token  = await getGraphToken();
       const siteId = await getSpSiteId();
       const listId = await getListIdByName(SP_CPAR_LIST);
-      const r = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}/fields`, {
+      const r = await _graphFetchWithRetry(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}/fields`, {
         method:'PATCH', headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' },
         body: JSON.stringify(fields)
       });
@@ -12027,7 +12027,7 @@ async function effVerify(id, verified, recurrenceNote='') {
     const token  = await getGraphToken();
     const siteId = await getSpSiteId();
     const listId = await getListIdByName(SP_CPAR_LIST);
-    const r = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}/fields`, {
+    const r = await _graphFetchWithRetry(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}/fields`, {
       method:'PATCH', headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' },
       body: JSON.stringify(fields)
     });
@@ -12375,7 +12375,7 @@ async function peCompleteInvestigation(id, outcome, ecrRef, investigationNotes='
     const token  = await getGraphToken();
     const siteId = await getSpSiteId();
     const listId = await getListIdByName(SP_CPAR_LIST);
-    const r = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}/fields`, {
+    const r = await _graphFetchWithRetry(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}/fields`, {
       method:'PATCH', headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' },
       body: JSON.stringify(fields)
     });
@@ -14376,7 +14376,7 @@ async function submitCPARCloseout(id, ev) {
     const token  = await getGraphToken();
     const siteId = await getSpSiteId();
     const listId = await getListIdByName(SP_CPAR_LIST);
-    const r = await fetch(
+    const r = await _graphFetchWithRetry(
       `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}/fields`,
       { method:'PATCH', headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' },
         body: JSON.stringify(updateFields) }
