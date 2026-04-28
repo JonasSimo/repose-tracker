@@ -6,6 +6,7 @@ const TENANT_ID     = process.env.TENANT_ID;
 const CLIENT_ID     = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
 const SEND_FROM     = process.env.SEND_FROM;
+const REPNET_URL    = process.env.REPNET_URL || 'https://reposefurniture-repnet.azurestaticapps.net';
 
 const SP_HOST       = 'reposefurniturelimited.sharepoint.com';
 const SP_SITE_PATH  = '/sites/ReposeFurniture-PlanningRepose';
@@ -140,7 +141,32 @@ module.exports = async function (context, myTimer) {
   }
   const csv = '﻿' + [headers.join(','), ...rows.map(r => r.map(csvEsc).join(','))].join('\r\n');
   const filename = `cpar-kpi-${period}.csv`;
-  const html = `<p>CPAR KPI rollup for ${period} attached.</p>`;
+  const html = `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f0f4f8;font-family:Arial,Helvetica,sans-serif">
+    <div style="max-width:600px;margin:24px auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
+      <div style="background:#1e3a5f;padding:18px 24px;color:#fff">
+        <div style="font-size:18px;font-weight:700">CPAR Monthly KPI — ${period}</div>
+        <div style="opacity:.85;font-size:12px;margin-top:4px">Per-team rollup attached as CSV</div>
+      </div>
+      <div style="padding:20px 24px;font-size:13px;color:#374151;line-height:1.6">
+        <p style="margin:0 0 12px">The attached CSV (<code>${filename}</code>) contains the CPAR KPI rollup for <strong>${period}</strong>:</p>
+        <ul style="padding-left:18px;margin:0 0 14px">
+          <li><strong>Period</strong> — month covered</li>
+          <li><strong>Team</strong> — one row per Source Dept + a final ALL row</li>
+          <li><strong>Opened / Closed / Still Open EOM</strong> — counts for the period</li>
+          <li><strong>MTTR</strong> — mean time to resolve, in working hours (Mon–Fri 06:00–17:00)</li>
+          <li><strong>Top Cause + Count</strong> — most-frequent cause for that team that month</li>
+          <li><strong>Repeat-flagged / ECR-linked / Eff. Verified / Eff. Failed</strong> — quality metrics</li>
+        </ul>
+        <p style="margin:0 0 12px"><strong>Use it for:</strong> management review meetings, ISO 9001 §9.1.3 (analysis &amp; evaluation), trend tracking.</p>
+        <p style="margin:14px 0 0">
+          <a href="${REPNET_URL}" style="display:inline-block;padding:9px 18px;background:#1e3a5f;color:#fff;text-decoration:none;border-radius:6px;font-size:12px;font-weight:700">Open RepNet Quality Dashboard →</a>
+        </p>
+      </div>
+      <div style="background:#f0f4f8;padding:12px 24px;font-size:11px;color:#9ca3af;border-top:1px solid #e2e8f0">
+        Repose Furniture · QMS — automated monthly KPI · 1st of each month at 07:00 · Do not reply.
+      </div>
+    </div>
+  </body></html>`;
   await sendMailWithAttachment(t, KPI_RECIPIENTS, `CPAR KPI ${period}`, html, filename, csv);
   context.log('KPI export sent for '+period);
 };

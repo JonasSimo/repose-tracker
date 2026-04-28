@@ -6,6 +6,7 @@ const TENANT_ID     = process.env.TENANT_ID;
 const CLIENT_ID     = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
 const SEND_FROM     = process.env.SEND_FROM;
+const REPNET_URL    = process.env.REPNET_URL || 'https://reposefurniture-repnet.azurestaticapps.net';
 
 const SP_HOST       = 'reposefurniturelimited.sharepoint.com';
 const SP_SITE_PATH  = '/sites/ReposeFurniture-PlanningRepose';
@@ -86,16 +87,48 @@ module.exports = async function (context, myTimer) {
 function buildReminder(due, overdue) {
   const row = i => {
     const f = i.fields||{};
-    return `<tr><td style="padding:6px;font-family:monospace;font-weight:700">${escHtml(f.Title)}</td>
-      <td style="padding:6px">${escHtml(f.PrimaryModel||'')}</td>
-      <td style="padding:6px">${escHtml(f.CauseCode||'')}</td>
-      <td style="padding:6px">${escHtml((f.ClosedAt||'').slice(0,10))}</td></tr>`;
+    return `<tr><td style="padding:6px 8px;font-family:monospace;font-weight:700">${escHtml(f.Title)}</td>
+      <td style="padding:6px 8px">${escHtml(f.PrimaryModel||'')}</td>
+      <td style="padding:6px 8px">${escHtml(f.CauseCode||'')}</td>
+      <td style="padding:6px 8px">${escHtml((f.ClosedAt||'').slice(0,10))}</td></tr>`;
   };
-  return `<!DOCTYPE html><html><body style="font-family:Arial">
-    <h2>Effectiveness re-checks</h2>
-    ${overdue.length ? `<h3 style="color:#dc2626">Overdue (>7 days past due) — ${overdue.length}</h3>
-      <table border="1" cellpadding="6" style="border-collapse:collapse"><tr><th>Ref</th><th>Model</th><th>Cause</th><th>Closed</th></tr>${overdue.map(row).join('')}</table>` : ''}
-    ${due.length ? `<h3>Due — ${due.length}</h3>
-      <table border="1" cellpadding="6" style="border-collapse:collapse"><tr><th>Ref</th><th>Model</th><th>Cause</th><th>Closed</th></tr>${due.map(row).join('')}</table>` : ''}
-    <p>Open RepNet → Quality → QHSE Review → Eff. Check tile to verify.</p></body></html>`;
+  return `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f0f4f8;font-family:Arial,Helvetica,sans-serif">
+    <div style="max-width:640px;margin:24px auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
+      <div style="background:#d97706;padding:18px 24px;color:#fff">
+        <div style="font-size:18px;font-weight:700">CPAR Effectiveness Re-Check Reminder</div>
+        <div style="opacity:.85;font-size:12px;margin-top:4px">Weekly Monday digest — ISO 9001 §10.2.1 e</div>
+      </div>
+      <div style="padding:20px 24px">
+        <p style="margin:0 0 14px;font-size:14px;color:#374151">
+          ${overdue.length > 0 ? `<strong style="color:#dc2626">${overdue.length} overdue</strong> + ` : ''}
+          <strong>${due.length}</strong> due for effectiveness re-check this week.
+        </p>
+        ${overdue.length ? `<h3 style="color:#dc2626;font-size:14px;margin:16px 0 8px">Overdue (>7 days past due) — ${overdue.length}</h3>
+          <table style="width:100%;border-collapse:collapse;border:1px solid #fca5a5;border-radius:6px;overflow:hidden;font-size:12px">
+            <thead><tr style="background:#fff1f1"><th style="padding:7px 8px;text-align:left;color:#991b1b">Ref</th><th style="padding:7px 8px;text-align:left;color:#991b1b">Model</th><th style="padding:7px 8px;text-align:left;color:#991b1b">Cause</th><th style="padding:7px 8px;text-align:left;color:#991b1b">Closed</th></tr></thead>
+            <tbody>${overdue.map(row).join('')}</tbody>
+          </table>` : ''}
+        ${due.length ? `<h3 style="font-size:14px;margin:16px 0 8px;color:#374151">Due this week — ${due.length}</h3>
+          <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:6px;overflow:hidden;font-size:12px">
+            <thead><tr style="background:#f0f4f8"><th style="padding:7px 8px;text-align:left;color:#6b7280">Ref</th><th style="padding:7px 8px;text-align:left;color:#6b7280">Model</th><th style="padding:7px 8px;text-align:left;color:#6b7280">Cause</th><th style="padding:7px 8px;text-align:left;color:#6b7280">Closed</th></tr></thead>
+            <tbody>${due.map(row).join('')}</tbody>
+          </table>` : ''}
+        <div style="margin-top:18px;padding:14px;background:#f0f4f8;border-left:4px solid #d97706;border-radius:4px">
+          <p style="margin:0 0 8px;font-size:13px;font-weight:700;color:#374151">What to do:</p>
+          <ol style="font-size:12px;color:#374151;line-height:1.5;padding-left:18px;margin:0">
+            <li>Open RepNet → <strong>Quality</strong> → <strong>QHSE Review</strong></li>
+            <li>Click the <strong>Eff. Check</strong> tile to filter to those due</li>
+            <li>For each: confirm with the team that the corrective action stuck</li>
+            <li>Click <em>✓ Still effective</em> (archives) or <em>✗ Recurred</em> (creates a new linked CPAR)</li>
+          </ol>
+          <p style="margin:12px 0 0">
+            <a href="${escHtml(REPNET_URL)}" style="display:inline-block;padding:9px 18px;background:#d97706;color:#fff;text-decoration:none;border-radius:6px;font-size:12px;font-weight:700">Open RepNet →</a>
+          </p>
+        </div>
+      </div>
+      <div style="background:#f0f4f8;padding:12px 24px;font-size:11px;color:#9ca3af;border-top:1px solid #e2e8f0">
+        Repose Furniture · QMS — automated reminder · Mondays 07:00 · Do not reply.
+      </div>
+    </div>
+  </body></html>`;
 }
