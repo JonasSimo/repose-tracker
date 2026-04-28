@@ -12388,8 +12388,12 @@ function exportRegisterCSV() {
   const rows = filtered.map(i => {
     const f = i.fields || {};
     const open = parseCPARDate(f.LoggedAt);
-    const close = parseCPARDate(f.ClosedAt) || new Date();
-    const days = open.getTime() ? workingDaysBetween(open, close) : '';
+    const closeParsed = parseCPARDate(f.ClosedAt);
+    const closedValid = closeParsed.getTime() > 0; // parseCPARDate returns epoch (1970) for missing
+    const closeOrNow = closedValid ? closeParsed : new Date();
+    const days = open.getTime()
+      ? (closedValid ? workingDaysBetween(open, closeOrNow) : workingDaysBetween(open, new Date()) + ' (open)')
+      : '';
     return [
       f.Title, (f.LoggedAt||'').slice(0,16), f.RaisedByTeam, f.SourceDept, f.IssueCategory,
       (f.PrimaryREP||'')+'/'+(f.PrimaryJobNo||''), f.PrimaryModel, f.QTY||1, f.Description,
