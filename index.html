@@ -11501,23 +11501,76 @@ async function sendReturnEmail(item, note) {
   });
 }
 
+// QHSE / management oversight — see all PE investigations read-only.
+const CPAR_PE_VIEW_OVERSEERS = [
+  'jonas.simonaitis@reposefurniture.co.uk',
+  'richard.semmens@reposefurniture.co.uk',
+];
+
 function renderPEView() {
   const me = msalInstance.getAllAccounts()[0]?.username || '';
-  const mine = CPAR_ITEMS.filter(i => i.fields?.InvestigatorAssigned === me && i.fields?.Status === CPAR_STATUS.INVESTIGATION);
+  const isOverseer = CPAR_PE_VIEW_OVERSEERS.includes(me.toLowerCase()) || CPAR_PE_VIEW_OVERSEERS.includes(me);
   const all  = CPAR_ITEMS.filter(i => i.fields?.Status === CPAR_STATUS.INVESTIGATION);
-  if (!mine.length && !all.length) {
+
+  if (!all.length) {
     return '<div style="padding:24px;text-align:center;color:var(--text3)">No CPARs in investigation.</div>';
   }
-  const cards = mine.length ? mine.map(renderPECard).join('') : '';
+
+  // Overseer (Jonas, Richard) — sees ALL investigations grouped by assignee, read-only with no action buttons.
+  if (isOverseer) {
+    const byAssignee = {};
+    for (const i of all) {
+      const k = (i.fields?.InvestigatorAssigned || 'unassigned').toLowerCase();
+      (byAssignee[k] = byAssignee[k] || []).push(i);
+    }
+    const blocks = Object.entries(byAssignee).map(([assignee, items]) => `
+      <h3 style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin:14px 0 8px">
+        ${escHtml(assignee.split('@')[0])} (${items.length})
+      </h3>
+      <div style="display:flex;flex-direction:column;gap:10px">${items.map(renderPECardReadonly).join('')}</div>
+    `).join('');
+    return `
+      <div style="margin-bottom:14px;padding:8px 12px;background:#e6f5fd;border:1px solid #bae6fd;border-radius:6px;font-size:12px;color:var(--blue)">
+        🔍 <strong>Oversight view</strong> — read-only. Logged in as ${escHtml(me)}.
+      </div>
+      ${blocks}
+    `;
+  }
+
+  // Production Engineer (Mark, Gareth) — sees their own assignments with action buttons.
+  const mine = all.filter(i => i.fields?.InvestigatorAssigned === me);
   const others = all.filter(i => !mine.includes(i)).map(i =>
     `<li>${escHtml(i.fields.Title)} — ${escHtml((i.fields.InvestigatorAssigned||'').split('@')[0])}</li>`
   ).join('');
+  const cards = mine.length ? mine.map(renderPECard).join('') : '';
   return `
     <div style="margin-bottom:14px;font-size:12px;color:var(--text2)">Logged in as: <strong>${escHtml(me)}</strong></div>
     <h3 style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Assigned to me (${mine.length})</h3>
     <div style="display:flex;flex-direction:column;gap:10px">${cards || '<div style="color:var(--text3);padding:14px">Nothing assigned to you.</div>'}</div>
     ${others ? `<details style="margin-top:18px"><summary style="font-size:12px;color:var(--text3);cursor:pointer">Other PE workload (${all.length-mine.length})</summary><ul style="font-size:11px;color:var(--text3);padding-left:20px;margin-top:6px">${others}</ul></details>` : ''}
   `;
+}
+
+// Read-only PE card for overseers — same info, no action buttons.
+function renderPECardReadonly(item) {
+  const f = item.fields || {};
+  return `
+  <div class="cpar-card status-invest">
+    <div class="cpar-card-header">
+      <span class="cpar-ref">${escHtml(f.Title||'')}</span>
+      <span class="cpar-status-badge invest">Investigation</span>
+      ${f.IsRepeat ? '<span style="background:#fff1f1;color:#991b1b;border:1px solid #fca5a5;font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px;margin-left:6px">REPEAT</span>' : ''}
+      <span style="margin-left:auto;font-size:10px;color:var(--text3)">${escHtml((f.EscalatedAt||'').slice(0,10))}</span>
+    </div>
+    <div class="cpar-card-body">
+      <div class="cpar-source-line"><span class="cpar-source-badge">${escHtml(f.SourceDept||'?')}</span>${escHtml(f.IssueCategory||'')}</div>
+      ${f.Description ? `<div class="cpar-desc">${escHtml(f.Description)}</div>` : ''}
+      <div style="font-size:11px;color:var(--text3);margin-top:4px">
+        Closed-out by ${escHtml((f.ClosedOutBy||'').split('@')[0])} · escalated ${escHtml((f.EscalatedAt||'').slice(0,16))}
+        ${f.CauseCode ? ` · cause: <strong>${escHtml(f.CauseCode)}</strong>` : ''}
+      </div>
+    </div>
+  </div>`;
 }
 
 function renderPECard(item) {
