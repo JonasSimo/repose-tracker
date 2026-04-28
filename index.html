@@ -12438,11 +12438,15 @@ async function fetchCPARsForChart() {
 async function drawChartRaisedClosed() {
   const host = document.getElementById('dash-chart-1');
   if (!host) return;
-  // Initial render with CPAR_ITEMS for instant feedback
   _drawChartRaisedClosedFromItems(CPAR_ITEMS, host, true);
-  // Then fetch wider window and re-render with accurate data
   const wider = await fetchCPARsForChart();
-  if (wider && wider !== CPAR_ITEMS) _drawChartRaisedClosedFromItems(wider, host, false);
+  if (wider && wider !== CPAR_ITEMS) {
+    _drawChartRaisedClosedFromItems(wider, host, false);
+  } else {
+    // Wider fetch unavailable or returned same data — re-render without the partial flag
+    // so the "loading wider history…" caption clears.
+    _drawChartRaisedClosedFromItems(CPAR_ITEMS, host, false);
+  }
 }
 
 function _drawChartRaisedClosedFromItems(items, host, partialFlag) {
