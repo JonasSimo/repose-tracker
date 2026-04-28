@@ -12821,8 +12821,8 @@ function getCPARStatus(item) {
   const dt = parseCPARDate(f.LoggedAt);
   if (!dt.getTime()) return 'open';
   const wHrs = workingHoursBetween(dt, new Date());
-  if (wHrs >= 16) return 'red';
-  if (wHrs >= 8)  return 'amber';
+  if (wHrs >= 18) return 'red';   // 2 working days (Mon-Thu day = 9h)
+  if (wHrs >= 9)  return 'amber'; // 1 working day
   return 'open';
 }
 
