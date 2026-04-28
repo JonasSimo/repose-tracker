@@ -11696,8 +11696,8 @@ function renderPEView() {
   }
 
   // Production Engineer (Mark, Gareth) — sees their own assignments with action buttons.
-  const meLc = (me || '').toLowerCase();
-  const mine = all.filter(i => (i.fields?.InvestigatorAssigned || '').toLowerCase() === meLc);
+  const meLc = (me || '').toLowerCase().trim();
+  const mine = all.filter(i => (i.fields?.InvestigatorAssigned || '').toLowerCase().trim() === meLc);
   const others = all.filter(i => !mine.includes(i)).map(i =>
     `<li>${escHtml(i.fields.Title)} — ${escHtml((i.fields.InvestigatorAssigned||'').split('@')[0])}</li>`
   ).join('');
