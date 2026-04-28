@@ -12867,6 +12867,16 @@ function renderIssuesList() {
       const d = parseCPARDate(i.fields?.ClosedAt);
       return d.getTime() && (Date.now() - d.getTime() < 30 * 86400000);
     },
+    repeat: i => {
+      if (i.fields?.IsRepeat !== true) return false;
+      const s = i.fields?.Status;
+      if (s === CPAR_STATUS.ARCHIVED || s === CPAR_STATUS.AWAITING_EFF_CHECK) return false;
+      return true;
+    },
+    overdue: i => {
+      const st = getCPARStatus(i);
+      return st === 'amber' || st === 'red';
+    },
     all: i => i.fields?.Status !== CPAR_STATUS.ARCHIVED && i.fields?.Status !== CPAR_STATUS.AWAITING_EFF_CHECK,
   };
   items = items.filter(filterMap[cparFilterStatus] || filterMap.todo);
