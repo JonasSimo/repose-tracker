@@ -12007,7 +12007,62 @@ function drawChartTopCauses() {
     `).join('')}
   `;
 }
-function drawChartMTTR()         { document.getElementById('dash-chart-3').innerHTML = '<div style="color:var(--text3);padding:14px">Chart 3 — Task 26</div>'; }
+function drawChartMTTR() {
+  const months = [];
+  const now = new Date();
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push({ y:d.getFullYear(), m:d.getMonth(), label:d.toLocaleDateString('en-GB',{ month:'short' }), byTeam:{} });
+  }
+  for (const item of CPAR_ITEMS) {
+    const f = item.fields || {};
+    const closed = parseCPARDate(f.ClosedAt);
+    const open   = parseCPARDate(f.LoggedAt);
+    if (!closed.getTime() || !open.getTime()) continue;
+    const slot = months.find(s => s.y === closed.getFullYear() && s.m === closed.getMonth());
+    if (!slot) continue;
+    const team = f.SourceDept || 'Unknown';
+    if (!slot.byTeam[team]) slot.byTeam[team] = [];
+    slot.byTeam[team].push(workingHoursBetween(open, closed));
+  }
+  const teams = [...new Set(months.flatMap(m => Object.keys(m.byTeam)))].slice(0, 6);
+  const teamColours = ['#dc2626', '#0284c7', '#d97706', '#7c3aed', '#059669', '#6b7280'];
+  const w = 720, h = 200, pad = 32;
+  const allValues = months.flatMap(m =>
+    Object.values(m.byTeam).flatMap(arr => arr.length ? [arr.reduce((a, b) => a+b, 0) / arr.length] : [])
+  );
+  const max = Math.max(...allValues, 24);
+  const x = i => pad + i * ((w - pad*2) / (months.length - 1));
+  const y = v => h - pad - (v / max) * (h - pad*2);
+  const lines = teams.map((team, ti) => {
+    const points = months.map((m, i) => {
+      const arr = m.byTeam[team];
+      if (!arr || !arr.length) return null;
+      const avg = arr.reduce((a, b) => a+b, 0) / arr.length;
+      return `${x(i)},${y(avg)}`;
+    });
+    const segs = [];
+    let cur = [];
+    for (const p of points) {
+      if (p === null) { if (cur.length > 1) segs.push(cur); cur = []; }
+      else cur.push(p);
+    }
+    if (cur.length > 1) segs.push(cur);
+    return segs.map(s => `<path d="M${s.join(' L')}" fill="none" stroke="${teamColours[ti]}" stroke-width="2"/>`).join('');
+  }).join('');
+  document.getElementById('dash-chart-3').innerHTML = `
+    <div style="font-size:13px;font-weight:700;margin-bottom:6px">MTTR trend by team (working hours, 12-month)</div>
+    <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;font-size:10px">
+      <line x1="${pad}" y1="${h-pad}" x2="${w-pad}" y2="${h-pad}" stroke="#ccc"/>
+      ${months.map((m, i) => `<text x="${x(i)}" y="${h-pad+14}" text-anchor="middle" fill="#888">${escHtml(m.label)}</text>`).join('')}
+      <text x="${pad-4}" y="${pad}" text-anchor="end" fill="#888">${max.toFixed(0)}h</text>
+      ${lines}
+    </svg>
+    <div style="display:flex;gap:10px;font-size:11px;margin-top:6px;flex-wrap:wrap">
+      ${teams.map((t, i) => `<span><span style="display:inline-block;width:10px;height:3px;background:${teamColours[i]};vertical-align:middle"></span> ${escHtml(t)}</span>`).join('')}
+    </div>
+  `;
+}
 function renderRecentRepeats()   { document.getElementById('dash-recent-repeats').innerHTML = '<div style="color:var(--text3);padding:14px">Repeats — Task 27</div>'; }
 
 // Filter: open CPARs (any age) + everything created in the last CPAR_HISTORY_DAYS.
