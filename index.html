@@ -12502,6 +12502,66 @@ function refreshCPARSubmitState(id) {
   document.getElementById('cpar-close-'+id).disabled = !ok;
 }
 
+async function submitCPARCloseout(id) {
+  const item = CPAR_ITEMS.find(i => i.id === id);
+  if (!item) return;
+  const root = document.getElementById('cpar-co-'+id);
+  const disposition  = root.dataset.disposition || '';
+  const cause        = root.dataset.cause || '';
+  const action       = document.getElementById('cpar-action-'+id).value.trim();
+  const containment  = document.getElementById('cpar-containment-'+id).value.trim();
+  const dispNotes    = document.getElementById('cpar-disp-notes-'+id).value.trim();
+  if (!disposition || !cause || !action) return;
+
+  const btn = document.getElementById('cpar-close-'+id);
+  btn.disabled = true; btn.textContent = 'Saving…';
+
+  const me = msalInstance.getAllAccounts()[0]?.username || '?';
+  const now = new Date().toISOString();
+  const newHistory = appendCPARHistory(item.fields?.History || '', {
+    by: me, ev:'closed-out',
+    fields:{ disposition, cause, hasContainment: !!containment, dispNotes: !!dispNotes }
+  });
+
+  // Run repeat detection now that CauseCode is known
+  const merged = { Title: item.fields.Title, PrimaryModel: item.fields.PrimaryModel, CauseCode: cause };
+  const { isRepeat, linkedRefs } = detectRepeat(merged, CPAR_ITEMS);
+
+  const updateFields = {
+    Status: CPAR_STATUS.PENDING_REVIEW,
+    Disposition: disposition,
+    DispositionNotes: dispNotes,
+    Containment: containment,
+    CauseCode: cause,
+    CorrectiveAction: action,
+    ClosedOutBy: me,
+    ClosedOutAt: now,
+    History: newHistory,
+    IsRepeat: isRepeat,
+    RepeatLinkedRefs: linkedRefs.join(';'),
+  };
+
+  try {
+    const token  = await getGraphToken();
+    const siteId = await getSpSiteId();
+    const listId = await getListIdByName(SP_CPAR_LIST);
+    const r = await fetch(
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}/fields`,
+      { method:'PATCH', headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' },
+        body: JSON.stringify(updateFields) }
+    );
+    if (!r.ok) throw new Error('PATCH '+r.status+' '+await r.text());
+    Object.assign(item.fields, updateFields);
+    toast('Closed out — sent to QHSE Review', 's');
+    renderIssuesList();
+    updateIssuesTabBadge();
+  } catch(e) {
+    console.error('submitCPARCloseout', e);
+    toast('Failed: '+e.message, 'u');
+    btn.disabled = false; btn.textContent = 'Submit close-out → QHSE Review';
+  }
+}
+
 async function confirmCloseCPAR(id) {
   const panel = document.getElementById(`cpar-co-${id}`);
   const causeBtn = panel?.querySelector('.cpar-cause-option.selected');
