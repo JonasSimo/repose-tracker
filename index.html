@@ -12508,8 +12508,8 @@ function toggleCPARCloseout(id) {
     btn.classList.toggle('active', isOpen);
     btn.textContent = isOpen ? 'Close Out Issue ▲' : 'Close Out Issue ▼';
   }
-  if (isOpen) loadCPARPhoto(id);
   if (isOpen) {
+    loadCPARPhoto(id);
     ['action', 'containment', 'disp-notes'].forEach(suffix => {
       const el = document.getElementById('cpar-'+suffix+'-'+id);
       if (el) el.oninput = () => refreshCPARSubmitState(id);
