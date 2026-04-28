@@ -11605,6 +11605,7 @@ function setQHSEFilter(k) { cparReviewFilter = k; renderQualitySubview(); }
 // Auto-promote Closed CPARs to Awaiting Effectiveness Check 30 days post-close.
 // Runs lazily — once per session when QHSE Review opens.
 async function autoMoveToEffCheck() {
+  if (!cparIsQHSE) return;
   const dueIds = CPAR_ITEMS.filter(i =>
     i.fields?.Status === CPAR_STATUS.CLOSED &&
     i.fields?.ClosedAt &&
@@ -11762,6 +11763,7 @@ function qhseEscalateOpen(id) {
   document.getElementById('modal-escalate').style.display = 'flex';
 }
 async function qhseEscalateConfirm(toEmail) {
+  if (!cparIsQHSE) { toast('Only QHSE can take this action', 'u'); return; }
   const id = _escId; if (!id) return;
   if (_isBusy(id)) return;
   _setBusy(id);
@@ -11853,6 +11855,7 @@ function qhseReturnOpen(id) {
   document.getElementById('modal-return').style.display = 'flex';
 }
 async function qhseReturnConfirm() {
+  if (!cparIsQHSE) { toast('Only QHSE can take this action', 'u'); return; }
   const id = _retId; if (!id) return;
   if (_isBusy(id)) return;
   _setBusy(id);
@@ -11939,6 +11942,7 @@ async function sendReturnEmail(item, note) {
 }
 
 async function effVerify(id, verified, recurrenceNote='') {
+  if (!cparIsQHSE) { toast('Only QHSE can take this action', 'u'); return; }
   if (_isBusy(id)) return;
   _setBusy(id);
   try {
@@ -12006,6 +12010,7 @@ async function effVerify(id, verified, recurrenceNote='') {
 }
 
 function effVerifyOpen(id) {
+  if (!cparIsQHSE) { toast('Only QHSE can take this action', 'u'); return; }
   const note = prompt('Briefly describe the recurrence (what came back, where, when):');
   if (!note || !note.trim()) return;
   effVerify(id, false, note.trim());
