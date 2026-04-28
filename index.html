@@ -10679,6 +10679,48 @@ function detectRepeat(candidate, allItems, now=new Date()) {
   console.assert(r3.isRepeat === false, 'repeat: empty model returns false');
 })();
 
+// ── Effectiveness re-check due date ─────────────────────
+function effCheckDueDate(closedAt) {
+  const d = parseCPARDate(closedAt);
+  if (!d.getTime()) return null;
+  const due = new Date(d);
+  due.setDate(due.getDate() + CPAR_EFF_CHECK_DAYS);
+  return due;
+}
+function isEffCheckDue(closedAt, now=new Date()) {
+  const due = effCheckDueDate(closedAt);
+  return !!(due && due <= now);
+}
+function isEffCheckOverdue(closedAt, now=new Date()) {
+  const due = effCheckDueDate(closedAt);
+  if (!due) return false;
+  return (now - due) > 7 * 86400000;
+}
+
+// Working days between two dates (Mon–Fri only)
+function workingDaysBetween(start, end) {
+  if (end <= start) return 0;
+  let days = 0;
+  const cur = new Date(start);
+  cur.setHours(0,0,0,0);
+  while (cur < end) {
+    const dow = cur.getDay();
+    if (dow >= 1 && dow <= 5) days++;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return days;
+}
+(function testEffAndDays() {
+  const closed = '2026-04-01T10:00:00Z';
+  const now = new Date('2026-05-02T10:00:00Z');
+  console.assert(isEffCheckDue(closed, now) === true, 'eff: due after 30+ days');
+  console.assert(isEffCheckOverdue(closed, new Date('2026-05-09T10:00:00Z')) === true, 'eff: overdue after 37 days');
+  console.assert(isEffCheckOverdue(closed, new Date('2026-05-04T10:00:00Z')) === false, 'eff: not overdue at 33 days');
+  // working days: Mon 2026-04-27 → Mon 2026-05-04 = 5 working days
+  const w = workingDaysBetween(new Date('2026-04-27T00:00:00Z'), new Date('2026-05-04T00:00:00Z'));
+  console.assert(w === 5, 'working days Mon→Mon = 5, got '+w);
+})();
+
 let cparSelectedGroups = {}; // { 'Back Error': 'Post wrong size', 'Seat Error': '' }
 
 // Form state — persists while modal is open
