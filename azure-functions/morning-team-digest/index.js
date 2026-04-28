@@ -211,7 +211,7 @@ module.exports = async function (context, myTimer) {
 
     // Match items whose normalised SourceDept rolls up to this canonical team.
     const teamItems = cparItems.filter(i => {
-      const src = normaliseTeam(i.fields?.SourceDept);
+      const src = normaliseTeam(i.fields?.SourceDept || i.fields?.RaisedByTeam);
       return canonicalTeam(src) === canon;
     });
     const raisedYesterday = teamItems.filter(i => _normaliseLoggedAtDay(i.fields?.LoggedAt) === yestPrefix);

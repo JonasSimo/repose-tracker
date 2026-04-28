@@ -95,7 +95,7 @@ module.exports = async function (context, myTimer) {
   const listId = await getListId(t, siteId);
   const cutoff = new Date(Date.now() - 60*86400000).toISOString();
   const items = await fetchAll(t,
-    `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999&$filter=(fields/Status eq 'Awaiting Effectiveness Check') or (fields/Status eq 'Closed' and fields/Created ge '${cutoff}')`
+    `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999&$filter=(fields/Status eq 'Awaiting Effectiveness Check') or (fields/Status eq 'Closed' and fields/ClosedAt ge '${cutoff}')`
   );
   const now = Date.now();
   const due = [], overdue = [];

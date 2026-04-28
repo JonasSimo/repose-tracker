@@ -150,7 +150,7 @@ module.exports = async function (context, myTimer) {
     });
     const stillOpen = teamItems.filter(i => {
       const s = i.fields?.Status;
-      if (s === 'Closed' || s === 'Archived') return false;
+      if (s === 'Closed' || s === 'Archived' || s === 'Awaiting Effectiveness Check') return false;
       const d = parseCPARDate(i.fields?.LoggedAt);
       return d <= periodEnd;
     });
