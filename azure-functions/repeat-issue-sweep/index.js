@@ -62,9 +62,11 @@ module.exports = async function (context, myTimer) {
   const siteId = await getSiteId(t);
   const listId = await getListId(t, siteId);
   const cutoff = new Date(Date.now() - 90*86400000).toISOString();
-  const items = await fetchAll(t,
-    `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999&$filter=fields/Created ge '${cutoff}' and fields/IsRepeat ne true`
-  );
+  // IsRepeat default null; we want to scan items not yet flagged true (i.e. null OR false).
+  // Post-filter in JS to avoid SP $filter null-handling quirks.
+  const items = (await fetchAll(t,
+    `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999&$filter=fields/Created ge '${cutoff}'`
+  )).filter(i => i.fields?.IsRepeat !== true);
   context.log(`scanning ${items.length} items for repeats`);
   let flipped = 0;
   for (const i of items) {
