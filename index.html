@@ -11646,6 +11646,51 @@ function openCPARByRef(ref) {
   if (item) document.getElementById('cpar-card-'+item.id)?.scrollIntoView({ behavior:'smooth', block:'center' });
   else toast('CPAR '+ref+' not in current view', 'w');
 }
+function populateCPARPrint(item) {
+  const f = item.fields || {};
+  const ref = f.Title || '?';
+  const dispChecks = CPAR_DISPOSITIONS.map(d =>
+    `<div class="c"><span class="ck${f.Disposition===d?' t':''}">${f.Disposition===d?'✓':''}</span>${escHtml(d)}</div>`
+  ).join('');
+  const causeChecks = CPAR_CAUSE_CODES.map(c =>
+    `<div class="c"><span class="ck${f.CauseCode===c?' t':''}">${f.CauseCode===c?'✓':''}</span>${escHtml(c)}</div>`
+  ).join('');
+  const dt = (s) => (s||'').slice(0,16).replace('T',' ');
+  document.getElementById('cpar-print-area').innerHTML = `
+    <div class="h">
+      <div><div class="lg">Repose Furniture</div><div class="lgs">Quality Management System</div></div>
+      <div class="meta"><div><strong>Doc:</strong> ${PHCF_DOC.id}</div><div><strong>Issue:</strong> ${PHCF_DOC.issue} · ${PHCF_DOC.date}</div><div><strong>Page:</strong> 1 of 1</div></div>
+    </div>
+    <div class="title">Non-Conforming Job Note</div>
+    <table>
+      <tr><td class="lab">REF</td><td colspan="3" style="font-family:'JetBrains Mono',monospace;font-weight:700;color:#1e3a5f">${escHtml(ref)}</td></tr>
+      <tr><td class="lab">Date Raised</td><td>${escHtml(dt(f.LoggedAt))}</td><td class="lab">Raised by</td><td>${escHtml((f.ClosedOutBy||f.RaisedByTeam||'').split('@')[0])}</td></tr>
+      <tr><td class="lab">Department</td><td>${escHtml(f.SourceDept||f.RaisedByTeam||'?')}</td><td class="lab">Job Ref</td><td>${escHtml((f.PrimaryREP||'')+' · Job '+(f.PrimaryJobNo||''))}</td></tr>
+      <tr><td class="lab">Model</td><td>${escHtml(f.PrimaryModel||'')}</td><td class="lab">QTY</td><td>${escHtml(String(f.QTY||1))}</td></tr>
+      <tr><td class="lab">Source / Cat.</td><td colspan="3">${escHtml((f.SourceDept||'')+' → '+(f.IssueCategory||''))}</td></tr>
+    </table>
+    <h4>Concern / Issue / Fault</h4>
+    <table class="full"><tr><td>${escHtml(f.Description||'')}</td></tr></table>
+    <h4>Containment Action</h4>
+    <table class="full"><tr><td>${escHtml(f.Containment||'(none recorded)')}</td></tr></table>
+    <h4>Disposition</h4>
+    <div class="grid3">${dispChecks}</div>
+    <h4>Possible Root Cause</h4>
+    <div class="grid3">${causeChecks}</div>
+    <h4>Investigation Findings &amp; Corrective Action</h4>
+    <table class="full"><tr><td>${escHtml(f.CorrectiveAction||'')}</td></tr></table>
+    <h4>Linked ECR</h4>
+    <table class="full"><tr><td style="font-family:'JetBrains Mono',monospace">${escHtml(f.ECRRef||'— N/A —')}</td></tr></table>
+    <h4>Sign-Off</h4>
+    <div class="sig">
+      <div><div class="nm">${escHtml((f.ClosedOutBy||'').split('@')[0])}</div><div class="lb">Area Manager · Closed-out · ${escHtml(dt(f.ClosedOutAt))}</div></div>
+      <div><div class="nm">${escHtml((f.InvestigatedBy||'').split('@')[0]||'—')}</div><div class="lb">Production Engineer · ${escHtml(dt(f.InvestigatedAt))||'—'}</div></div>
+      <div><div class="nm">${escHtml((f.ClosedBy||'').split('@')[0])}</div><div class="lb">QHSE · Closed · ${escHtml(dt(f.ClosedAt))}</div></div>
+    </div>
+    ${f.EffectivenessVerified === true ? `<div style="font-size:9px;color:#059669;margin-top:6px">✓ Effectiveness re-checked ${escHtml(dt(f.EffectivenessVerifiedAt))} by ${escHtml((f.EffectivenessVerifiedBy||'').split('@')[0])} — Verified Effective</div>` : ''}
+    <div class="ft"><span>Generated from RepNet · CPARLog/${escHtml(ref)}</span><span>Retention: 7 years per ISO 9001 §7.5</span></div>
+  `;
+}
 function printCPAR(id) { /* Phase 3 will fully implement */ toast('Print: not yet wired (Phase 3)', 'w'); }
 
 async function loadCPARPhoto(id) {
@@ -17734,5 +17779,6 @@ async function mtDeleteYearly(id) {
 }
 
 </script>
+<div id="cpar-print-area"></div>
 </body>
 </html>
