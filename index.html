@@ -11469,6 +11469,19 @@ function renderCPARCard(item) {
       <button class="cpar-spec-btn" onclick="openSpecModalByRep('${escHtml(j.rep||'')}')">View Spec</button>
     </div>`).join('')}</div>` : '';
 
+  const repeatBanner = f.IsRepeat ? `
+    <div class="cpar-repeat-banner">
+      🔴 REPEAT — same model + cause flagged
+      ${(f.RepeatLinkedRefs||'').split(';').filter(Boolean).slice(0,3).map(r => `<a onclick="openCPARByRef('${escHtml(r)}')">${escHtml(r)}</a>`).join(', ')}
+    </div>
+  ` : '';
+  const returnBanner = (status === 'return' && f.ReturnedNote) ? `
+    <div class="cpar-return-banner">
+      <strong>Returned by QHSE — please update and resubmit</strong>
+      ${escHtml(f.ReturnedNote)}
+    </div>
+  ` : '';
+
   return `<div class="cpar-card status-${status}" id="cpar-card-${item.id}">
     <div class="cpar-card-header">
       <span class="cpar-ref">${escHtml(f.Title||'?')}</span>
@@ -11477,6 +11490,7 @@ function renderCPARCard(item) {
       ${cparCanDelete ? `<button onclick="deleteCPARConfirm('${item.id}')" title="Delete CPAR" style="margin-left:6px;padding:2px 8px;border-radius:6px;border:1.5px solid #fca5a5;background:#fff8f8;color:#dc2626;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0">✕ Delete</button>` : ''}
     </div>
     <div class="cpar-card-body">
+      ${repeatBanner}${returnBanner}
       <div class="cpar-source-line">
         <span class="cpar-source-badge">${escHtml(f.RaisedByTeam||'?')}</span>
         ${escHtml(f.SourceDept||'?')}
@@ -11489,9 +11503,22 @@ function renderCPARCard(item) {
     </div>
     ${isClosed ? `
     <div class="cpar-closed-detail">
+      ${f.Disposition ? `<div><strong>Disposition:</strong> ${escHtml(f.Disposition)}${f.DispositionNotes ? ' — '+escHtml(f.DispositionNotes) : ''}</div>` : ''}
+      ${f.Containment ? `<div><strong>Containment:</strong> ${escHtml(f.Containment)}</div>` : ''}
       ${f.CauseCode ? `<div><strong>Cause:</strong> ${escHtml(f.CauseCode)}</div>` : ''}
       ${f.CorrectiveAction ? `<div><strong>Action:</strong> ${escHtml(f.CorrectiveAction)}</div>` : ''}
-      <div style="color:var(--text3)">Closed by ${escHtml(f.ClosedBy||'?')}</div>
+      ${f.ECRRef ? `<div><strong>Linked ECR:</strong> <span style="font-family:'JetBrains Mono',monospace;color:var(--amber);font-weight:700">${escHtml(f.ECRRef)}</span></div>` : ''}
+      <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:10px;font-size:11px;color:var(--text3)">
+        ${f.ClosedOutBy ? `<span>Closed-out: ${escHtml(f.ClosedOutBy.split('@')[0])} · ${escHtml((f.ClosedOutAt||'').slice(0,16))}</span>` : ''}
+        ${f.InvestigatedBy ? `<span>Investigated: ${escHtml(f.InvestigatedBy.split('@')[0])} · ${escHtml((f.InvestigatedAt||'').slice(0,16))}</span>` : ''}
+        ${f.ClosedBy ? `<span>Closed: ${escHtml(f.ClosedBy.split('@')[0])} · ${escHtml((f.ClosedAt||'').slice(0,16))}</span>` : ''}
+      </div>
+      ${f.EffectivenessVerified === true ? `<div style="margin-top:4px;font-size:11px;color:var(--green)">✓ Effectiveness verified ${escHtml((f.EffectivenessVerifiedAt||'').slice(0,10))}</div>` : ''}
+      ${f.EffectivenessVerified === false ? `<div style="margin-top:4px;font-size:11px;color:var(--red)">✗ Recurred — see ${escHtml((CPAR_ITEMS.find(x => x.fields?.LinkedFromRef === f.Title)?.fields?.Title) || '(linked CPAR)')}</div>` : ''}
+      <details style="margin-top:6px"><summary style="font-size:11px;color:var(--text3);cursor:pointer">History</summary>
+        <pre style="font-size:10px;background:var(--bg);padding:6px;border-radius:4px;max-height:160px;overflow:auto;font-family:'JetBrains Mono',monospace;white-space:pre-wrap">${escHtml(f.History||'(no history)')}</pre>
+      </details>
+      <button onclick="printCPAR('${item.id}')" style="margin-top:8px;padding:7px 12px;border-radius:6px;border:1.5px solid var(--border2);background:var(--bg2);font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;color:var(--text2)">🖨 Print Non-Conformance Report (PDF)</button>
     </div>` : `
     <button class="cpar-closeout-btn" id="cpar-co-btn-${item.id}" onclick="toggleCPARCloseout('${item.id}')">Close Out Issue ▼</button>
     <div class="cpar-closeout-panel" id="cpar-co-${item.id}">
@@ -11586,6 +11613,13 @@ function toggleCPARCloseout(id) {
     });
   }
 }
+
+function openCPARByRef(ref) {
+  const item = CPAR_ITEMS.find(i => i.fields?.Title === ref);
+  if (item) document.getElementById('cpar-card-'+item.id)?.scrollIntoView({ behavior:'smooth', block:'center' });
+  else toast('CPAR '+ref+' not in current view', 'w');
+}
+function printCPAR(id) { /* Phase 3 will fully implement */ toast('Print: not yet wired (Phase 3)', 'w'); }
 
 async function loadCPARPhoto(id) {
   const wrap = document.getElementById(`cpar-photo-wrap-${id}`);
