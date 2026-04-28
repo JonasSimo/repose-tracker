@@ -11479,18 +11479,22 @@ function renderIssuesIntoQuality(host) {
   };
   // Compute open-CPAR count per team (open = not Closed and not Archived and not Awaiting Eff. Check)
   const teamCounts = {};
-  const teamsForMatch = teams.filter(Boolean).slice().sort((a, b) => b.length - a.length);
+  const teamsLcSet = new Set(teams.filter(Boolean).map(t => t.toLowerCase()));
   for (const i of items) {
     const s = i.fields?.Status;
     if (s === CPAR_STATUS.CLOSED || s === 'Closed' || s === CPAR_STATUS.ARCHIVED || s === CPAR_STATUS.AWAITING_EFF_CHECK) continue;
     const tLc = (i.fields?.SourceDept || i.fields?.RaisedByTeam || '').toLowerCase().trim();
     if (!tLc) continue;
-    // Pick the FIRST team that matches (longest first) — avoids double-counting.
-    for (const team of teamsForMatch) {
-      if (tLc.includes(team.toLowerCase())) {
-        teamCounts[team] = (teamCounts[team] || 0) + 1;
-        break;
-      }
+    // First-keyword-wins: split on whitespace, find the first token that matches a known team.
+    const tokens = tLc.split(/\s+/);
+    let matched = null;
+    for (const tok of tokens) {
+      if (teamsLcSet.has(tok)) { matched = tok; break; }
+    }
+    if (matched) {
+      // Find the original-case team name to use as the key
+      const originalTeam = teams.find(t => t.toLowerCase() === matched);
+      if (originalTeam) teamCounts[originalTeam] = (teamCounts[originalTeam] || 0) + 1;
     }
   }
   const totalOpen = items.filter(i => {
