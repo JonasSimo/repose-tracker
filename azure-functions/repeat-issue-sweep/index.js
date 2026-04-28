@@ -83,16 +83,19 @@ module.exports = async function (context, myTimer) {
   const cutoff = new Date(Date.now() - 90*86400000).toISOString();
   // IsRepeat default null; we want to scan items not yet flagged true (i.e. null OR false).
   // Post-filter in JS to avoid SP $filter null-handling quirks.
-  const items = (await fetchAll(t,
+  // Fetch all items in window (including already-flagged) so the comparison set is complete.
+  const allItems = await fetchAll(t,
     `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999&$filter=fields/Created ge '${cutoff}'`
-  )).filter(i => i.fields?.IsRepeat !== true);
+  );
+  // Iterate only the unflagged subset for potential flipping; compare against the full set.
+  const items = allItems.filter(i => i.fields?.IsRepeat !== true);
   context.log(`scanning ${items.length} items for repeats`);
   let flipped = 0;
   for (const i of items) {
     const f = i.fields || {};
     if (!f.PrimaryModel || !f.CauseCode) continue; // not yet closed-out
     const since = new Date(Date.now() - REPEAT_DAYS*86400000);
-    const matches = items.filter(j => {
+    const matches = allItems.filter(j => {
       if (j.id === i.id) return false;
       const g = j.fields || {};
       if ((g.PrimaryModel||'').trim().toLowerCase() !== (f.PrimaryModel||'').trim().toLowerCase()) return false;
