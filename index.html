@@ -11359,10 +11359,147 @@ function renderQHSEReviewCard(item) {
   </div>`;
 }
 
-// Stubs — Task 16 replaces these
-function qhseApprove(id)      { toast('Approve — wiring in Task 16', 'w'); }
-function qhseEscalateOpen(id) { toast('Escalate — wiring in Task 16', 'w'); }
-function qhseReturnOpen(id)   { toast('Return — wiring in Task 16', 'w'); }
+async function qhseApprove(id) {
+  const item = CPAR_ITEMS.find(i => i.id === id);
+  if (!item) return;
+  const me = msalInstance.getAllAccounts()[0]?.username || '?';
+  if (me === '?') { toast('Sign-in expired — refresh', 'u'); return; }
+  if (!confirm(`Approve and close ${item.fields.Title}?`)) return;
+  const now = new Date().toISOString();
+  const newHistory = appendCPARHistory(item.fields?.History || '', { by:me, ev:'approved-closed' });
+  const fields = {
+    Status: CPAR_STATUS.CLOSED,
+    ReviewedBy: me, ReviewedAt: now, ReviewDecision: 'Approved',
+    ClosedBy: me, ClosedAt: now, History: newHistory,
+  };
+  try {
+    const token  = await getGraphToken();
+    const siteId = await getSpSiteId();
+    const listId = await getListIdByName(SP_CPAR_LIST);
+    const r = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}/fields`, {
+      method:'PATCH', headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' },
+      body: JSON.stringify(fields)
+    });
+    if (!r.ok) throw new Error(r.status+' '+await r.text());
+    Object.assign(item.fields, fields);
+    toast('Closed', 's');
+    renderQualitySubview();
+  } catch(e) { toast('Failed: '+e.message, 'u'); }
+}
+
+let _escId = null;
+function qhseEscalateOpen(id) {
+  _escId = id;
+  const item = CPAR_ITEMS.find(i => i.id === id);
+  document.getElementById('modal-esc-ref').textContent = item?.fields?.Title || id;
+  document.getElementById('modal-escalate').style.display = 'flex';
+}
+async function qhseEscalateConfirm(toEmail) {
+  const id = _escId; if (!id) return;
+  const item = CPAR_ITEMS.find(i => i.id === id); if (!item) return;
+  const me = msalInstance.getAllAccounts()[0]?.username || '?';
+  if (me === '?') { toast('Sign-in expired — refresh', 'u'); return; }
+  const now = new Date().toISOString();
+  const newHistory = appendCPARHistory(item.fields?.History || '', { by:me, ev:'escalated', to:toEmail });
+  const fields = {
+    Status: CPAR_STATUS.INVESTIGATION,
+    ReviewedBy: me, ReviewedAt: now, ReviewDecision:'Escalated',
+    InvestigatorAssigned: toEmail, EscalatedBy: me, EscalatedAt: now,
+    History: newHistory,
+  };
+  try {
+    const token  = await getGraphToken();
+    const siteId = await getSpSiteId();
+    const listId = await getListIdByName(SP_CPAR_LIST);
+    const r = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}/fields`, {
+      method:'PATCH', headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' },
+      body: JSON.stringify(fields)
+    });
+    if (!r.ok) throw new Error(r.status+' '+await r.text());
+    Object.assign(item.fields, fields);
+    document.getElementById('modal-escalate').style.display = 'none';
+    sendInvestigatorEmail(item, toEmail).catch(e => console.warn('investigator email:', e.message));
+    toast('Escalated to '+toEmail.split('@')[0], 's');
+    renderQualitySubview();
+  } catch(e) { toast('Failed: '+e.message, 'u'); }
+}
+async function sendInvestigatorEmail(item, toEmail) {
+  const f = item.fields || {};
+  const subject = `[CPAR ${f.Title}] Investigation assigned — ${f.PrimaryModel||''}`;
+  const body = `<p>You have been assigned a CPAR investigation.</p>
+    <p><strong>Ref:</strong> ${escHtml(f.Title||'')}<br>
+    <strong>Source:</strong> ${escHtml(f.SourceDept||'')}<br>
+    <strong>Job:</strong> ${escHtml(f.PrimaryREP||'')} · ${escHtml(String(f.PrimaryJobNo||''))} · ${escHtml(f.PrimaryModel||'')}<br>
+    <strong>QTY:</strong> ${escHtml(String(f.QTY||1))}</p>
+    <p><strong>Description:</strong><br>${escHtml(f.Description||'')}</p>
+    <p><strong>Closed-out by:</strong> ${escHtml((f.ClosedOutBy||'').split('@')[0])}</p>
+    <p>Open in RepNet → Quality → PE View.</p>`;
+  const accounts = msalInstance.getAllAccounts();
+  const r = await msalInstance.acquireTokenSilent({ scopes: MAIL_SCOPES, account: accounts[0] });
+  await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
+    method:'POST', headers:{ Authorization:'Bearer '+r.accessToken, 'Content-Type':'application/json' },
+    body: JSON.stringify({ message:{ subject, body:{ contentType:'HTML', content:body }, toRecipients:[{ emailAddress:{ address:toEmail }}] }})
+  });
+}
+
+let _retId = null;
+function qhseReturnOpen(id) {
+  _retId = id;
+  const item = CPAR_ITEMS.find(i => i.id === id);
+  document.getElementById('modal-ret-ref').textContent = item?.fields?.Title || id;
+  document.getElementById('modal-ret-note').value = '';
+  document.getElementById('modal-return').style.display = 'flex';
+}
+async function qhseReturnConfirm() {
+  const id = _retId; if (!id) return;
+  const note = document.getElementById('modal-ret-note').value.trim();
+  if (!note) { toast('Note is required', 'w'); return; }
+  const item = CPAR_ITEMS.find(i => i.id === id); if (!item) return;
+  const me = msalInstance.getAllAccounts()[0]?.username || '?';
+  if (me === '?') { toast('Sign-in expired — refresh', 'u'); return; }
+  const now = new Date().toISOString();
+  const newHistory = appendCPARHistory(item.fields?.History || '', { by:me, ev:'returned', note });
+  const fields = {
+    Status: CPAR_STATUS.RETURNED,
+    ReviewedBy: me, ReviewedAt: now, ReviewDecision:'Returned',
+    ReturnedNote: note, History: newHistory,
+  };
+  try {
+    const token  = await getGraphToken();
+    const siteId = await getSpSiteId();
+    const listId = await getListIdByName(SP_CPAR_LIST);
+    const r = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}/fields`, {
+      method:'PATCH', headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' },
+      body: JSON.stringify(fields)
+    });
+    if (!r.ok) throw new Error(r.status+' '+await r.text());
+    Object.assign(item.fields, fields);
+    document.getElementById('modal-return').style.display = 'none';
+    sendReturnEmail(item, note).catch(e => console.warn('return email:', e.message));
+    toast('Returned', 's');
+    renderQualitySubview();
+  } catch(e) { toast('Failed: '+e.message, 'u'); }
+}
+async function sendReturnEmail(item, note) {
+  const f = item.fields || {};
+  const to = f.ClosedOutBy;
+  if (!to) return;
+  const cc = (TEAM_MANAGERS[normaliseTeam(f.SourceDept)] || []).filter(e => e !== to);
+  const subject = `[CPAR ${f.Title}] Returned for revision`;
+  const body = `<p>Your closeout for ${escHtml(f.Title||'')} has been returned by QHSE for revision.</p>
+    <p><strong>Note from QHSE:</strong></p>
+    <blockquote style="background:#f0f4f8;padding:10px;border-left:3px solid #dc2626">${escHtml(note)}</blockquote>
+    <p>Please open the CPAR in RepNet, address the feedback, and resubmit close-out.</p>`;
+  const accounts = msalInstance.getAllAccounts();
+  const r = await msalInstance.acquireTokenSilent({ scopes: MAIL_SCOPES, account: accounts[0] });
+  await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
+    method:'POST', headers:{ Authorization:'Bearer '+r.accessToken, 'Content-Type':'application/json' },
+    body: JSON.stringify({ message:{ subject, body:{ contentType:'HTML', content:body },
+      toRecipients:[{ emailAddress:{ address:to }}],
+      ccRecipients: cc.map(e => ({ emailAddress:{ address:e }}))
+    }})
+  });
+}
 
 function renderPEView() { return '<div style="padding:24px;text-align:center;color:var(--text3)">PE View — Task 17</div>'; }
 function renderRegister() { return '<div style="padding:24px;text-align:center;color:var(--text3)">Register — Task 18</div>'; }
@@ -17955,5 +18092,30 @@ async function mtDeleteYearly(id) {
 
 </script>
 <div id="cpar-print-area"></div>
+
+<!-- ── Quality / QHSE action modals ─────────────────────────── -->
+<div id="modal-escalate" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:12px;padding:20px;max-width:400px;width:90%">
+    <h3 style="font-size:16px;font-weight:700;margin-bottom:10px">Escalate to Production Engineer</h3>
+    <div id="modal-esc-ref" style="font-family:monospace;color:var(--text3);margin-bottom:14px"></div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <button class="qbtn escalate" onclick="qhseEscalateConfirm('mark.staniland@reposefurniture.co.uk')" style="text-align:left;padding:10px">Mark Staniland</button>
+      <button class="qbtn escalate" onclick="qhseEscalateConfirm('gareth.stringer@reposefurniture.co.uk')" style="text-align:left;padding:10px">Gareth Stringer</button>
+    </div>
+    <button onclick="document.getElementById('modal-escalate').style.display='none'" style="margin-top:14px;background:none;border:none;color:var(--text3);cursor:pointer;font-family:inherit">Cancel</button>
+  </div>
+</div>
+
+<div id="modal-return" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:12px;padding:20px;max-width:480px;width:90%">
+    <h3 style="font-size:16px;font-weight:700;margin-bottom:10px">Return to Area Manager</h3>
+    <div id="modal-ret-ref" style="font-family:monospace;color:var(--text3);margin-bottom:14px"></div>
+    <textarea id="modal-ret-note" placeholder="Note — what needs fixing/clarifying?" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:6px;font-family:inherit;min-height:90px;box-sizing:border-box"></textarea>
+    <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end">
+      <button onclick="document.getElementById('modal-return').style.display='none'" style="background:none;border:1px solid var(--border);padding:8px 14px;border-radius:6px;cursor:pointer;font-family:inherit">Cancel</button>
+      <button class="qbtn return" onclick="qhseReturnConfirm()">↩ Return</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
