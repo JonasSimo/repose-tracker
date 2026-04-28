@@ -60,13 +60,15 @@ function escHtml(s){
   return String(s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 }
 async function sendMail(t, recipients, subject, html) {
-  await fetch(`https://graph.microsoft.com/v1.0/users/${SEND_FROM}/sendMail`, {
+  const r = await fetch(`https://graph.microsoft.com/v1.0/users/${SEND_FROM}/sendMail`, {
     method:'POST', headers:{ Authorization:'Bearer '+t, 'Content-Type':'application/json' },
-    body: JSON.stringify({ message:{
-      subject, body:{ contentType:'HTML', content:html },
-      toRecipients: recipients.map(e => ({ emailAddress:{ address:e }}))
-    }})
+    body: JSON.stringify({ message:{ subject, body:{ contentType:'HTML', content:html },
+      toRecipients: recipients.map(e => ({ emailAddress:{ address:e }})) }})
   });
+  if (!r.ok) {
+    const errText = await r.text().catch(() => '<unreadable>');
+    throw new Error(`sendMail failed: ${r.status} ${errText.slice(0,200)}`);
+  }
 }
 
 const KPI_RECIPIENTS = ['jonas.simonaitis@reposefurniture.co.uk', 'mitch@reposefurniture.co.uk', 'richard.semmens@reposefurniture.co.uk'];
@@ -96,7 +98,7 @@ function csvEsc(v) {
 }
 async function sendMailWithAttachment(t, recipients, subject, html, filename, csv) {
   const b64 = Buffer.from(csv, 'utf8').toString('base64');
-  await fetch(`https://graph.microsoft.com/v1.0/users/${SEND_FROM}/sendMail`, {
+  const r = await fetch(`https://graph.microsoft.com/v1.0/users/${SEND_FROM}/sendMail`, {
     method:'POST', headers:{ Authorization:'Bearer '+t, 'Content-Type':'application/json' },
     body: JSON.stringify({ message:{
       subject, body:{ contentType:'HTML', content:html },
@@ -104,6 +106,10 @@ async function sendMailWithAttachment(t, recipients, subject, html, filename, cs
       attachments:[{ '@odata.type':'#microsoft.graph.fileAttachment', name:filename, contentType:'text/csv', contentBytes:b64 }]
     }})
   });
+  if (!r.ok) {
+    const errText = await r.text().catch(() => '<unreadable>');
+    throw new Error(`sendMailWithAttachment failed: ${r.status} ${errText.slice(0,200)}`);
+  }
 }
 
 module.exports = async function (context, myTimer) {

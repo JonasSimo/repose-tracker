@@ -67,13 +67,15 @@ function escHtml(s){
   return String(s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 }
 async function sendMail(t, recipients, subject, html) {
-  await fetch(`https://graph.microsoft.com/v1.0/users/${SEND_FROM}/sendMail`, {
+  const r = await fetch(`https://graph.microsoft.com/v1.0/users/${SEND_FROM}/sendMail`, {
     method:'POST', headers:{ Authorization:'Bearer '+t, 'Content-Type':'application/json' },
-    body: JSON.stringify({ message:{
-      subject, body:{ contentType:'HTML', content:html },
-      toRecipients: recipients.map(e => ({ emailAddress:{ address:e }}))
-    }})
+    body: JSON.stringify({ message:{ subject, body:{ contentType:'HTML', content:html },
+      toRecipients: recipients.map(e => ({ emailAddress:{ address:e }})) }})
   });
+  if (!r.ok) {
+    const errText = await r.text().catch(() => '<unreadable>');
+    throw new Error(`sendMail failed: ${r.status} ${errText.slice(0,200)}`);
+  }
 }
 
 const TEAM_MANAGERS = {
