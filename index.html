@@ -1359,6 +1359,10 @@ body.tablet-mode .uh-token-icon { font-size:14px; }
 .cpar-card.status-effchk  { border-left:5px solid #d97706; }
 .cpar-card.status-archived{ border-left:5px solid #6b7280; opacity:.7; }
 
+/* ── Quality tab (CPAR ISO 9001) ─────────────────────────── */
+.quality-chip { padding:9px 14px; font-size:12px; font-weight:700; cursor:pointer; border:none; border-bottom:3px solid transparent; color:var(--text3); background:transparent; font-family:inherit }
+.quality-chip.active { color:var(--text); border-bottom-color:var(--text) }
+
 /* Repeat banner */
 .cpar-repeat-banner {
   background:#fff1f1; border:1px solid #fca5a5; color:#991b1b;
@@ -2681,6 +2685,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <button class="nav-item" data-view="production" onclick="navTo('production')">Production Plan</button>
         <button class="nav-item" data-view="stats" onclick="navTo('stats')">Stats</button>
         <button class="nav-item" data-view="issues" id="issues-tab-btn" onclick="navTo('issues')">CPARs</button>
+        <button class="nav-item tab-btn" data-view="quality" id="quality-tab-btn" onclick="navTo('quality')" style="display:none">Quality</button>
         <button class="nav-item" data-view="timing" id="timing-tab-btn" onclick="navTo('timing')" style="display:none">Job Timing</button>
         <button class="nav-item" data-view="maintenance" id="mt-tab-btn" onclick="navTo('maintenance')">Maintenance</button>
         <button class="nav-item" data-view="safety" onclick="navTo('safety')">Near Misses</button>
@@ -3037,6 +3042,19 @@ document.addEventListener('DOMContentLoaded', () => {
     </div>
     <div class="issues-list-wrap" id="issues-list"></div>
   </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     VIEW: QUALITY (CPAR ISO 9001 — managers only)
+════════════════════════════════════════════════ -->
+<div id="view-quality" class="view" style="overflow:auto;padding:14px">
+  <div style="display:flex;gap:8px;border-bottom:1.5px solid var(--border);margin-bottom:14px">
+    <button class="quality-chip active" data-view="review"   onclick="setQualitySubview('review')">QHSE Review</button>
+    <button class="quality-chip"        data-view="pe"       onclick="setQualitySubview('pe')">PE View</button>
+    <button class="quality-chip"        data-view="dash"     onclick="setQualitySubview('dash')">Dashboard</button>
+    <button class="quality-chip"        data-view="register" onclick="setQualitySubview('register')">Register</button>
+  </div>
+  <div id="quality-subview"></div>
 </div>
 
 <!-- Initials modal -->
@@ -3635,7 +3653,7 @@ let ppAutoSyncInterval = null;
 // ═══════════════════════════════════════════════
 // ROUTING
 // ═══════════════════════════════════════════════
-const NAV_LABELS = { 'team-select':'Team View','tracker':'Team View','overview':'Load Plan','loadsheet':'Delivery','production':'Production Plan','stats':'Stats','issues':'Issues','safety':'Safety','ordercheck':'Order Check','timing':'Job Timing','complaints':'Complaints','innovation':'Innovation Station','maintenance':'Maintenance' };
+const NAV_LABELS = { 'team-select':'Team View','tracker':'Team View','overview':'Load Plan','loadsheet':'Delivery','production':'Production Plan','stats':'Stats','issues':'Issues','quality':'Quality','safety':'Safety','ordercheck':'Order Check','timing':'Job Timing','complaints':'Complaints','innovation':'Innovation Station','maintenance':'Maintenance' };
 function showView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   const activeView = name === 'tracker' ? 'team-select' : name;
@@ -3654,6 +3672,7 @@ function showView(name) {
   }
   if (name === 'stats')       { openStatsView(); if (!NMS_ITEMS.length) loadNearMisses(); }
   if (name === 'issues')      { openIssuesView(); }
+  if (name === 'quality')     { openQualityView(); }
   if (name === 'safety')      { loadNearMisses(); }
   if (name === 'ordercheck')  { ocOnOpen(); }
   if (name === 'timing')      { tmOnOpen(); }
@@ -6982,7 +7001,12 @@ function updateAuthBadge() {
     mtState.isManager = mtIsManager;
     cpIsManager = COMPLAINTS_MANAGERS.has(graphAccount.username.toLowerCase());
     const _statsAccess = STATS_TEAM_ACCESS[graphAccount.username.toLowerCase()];
-    if (_statsAccess) { statsAllowedTeams = _statsAccess; statsUnlocked = true; }
+    if (_statsAccess) {
+      statsAllowedTeams = _statsAccess;
+      statsUnlocked = true;
+      const qbtn = document.getElementById('quality-tab-btn');
+      if (qbtn) qbtn.style.display = '';
+    }
     else { statsAllowedTeams = null; }
     // Innovation Station access
     const _ivnEmail = graphAccount.username.toLowerCase();
@@ -7900,6 +7924,8 @@ function submitStatsPassword() {
   const val = document.getElementById('stats-pw-input').value;
   if (val === STATS_PASSWORD) {
     statsUnlocked = true;
+    const qbtn = document.getElementById('quality-tab-btn');
+    if (qbtn) qbtn.style.display = '';
     document.getElementById('stats-pw-error').style.display = 'none';
     showStatsContent();
   } else {
@@ -11215,6 +11241,35 @@ function openIssuesView() {
   if (!cparListLoaded) fetchCPARs();
   else renderIssuesList();
 }
+
+// ── Quality tab (CPAR ISO 9001) ────────────────────────────
+let cparSubview = 'review';
+function openQualityView() {
+  if (!statsUnlocked) {
+    // Same gate as Stats — bounce user to stats password screen, then they can navigate back.
+    navTo('stats');
+    return;
+  }
+  if (!cparListLoaded) fetchCPARs().then(() => renderQualitySubview());
+  else renderQualitySubview();
+}
+function setQualitySubview(v) {
+  cparSubview = v;
+  document.querySelectorAll('.quality-chip').forEach(c => c.classList.toggle('active', c.dataset.view === v));
+  renderQualitySubview();
+}
+function renderQualitySubview() {
+  const host = document.getElementById('quality-subview');
+  if (!host) return;
+  if (cparSubview === 'review')   host.innerHTML = renderQHSEReview();
+  if (cparSubview === 'pe')       host.innerHTML = renderPEView();
+  if (cparSubview === 'dash')     renderQualityDashboard(host);
+  if (cparSubview === 'register') host.innerHTML = renderRegister();
+}
+function renderQHSEReview() { return '<div style="padding:24px;text-align:center;color:var(--text3)">QHSE Review — Task 15</div>'; }
+function renderPEView() { return '<div style="padding:24px;text-align:center;color:var(--text3)">PE View — Task 17</div>'; }
+function renderRegister() { return '<div style="padding:24px;text-align:center;color:var(--text3)">Register — Task 18</div>'; }
+function renderQualityDashboard(host) { host.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text3)">Dashboard — Phase 6</div>'; }
 
 // Filter: open CPARs (any age) + everything created in the last CPAR_HISTORY_DAYS.
 // Status indexed manually; Created is auto-indexed by SharePoint.
