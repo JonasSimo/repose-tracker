@@ -13130,6 +13130,17 @@ function showCPARSummaryModal(item) {
 function closeCPARSummaryModal() {
   document.getElementById('cpar-summary-modal').style.display = 'none';
 }
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  const summary  = document.getElementById('cpar-summary-modal');
+  const escalate = document.getElementById('modal-escalate');
+  const ret      = document.getElementById('modal-return');
+  const del      = document.getElementById('modal-cpar-delete');
+  if (summary && summary.style.display === 'flex') { closeCPARSummaryModal(); return; }
+  if (escalate && escalate.style.display === 'flex') { escalate.style.display = 'none'; return; }
+  if (ret && ret.style.display === 'flex') { ret.style.display = 'none'; return; }
+  if (del && del.style.display === 'flex') { del.style.display = 'none'; return; }
+});
 function populateCPARPrint(item) {
   const f = item.fields || {};
   const ref = f.Title || '?';
