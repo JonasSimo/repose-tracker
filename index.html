@@ -3032,11 +3032,10 @@ document.addEventListener('DOMContentLoaded', () => {
     <div class="issues-header">
       <div id="cpar-period-stats" style="display:flex;gap:8px;flex-wrap:wrap"></div>
       <div class="issues-filter-row">
-        <button class="issues-chip active" data-f="open" onclick="setIssueFilter('open')">Open</button>
-        <button class="issues-chip amber" data-f="amber" onclick="setIssueFilter('amber')">48h+</button>
-        <button class="issues-chip red" data-f="red" onclick="setIssueFilter('red')">4 days+</button>
-        <button class="issues-chip green" data-f="closed" onclick="setIssueFilter('closed')">Closed</button>
-        <button class="issues-chip" data-f="all" onclick="setIssueFilter('all')">All</button>
+        <button class="issues-chip active" data-f="todo"     onclick="setIssueFilter('todo')">To do</button>
+        <button class="issues-chip"        data-f="progress" onclick="setIssueFilter('progress')">In progress</button>
+        <button class="issues-chip"        data-f="closed"   onclick="setIssueFilter('closed')">Recently closed</button>
+        <button class="issues-chip"        data-f="all"      onclick="setIssueFilter('all')">All</button>
         <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
           <button id="daily-report-btn" style="display:none;padding:5px 12px;border-radius:7px;border:none;background:#16a34a;color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit" onclick="sendDailyReport(this)" title="Send daily production report email">📧 Send Daily Report</button>
           <button id="cpar-email-btn" style="display:none;padding:5px 12px;border-radius:7px;border:none;background:#0e023a;color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit" onclick="sendOpenCPARDigest()" title="Send open CPAR digest email">📧 Email Open CPARs</button>
@@ -10702,7 +10701,7 @@ function normaliseTeam(raw) {
 
 // In-memory store
 let CPAR_ITEMS = [];
-let cparFilterStatus = 'open';
+let cparFilterStatus = 'todo';
 let cparFilterTeam = '';
 let cparListLoaded = false;
 
@@ -12281,13 +12280,26 @@ function renderIssuesList() {
 
   let items = CPAR_ITEMS;
 
-  if (cparFilterStatus !== 'all') {
-    items = items.filter(i => {
-      const st = getCPARStatus(i);
-      if (cparFilterStatus === 'open') return st !== 'closed';
-      return st === cparFilterStatus;
-    });
-  }
+  // Filter chips: To do / In progress / Recently closed / All
+  const filterMap = {
+    todo: i => {
+      const s = i.fields?.Status;
+      return s === CPAR_STATUS.OPEN || s === CPAR_STATUS.RETURNED || (!s && true);
+    },
+    progress: i => [
+      CPAR_STATUS.PENDING_REVIEW,
+      CPAR_STATUS.INVESTIGATION,
+      CPAR_STATUS.AWAITING_SIGNOFF
+    ].includes(i.fields?.Status),
+    closed: i => {
+      const s = i.fields?.Status;
+      if (s !== CPAR_STATUS.CLOSED && s !== 'Closed') return false;
+      const d = parseCPARDate(i.fields?.ClosedAt);
+      return d.getTime() && (Date.now() - d.getTime() < 30 * 86400000);
+    },
+    all: i => i.fields?.Status !== CPAR_STATUS.ARCHIVED && i.fields?.Status !== CPAR_STATUS.AWAITING_EFF_CHECK,
+  };
+  items = items.filter(filterMap[cparFilterStatus] || filterMap.todo);
   if (cparFilterTeam) {
     // Must match the bulk email digest grouping (line 12328) — Assembly is its own team, not Upholstery
     const uphGroup = new Set(['Upholstery','Upholstery Arms','Upholstery Backs','Upholstery Seats']);
