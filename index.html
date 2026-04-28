@@ -6628,6 +6628,7 @@ async function graphSignOut() {
   if (typeof ovCustomerFilter !== 'undefined') ovCustomerFilter = '';
   // Privacy: clear cached CPAR drafts + ECR refs on sign-out (shared devices)
   if (typeof _cparDraftCache !== 'undefined') _cparDraftCache.clear();
+  try { localStorage.removeItem('cpar-drafts'); } catch(e) {}
   if (typeof _cparPhotoCache !== 'undefined') {
     Object.keys(_cparPhotoCache).forEach(k => delete _cparPhotoCache[k]);
   }
@@ -12201,16 +12202,35 @@ function _getRecurrenceMap() {
 function _invalidateRecurrenceMap() { _recurrenceMap = null; _recurrenceMapStamp = 0; }
 
 const _cparDraftCache = new Map(); // key: id+'|'+field, value: typed text
+// Load persisted drafts from localStorage on init
+try {
+  const persisted = JSON.parse(localStorage.getItem('cpar-drafts') || '{}');
+  for (const [k, v] of Object.entries(persisted)) {
+    if (typeof v === 'string') _cparDraftCache.set(k, v);
+  }
+} catch(e) { /* corrupt JSON — ignore */ }
 function _draftKey(id, field) { return id + '|' + field; }
 function _saveCparDraft(id, field, val) {
-  if (val) _cparDraftCache.set(_draftKey(id, field), val);
-  else _cparDraftCache.delete(_draftKey(id, field));
+  const k = _draftKey(id, field);
+  if (val) _cparDraftCache.set(k, val);
+  else _cparDraftCache.delete(k);
+  // Persist to localStorage so iPad redirect re-auth doesn't lose drafts
+  try {
+    const persisted = {};
+    for (const [key, value] of _cparDraftCache.entries()) persisted[key] = value;
+    localStorage.setItem('cpar-drafts', JSON.stringify(persisted));
+  } catch(e) { /* localStorage full or unavailable — non-fatal */ }
 }
 function _getCparDraft(id, field, fallback = '') { return _cparDraftCache.get(_draftKey(id, field)) || fallback || ''; }
 function _clearCparDrafts(id) {
   for (const k of [..._cparDraftCache.keys()]) {
     if (k.startsWith(id + '|')) _cparDraftCache.delete(k);
   }
+  try {
+    const persisted = {};
+    for (const [k, v] of _cparDraftCache.entries()) persisted[k] = v;
+    localStorage.setItem('cpar-drafts', JSON.stringify(persisted));
+  } catch(e) {}
 }
 
 function peSelectOutcome(id, outcome, btn) {
