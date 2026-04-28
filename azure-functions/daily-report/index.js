@@ -180,14 +180,61 @@ function parseCPARDate(str) {
 function sameWeek(d, ref) {
   return isoWeekNumber(d) === isoWeekNumber(ref) && isoWeekYear(d) === isoWeekYear(ref);
 }
+function parseLoggedAt(str) {
+  if (!str) return null;
+  if (/^\d{4}-\d{2}-\d{2}T/.test(str)) { const d = new Date(str); return isNaN(d) ? null : d; }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    const [y, m, d] = str.split('-').map(Number);
+    return new Date(y, m-1, d);
+  }
+  // Legacy DD/MM/YYYY HH:MM
+  const [datePart, timePart='00:00'] = String(str).split(' ');
+  const [d, m, y] = datePart.split('/');
+  if (!y) return null;
+  return new Date(`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}T${timePart}:00`);
+}
+// Repose working hours: Mon-Thu 07:00-16:00 (9h/day), Fri 07:00-12:00 (5h/day).
+function workingHoursBetween(s, e) {
+  if (e <= s) return 0;
+  let total = 0;
+  const cur = new Date(s); cur.setSeconds(0, 0);
+  while (cur < e) {
+    const dow = cur.getDay();
+    let WS = null, WE = null;
+    if (dow >= 1 && dow <= 4)      { WS = 7; WE = 16; }
+    else if (dow === 5)             { WS = 7; WE = 12; }
+    if (WS !== null) {
+      const dStart = new Date(cur); dStart.setHours(WS, 0, 0, 0);
+      const dEnd   = new Date(cur); dEnd.setHours(WE, 0, 0, 0);
+      const ws = cur < dStart ? dStart : cur;
+      const we = e < dEnd ? e : dEnd;
+      if (we > ws) total += (we - ws) / 3600000;
+    }
+    cur.setDate(cur.getDate() + 1); cur.setHours(0, 0, 0, 0);
+  }
+  return total;
+}
 function getCPARStatus(item) {
-  const f = item.fields||{};
-  if (f.Status === 'Closed') return 'closed';
-  const dt = parseCPARDate(f.LoggedAt);
-  if (!dt.getTime()) return 'open';
-  const hrs = (Date.now() - dt.getTime()) / 3600000;
-  if (hrs >= 48) return 'red';
-  if (hrs >= 24) return 'amber';
+  const f = item.fields || {};
+  const s = f.Status;
+  // New explicit statuses (treat as closed for daily report purposes)
+  if (s === 'Closed' || s === 'Archived' || s === 'Awaiting Effectiveness Check') return 'closed';
+  // In-flight (still considered "open" for daily report)
+  if (s === 'Pending QHSE Review' || s === 'Investigation' || s === 'Awaiting Final Sign-Off' || s === 'Returned to Area Manager') {
+    // Use working-hours age for amber/red bucketing
+    const dt = parseLoggedAt(f.LoggedAt);
+    if (!dt || !dt.getTime()) return 'open';
+    const wHrs = workingHoursBetween(dt, new Date());
+    if (wHrs >= 18) return 'red';
+    if (wHrs >= 9)  return 'amber';
+    return 'open';
+  }
+  // Open or unrecognised — age-based fallback
+  const dt = parseLoggedAt(f.LoggedAt);
+  if (!dt || !dt.getTime()) return 'open';
+  const wHrs = workingHoursBetween(dt, new Date());
+  if (wHrs >= 18) return 'red';
+  if (wHrs >= 9)  return 'amber';
   return 'open';
 }
 function escHtml(s) {
@@ -598,7 +645,12 @@ function buildReportHtml(data) {
     if (!cparByTeam[t]) return;
     const s  = getCPARStatus(item);
     const la = item.fields?.LoggedAt||item.createdDateTime||'';
-    const isYest = la.includes('/') ? la.startsWith(yestDDMMYYYY) : (la&&wmDateStr(new Date(la))===yestISO);
+    let isYest = false;
+    const dt = parseLoggedAt(la);
+    if (dt && dt.getTime()) {
+      const dtIso = dt.toISOString().slice(0, 10);
+      isYest = (dtIso === yestISO);
+    }
     if (isYest) cparByTeam[t].raisedYest++;
     if (s==='closed') {
       if (cparDateInPeriod(item,d=>sameWeek(d,today))) cparByTeam[t].closedThisWeek++;
