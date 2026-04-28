@@ -11391,9 +11391,14 @@ function renderQHSEReviewCard(item) {
       ${f.CorrectiveAction ? `<div style="font-size:11px;color:var(--text2);margin-top:3px"><strong>Action:</strong> ${escHtml(f.CorrectiveAction)}</div>` : ''}
       ${f.ClosedOutBy ? `<div style="font-size:11px;color:var(--text3);margin-top:3px">Closed-out by ${escHtml(f.ClosedOutBy.split('@')[0])} · ${escHtml((f.ClosedOutAt||'').slice(0,16))}</div>` : ''}
       <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
-        <button class="qbtn approve"  onclick="qhseApprove('${item.id}')">✓ Approve &amp; Close</button>
-        <button class="qbtn escalate" onclick="qhseEscalateOpen('${item.id}')">→ Escalate to PE</button>
-        <button class="qbtn return"   onclick="qhseReturnOpen('${item.id}')">↩ Return to Sender</button>
+        ${f.Status === CPAR_STATUS.AWAITING_EFF_CHECK ? `
+          <button class="qbtn approve" onclick="effVerify('${item.id}', true)">✓ Still effective — Archive</button>
+          <button class="qbtn return"  onclick="effVerifyOpen('${item.id}')">✗ Recurred — re-open</button>
+        ` : `
+          <button class="qbtn approve"  onclick="qhseApprove('${item.id}')">✓ Approve &amp; Close</button>
+          <button class="qbtn escalate" onclick="qhseEscalateOpen('${item.id}')">→ Escalate to PE</button>
+          <button class="qbtn return"   onclick="qhseReturnOpen('${item.id}')">↩ Return to Sender</button>
+        `}
       </div>
     </div>
   </div>`;
@@ -11539,6 +11544,49 @@ async function sendReturnEmail(item, note) {
       ccRecipients: cc.map(e => ({ emailAddress:{ address:e }}))
     }})
   });
+}
+
+async function effVerify(id, verified, recurrenceNote='') {
+  const item = CPAR_ITEMS.find(i => i.id === id);
+  if (!item) return;
+  const me = msalInstance.getAllAccounts()[0]?.username || '?';
+  if (me === '?') { toast('Sign-in expired — refresh', 'u'); return; }
+  if (verified && !confirm(`Mark ${item.fields.Title} as verified effective and archive?`)) return;
+  const now = new Date().toISOString();
+  const newHistory = appendCPARHistory(item.fields?.History || '', { by:me, ev:'effectiveness-verified', verified });
+  const fields = {
+    Status: CPAR_STATUS.ARCHIVED,
+    EffectivenessVerifiedBy: me,
+    EffectivenessVerifiedAt: now,
+    EffectivenessVerified: verified,
+    History: newHistory,
+  };
+  if (!verified && recurrenceNote) fields.RecurrenceNote = recurrenceNote;
+  try {
+    const token  = await getGraphToken();
+    const siteId = await getSpSiteId();
+    const listId = await getListIdByName(SP_CPAR_LIST);
+    const r = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}/fields`, {
+      method:'PATCH', headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' },
+      body: JSON.stringify(fields)
+    });
+    if (!r.ok) throw new Error(r.status+' '+await r.text());
+    Object.assign(item.fields, fields);
+    if (!verified) await effCreateRecurrence(item, recurrenceNote);
+    toast(verified ? 'Archived — verified effective' : 'Archived — recurrence created', 's');
+    renderQualitySubview();
+  } catch(e) { toast('Failed: '+e.message, 'u'); }
+}
+
+function effVerifyOpen(id) {
+  const note = prompt('Briefly describe the recurrence (what came back, where, when):');
+  if (!note || !note.trim()) return;
+  effVerify(id, false, note.trim());
+}
+
+// Stub — Task 22 implements this
+async function effCreateRecurrence(originalItem, recurrenceNote) {
+  console.warn('effCreateRecurrence — Task 22 will implement');
 }
 
 // QHSE / management oversight — see all PE investigations read-only.
