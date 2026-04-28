@@ -11953,12 +11953,23 @@ async function effVerify(id, verified, recurrenceNote='') {
     // already created one (PATCH failure on retry), reuse the cached ref instead of duplicating.
     let recurrenceRef = item._pendingRecurrenceRef || null;
     if (!verified && !recurrenceRef) {
-      try {
-        recurrenceRef = await effCreateRecurrence(item, recurrenceNote);
-        item._pendingRecurrenceRef = recurrenceRef;
-      } catch(e) {
-        toast('Could not create recurrence — original NOT archived. Try again. ('+e.message+')', 'u');
-        return;
+      // Cross-session protection: if a recurrence was already created in a previous session
+      // (PATCH on original failed), re-use it rather than create a duplicate.
+      const existingRecurrence = CPAR_ITEMS.find(c =>
+        c.fields?.LinkedFromRef === item.fields?.Title &&
+        c.fields?.Status !== CPAR_STATUS.ARCHIVED
+      );
+      if (existingRecurrence) {
+        recurrenceRef = existingRecurrence.fields.Title;
+        console.warn('Re-using existing recurrence:', recurrenceRef);
+      } else {
+        try {
+          recurrenceRef = await effCreateRecurrence(item, recurrenceNote);
+          item._pendingRecurrenceRef = recurrenceRef;
+        } catch(e) {
+          toast('Could not create recurrence — original NOT archived. Try again. ('+e.message+')', 'u');
+          return;
+        }
       }
     }
 
