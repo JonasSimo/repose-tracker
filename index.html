@@ -13489,8 +13489,13 @@ async function sendDailyDigest(btn) {
     });
 
     // Group by SourceDept for per-manager emails — collapse Upholstery sub-teams
-    const uphGroup = new Set(['Upholstery','Upholstery Arms','Upholstery Backs','Upholstery Seats']);
-    const canonicalTeam = t => uphGroup.has(t) ? 'Upholstery' : t;
+    const uphGroupLc = new Set(['upholstery','upholstery arms','upholstery backs','upholstery seats']);
+    const canonicalTeam = t => {
+      const norm = (t || '').trim();
+      if (!norm) return '';
+      if (uphGroupLc.has(norm.toLowerCase())) return 'Upholstery';
+      return norm;
+    };
     const byTeam = {};
     allYest.forEach(c => {
       const raw = normaliseTeam(c.fields?.SourceDept||c.fields?.RaisedByTeam||'');
@@ -14817,17 +14822,23 @@ async function sendOpenCPARDigest() {
     const sent = [], skipped = [], failed = [];
 
     // Deduplicate teams — Upholstery sub-teams collapse into 'Upholstery'
-    const uphGroup = new Set(['Upholstery','Upholstery Arms','Upholstery Backs','Upholstery Seats']);
+    const uphGroupLc = new Set(['upholstery','upholstery arms','upholstery backs','upholstery seats']);
+    const canonicalTeam = t => {
+      const norm = (t || '').trim();
+      if (!norm) return '';
+      if (uphGroupLc.has(norm.toLowerCase())) return 'Upholstery';
+      return norm;
+    };
     const seenTeams = new Set();
 
     for (const [teamKey, recipients] of Object.entries(TEAM_MANAGERS)) {
       // Collapse Upholstery sub-variants to single send
-      const canonTeam = uphGroup.has(teamKey) ? 'Upholstery' : teamKey;
+      const canonTeam = canonicalTeam(teamKey);
       if (seenTeams.has(canonTeam)) continue;
       seenTeams.add(canonTeam);
 
       // Filter CPARs for this team (match SourceDept, accounting for upholstery group)
-      const matchTeam = t => canonTeam === 'Upholstery' ? uphGroup.has(normaliseTeam(t)) : normaliseTeam(t) === canonTeam;
+      const matchTeam = t => canonTeam === 'Upholstery' ? uphGroupLc.has(normaliseTeam(t).toLowerCase()) : normaliseTeam(t) === canonTeam;
       const openForTeam = CPAR_ITEMS.filter(i => isOpenCPAR(i) && matchTeam(teamOf(i)));
       const newForTeam  = CPAR_ITEMS.filter(i => {
         const rd = raisedDate(i);
