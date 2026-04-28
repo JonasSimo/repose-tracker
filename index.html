@@ -11343,7 +11343,7 @@ function renderQHSEReview() {
     const s = i.fields?.Status;
     if (s === CPAR_STATUS.PENDING_REVIEW || s === CPAR_STATUS.AWAITING_SIGNOFF) {
       const d = parseCPARDate(i.fields?.LoggedAt);
-      return d.getTime() && (workingHoursBetween(d, new Date()) > 40);
+      return d.getTime() && (workingHoursBetween(d, new Date()) > 55);
     }
     return false;
   }).length;
