@@ -11286,19 +11286,32 @@ function workingHoursBetween(start, end) {
 }
 
 function getCPARStatus(item) {
-  const f = item.fields||{};
-  if (f.Status === 'Closed') return 'closed';
+  const f = item.fields || {};
+  const s = f.Status;
+  // New explicit statuses (post-redesign)
+  if (s === CPAR_STATUS.CLOSED)             return 'closed';
+  if (s === CPAR_STATUS.ARCHIVED)           return 'archived';
+  if (s === CPAR_STATUS.PENDING_REVIEW)     return 'review';
+  if (s === CPAR_STATUS.RETURNED)           return 'return';
+  if (s === CPAR_STATUS.INVESTIGATION)      return 'invest';
+  if (s === CPAR_STATUS.AWAITING_SIGNOFF)   return 'signoff';
+  if (s === CPAR_STATUS.AWAITING_EFF_CHECK) return 'effchk';
+  // Legacy / age-based fallback for Open
+  if (s === 'Closed') return 'closed'; // legacy historic CPARs
   const dt = parseCPARDate(f.LoggedAt);
   if (!dt.getTime()) return 'open';
-  // Use working hours (Mon–Fri 06:00–17:00) so weekends don't count against teams
   const wHrs = workingHoursBetween(dt, new Date());
-  if (wHrs >= 16) return 'red';   // 2 full working days (16 working hours)
-  if (wHrs >= 8)  return 'amber'; // 1 full working day (8 working hours)
+  if (wHrs >= 16) return 'red';
+  if (wHrs >= 8)  return 'amber';
   return 'open';
 }
 
 function getCPARStatusLabel(st) {
-  return {open:'Open', amber:'⚠ 1 day+', red:'🔴 2 days+', closed:'✓ Closed'}[st] || st;
+  return ({
+    open:'Open', amber:'⚠ 1 day+', red:'🔴 2 days+',
+    review:'Pending QHSE Review', invest:'Investigation', signoff:'Awaiting Sign-Off',
+    return:'Returned', effchk:'Awaiting Eff. Check', archived:'Archived', closed:'✓ Closed'
+  })[st] || st;
 }
 
 function setIssueFilter(f) {
