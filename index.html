@@ -8886,10 +8886,11 @@ function renderStatsDashboard() {
   document.getElementById('stats-dash-bottom').innerHTML = _qcCardHtml + _otherCardsHtml;
 
   // CPAR issues card
-  const cparOpen   = cpars.filter(c => (c.fields?.Status||'') !== 'Closed');
-  const cparClosed = cpars.filter(c => (c.fields?.Status||'') === 'Closed');
-  const cparAmber  = cparOpen.filter(c => { const dt = parseCPARDate(c.fields?.LoggedAt); if (!dt.getTime()) return false; const hrs = (Date.now() - dt.getTime()) / 3600000; return hrs >= 48 && hrs < 96; });
-  const cparRed    = cparOpen.filter(c => { const dt = parseCPARDate(c.fields?.LoggedAt); if (!dt.getTime()) return false; return (Date.now() - dt.getTime()) / 3600000 >= 96; });
+  const _isClosed = c => ((c.fields?.Status === CPAR_STATUS.CLOSED) || (c.fields?.Status === CPAR_STATUS.ARCHIVED) || (c.fields?.Status === 'Closed'));
+  const cparOpen   = cpars.filter(c => !_isClosed(c));
+  const cparClosed = cpars.filter(_isClosed);
+  const cparAmber  = cparOpen.filter(c => { const dt = parseCPARDate(c.fields?.LoggedAt); if (!dt.getTime()) return false; const wHrs = workingHoursBetween(dt, new Date()); return wHrs >= 9 && wHrs < 18; });
+  const cparRed    = cparOpen.filter(c => { const dt = parseCPARDate(c.fields?.LoggedAt); if (!dt.getTime()) return false; return workingHoursBetween(dt, new Date()) >= 18; });
   document.getElementById('stats-dash-issues').innerHTML = `
     <div class="stat-card" style="cursor:pointer;border-top:3px solid #7c3aed" onclick="renderStatsDetail('cpar')">
       <div class="card-label">Issues (CPARs)</div>
@@ -9979,21 +9980,27 @@ function renderDetailCPAR() {
 
   // ── Classify ──────────────────────────────────────────────────────────────
   const now     = Date.now();
-  const closed  = cpars.filter(c => (c.fields?.Status||'') === 'Closed');
-  const open    = cpars.filter(c => (c.fields?.Status||'') !== 'Closed');
+  const _isClosedDetail = c => ((c.fields?.Status === CPAR_STATUS.CLOSED) || (c.fields?.Status === CPAR_STATUS.ARCHIVED) || (c.fields?.Status === 'Closed'));
+  const closed  = cpars.filter(_isClosedDetail);
+  const open    = cpars.filter(c => !_isClosedDetail(c));
   const withinSLA  = closed.filter(c => {
-    const ms = parseCPARDate(c.fields?.ClosedAt) - parseCPARDate(c.fields?.LoggedAt);
-    return ms > 0 && ms < 48 * 3600000;
+    const sd = parseCPARDate(c.fields?.LoggedAt); const ed = parseCPARDate(c.fields?.ClosedAt);
+    if (!sd.getTime() || !ed.getTime()) return false;
+    const wHrs = workingHoursBetween(sd, ed);
+    return wHrs > 0 && wHrs < 9;
   });
   const slaAmber   = closed.filter(c => {
-    const ms = parseCPARDate(c.fields?.ClosedAt) - parseCPARDate(c.fields?.LoggedAt);
-    return ms >= 48 * 3600000 && ms < 96 * 3600000;
+    const sd = parseCPARDate(c.fields?.LoggedAt); const ed = parseCPARDate(c.fields?.ClosedAt);
+    if (!sd.getTime() || !ed.getTime()) return false;
+    const wHrs = workingHoursBetween(sd, ed);
+    return wHrs >= 9 && wHrs < 18;
   });
   const slaBreached= closed.filter(c => {
-    const ms = parseCPARDate(c.fields?.ClosedAt) - parseCPARDate(c.fields?.LoggedAt);
-    return ms >= 96 * 3600000;
+    const sd = parseCPARDate(c.fields?.LoggedAt); const ed = parseCPARDate(c.fields?.ClosedAt);
+    if (!sd.getTime() || !ed.getTime()) return false;
+    return workingHoursBetween(sd, ed) >= 18;
   });
-  const openOverdue = open.filter(c => { const dt = parseCPARDate(c.fields?.LoggedAt); if (!dt.getTime()) return false; return (now - dt.getTime()) >= 96 * 3600000; });
+  const openOverdue = open.filter(c => { const dt = parseCPARDate(c.fields?.LoggedAt); if (!dt.getTime()) return false; return workingHoursBetween(dt, new Date()) >= 18; });
 
   // MTTR — mean days to close (closed CPARs only)
   const mttrDays = closed.length ? (() => {
@@ -10086,7 +10093,8 @@ function renderDetailCPAR() {
             const f    = item.fields||{};
             const logDt = parseCPARDate(f.LoggedAt);
             const hrs  = logDt.getTime() ? (now - logDt.getTime()) / 3600000 : -1;
-            const [bcol, blbl] = hrs >= 96 ? ['var(--red)','OVERDUE'] : hrs >= 48 ? ['#d97706','48H+'] : ['var(--blue)','OPEN'];
+            const wHrs = logDt.getTime() ? workingHoursBetween(logDt, new Date(now)) : -1;
+            const [bcol, blbl] = wHrs >= 18 ? ['var(--red)','OVERDUE'] : wHrs >= 9 ? ['#d97706','9H+'] : ['var(--blue)','OPEN'];
             const ageDays = hrs >= 0 ? Math.floor(hrs / 24) : -1;
             return `<div class="q-issue-row">
               <div class="q-issue-ref">${escHtml(f.Title||'?')}</div>
