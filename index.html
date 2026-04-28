@@ -11268,9 +11268,15 @@ function openQualityView() {
   if (!cparListLoaded) fetchCPARs().then(() => renderQualitySubview());
   else renderQualitySubview();
 }
+let _effCheckChecked = false;
 function setQualitySubview(v) {
   cparSubview = v;
   document.querySelectorAll('.quality-chip').forEach(c => c.classList.toggle('active', c.dataset.view === v));
+  if (v === 'review' && !_effCheckChecked) {
+    _effCheckChecked = true;
+    autoMoveToEffCheck().then(() => renderQualitySubview()).catch(() => renderQualitySubview());
+    return;
+  }
   renderQualitySubview();
 }
 function renderQualitySubview() {
@@ -11283,6 +11289,40 @@ function renderQualitySubview() {
 }
 let cparReviewFilter = 'review';
 function setQHSEFilter(k) { cparReviewFilter = k; renderQualitySubview(); }
+
+// Auto-promote Closed CPARs to Awaiting Effectiveness Check 30 days post-close.
+// Runs lazily — once per session when QHSE Review opens.
+async function autoMoveToEffCheck() {
+  const dueIds = CPAR_ITEMS.filter(i =>
+    i.fields?.Status === CPAR_STATUS.CLOSED &&
+    i.fields?.ClosedAt &&
+    isEffCheckDue(i.fields.ClosedAt)
+  ).map(i => i.id);
+  if (!dueIds.length) return;
+  let token, siteId, listId;
+  try {
+    token  = await getGraphToken();
+    siteId = await getSpSiteId();
+    listId = await getListIdByName(SP_CPAR_LIST);
+  } catch(e) { console.warn('autoMoveToEffCheck setup:', e.message); return; }
+  for (const id of dueIds) {
+    const item = CPAR_ITEMS.find(i => i.id === id);
+    if (!item) continue;
+    const newHistory = appendCPARHistory(item.fields?.History || '', { by:'system', ev:'auto-eff-check-due' });
+    try {
+      const r = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}/fields`, {
+        method:'PATCH', headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' },
+        body: JSON.stringify({ Status: CPAR_STATUS.AWAITING_EFF_CHECK, History: newHistory })
+      });
+      if (r.ok) {
+        item.fields.Status = CPAR_STATUS.AWAITING_EFF_CHECK;
+        item.fields.History = newHistory;
+      } else {
+        console.warn('autoMoveToEffCheck PATCH '+id+':', r.status);
+      }
+    } catch(e) { console.warn('autoMoveToEffCheck PATCH:', e.message); }
+  }
+}
 
 function renderQHSEReview() {
   const items = CPAR_ITEMS;
