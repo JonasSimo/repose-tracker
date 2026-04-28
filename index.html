@@ -12910,10 +12910,71 @@ function toggleCPARCloseout(id) {
   }
 }
 
-function openCPARByRef(ref) {
-  const item = CPAR_ITEMS.find(i => i.fields?.Title === ref);
-  if (item) document.getElementById('cpar-card-'+item.id)?.scrollIntoView({ behavior:'smooth', block:'center' });
-  else toast('CPAR '+ref+' not in current view', 'w');
+async function openCPARByRef(ref) {
+  let item = CPAR_ITEMS.find(i => i.fields?.Title === ref);
+  if (!item) {
+    // Not in memory (likely older than CPAR_HISTORY_DAYS) — fetch on-demand
+    try {
+      const siteId = await getSpSiteId();
+      const listId = await getListIdByName(SP_CPAR_LIST);
+      const data = await graphGetAll(
+        `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=2&$filter=fields/Title eq '${encodeURIComponent(ref)}'`
+      );
+      if (data && data.length) {
+        item = data[0];
+      } else {
+        toast('CPAR '+ref+' not found in SharePoint', 'w');
+        return;
+      }
+    } catch(e) {
+      console.warn('linked CPAR lookup failed:', e.message);
+      toast('Could not load '+ref+' — '+e.message, 'u');
+      return;
+    }
+  }
+  showCPARSummaryModal(item);
+}
+
+function showCPARSummaryModal(item) {
+  const f = item.fields || {};
+  const status = getCPARStatus(item);
+  const statusLabel = getCPARStatusLabel(status);
+  const meta = [];
+  if (f.PrimaryREP) meta.push('REP: '+escHtml(f.PrimaryREP));
+  if (f.PrimaryJobNo) meta.push('Job: '+escHtml(String(f.PrimaryJobNo)));
+  if (f.PrimaryModel) meta.push('Model: '+escHtml(f.PrimaryModel));
+  if (f.QTY) meta.push('QTY: '+escHtml(String(f.QTY)));
+  document.getElementById('cpar-summary-modal-content').innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+      <span class="cpar-ref" style="font-size:18px">${escHtml(f.Title||'')}</span>
+      <span class="cpar-status-badge ${status}">${escHtml(statusLabel)}</span>
+      ${f.IsRepeat ? '<span style="background:#fff1f1;color:#991b1b;border:1px solid #fca5a5;font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px">REPEAT</span>' : ''}
+      <span style="margin-left:auto;font-size:11px;color:var(--text3)">Logged ${escHtml((f.LoggedAt||'').slice(0,16))}</span>
+    </div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:8px">
+      <strong>${escHtml(f.SourceDept || '?')}</strong> → ${escHtml(f.IssueCategory || '—')}
+    </div>
+    ${f.Description ? `<div style="font-size:13px;margin-bottom:10px;background:var(--bg3);padding:10px;border-radius:6px"><strong>Concern:</strong> ${escHtml(f.Description)}</div>` : ''}
+    ${f.Disposition ? `<div style="font-size:12px;margin-bottom:4px"><strong>Disposition:</strong> ${escHtml(f.Disposition)}${f.DispositionNotes ? ' — '+escHtml(f.DispositionNotes) : ''}</div>` : ''}
+    ${f.Containment ? `<div style="font-size:12px;margin-bottom:4px"><strong>Containment:</strong> ${escHtml(f.Containment)}</div>` : ''}
+    ${f.CauseCode ? `<div style="font-size:12px;margin-bottom:4px"><strong>Cause:</strong> ${escHtml(f.CauseCode)}</div>` : ''}
+    ${f.CorrectiveAction ? `<div style="font-size:12px;margin-bottom:4px"><strong>Action:</strong> <span style="white-space:pre-wrap">${escHtml(f.CorrectiveAction)}</span></div>` : ''}
+    ${f.ECRRef ? `<div style="font-size:12px;margin-bottom:4px"><strong>Linked ECR:</strong> <span style="font-family:'JetBrains Mono',monospace;color:var(--amber);font-weight:700">${escHtml(f.ECRRef)}</span></div>` : ''}
+    ${meta.length ? `<div style="font-size:11px;color:var(--text3);margin-top:8px;display:flex;flex-wrap:wrap;gap:10px">${meta.join(' · ')}</div>` : ''}
+    ${(f.ClosedOutBy || f.ClosedBy || f.InvestigatedBy) ? `
+    <div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border);font-size:11px;color:var(--text3);line-height:1.6">
+      ${f.ClosedOutBy ? `Closed-out: <strong>${escHtml(f.ClosedOutBy.split('@')[0])}</strong> · ${escHtml((f.ClosedOutAt||'').slice(0,16))}<br>` : ''}
+      ${f.InvestigatedBy ? `Investigated: <strong>${escHtml(f.InvestigatedBy.split('@')[0])}</strong> · ${escHtml((f.InvestigatedAt||'').slice(0,16))} · ${escHtml(f.InvestigationOutcome||'')}<br>` : ''}
+      ${f.ClosedBy ? `Closed: <strong>${escHtml(f.ClosedBy.split('@')[0])}</strong> · ${escHtml((f.ClosedAt||'').slice(0,16))}<br>` : ''}
+      ${f.EffectivenessVerified === true ? `<span style="color:var(--green)">✓ Effectiveness verified ${escHtml((f.EffectivenessVerifiedAt||'').slice(0,10))}</span>` : ''}
+      ${f.EffectivenessVerified === false ? `<span style="color:var(--red)">✗ Recurred</span>` : ''}
+    </div>` : ''}
+  `;
+  document.getElementById('cpar-summary-modal').style.display = 'flex';
+}
+
+function closeCPARSummaryModal() {
+  document.getElementById('cpar-summary-modal').style.display = 'none';
 }
 function populateCPARPrint(item) {
   const f = item.fields || {};
@@ -19110,6 +19171,13 @@ async function mtDeleteYearly(id) {
       <button onclick="document.getElementById('modal-return').style.display='none'" style="background:none;border:1px solid var(--border);padding:8px 14px;border-radius:6px;cursor:pointer;font-family:inherit">Cancel</button>
       <button class="qbtn return" onclick="qhseReturnConfirm()">↩ Return</button>
     </div>
+  </div>
+</div>
+
+<div id="cpar-summary-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1000;align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this)closeCPARSummaryModal()">
+  <div style="background:#fff;border-radius:12px;max-width:640px;width:100%;max-height:85vh;overflow-y:auto;padding:24px;position:relative">
+    <button onclick="closeCPARSummaryModal()" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3);width:32px;height:32px">✕</button>
+    <div id="cpar-summary-modal-content"></div>
   </div>
 </div>
 </body>
