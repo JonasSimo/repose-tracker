@@ -3065,7 +3065,7 @@ document.addEventListener('DOMContentLoaded', () => {
 ════════════════════════════════════════════════ -->
 <div id="view-quality" class="view" style="overflow:auto;padding:14px">
   <div style="display:flex;gap:8px;border-bottom:1.5px solid var(--border);margin-bottom:14px">
-    <button class="quality-chip active" data-view="issues"   onclick="setQualitySubview('issues')">Issues</button>
+    <button class="quality-chip active" data-view="issues"   onclick="setQualitySubview('issues')" id="quality-chip-issues">Internal NCRs</button>
     <button class="quality-chip"        data-view="review"   onclick="setQualitySubview('review')">QHSE Review</button>
     <button class="quality-chip"        data-view="pe"       onclick="setQualitySubview('pe')">PE View</button>
     <button class="quality-chip"        data-view="dash"     onclick="setQualitySubview('dash')">QMS Dashboard</button>
@@ -11379,6 +11379,14 @@ function renderIssuesIntoQuality(host) {
     const st = getCPARStatus(i);
     return st === 'amber' || st === 'red';
   }).length;
+
+  // Update chip label with current open NCR count
+  const openCount = items.filter(i => {
+    const s = i.fields?.Status;
+    return s === CPAR_STATUS.OPEN || s === CPAR_STATUS.RETURNED || (!s && true);
+  }).length;
+  const chipEl = document.getElementById('quality-chip-issues');
+  if (chipEl) chipEl.textContent = openCount > 0 ? `Internal NCRs (${openCount})` : 'Internal NCRs';
 
   // Apply current filters (status + team)
   const filterMap = {
