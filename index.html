@@ -11931,7 +11931,50 @@ function renderQualityDashboard(host) {
   renderRecentRepeats();
 }
 
-function drawChartRaisedClosed() { document.getElementById('dash-chart-1').innerHTML = '<div style="color:var(--text3);padding:14px">Chart 1 — Task 24</div>'; }
+function drawChartRaisedClosed() {
+  const months = [];
+  const now = new Date();
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push({ y:d.getFullYear(), m:d.getMonth(), label: d.toLocaleDateString('en-GB', { month:'short', year:'2-digit' }), raised:0, closed:0 });
+  }
+  for (const item of CPAR_ITEMS) {
+    const f = item.fields || {};
+    const r = parseCPARDate(f.LoggedAt);
+    if (r.getTime()) {
+      const slot = months.find(s => s.y === r.getFullYear() && s.m === r.getMonth());
+      if (slot) slot.raised++;
+    }
+    if (f.ClosedAt) {
+      const c = parseCPARDate(f.ClosedAt);
+      if (c.getTime()) {
+        const slot = months.find(s => s.y === c.getFullYear() && s.m === c.getMonth());
+        if (slot) slot.closed++;
+      }
+    }
+  }
+  const w = 720, h = 200, pad = 32;
+  const max = Math.max(...months.flatMap(m => [m.raised, m.closed]), 5);
+  const x = i => pad + i * ((w - pad*2) / (months.length - 1));
+  const y = v => h - pad - (v / max) * (h - pad*2);
+  const linePath = key => 'M' + months.map((m,i) => `${x(i)},${y(m[key])}`).join(' L');
+  document.getElementById('dash-chart-1').innerHTML = `
+    <div style="font-size:13px;font-weight:700;margin-bottom:6px">Monthly raised vs closed (12-month trailing)</div>
+    <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;font-family:inherit;font-size:10px">
+      <line x1="${pad}" y1="${h-pad}" x2="${w-pad}" y2="${h-pad}" stroke="#ccc"/>
+      ${months.map((m,i) => `<text x="${x(i)}" y="${h-pad+14}" text-anchor="middle" fill="#888">${escHtml(m.label)}</text>`).join('')}
+      <text x="${pad-4}" y="${pad}" text-anchor="end" fill="#888">${max}</text>
+      <text x="${pad-4}" y="${h-pad}" text-anchor="end" fill="#888">0</text>
+      <path d="${linePath('raised')}" fill="none" stroke="#dc2626" stroke-width="2"/>
+      <path d="${linePath('closed')}" fill="none" stroke="#059669" stroke-width="2"/>
+      ${months.map((m,i) => `<g><circle cx="${x(i)}" cy="${y(m.raised)}" r="3" fill="#dc2626"/><circle cx="${x(i)}" cy="${y(m.closed)}" r="3" fill="#059669"/></g>`).join('')}
+    </svg>
+    <div style="display:flex;gap:14px;font-size:11px;margin-top:6px">
+      <span><span style="display:inline-block;width:10px;height:3px;background:#dc2626;vertical-align:middle"></span> Raised</span>
+      <span><span style="display:inline-block;width:10px;height:3px;background:#059669;vertical-align:middle"></span> Closed</span>
+    </div>
+  `;
+}
 function drawChartTopCauses()    { document.getElementById('dash-chart-2').innerHTML = '<div style="color:var(--text3);padding:14px">Chart 2 — Task 25</div>'; }
 function drawChartMTTR()         { document.getElementById('dash-chart-3').innerHTML = '<div style="color:var(--text3);padding:14px">Chart 3 — Task 26</div>'; }
 function renderRecentRepeats()   { document.getElementById('dash-recent-repeats').innerHTML = '<div style="color:var(--text3);padding:14px">Repeats — Task 27</div>'; }
