@@ -71,6 +71,23 @@ const TEAM_MANAGERS = {
 };
 const DIGEST_MANAGEMENT = ['mitch@reposefurniture.co.uk', 'richard.semmens@reposefurniture.co.uk'];
 
+const TEAM_NAME_MAP = {
+  'woodmill':'Woodmill', 'wood mill':'Woodmill',
+  'cutting':'Cutting', 'cutting room':'Cutting',
+  'sewing':'Sewing', 'sewing room':'Sewing',
+  'upholstery':'Upholstery', 'upholstery room':'Upholstery',
+  'upholstery arms':'Upholstery Arms', 'upholstery backs':'Upholstery Backs', 'upholstery seats':'Upholstery Seats',
+  'assembly':'Assembly', 'assembly room':'Assembly',
+  'foam':'Foam', 'foam room':'Foam',
+  'stores':'Stores', 'stores room':'Stores',
+  'qc':'QC', 'quality control':'QC',
+  'development':'Development',
+  'admin':'Admin',
+};
+function normaliseTeam(raw) {
+  return TEAM_NAME_MAP[(raw||'').toLowerCase().trim()] || (raw||'').trim();
+}
+
 function lastWorkingDay(d=new Date()) {
   const x = new Date(d); x.setDate(x.getDate()-1);
   while (x.getDay() === 0 || x.getDay() === 6) x.setDate(x.getDate()-1);
@@ -129,7 +146,7 @@ module.exports = async function (context, myTimer) {
   const yestPrefix = yest.toISOString().slice(0,10);
 
   for (const team of Object.keys(TEAM_MANAGERS)) {
-    const teamItems = cparItems.filter(i => (i.fields?.SourceDept||'').toLowerCase() === team.toLowerCase());
+    const teamItems = cparItems.filter(i => normaliseTeam(i.fields?.SourceDept) === team);
     const raisedYesterday = teamItems.filter(i => (i.fields?.LoggedAt||'').slice(0,10) === yestPrefix);
     const stillOpen = teamItems.filter(i => {
       const s = i.fields?.Status;
