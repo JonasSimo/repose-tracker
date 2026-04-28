@@ -11691,7 +11691,12 @@ function populateCPARPrint(item) {
     <div class="ft"><span>Generated from RepNet · CPARLog/${escHtml(ref)}</span><span>Retention: 7 years per ISO 9001 §7.5</span></div>
   `;
 }
-function printCPAR(id) { /* Phase 3 will fully implement */ toast('Print: not yet wired (Phase 3)', 'w'); }
+function printCPAR(id) {
+  const item = CPAR_ITEMS.find(i => i.id === id);
+  if (!item) { toast('CPAR not found', 'w'); return; }
+  populateCPARPrint(item);
+  setTimeout(() => window.print(), 50);
+}
 
 async function loadCPARPhoto(id) {
   const wrap = document.getElementById(`cpar-photo-wrap-${id}`);
