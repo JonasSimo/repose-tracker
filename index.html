@@ -10635,6 +10635,50 @@ function parseCPARHistory(historyText) {
   console.assert(parsed.length === 2 && parsed[0].ev === 'raised' && parsed[1].ev === 'closed-out', 'history parse');
 })();
 
+// ── Repeat-issue detection ──────────────────────────────
+// Same PrimaryModel + CauseCode >= CPAR_REPEAT_THRESHOLD in last CPAR_REPEAT_WINDOW_DAYS days.
+// Returns { isRepeat, linkedRefs }. Excludes the candidate from its own count.
+function detectRepeat(candidate, allItems, now=new Date()) {
+  const model = (candidate.PrimaryModel || '').trim().toLowerCase();
+  const cause = (candidate.CauseCode || '').trim();
+  if (!model || !cause) return { isRepeat:false, linkedRefs:[] };
+  const cutoff = new Date(now.getTime() - CPAR_REPEAT_WINDOW_DAYS * 86400000);
+  const matches = allItems.filter(i => {
+    const f = i.fields || {};
+    if (f.Title === candidate.Title) return false; // exclude self
+    if ((f.PrimaryModel || '').trim().toLowerCase() !== model) return false;
+    if ((f.CauseCode || '').trim() !== cause) return false;
+    const d = parseCPARDate(f.LoggedAt);
+    return d.getTime() && d >= cutoff;
+  });
+  // candidate itself is the new occurrence; threshold is met when matches.length >= threshold-1
+  const isRepeat = matches.length >= (CPAR_REPEAT_THRESHOLD - 1);
+  const linkedRefs = matches.map(i => i.fields.Title).filter(Boolean);
+  return { isRepeat, linkedRefs };
+}
+// Self-test
+(function testRepeat() {
+  const now = new Date('2026-04-27T10:00:00Z');
+  const make = (ref, model, cause, daysAgo) => ({ fields:{
+    Title: ref, PrimaryModel: model, CauseCode: cause,
+    LoggedAt: new Date(now.getTime() - daysAgo * 86400000).toISOString()
+  }});
+  const items = [
+    make('RP-1','Scroll Arm','Human Error',5),
+    make('RP-2','Scroll Arm','Human Error',12),
+    make('RP-3','Mocara','Human Error',2),
+    make('RP-4','Scroll Arm','Material Defect',3),
+    make('RP-5','Scroll Arm','Human Error',45), // outside window
+  ];
+  const r1 = detectRepeat({ Title:'RP-NEW', PrimaryModel:'Scroll Arm', CauseCode:'Human Error' }, items, now);
+  console.assert(r1.isRepeat === true && r1.linkedRefs.length === 2, 'repeat: 2 prior in window = isRepeat true');
+  console.assert(r1.linkedRefs.includes('RP-1') && r1.linkedRefs.includes('RP-2'), 'repeat: correct linked refs');
+  const r2 = detectRepeat({ Title:'RP-NEW', PrimaryModel:'Mocara', CauseCode:'Human Error' }, items, now);
+  console.assert(r2.isRepeat === false, 'repeat: 1 prior = not yet repeat');
+  const r3 = detectRepeat({ Title:'RP-NEW', PrimaryModel:'', CauseCode:'Human Error' }, items, now);
+  console.assert(r3.isRepeat === false, 'repeat: empty model returns false');
+})();
+
 let cparSelectedGroups = {}; // { 'Back Error': 'Post wrong size', 'Seat Error': '' }
 
 // Form state — persists while modal is open
