@@ -11450,13 +11450,33 @@ function renderIssuesIntoQuality(host) {
     'QC': '#ea580c',
     'Admin': '#9333ea',
   };
+  // Compute open-CPAR count per team (open = not Closed and not Archived and not Awaiting Eff. Check)
+  const teamCounts = {};
+  for (const i of items) {
+    const s = i.fields?.Status;
+    if (s === CPAR_STATUS.CLOSED || s === 'Closed' || s === CPAR_STATUS.ARCHIVED || s === CPAR_STATUS.AWAITING_EFF_CHECK) continue;
+    const t = (i.fields?.SourceDept || i.fields?.RaisedByTeam || '').trim();
+    if (!t) continue;
+    // Match team name loosely (e.g. "Upholstery Arms" → counted under "Upholstery" too)
+    for (const team of teams) {
+      if (!team) continue;
+      if (t.toLowerCase().includes(team.toLowerCase())) teamCounts[team] = (teamCounts[team]||0) + 1;
+    }
+  }
+  const totalOpen = items.filter(i => {
+    const s = i.fields?.Status;
+    return s !== CPAR_STATUS.CLOSED && s !== 'Closed' && s !== CPAR_STATUS.ARCHIVED && s !== CPAR_STATUS.AWAITING_EFF_CHECK;
+  }).length;
+
   const teamChipsHtml = teams.map(t => {
     const isActive = cparFilterTeam === t;
     const isAll = t === '';
     const colour = TEAM_COLOURS[t] || 'var(--text3)';
+    const count = isAll ? totalOpen : (teamCounts[t] || 0);
     return `<button class="issues-team-chip ${isActive ? 'active' : ''} ${isAll ? 'all' : ''}" onclick="cparFilterTeam='${t}'; renderQualitySubview();">
       ${isAll ? '' : `<span class="dot" style="background:${colour}"></span>`}
       ${t || 'All teams'}
+      <span style="margin-left:5px;background:rgba(0,0,0,.08);padding:1px 6px;border-radius:8px;font-size:10px;font-weight:700">${count}</span>
     </button>`;
   }).join('');
 
