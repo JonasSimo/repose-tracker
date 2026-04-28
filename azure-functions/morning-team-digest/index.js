@@ -217,8 +217,12 @@ module.exports = async function (context, myTimer) {
     });
     if (!raisedYesterday.length && !stillOpen.length) continue;
     const html = buildEmail(canon, raisedYesterday, stillOpen, yest);
-    await sendMail(t, TEAM_MANAGERS[team], `RepNet — ${canon} CPAR Digest`, html);
-    context.log(`Sent ${canon} digest (${raisedYesterday.length} new, ${stillOpen.length} open)`);
+    try {
+      await sendMail(t, TEAM_MANAGERS[team], `RepNet — ${canon} CPAR Digest`, html);
+      context.log(`Sent ${canon} digest (${raisedYesterday.length} new, ${stillOpen.length} open)`);
+    } catch(e) {
+      context.log.warn(`Team digest failed for ${canon}: ${e.message}`);
+    }
   }
 
   // Master combined digest
@@ -228,6 +232,10 @@ module.exports = async function (context, myTimer) {
     return s === 'Open' || s === 'Returned to Area Manager' || !s;
   });
   const masterHtml = buildEmail('All Teams', yest2, open2, yest);
-  await sendMail(t, DIGEST_MANAGEMENT, 'RepNet — All Teams CPAR Digest', masterHtml);
+  try {
+    await sendMail(t, DIGEST_MANAGEMENT, 'RepNet — All Teams CPAR Digest', masterHtml);
+  } catch(e) {
+    context.log.warn(`Master digest failed: ${e.message}`);
+  }
   context.log('CPAR digest done');
 };
