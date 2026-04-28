@@ -13127,6 +13127,8 @@ async function deleteCPAR() {
     );
     if (!res.ok && res.status !== 204) throw new Error(`HTTP ${res.status}`);
     CPAR_ITEMS = CPAR_ITEMS.filter(i => i.id !== id);
+    if (typeof _clearCparDrafts === 'function') _clearCparDrafts(id);
+    if (typeof _peEcrRefCache !== 'undefined') _peEcrRefCache.delete(id);
     document.getElementById(`cpar-card-${id}`)?.remove();
     document.getElementById('modal-cpar-delete').style.display = 'none';
     updateIssuesTabBadge();
