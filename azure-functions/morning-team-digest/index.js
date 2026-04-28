@@ -172,17 +172,29 @@ module.exports = async function (context, myTimer) {
   const yest = lastWorkingDay();
   const yestPrefix = yest.toISOString().slice(0,10);
 
+  const uphGroup = new Set(['Upholstery','Upholstery Arms','Upholstery Backs','Upholstery Seats']);
+  const canonicalTeam = t => uphGroup.has(t) ? 'Upholstery' : t;
+  const sentTeams = new Set();
+
   for (const team of Object.keys(TEAM_MANAGERS)) {
-    const teamItems = cparItems.filter(i => normaliseTeam(i.fields?.SourceDept) === team);
+    const canon = canonicalTeam(team);
+    if (sentTeams.has(canon)) continue;
+    sentTeams.add(canon);
+
+    // Match items whose normalised SourceDept rolls up to this canonical team.
+    const teamItems = cparItems.filter(i => {
+      const src = normaliseTeam(i.fields?.SourceDept);
+      return canonicalTeam(src) === canon;
+    });
     const raisedYesterday = teamItems.filter(i => (i.fields?.LoggedAt||'').slice(0,10) === yestPrefix);
     const stillOpen = teamItems.filter(i => {
       const s = i.fields?.Status;
       return s !== 'Closed' && s !== 'Archived';
     });
     if (!raisedYesterday.length && !stillOpen.length) continue;
-    const html = buildEmail(team, raisedYesterday, stillOpen, yest);
-    await sendMail(t, TEAM_MANAGERS[team], `RepNet — ${team} CPAR Digest`, html);
-    context.log(`Sent ${team} digest (${raisedYesterday.length} new, ${stillOpen.length} open)`);
+    const html = buildEmail(canon, raisedYesterday, stillOpen, yest);
+    await sendMail(t, TEAM_MANAGERS[team], `RepNet — ${canon} CPAR Digest`, html);
+    context.log(`Sent ${canon} digest (${raisedYesterday.length} new, ${stillOpen.length} open)`);
   }
 
   // Master combined digest
