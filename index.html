@@ -12564,12 +12564,13 @@ function _drawChartRaisedClosedFromItems(items, host, partialFlag) {
     </div>
   `;
 }
-function drawChartTopCauses() {
+async function drawChartTopCauses() {
+  const items = await fetchCPARsForChart() || CPAR_ITEMS;
   const monthStart = new Date();
   monthStart.setDate(1);
   monthStart.setHours(0, 0, 0, 0);
   const counts = {};
-  for (const item of CPAR_ITEMS) {
+  for (const item of items) {
     const f = item.fields || {};
     const d = parseCPARDate(f.LoggedAt);
     if (!d.getTime() || d < monthStart) continue;
@@ -12597,14 +12598,15 @@ function drawChartTopCauses() {
     `).join('')}
   `;
 }
-function drawChartMTTR() {
+async function drawChartMTTR() {
+  const items = await fetchCPARsForChart() || CPAR_ITEMS;
   const months = [];
   const now = new Date();
   for (let i = 11; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     months.push({ y:d.getFullYear(), m:d.getMonth(), label:d.toLocaleDateString('en-GB',{ month:'short' }), byTeam:{} });
   }
-  for (const item of CPAR_ITEMS) {
+  for (const item of items) {
     const f = item.fields || {};
     const closed = parseCPARDate(f.ClosedAt);
     const open   = parseCPARDate(f.LoggedAt);
