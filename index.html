@@ -10705,6 +10705,12 @@ let cparFilterStatus = 'todo';
 let cparFilterTeam = '';
 let cparListLoaded = false;
 
+// Set of CPAR ids currently mid-PATCH; used to debounce double-clicks across all action handlers.
+const _cparBusy = new Set();
+function _isBusy(id) { return _cparBusy.has(id); }
+function _setBusy(id) { _cparBusy.add(id); }
+function _clearBusy(id) { _cparBusy.delete(id); }
+
 // ── History audit trail (JSON-lines stored in History column) ──
 function appendCPARHistory(currentHistory, event) {
   // Spread first, then set t — guarantees the timestamp can't be overwritten by caller-supplied keys.
@@ -11405,31 +11411,37 @@ function renderQHSEReviewCard(item) {
 }
 
 async function qhseApprove(id) {
-  const item = CPAR_ITEMS.find(i => i.id === id);
-  if (!item) return;
-  const me = msalInstance.getAllAccounts()[0]?.username || '?';
-  if (me === '?') { toast('Sign-in expired — refresh', 'u'); return; }
-  if (!confirm(`Approve and close ${item.fields.Title}?`)) return;
-  const now = new Date().toISOString();
-  const newHistory = appendCPARHistory(item.fields?.History || '', { by:me, ev:'approved-closed' });
-  const fields = {
-    Status: CPAR_STATUS.CLOSED,
-    ReviewedBy: me, ReviewedAt: now, ReviewDecision: 'Approved',
-    ClosedBy: me, ClosedAt: now, History: newHistory,
-  };
+  if (_isBusy(id)) return; // ignore double-click
+  _setBusy(id);
   try {
-    const token  = await getGraphToken();
-    const siteId = await getSpSiteId();
-    const listId = await getListIdByName(SP_CPAR_LIST);
-    const r = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}/fields`, {
-      method:'PATCH', headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' },
-      body: JSON.stringify(fields)
-    });
-    if (!r.ok) throw new Error(r.status+' '+await r.text());
-    Object.assign(item.fields, fields);
-    toast('Closed', 's');
-    renderQualitySubview();
-  } catch(e) { toast('Failed: '+e.message, 'u'); }
+    const item = CPAR_ITEMS.find(i => i.id === id);
+    if (!item) return;
+    const me = msalInstance.getAllAccounts()[0]?.username || '?';
+    if (me === '?') { toast('Sign-in expired — refresh', 'u'); return; }
+    if (!confirm(`Approve and close ${item.fields.Title}?`)) return;
+    const now = new Date().toISOString();
+    const newHistory = appendCPARHistory(item.fields?.History || '', { by:me, ev:'approved-closed' });
+    const fields = {
+      Status: CPAR_STATUS.CLOSED,
+      ReviewedBy: me, ReviewedAt: now, ReviewDecision: 'Approved',
+      ClosedBy: me, ClosedAt: now, History: newHistory,
+    };
+    try {
+      const token  = await getGraphToken();
+      const siteId = await getSpSiteId();
+      const listId = await getListIdByName(SP_CPAR_LIST);
+      const r = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}/fields`, {
+        method:'PATCH', headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' },
+        body: JSON.stringify(fields)
+      });
+      if (!r.ok) throw new Error(r.status+' '+await r.text());
+      Object.assign(item.fields, fields);
+      toast('Closed', 's');
+      renderQualitySubview();
+    } catch(e) { toast('Failed: '+e.message, 'u'); }
+  } finally {
+    _clearBusy(id);
+  }
 }
 
 let _escId = null;
@@ -11441,32 +11453,38 @@ function qhseEscalateOpen(id) {
 }
 async function qhseEscalateConfirm(toEmail) {
   const id = _escId; if (!id) return;
-  const item = CPAR_ITEMS.find(i => i.id === id); if (!item) return;
-  const me = msalInstance.getAllAccounts()[0]?.username || '?';
-  if (me === '?') { toast('Sign-in expired — refresh', 'u'); return; }
-  const now = new Date().toISOString();
-  const newHistory = appendCPARHistory(item.fields?.History || '', { by:me, ev:'escalated', to:toEmail });
-  const fields = {
-    Status: CPAR_STATUS.INVESTIGATION,
-    ReviewedBy: me, ReviewedAt: now, ReviewDecision:'Escalated',
-    InvestigatorAssigned: toEmail, EscalatedBy: me, EscalatedAt: now,
-    History: newHistory,
-  };
+  if (_isBusy(id)) return;
+  _setBusy(id);
   try {
-    const token  = await getGraphToken();
-    const siteId = await getSpSiteId();
-    const listId = await getListIdByName(SP_CPAR_LIST);
-    const r = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}/fields`, {
-      method:'PATCH', headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' },
-      body: JSON.stringify(fields)
-    });
-    if (!r.ok) throw new Error(r.status+' '+await r.text());
-    Object.assign(item.fields, fields);
-    document.getElementById('modal-escalate').style.display = 'none';
-    sendInvestigatorEmail(item, toEmail).catch(e => console.warn('investigator email:', e.message));
-    toast('Escalated to '+toEmail.split('@')[0], 's');
-    renderQualitySubview();
-  } catch(e) { toast('Failed: '+e.message, 'u'); }
+    const item = CPAR_ITEMS.find(i => i.id === id); if (!item) return;
+    const me = msalInstance.getAllAccounts()[0]?.username || '?';
+    if (me === '?') { toast('Sign-in expired — refresh', 'u'); return; }
+    const now = new Date().toISOString();
+    const newHistory = appendCPARHistory(item.fields?.History || '', { by:me, ev:'escalated', to:toEmail });
+    const fields = {
+      Status: CPAR_STATUS.INVESTIGATION,
+      ReviewedBy: me, ReviewedAt: now, ReviewDecision:'Escalated',
+      InvestigatorAssigned: toEmail, EscalatedBy: me, EscalatedAt: now,
+      History: newHistory,
+    };
+    try {
+      const token  = await getGraphToken();
+      const siteId = await getSpSiteId();
+      const listId = await getListIdByName(SP_CPAR_LIST);
+      const r = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}/fields`, {
+        method:'PATCH', headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' },
+        body: JSON.stringify(fields)
+      });
+      if (!r.ok) throw new Error(r.status+' '+await r.text());
+      Object.assign(item.fields, fields);
+      document.getElementById('modal-escalate').style.display = 'none';
+      sendInvestigatorEmail(item, toEmail).catch(e => console.warn('investigator email:', e.message));
+      toast('Escalated to '+toEmail.split('@')[0], 's');
+      renderQualitySubview();
+    } catch(e) { toast('Failed: '+e.message, 'u'); }
+  } finally {
+    _clearBusy(id);
+  }
 }
 async function sendInvestigatorEmail(item, toEmail) {
   const f = item.fields || {};
@@ -11497,33 +11515,39 @@ function qhseReturnOpen(id) {
 }
 async function qhseReturnConfirm() {
   const id = _retId; if (!id) return;
-  const note = document.getElementById('modal-ret-note').value.trim();
-  if (!note) { toast('Note is required', 'w'); return; }
-  const item = CPAR_ITEMS.find(i => i.id === id); if (!item) return;
-  const me = msalInstance.getAllAccounts()[0]?.username || '?';
-  if (me === '?') { toast('Sign-in expired — refresh', 'u'); return; }
-  const now = new Date().toISOString();
-  const newHistory = appendCPARHistory(item.fields?.History || '', { by:me, ev:'returned', note });
-  const fields = {
-    Status: CPAR_STATUS.RETURNED,
-    ReviewedBy: me, ReviewedAt: now, ReviewDecision:'Returned',
-    ReturnedNote: note, History: newHistory,
-  };
+  if (_isBusy(id)) return;
+  _setBusy(id);
   try {
-    const token  = await getGraphToken();
-    const siteId = await getSpSiteId();
-    const listId = await getListIdByName(SP_CPAR_LIST);
-    const r = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}/fields`, {
-      method:'PATCH', headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' },
-      body: JSON.stringify(fields)
-    });
-    if (!r.ok) throw new Error(r.status+' '+await r.text());
-    Object.assign(item.fields, fields);
-    document.getElementById('modal-return').style.display = 'none';
-    sendReturnEmail(item, note).catch(e => console.warn('return email:', e.message));
-    toast('Returned', 's');
-    renderQualitySubview();
-  } catch(e) { toast('Failed: '+e.message, 'u'); }
+    const note = document.getElementById('modal-ret-note').value.trim();
+    if (!note) { toast('Note is required', 'w'); return; }
+    const item = CPAR_ITEMS.find(i => i.id === id); if (!item) return;
+    const me = msalInstance.getAllAccounts()[0]?.username || '?';
+    if (me === '?') { toast('Sign-in expired — refresh', 'u'); return; }
+    const now = new Date().toISOString();
+    const newHistory = appendCPARHistory(item.fields?.History || '', { by:me, ev:'returned', note });
+    const fields = {
+      Status: CPAR_STATUS.RETURNED,
+      ReviewedBy: me, ReviewedAt: now, ReviewDecision:'Returned',
+      ReturnedNote: note, History: newHistory,
+    };
+    try {
+      const token  = await getGraphToken();
+      const siteId = await getSpSiteId();
+      const listId = await getListIdByName(SP_CPAR_LIST);
+      const r = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}/fields`, {
+        method:'PATCH', headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' },
+        body: JSON.stringify(fields)
+      });
+      if (!r.ok) throw new Error(r.status+' '+await r.text());
+      Object.assign(item.fields, fields);
+      document.getElementById('modal-return').style.display = 'none';
+      sendReturnEmail(item, note).catch(e => console.warn('return email:', e.message));
+      toast('Returned', 's');
+      renderQualitySubview();
+    } catch(e) { toast('Failed: '+e.message, 'u'); }
+  } finally {
+    _clearBusy(id);
+  }
 }
 async function sendReturnEmail(item, note) {
   const f = item.fields || {};
@@ -11547,49 +11571,55 @@ async function sendReturnEmail(item, note) {
 }
 
 async function effVerify(id, verified, recurrenceNote='') {
-  const item = CPAR_ITEMS.find(i => i.id === id);
-  if (!item) return;
-  const me = msalInstance.getAllAccounts()[0]?.username || '?';
-  if (me === '?') { toast('Sign-in expired — refresh', 'u'); return; }
-  if (verified && !confirm(`Mark ${item.fields.Title} as verified effective and archive?`)) return;
-  const now = new Date().toISOString();
-
-  let recurrenceRef = null;
-  // For recurrence path: create the new linked CPAR FIRST, before archiving the original.
-  // If creation fails, original stays in Awaiting Effectiveness Check (recoverable).
-  if (!verified) {
-    try {
-      recurrenceRef = await effCreateRecurrence(item, recurrenceNote);
-    } catch(e) {
-      toast('Could not create recurrence — original NOT archived. Try again. ('+e.message+')', 'u');
-      return;
-    }
-  }
-
-  const newHistory = appendCPARHistory(item.fields?.History || '', {
-    by:me, ev:'effectiveness-verified', verified, ...(recurrenceRef ? { recurrenceRef } : {})
-  });
-  const fields = {
-    Status: CPAR_STATUS.ARCHIVED,
-    EffectivenessVerifiedBy: me,
-    EffectivenessVerifiedAt: now,
-    EffectivenessVerified: verified,
-    History: newHistory,
-  };
-  if (!verified && recurrenceNote) fields.RecurrenceNote = recurrenceNote;
+  if (_isBusy(id)) return; // ignore double-click
+  _setBusy(id);
   try {
-    const token  = await getGraphToken();
-    const siteId = await getSpSiteId();
-    const listId = await getListIdByName(SP_CPAR_LIST);
-    const r = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}/fields`, {
-      method:'PATCH', headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' },
-      body: JSON.stringify(fields)
+    const item = CPAR_ITEMS.find(i => i.id === id);
+    if (!item) return;
+    const me = msalInstance.getAllAccounts()[0]?.username || '?';
+    if (me === '?') { toast('Sign-in expired — refresh', 'u'); return; }
+    if (verified && !confirm(`Mark ${item.fields.Title} as verified effective and archive?`)) return;
+    const now = new Date().toISOString();
+
+    let recurrenceRef = null;
+    // For recurrence path: create the new linked CPAR FIRST, before archiving the original.
+    // If creation fails, original stays in Awaiting Effectiveness Check (recoverable).
+    if (!verified) {
+      try {
+        recurrenceRef = await effCreateRecurrence(item, recurrenceNote);
+      } catch(e) {
+        toast('Could not create recurrence — original NOT archived. Try again. ('+e.message+')', 'u');
+        return;
+      }
+    }
+
+    const newHistory = appendCPARHistory(item.fields?.History || '', {
+      by:me, ev:'effectiveness-verified', verified, ...(recurrenceRef ? { recurrenceRef } : {})
     });
-    if (!r.ok) throw new Error(r.status+' '+await r.text());
-    Object.assign(item.fields, fields);
-    toast(verified ? 'Archived — verified effective' : `Archived — recurrence created (${recurrenceRef})`, 's');
-    renderQualitySubview();
-  } catch(e) { toast('Failed: '+e.message, 'u'); }
+    const fields = {
+      Status: CPAR_STATUS.ARCHIVED,
+      EffectivenessVerifiedBy: me,
+      EffectivenessVerifiedAt: now,
+      EffectivenessVerified: verified,
+      History: newHistory,
+    };
+    if (!verified && recurrenceNote) fields.RecurrenceNote = recurrenceNote;
+    try {
+      const token  = await getGraphToken();
+      const siteId = await getSpSiteId();
+      const listId = await getListIdByName(SP_CPAR_LIST);
+      const r = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}/fields`, {
+        method:'PATCH', headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' },
+        body: JSON.stringify(fields)
+      });
+      if (!r.ok) throw new Error(r.status+' '+await r.text());
+      Object.assign(item.fields, fields);
+      toast(verified ? 'Archived — verified effective' : `Archived — recurrence created (${recurrenceRef})`, 's');
+      renderQualitySubview();
+    } catch(e) { toast('Failed: '+e.message, 'u'); }
+  } finally {
+    _clearBusy(id);
+  }
 }
 
 function effVerifyOpen(id) {
@@ -11758,37 +11788,51 @@ ${f.CorrectiveAction||''}
 }
 
 async function peSubmitECR(id) {
-  const ref = document.getElementById('ecr-ref-'+id).value.trim();
-  if (!ref) { toast('Paste the ECR ref first', 'w'); return; }
-  await peCompleteInvestigation(id, 'Template-Spec Issue', ref);
+  if (_isBusy(id)) return; // ignore double-click
+  _setBusy(id);
+  try {
+    const ref = document.getElementById('ecr-ref-'+id).value.trim();
+    if (!ref) { toast('Paste the ECR ref first', 'w'); return; }
+    await peCompleteInvestigation(id, 'Template-Spec Issue', ref);
+  } finally {
+    _clearBusy(id);
+  }
 }
 
 async function peCompleteInvestigation(id, outcome, ecrRef) {
-  const item = CPAR_ITEMS.find(i => i.id === id);
-  if (!item) return;
-  const me = msalInstance.getAllAccounts()[0]?.username || '?';
-  if (me === '?') { toast('Sign-in expired — refresh', 'u'); return; }
-  const now = new Date().toISOString();
-  const newHistory = appendCPARHistory(item.fields?.History || '', { by:me, ev:'investigated', outcome, ecrRef });
-  const fields = {
-    Status: CPAR_STATUS.AWAITING_SIGNOFF,
-    InvestigatedBy: me, InvestigatedAt: now,
-    InvestigationOutcome: outcome, ECRRef: ecrRef,
-    History: newHistory,
-  };
+  // Note: peSubmitECR also sets busy on the same id; the inner check is a no-op in that path
+  // but protects direct callers from double-clicking the outcome buttons.
+  const wasBusy = _isBusy(id);
+  if (!wasBusy) _setBusy(id);
   try {
-    const token  = await getGraphToken();
-    const siteId = await getSpSiteId();
-    const listId = await getListIdByName(SP_CPAR_LIST);
-    const r = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}/fields`, {
-      method:'PATCH', headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' },
-      body: JSON.stringify(fields)
-    });
-    if (!r.ok) throw new Error(r.status+' '+await r.text());
-    Object.assign(item.fields, fields);
-    toast('Investigation complete — sent to QHSE', 's');
-    renderQualitySubview();
-  } catch(e) { toast('Failed: '+e.message, 'u'); }
+    const item = CPAR_ITEMS.find(i => i.id === id);
+    if (!item) return;
+    const me = msalInstance.getAllAccounts()[0]?.username || '?';
+    if (me === '?') { toast('Sign-in expired — refresh', 'u'); return; }
+    const now = new Date().toISOString();
+    const newHistory = appendCPARHistory(item.fields?.History || '', { by:me, ev:'investigated', outcome, ecrRef });
+    const fields = {
+      Status: CPAR_STATUS.AWAITING_SIGNOFF,
+      InvestigatedBy: me, InvestigatedAt: now,
+      InvestigationOutcome: outcome, ECRRef: ecrRef,
+      History: newHistory,
+    };
+    try {
+      const token  = await getGraphToken();
+      const siteId = await getSpSiteId();
+      const listId = await getListIdByName(SP_CPAR_LIST);
+      const r = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}/fields`, {
+        method:'PATCH', headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' },
+        body: JSON.stringify(fields)
+      });
+      if (!r.ok) throw new Error(r.status+' '+await r.text());
+      Object.assign(item.fields, fields);
+      toast('Investigation complete — sent to QHSE', 's');
+      renderQualitySubview();
+    } catch(e) { toast('Failed: '+e.message, 'u'); }
+  } finally {
+    if (!wasBusy) _clearBusy(id);
+  }
 }
 let regFromDate = '';
 let regToDate = '';
