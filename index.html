@@ -14299,6 +14299,7 @@ async function confirmCloseCPAR(id) {
 
     const item = CPAR_ITEMS.find(i => i.id === id);
     if (item) Object.assign(item.fields, { Status:'Closed', CauseCode:causeCode, CorrectiveAction:action, ClosedBy:closedBy, ClosedAt:closedAt });
+    if (typeof _invalidateChartCache === 'function') _invalidateChartCache();
 
     toast('CPAR closed ✓', 's');
     updateIssuesTabBadge();
