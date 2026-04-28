@@ -73,21 +73,24 @@ async function sendMail(t, recipients, subject, html) {
 
 const KPI_RECIPIENTS = ['jonas.simonaitis@reposefurniture.co.uk', 'mitch@reposefurniture.co.uk', 'richard.semmens@reposefurniture.co.uk'];
 
+// Repose working hours: Mon-Thu 07:00-16:00 (9h/day), Fri 07:00-12:00 (5h/day). 41h/week.
 function workingHoursBetween(s, e) {
   if (e <= s) return 0;
-  const WS=6, WE=17;
   let total = 0;
-  const cur = new Date(s); cur.setSeconds(0,0);
+  const cur = new Date(s); cur.setSeconds(0, 0);
   while (cur < e) {
     const dow = cur.getDay();
-    if (dow >= 1 && dow <= 5) {
-      const dStart = new Date(cur); dStart.setHours(WS,0,0,0);
-      const dEnd   = new Date(cur); dEnd.setHours(WE,0,0,0);
+    let WS = null, WE = null;
+    if (dow >= 1 && dow <= 4)      { WS = 7; WE = 16; } // Mon-Thu
+    else if (dow === 5)             { WS = 7; WE = 12; } // Fri
+    if (WS !== null) {
+      const dStart = new Date(cur); dStart.setHours(WS, 0, 0, 0);
+      const dEnd   = new Date(cur); dEnd.setHours(WE, 0, 0, 0);
       const ws = cur < dStart ? dStart : cur;
-      const we = e   < dEnd   ? e      : dEnd;
+      const we = e < dEnd ? e : dEnd;
       if (we > ws) total += (we - ws) / 3600000;
     }
-    cur.setDate(cur.getDate()+1); cur.setHours(0,0,0,0);
+    cur.setDate(cur.getDate() + 1); cur.setHours(0, 0, 0, 0);
   }
   return total;
 }
