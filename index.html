@@ -1362,6 +1362,21 @@ body.tablet-mode .uh-token-icon { font-size:14px; }
 /* ── Quality tab (CPAR ISO 9001) ─────────────────────────── */
 .quality-chip { padding:9px 14px; font-size:12px; font-weight:700; cursor:pointer; border:none; border-bottom:3px solid transparent; color:var(--text3); background:transparent; font-family:inherit }
 .quality-chip.active { color:var(--text); border-bottom-color:var(--text) }
+.quality-tiles { display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap }
+.quality-tile { padding:10px 16px; background:#fff; border:1.5px solid var(--border); border-radius:8px; min-width:120px; cursor:pointer }
+.quality-tile.active { background:var(--bg4); border-color:var(--text) }
+.quality-tile .num { font-family:'JetBrains Mono',monospace; font-size:22px; font-weight:700 }
+.quality-tile .lab { font-size:10px; font-weight:700; text-transform:uppercase; color:var(--text3); letter-spacing:.04em; margin-top:1px }
+.quality-tile.review { border-left:4px solid var(--green) }
+.quality-tile.invest { border-left:4px solid #7c3aed }
+.quality-tile.return { border-left:4px solid #dc2626 }
+.quality-tile.signoff{ border-left:4px solid var(--green) }
+.quality-tile.effchk { border-left:4px solid #d97706 }
+.quality-tile.overdue{ border-left:4px solid #dc2626; background:#fff1f1 }
+.qbtn { padding:7px 12px; border-radius:6px; border:none; font-size:11px; font-weight:700; cursor:pointer; font-family:inherit }
+.qbtn.approve { background:var(--green); color:#fff }
+.qbtn.escalate{ background:#7c3aed; color:#fff }
+.qbtn.return  { background:#dc2626; color:#fff }
 
 /* Repeat banner */
 .cpar-repeat-banner {
@@ -11266,7 +11281,89 @@ function renderQualitySubview() {
   if (cparSubview === 'dash')     renderQualityDashboard(host);
   if (cparSubview === 'register') host.innerHTML = renderRegister();
 }
-function renderQHSEReview() { return '<div style="padding:24px;text-align:center;color:var(--text3)">QHSE Review — Task 15</div>'; }
+let cparReviewFilter = 'review';
+function setQHSEFilter(k) { cparReviewFilter = k; renderQualitySubview(); }
+
+function renderQHSEReview() {
+  const items = CPAR_ITEMS;
+  const counts = {
+    review: items.filter(i => i.fields?.Status === CPAR_STATUS.PENDING_REVIEW).length,
+    invest: items.filter(i => i.fields?.Status === CPAR_STATUS.INVESTIGATION).length,
+    return: items.filter(i => i.fields?.Status === CPAR_STATUS.RETURNED).length,
+    signoff: items.filter(i => i.fields?.Status === CPAR_STATUS.AWAITING_SIGNOFF).length,
+    effchk: items.filter(i => i.fields?.Status === CPAR_STATUS.AWAITING_EFF_CHECK).length,
+  };
+  const overdue = items.filter(i => {
+    const s = i.fields?.Status;
+    if (s === CPAR_STATUS.PENDING_REVIEW || s === CPAR_STATUS.AWAITING_SIGNOFF) {
+      const d = parseCPARDate(i.fields?.LoggedAt);
+      return d.getTime() && (workingHoursBetween(d, new Date()) > 40);
+    }
+    return false;
+  }).length;
+
+  const tile = (key, label, n, cls) =>
+    `<div class="quality-tile ${cls} ${cparReviewFilter===key?'active':''}" onclick="setQHSEFilter('${key}')"><div class="num">${n}</div><div class="lab">${label}</div></div>`;
+
+  const filtered = items.filter(i => {
+    const s = i.fields?.Status;
+    if (cparReviewFilter === 'review')  return s === CPAR_STATUS.PENDING_REVIEW;
+    if (cparReviewFilter === 'invest')  return s === CPAR_STATUS.INVESTIGATION;
+    if (cparReviewFilter === 'return')  return s === CPAR_STATUS.RETURNED;
+    if (cparReviewFilter === 'signoff') return s === CPAR_STATUS.AWAITING_SIGNOFF;
+    if (cparReviewFilter === 'effchk')  return s === CPAR_STATUS.AWAITING_EFF_CHECK;
+    return false;
+  });
+  const cards = filtered.length
+    ? filtered.map(renderQHSEReviewCard).join('')
+    : '<div style="padding:24px;text-align:center;color:var(--text3)">No CPARs in this queue.</div>';
+
+  return `
+    <div class="quality-tiles">
+      ${tile('review','To Review',counts.review,'review')}
+      ${tile('invest','Investigating',counts.invest,'invest')}
+      ${tile('return','Returned',counts.return,'return')}
+      ${tile('signoff','Awaiting Sign-Off',counts.signoff,'signoff')}
+      ${tile('effchk','Eff. Check',counts.effchk,'effchk')}
+      <div class="quality-tile overdue"><div class="num">${overdue}</div><div class="lab">Overdue (&gt;5d)</div></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">${cards}</div>
+  `;
+}
+
+function renderQHSEReviewCard(item) {
+  const f = item.fields || {};
+  const ref = f.Title || '?';
+  const repeatLabel = f.IsRepeat
+    ? '<span style="background:#fff1f1;color:#991b1b;border:1px solid #fca5a5;font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px;margin-left:6px">REPEAT</span>'
+    : '';
+  return `
+  <div class="cpar-card status-${getCPARStatus(item)}" id="qcard-${item.id}">
+    <div class="cpar-card-header">
+      <span class="cpar-ref">${escHtml(ref)}</span>
+      <span class="cpar-status-badge ${getCPARStatus(item)}">${escHtml(f.Status||'?')}</span>${repeatLabel}
+      <span class="cpar-age" style="margin-left:auto">${escHtml((f.LoggedAt||'').slice(0,10))}</span>
+    </div>
+    <div class="cpar-card-body">
+      <div class="cpar-source-line"><span class="cpar-source-badge">${escHtml(f.SourceDept||'?')}</span>${escHtml(f.IssueCategory||'')}</div>
+      ${f.Description ? `<div class="cpar-desc">${escHtml(f.Description)}</div>` : ''}
+      ${f.CauseCode ? `<div style="font-size:11px;color:var(--text2)"><strong>Cause:</strong> ${escHtml(f.CauseCode)}</div>` : ''}
+      ${f.CorrectiveAction ? `<div style="font-size:11px;color:var(--text2);margin-top:3px"><strong>Action:</strong> ${escHtml(f.CorrectiveAction)}</div>` : ''}
+      ${f.ClosedOutBy ? `<div style="font-size:11px;color:var(--text3);margin-top:3px">Closed-out by ${escHtml(f.ClosedOutBy.split('@')[0])} · ${escHtml((f.ClosedOutAt||'').slice(0,16))}</div>` : ''}
+      <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+        <button class="qbtn approve"  onclick="qhseApprove('${item.id}')">✓ Approve &amp; Close</button>
+        <button class="qbtn escalate" onclick="qhseEscalateOpen('${item.id}')">→ Escalate to PE</button>
+        <button class="qbtn return"   onclick="qhseReturnOpen('${item.id}')">↩ Return to Sender</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+// Stubs — Task 16 replaces these
+function qhseApprove(id)      { toast('Approve — wiring in Task 16', 'w'); }
+function qhseEscalateOpen(id) { toast('Escalate — wiring in Task 16', 'w'); }
+function qhseReturnOpen(id)   { toast('Return — wiring in Task 16', 'w'); }
+
 function renderPEView() { return '<div style="padding:24px;text-align:center;color:var(--text3)">PE View — Task 17</div>'; }
 function renderRegister() { return '<div style="padding:24px;text-align:center;color:var(--text3)">Register — Task 18</div>'; }
 function renderQualityDashboard(host) { host.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text3)">Dashboard — Phase 6</div>'; }
