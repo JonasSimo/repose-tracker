@@ -11496,13 +11496,25 @@ function renderCPARCard(item) {
     <button class="cpar-closeout-btn" id="cpar-co-btn-${item.id}" onclick="toggleCPARCloseout('${item.id}')">Close Out Issue ▼</button>
     <div class="cpar-closeout-panel" id="cpar-co-${item.id}">
       ${f.HasPhoto ? `<div class="cpar-photo-wrap" id="cpar-photo-wrap-${item.id}"><div class="cpar-photo-loading">Loading photo…</div></div>` : ''}
-      <div class="cpar-cause-label">Root Cause</div>
+
+      <div class="cpar-cause-label">Disposition <span style="color:var(--red)">*</span></div>
+      <div class="cpar-cause-grid" style="grid-template-columns:repeat(2,1fr)">
+        ${CPAR_DISPOSITIONS.map(d=>`<button class="cpar-cause-option" data-disp="${escHtml(d)}" onclick="selectCPARDisposition('${item.id}',this)">${escHtml(d)}</button>`).join('')}
+      </div>
+      <textarea class="cpar-action-input" id="cpar-disp-notes-${item.id}" maxlength="2000" placeholder="Disposition notes (required if Other)…" style="min-height:48px;display:none"></textarea>
+
+      <div class="cpar-cause-label" style="margin-top:10px" id="cpar-containment-label-${item.id}">Containment — what stopped this batch progressing? <span style="color:var(--red)">*</span></div>
+      <textarea class="cpar-action-input" id="cpar-containment-${item.id}" maxlength="2000" placeholder="e.g. Job quarantined, adjacent jobs inspected — none affected"></textarea>
+
+      <div class="cpar-cause-label" style="margin-top:10px">Root Cause <span style="color:var(--red)">*</span></div>
       <div class="cpar-cause-grid">
         ${CPAR_CAUSE_CODES.map(c=>`<button class="cpar-cause-option" data-cause="${escHtml(c)}" onclick="selectCPARCause('${item.id}',this)">${escHtml(c)}</button>`).join('')}
       </div>
-      <div class="cpar-cause-label" style="margin-top:10px">Corrective Action Taken</div>
+
+      <div class="cpar-cause-label" style="margin-top:10px">Corrective Action Taken <span style="color:var(--red)">*</span></div>
       <textarea class="cpar-action-input" id="cpar-action-${item.id}" maxlength="10000" placeholder="Describe what was done to resolve this…"></textarea>
-      <button class="cpar-confirm-close-btn" id="cpar-close-${item.id}" onclick="confirmCloseCPAR('${item.id}')" disabled>✓ Mark as Closed</button>
+
+      <button class="cpar-confirm-close-btn" id="cpar-close-${item.id}" onclick="submitCPARCloseout('${item.id}')" disabled>Submit close-out → QHSE Review</button>
     </div>`}
   </div>`;
 }
@@ -12437,6 +12449,27 @@ function updateTeamCounts() {
       chip.innerHTML = counts[team] ? `${team}${badge(counts[team])}` : team;
     }
   });
+}
+
+function selectCPARDisposition(id, btn) {
+  const wrap = btn.parentElement;
+  wrap.querySelectorAll('.cpar-cause-option').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  document.getElementById('cpar-co-'+id).dataset.disposition = btn.dataset.disp;
+  // toggle disposition-notes visibility for "Other"
+  const notes = document.getElementById('cpar-disp-notes-'+id);
+  notes.style.display = (btn.dataset.disp === 'Other') ? 'block' : 'none';
+  // toggle containment requirement: optional only if disposition === Use-as-is
+  const cont = document.getElementById('cpar-containment-'+id);
+  const lab  = document.getElementById('cpar-containment-label-'+id);
+  if (btn.dataset.disp === 'Use-as-is') {
+    cont.placeholder = 'Containment (optional for Use-as-is)';
+    lab.innerHTML = 'Containment <span style="color:var(--text3)">(optional)</span>';
+  } else {
+    cont.placeholder = 'e.g. Job quarantined, adjacent jobs inspected — none affected';
+    lab.innerHTML = 'Containment — what stopped this batch progressing? <span style="color:var(--red)">*</span>';
+  }
+  refreshCPARSubmitState(id);
 }
 
 function selectCPARCause(id, btn) {
