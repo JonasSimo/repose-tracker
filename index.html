@@ -12203,7 +12203,7 @@ function _saveCparDraft(id, field, val) {
   if (val) _cparDraftCache.set(_draftKey(id, field), val);
   else _cparDraftCache.delete(_draftKey(id, field));
 }
-function _getCparDraft(id, field) { return _cparDraftCache.get(_draftKey(id, field)) || ''; }
+function _getCparDraft(id, field, fallback = '') { return _cparDraftCache.get(_draftKey(id, field)) || fallback || ''; }
 function _clearCparDrafts(id) {
   for (const k of [..._cparDraftCache.keys()]) {
     if (k.startsWith(id + '|')) _cparDraftCache.delete(k);
@@ -13086,20 +13086,20 @@ function renderCPARCard(item) {
 
       <div class="cpar-cause-label">Disposition <span style="color:var(--red)">*</span></div>
       <div class="cpar-cause-grid" style="grid-template-columns:repeat(2,1fr)">
-        ${CPAR_DISPOSITIONS.map(d=>`<button class="cpar-cause-option ${_getCparDraft(item.id,'disposition')===d?'selected':''}" data-disp="${escHtml(d)}" onclick="selectCPARDisposition('${item.id}',this)">${escHtml(d)}</button>`).join('')}
+        ${CPAR_DISPOSITIONS.map(d=>`<button class="cpar-cause-option ${_getCparDraft(item.id,'disposition', f.Disposition || '')===d?'selected':''}" data-disp="${escHtml(d)}" onclick="selectCPARDisposition('${item.id}',this)">${escHtml(d)}</button>`).join('')}
       </div>
-      <textarea class="cpar-action-input" id="cpar-disp-notes-${item.id}" maxlength="2000" placeholder="Disposition notes (required if Other)…" style="min-height:48px;display:${_getCparDraft(item.id,'disposition')==='Other'?'block':'none'}">${escHtml(_getCparDraft(item.id, 'dispNotes'))}</textarea>
+      <textarea class="cpar-action-input" id="cpar-disp-notes-${item.id}" maxlength="2000" placeholder="Disposition notes (required if Other)…" style="min-height:48px;display:${_getCparDraft(item.id,'disposition', f.Disposition || '')==='Other'?'block':'none'}">${escHtml(_getCparDraft(item.id, 'dispNotes', f.DispositionNotes || ''))}</textarea>
 
-      <div class="cpar-cause-label" style="margin-top:10px" id="cpar-containment-label-${item.id}">${_getCparDraft(item.id,'disposition')==='Use-as-is' ? 'Containment <span style="color:var(--text3)">(optional)</span>' : 'Containment — what stopped this batch progressing? <span style="color:var(--red)">*</span>'}</div>
-      <textarea class="cpar-action-input" id="cpar-containment-${item.id}" maxlength="2000" placeholder="${_getCparDraft(item.id,'disposition')==='Use-as-is' ? 'Containment (optional for Use-as-is)' : 'e.g. Job quarantined, adjacent jobs inspected — none affected'}">${escHtml(_getCparDraft(item.id, 'containment'))}</textarea>
+      <div class="cpar-cause-label" style="margin-top:10px" id="cpar-containment-label-${item.id}">${_getCparDraft(item.id,'disposition', f.Disposition || '')==='Use-as-is' ? 'Containment <span style="color:var(--text3)">(optional)</span>' : 'Containment — what stopped this batch progressing? <span style="color:var(--red)">*</span>'}</div>
+      <textarea class="cpar-action-input" id="cpar-containment-${item.id}" maxlength="2000" placeholder="${_getCparDraft(item.id,'disposition', f.Disposition || '')==='Use-as-is' ? 'Containment (optional for Use-as-is)' : 'e.g. Job quarantined, adjacent jobs inspected — none affected'}">${escHtml(_getCparDraft(item.id, 'containment', f.Containment || ''))}</textarea>
 
       <div class="cpar-cause-label" style="margin-top:10px">Root Cause <span style="color:var(--red)">*</span></div>
       <div class="cpar-cause-grid">
-        ${CPAR_CAUSE_CODES.map(c=>`<button class="cpar-cause-option ${_getCparDraft(item.id,'cause')===c?'selected':''}" data-cause="${escHtml(c)}" onclick="selectCPARCause('${item.id}',this)">${escHtml(c)}</button>`).join('')}
+        ${CPAR_CAUSE_CODES.map(c=>`<button class="cpar-cause-option ${_getCparDraft(item.id,'cause', f.CauseCode || '')===c?'selected':''}" data-cause="${escHtml(c)}" onclick="selectCPARCause('${item.id}',this)">${escHtml(c)}</button>`).join('')}
       </div>
 
       <div class="cpar-cause-label" style="margin-top:10px">Corrective Action Taken <span style="color:var(--red)">*</span></div>
-      <textarea class="cpar-action-input" id="cpar-action-${item.id}" maxlength="10000" placeholder="Describe what was done to resolve this…">${escHtml(_getCparDraft(item.id, 'action'))}</textarea>
+      <textarea class="cpar-action-input" id="cpar-action-${item.id}" maxlength="10000" placeholder="Describe what was done to resolve this…">${escHtml(_getCparDraft(item.id, 'action', f.CorrectiveAction || ''))}</textarea>
 
       <button class="cpar-confirm-close-btn" id="cpar-close-${item.id}" onclick="event.stopPropagation();submitCPARCloseout('${item.id}', event)" disabled>Submit close-out → QHSE Review</button>
     </div>`}
@@ -13186,8 +13186,10 @@ function toggleCPARCloseout(id, ev) {
       // Restore dataset state from draft cache
       const closeoutPanel = card.querySelector('.cpar-closeout-panel');
       if (closeoutPanel) {
-        const cachedDisp = _getCparDraft(id, 'disposition');
-        const cachedCause = _getCparDraft(id, 'cause');
+        const item = CPAR_ITEMS.find(i => i.id === id);
+        const f = item?.fields || {};
+        const cachedDisp = _getCparDraft(id, 'disposition', f.Disposition || '');
+        const cachedCause = _getCparDraft(id, 'cause', f.CauseCode || '');
         if (cachedDisp) closeoutPanel.dataset.disposition = cachedDisp;
         if (cachedCause) closeoutPanel.dataset.cause = cachedCause;
         // Refresh submit state to reflect cached values
