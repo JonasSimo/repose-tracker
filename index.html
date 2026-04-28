@@ -10741,7 +10741,11 @@ const CPAR_INVESTIGATORS = [
   { email: 'mark.staniland@reposefurniture.co.uk',  name: 'Mark Staniland'   },
   { email: 'gareth.stringer@reposefurniture.co.uk', name: 'Gareth Stringer'  },
 ];
-const CPAR_QHSE_REVIEWERS = ['jonas.simonaitis@reposefurniture.co.uk'];
+const CPAR_QHSE_REVIEWERS = [
+  'jonas.simonaitis@reposefurniture.co.uk',
+  'mitch@reposefurniture.co.uk',
+  'richard.semmens@reposefurniture.co.uk',
+];
 
 // Status enum — replaces old binary Open/Closed
 const CPAR_STATUS = {
@@ -11357,11 +11361,7 @@ function _cparRecomputeManager() {
   const me = (msalInstance.getAllAccounts()[0]?.username || '').toLowerCase().trim();
   cparIsQHSE = false; cparIsPE = false; cparIsOverseer = false; cparIsManager = false;
   if (!me) return;
-  const qhse = new Set([
-    ...CPAR_QHSE_REVIEWERS.map(e => e.toLowerCase()),
-    'mitch@reposefurniture.co.uk',
-    'richard.semmens@reposefurniture.co.uk',
-  ]);
+  const qhse = new Set(CPAR_QHSE_REVIEWERS.map(e => e.toLowerCase()));
   const pe = new Set(CPAR_INVESTIGATORS.map(x => x.email.toLowerCase()));
   const overseer = new Set(CPAR_PE_VIEW_OVERSEERS.map(e => e.toLowerCase()));
   cparIsQHSE = qhse.has(me);
