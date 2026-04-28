@@ -2617,7 +2617,7 @@ document.addEventListener('DOMContentLoaded', () => {
 @media print {
   body * { visibility: hidden !important; }
   #cpar-print-area, #cpar-print-area * { visibility: visible !important; }
-  #cpar-print-area { position: absolute; left: 0; top: 0; width: 100%; padding: 16mm; background: #fff; }
+  #cpar-print-area { display: block !important; position: absolute; left: 0; top: 0; width: 100%; padding: 16mm; background: #fff; }
   @page { size: A4 portrait; margin: 0; }
 }
 #cpar-print-area { display: none; }
