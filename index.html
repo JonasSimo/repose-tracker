@@ -11412,6 +11412,15 @@ function renderIssuesIntoQuality(host) {
     progress: i => [CPAR_STATUS.PENDING_REVIEW, CPAR_STATUS.INVESTIGATION, CPAR_STATUS.AWAITING_SIGNOFF].includes(i.fields?.Status),
     closed: i => { const s = i.fields?.Status; if (s !== CPAR_STATUS.CLOSED && s !== 'Closed') return false; const d = parseCPARDate(i.fields?.ClosedAt); return d.getTime() && (Date.now() - d.getTime() < 30*86400000); },
     all: i => i.fields?.Status !== CPAR_STATUS.ARCHIVED && i.fields?.Status !== CPAR_STATUS.AWAITING_EFF_CHECK,
+    repeat: i => {
+      if (!i.fields?.IsRepeat) return false;
+      if (i.fields?.Status === CPAR_STATUS.ARCHIVED || i.fields?.Status === CPAR_STATUS.AWAITING_EFF_CHECK) return false;
+      return true;
+    },
+    overdue: i => {
+      const st = getCPARStatus(i);
+      return st === 'amber' || st === 'red';
+    },
   };
   let filtered = items.filter(filterMap[cparFilterStatus] || filterMap.todo);
   if (cparFilterTeam) {
@@ -11461,12 +11470,12 @@ function renderIssuesIntoQuality(host) {
         <div><div class="mt-num">${closedCount}</div><div class="mt-lbl">Closed (30d)</div></div>
         <div class="mt-bar"></div>
       </div>
-      <div class="mt-tile fail">
+      <div class="mt-tile fail" onclick="setIssueFilter('repeat'); renderQualitySubview();" style="cursor:pointer">
         <div class="mt-icon">🔴</div>
         <div><div class="mt-num">${repeatCount}</div><div class="mt-lbl">Repeat-flagged (30d)</div></div>
         <div class="mt-bar"></div>
       </div>
-      <div class="mt-tile warn">
+      <div class="mt-tile warn" onclick="setIssueFilter('overdue'); renderQualitySubview();" style="cursor:pointer">
         <div class="mt-icon">⚠</div>
         <div><div class="mt-num">${overdueCount}</div><div class="mt-lbl">Overdue</div></div>
         <div class="mt-bar"></div>
@@ -11484,6 +11493,8 @@ function renderIssuesIntoQuality(host) {
       <button class="issues-chip ${cparFilterStatus==='progress'?'active':''}" onclick="setIssueFilter('progress'); renderQualitySubview();">In progress</button>
       <button class="issues-chip ${cparFilterStatus==='closed'?'active':''}" onclick="setIssueFilter('closed'); renderQualitySubview();">Recently closed</button>
       <button class="issues-chip ${cparFilterStatus==='all'?'active':''}" onclick="setIssueFilter('all'); renderQualitySubview();">All</button>
+      <button class="issues-chip ${cparFilterStatus==='repeat'?'active':''}" onclick="setIssueFilter('repeat'); renderQualitySubview();" style="background:#fff1f1;color:#991b1b;border:1.5px solid #fca5a5">🔴 Repeat</button>
+      <button class="issues-chip ${cparFilterStatus==='overdue'?'active':''}" onclick="setIssueFilter('overdue'); renderQualitySubview();" style="background:#fff8e6;color:#d97706;border:1.5px solid #fde68a">⚠ Overdue</button>
       <span style="margin-left:auto;color:var(--text3);font-size:12px">${filtered.length} CPAR${filtered.length===1?'':'s'}</span>
     </div>
 
