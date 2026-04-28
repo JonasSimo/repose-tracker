@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CPAR Column Setup</title>
+<script src="/msal-browser.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',sans-serif;background:#f4f6f8;color:#0e023a;font-size:14px;padding:24px;max-width:720px;margin:0 auto}
+h1{font-size:20px;font-weight:700;margin-bottom:4px}
+.sub{color:#706f6f;font-size:13px;margin-bottom:24px}
+.card{background:#fff;border:1.5px solid #e1e6eb;border-radius:12px;padding:20px;margin-bottom:16px}
+button{padding:9px 18px;border-radius:8px;border:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600}
+.btn-primary{background:#14a1e9;color:#fff}
+.btn-primary:disabled{opacity:.4;cursor:default}
+.log{background:#f4f6f8;border:1px solid #e1e6eb;border-radius:8px;padding:12px;font-family:'JetBrains Mono',monospace;font-size:11px;max-height:360px;overflow-y:auto;line-height:1.6}
+.log .ok{color:#059669}.log .warn{color:#d97706}.log .err{color:#dc2626}
+</style></head><body>
+<h1>CPAR Column Setup</h1>
+<p class="sub">Adds 24 new columns to the CPARLog SharePoint list. Idempotent &mdash; re-run is safe.</p>
+<div class="card">
+  <button class="btn-primary" id="signin-btn" onclick="doSignIn()">Sign in with Microsoft</button>
+  <div id="signin-state" style="margin-top:8px;color:#706f6f"></div>
+</div>
+<div class="card" id="card-run" style="display:none">
+  <button class="btn-primary" onclick="addAllColumns()">Add columns</button>
+  <div class="log" id="log" style="margin-top:12px"></div>
+</div>
+<script>
+const CLIENT_ID = '2f8cdb1e-93da-4815-942b-c7c8d1a29ca5';
+const TENANT_ID = 'reposefurniturelimited.onmicrosoft.com';
+const SP_HOST   = 'reposefurniturelimited.sharepoint.com';
+const SP_PATH   = '/sites/ReposeFurniture-PlanningRepose';
+const LIST_NAME = 'CPARLog';
+const SCOPES    = ['Sites.Manage.All'];
+
+const COLUMNS = [
+  { name:'Disposition',             type:'choice', choices:['Reworked','Scrapped','Use-as-is','Returned to supplier','Other'] },
+  { name:'DispositionNotes',        type:'note' },
+  { name:'Containment',             type:'note' },
+  { name:'ClosedOutBy',             type:'text' },
+  { name:'ClosedOutAt',             type:'datetime' },
+  { name:'ReviewedBy',              type:'text' },
+  { name:'ReviewedAt',              type:'datetime' },
+  { name:'ReviewDecision',          type:'choice', choices:['Approved','Escalated','Returned'] },
+  { name:'ReturnedNote',            type:'note' },
+  { name:'InvestigatorAssigned',    type:'choice', choices:['mark.staniland@reposefurniture.co.uk','gareth.stringer@reposefurniture.co.uk'] },
+  { name:'EscalatedBy',             type:'text' },
+  { name:'EscalatedAt',             type:'datetime' },
+  { name:'InvestigatedBy',          type:'text' },
+  { name:'InvestigatedAt',          type:'datetime' },
+  { name:'InvestigationOutcome',    type:'choice', choices:['Human Error','Template-Spec Issue'] },
+  { name:'ECRRef',                  type:'text' },
+  { name:'IsRepeat',                type:'boolean' },
+  { name:'RepeatLinkedRefs',        type:'note' },
+  { name:'EffectivenessVerifiedBy', type:'text' },
+  { name:'EffectivenessVerifiedAt', type:'datetime' },
+  { name:'EffectivenessVerified',   type:'boolean' },
+  { name:'RecurrenceNote',          type:'note' },
+  { name:'LinkedFromRef',           type:'text' },
+  { name:'History',                 type:'note' },
+];
+
+let msalInstance;
+function log(msg, cls){ const l=document.getElementById('log'); const el=document.createElement('div'); if(cls)el.className=cls; el.textContent=msg; l.appendChild(el); l.scrollTop=l.scrollHeight; }
+
+function init(){
+  msalInstance = new msal.PublicClientApplication({
+    auth:{ clientId:CLIENT_ID, authority:'https://login.microsoftonline.com/'+TENANT_ID, redirectUri:location.origin+location.pathname },
+    cache:{ cacheLocation:'sessionStorage' }
+  });
+}
+async function doSignIn(){
+  await msalInstance.initialize();
+  const res = await msalInstance.loginPopup({ scopes: SCOPES });
+  document.getElementById('signin-state').textContent = 'Signed in as '+res.account.username;
+  document.getElementById('card-run').style.display = 'block';
+  document.getElementById('signin-btn').disabled = true;
+}
+async function token(){
+  const acc = msalInstance.getAllAccounts()[0];
+  const r = await msalInstance.acquireTokenSilent({ scopes: SCOPES, account: acc })
+    .catch(()=>msalInstance.acquireTokenPopup({ scopes: SCOPES, account: acc }));
+  return r.accessToken;
+}
+
+async function getSiteId(t) {
+  const r = await fetch(`https://graph.microsoft.com/v1.0/sites/${SP_HOST}:${SP_PATH}`, { headers:{ Authorization:'Bearer '+t }});
+  if (!r.ok) throw new Error('site lookup '+r.status+': '+await r.text());
+  return (await r.json()).id;
+}
+async function getListId(t, siteId) {
+  const r = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists?$filter=displayName eq '${LIST_NAME}'`, { headers:{ Authorization:'Bearer '+t }});
+  if (!r.ok) throw new Error('list lookup '+r.status+': '+await r.text());
+  const j = await r.json();
+  if (!j.value || !j.value.length) throw new Error('list "'+LIST_NAME+'" not found on site');
+  return j.value[0].id;
+}
+async function listExisting(t, siteId, listId) {
+  const r = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/columns?$select=name`, { headers:{ Authorization:'Bearer '+t }});
+  if (!r.ok) throw new Error('columns lookup '+r.status+': '+await r.text());
+  return new Set((await r.json()).value.map(c => c.name));
+}
+function colBody(c) {
+  const base = { name: c.name, displayName: c.name, indexed: false };
+  if (c.type === 'text')     return { ...base, text: { allowMultipleLines:false, maxLength:255 }};
+  if (c.type === 'note')     return { ...base, text: { allowMultipleLines:true }};
+  if (c.type === 'datetime') return { ...base, dateTime: { format:'dateTime' }};
+  if (c.type === 'boolean')  return { ...base, boolean: {} };
+  if (c.type === 'choice')   return { ...base, choice: { allowTextEntry:false, choices: c.choices, displayAs:'dropDownMenu' }};
+  throw new Error('unknown column type '+c.type);
+}
+async function addAllColumns() {
+  try {
+    log('Resolving site/list…');
+    const t = await token();
+    const siteId = await getSiteId(t);
+    const listId = await getListId(t, siteId);
+    log('Site OK', 'ok');
+    log('List OK', 'ok');
+    const existing = await listExisting(t, siteId, listId);
+    log(`Existing columns: ${existing.size}`);
+    let added = 0, skipped = 0, failed = 0;
+    for (const c of COLUMNS) {
+      if (existing.has(c.name)) { log('skip '+c.name+' (exists)', 'warn'); skipped++; continue; }
+      const r = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/columns`, {
+        method:'POST', headers:{ Authorization:'Bearer '+t, 'Content-Type':'application/json' },
+        body: JSON.stringify(colBody(c))
+      });
+      if (r.ok) { log('added '+c.name, 'ok'); added++; }
+      else     { log('FAIL '+c.name+' — '+r.status+' '+await r.text(), 'err'); failed++; }
+    }
+    log(`Done. added=${added} skipped=${skipped} failed=${failed}`, failed ? 'err' : 'ok');
+  } catch(e) {
+    log('ERROR: '+e.message, 'err');
+  }
+}
+window.addEventListener('DOMContentLoaded', init);
+</script>
+</body></html>
