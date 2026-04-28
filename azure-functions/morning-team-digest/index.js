@@ -6,6 +6,7 @@ const TENANT_ID     = process.env.TENANT_ID;
 const CLIENT_ID     = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
 const SEND_FROM     = process.env.SEND_FROM;
+const REPNET_URL    = process.env.REPNET_URL || 'https://reposefurniture-repnet.azurestaticapps.net';
 
 const SP_HOST       = 'reposefurniturelimited.sharepoint.com';
 const SP_SITE_PATH  = '/sites/ReposeFurniture-PlanningRepose';
@@ -114,11 +115,20 @@ function buildEmail(team, raisedYesterday, stillOpen, yest) {
   const navy = '#1e3a5f', light = '#f0f4f8', border = '#e2e8f0';
   const rowsR = raisedYesterday.map(i => rowHtml(i, false)).join('') || `<tr><td colspan="6" style="padding:14px;color:#059669;text-align:center">✓ None raised yesterday</td></tr>`;
   const rowsO = stillOpen.map(i => rowHtml(i, true)).join('') || `<tr><td colspan="7" style="padding:14px;color:#059669;text-align:center">✓ Nothing currently open</td></tr>`;
+  const dateStr = yest.toLocaleDateString('en-GB',{ weekday:'long', day:'numeric', month:'long', year:'numeric' });
   return `<!DOCTYPE html><html><body style="margin:0;padding:0;background:${light};font-family:Arial,Helvetica,sans-serif">
   <div style="max-width:680px;margin:24px auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
-    <div style="background:${navy};padding:22px 28px"><div style="color:#fff;font-size:20px;font-weight:700">RepNet — ${escHtml(team)} CPAR Digest</div>
-      <div style="color:rgba(255,255,255,.7);font-size:13px;margin-top:4px">${yest.toLocaleDateString('en-GB',{ weekday:'long', day:'numeric', month:'long', year:'numeric' })}</div></div>
+    <div style="background:${navy};padding:22px 28px">
+      <div style="color:#fff;font-size:20px;font-weight:700">RepNet — ${escHtml(team)} CPAR Digest</div>
+      <div style="color:rgba(255,255,255,.7);font-size:13px;margin-top:4px">${escHtml(dateStr)}</div>
+    </div>
     <div style="padding:20px 28px">
+      <p style="margin:0 0 14px;font-size:14px;color:#374151">
+        ${raisedYesterday.length > 0
+          ? `<strong>${raisedYesterday.length} new CPAR${raisedYesterday.length===1?'':'s'}</strong> raised against ${escHtml(team)} yesterday.`
+          : `<strong>No new CPARs</strong> raised against ${escHtml(team)} yesterday.`}
+        ${stillOpen.length > 0 ? `<br><strong>${stillOpen.length}</strong> still open and awaiting close-out.` : ''}
+      </p>
       <h3 style="margin:0 0 8px;font-size:14px;color:#374151">Raised against you yesterday (${raisedYesterday.length})</h3>
       <table width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border:1px solid ${border};border-radius:6px;overflow:hidden;font-size:12px">
         <thead><tr style="background:${light}">${['Ref','Job','Description','QTY','Cat','Status'].map(h=>`<th style="padding:7px;text-align:left;font-size:10px;text-transform:uppercase;color:#6b7280">${h}</th>`).join('')}</tr></thead>
@@ -129,6 +139,23 @@ function buildEmail(team, raisedYesterday, stillOpen, yest) {
         <thead><tr style="background:${light}">${['Ref','Job','Description','QTY','Cat','Status','Days'].map(h=>`<th style="padding:7px;text-align:left;font-size:10px;text-transform:uppercase;color:#6b7280">${h}</th>`).join('')}</tr></thead>
         <tbody>${rowsO}</tbody>
       </table>
+      ${(raisedYesterday.length + stillOpen.length) > 0 ? `
+        <div style="margin-top:18px;padding:14px;background:${light};border-left:4px solid ${navy};border-radius:4px">
+          <p style="margin:0 0 8px;font-size:13px;font-weight:700;color:#374151">What to do:</p>
+          <ol style="font-size:12px;color:#374151;line-height:1.5;padding-left:18px;margin:0">
+            <li>Open RepNet → <strong>Quality</strong> → <strong>Internal NCRs</strong></li>
+            <li>Filter by your team (e.g. ${escHtml(team)})</li>
+            <li>Click each open CPAR row → <em>Close Out Issue</em> → fill Disposition / Containment / Cause / Action</li>
+            <li>Submit — sends to QHSE Review for final approval</li>
+          </ol>
+          <p style="margin:12px 0 0">
+            <a href="${escHtml(REPNET_URL)}" style="display:inline-block;padding:9px 18px;background:${navy};color:#fff;text-decoration:none;border-radius:6px;font-size:12px;font-weight:700">Open RepNet →</a>
+          </p>
+        </div>
+      ` : ''}
+    </div>
+    <div style="background:${light};padding:12px 28px;font-size:11px;color:#9ca3af;border-top:1px solid ${border}">
+      Repose Furniture · QMS — automated digest at 07:00 each working day · Do not reply.
     </div>
   </div></body></html>`;
 }
