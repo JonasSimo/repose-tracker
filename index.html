@@ -3063,9 +3063,10 @@ document.addEventListener('DOMContentLoaded', () => {
 ════════════════════════════════════════════════ -->
 <div id="view-quality" class="view" style="overflow:auto;padding:14px">
   <div style="display:flex;gap:8px;border-bottom:1.5px solid var(--border);margin-bottom:14px">
-    <button class="quality-chip active" data-view="review"   onclick="setQualitySubview('review')">QHSE Review</button>
+    <button class="quality-chip active" data-view="issues"   onclick="setQualitySubview('issues')">Issues</button>
+    <button class="quality-chip"        data-view="review"   onclick="setQualitySubview('review')">QHSE Review</button>
     <button class="quality-chip"        data-view="pe"       onclick="setQualitySubview('pe')">PE View</button>
-    <button class="quality-chip"        data-view="dash"     onclick="setQualitySubview('dash')">Dashboard</button>
+    <button class="quality-chip"        data-view="dash"     onclick="setQualitySubview('dash')">QMS Dashboard</button>
     <button class="quality-chip"        data-view="register" onclick="setQualitySubview('register')">Register</button>
   </div>
   <div id="quality-subview"></div>
@@ -11282,13 +11283,9 @@ function _cparRecomputeManager() {
   ]);
   cparIsManager = all.has(me);
 }
-let cparSubview = 'review';
+let cparSubview = 'issues';
 function openQualityView() {
-  if (!statsUnlocked) {
-    // Same gate as Stats — bounce user to stats password screen, then they can navigate back.
-    navTo('stats');
-    return;
-  }
+  // No longer gated — Issues sub-view is for everyone, manager chips auto-hide for non-managers.
   if (!cparListLoaded) fetchCPARs().then(() => renderQualitySubview());
   else renderQualitySubview();
 }
@@ -11306,10 +11303,35 @@ function setQualitySubview(v) {
 function renderQualitySubview() {
   const host = document.getElementById('quality-subview');
   if (!host) return;
+  // Hide manager chips for non-managers
+  const managerChips = ['review','pe','dash','register'];
+  document.querySelectorAll('.quality-chip').forEach(c => {
+    if (managerChips.includes(c.dataset.view)) c.style.display = cparIsManager ? '' : 'none';
+  });
+  // Non-manager hitting a manager chip via stale state → bounce to issues
+  if (!cparIsManager && managerChips.includes(cparSubview)) cparSubview = 'issues';
+
+  if (cparSubview === 'issues')   { host.innerHTML = ''; renderIssuesIntoQuality(host); return; }
   if (cparSubview === 'review')   host.innerHTML = renderQHSEReview();
   if (cparSubview === 'pe')       host.innerHTML = renderPEView();
   if (cparSubview === 'dash')     renderQualityDashboard(host);
   if (cparSubview === 'register') host.innerHTML = renderRegister();
+}
+
+function renderIssuesIntoQuality(host) {
+  // Stub for Commit 5 — the maintenance-styled re-render. For now, render the existing
+  // Issues list into this host by calling renderIssuesList on a temporarily-swapped target.
+  const issuesViewEl = document.getElementById('issues-list');
+  if (issuesViewEl) {
+    // Move the existing #issues-list contents into the Quality subview area as a clone
+    host.innerHTML = `<div id="quality-issues-host"></div>`;
+    const target = document.getElementById('quality-issues-host');
+    // Re-trigger renderIssuesList — it writes to #issues-list. We'll re-target later in commit 5.
+    renderIssuesList();
+    target.innerHTML = issuesViewEl.innerHTML;
+  } else {
+    host.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text3)">Issues view not available — try refreshing.</div>';
+  }
 }
 let cparReviewFilter = 'review';
 function setQHSEFilter(k) { cparReviewFilter = k; renderQualitySubview(); }
