@@ -1396,6 +1396,10 @@ body.tablet-mode .uh-token-icon { font-size:14px; }
 .qbtn.approve { background:var(--green); color:#fff }
 .qbtn.escalate{ background:#7c3aed; color:#fff }
 .qbtn.return  { background:#dc2626; color:#fff }
+.qbtn.selected {
+  outline: 3px solid var(--text);
+  outline-offset: 2px;
+}
 
 /* Repeat banner */
 .cpar-repeat-banner {
@@ -12007,25 +12011,48 @@ function renderPECard(item) {
     <div class="cpar-card-body">
       <div class="cpar-source-line"><span class="cpar-source-badge">${escHtml(f.SourceDept||'?')}</span>${escHtml(f.IssueCategory||'')}</div>
       ${f.Description ? `<div class="cpar-desc">${escHtml(f.Description)}</div>` : ''}
-      <div style="font-size:11px;color:var(--text3)">Closed-out by ${escHtml((f.ClosedOutBy||'').split('@')[0])}</div>
-      <div style="display:flex;gap:6px;margin-top:10px">
-        <button class="qbtn approve"  onclick="peOutcome('${item.id}','Human Error')">Mark Human Error</button>
-        <button class="qbtn escalate" onclick="peOutcome('${item.id}','Template-Spec Issue')">Mark Template/Spec issue</button>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:6px">Closed-out by ${escHtml((f.ClosedOutBy||'').split('@')[0])} · Cause: ${escHtml(f.CauseCode||'—')}</div>
+      ${f.CorrectiveAction ? `<div style="font-size:11px;color:var(--text2);margin-bottom:6px"><strong>Action so far:</strong> ${escHtml(f.CorrectiveAction)}</div>` : ''}
+
+      <!-- Investigation form — visible by default for Mark/Gareth -->
+      <div style="margin-top:10px;padding:12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);margin-bottom:6px">Investigation findings <span style="color:var(--red)">*</span></div>
+        <textarea id="pe-notes-${item.id}" placeholder="What did you find? Root cause, contributing factors, what was done…" oninput="refreshPESubmitState('${item.id}')" style="width:100%;padding:9px;border:1.5px solid var(--border);border-radius:6px;font-family:inherit;font-size:13px;min-height:80px;resize:vertical;box-sizing:border-box"></textarea>
+
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);margin-top:10px;margin-bottom:6px">Outcome <span style="color:var(--red)">*</span></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="qbtn approve"  onclick="peSelectOutcome('${item.id}','Human Error', this)">👤 Human Error</button>
+          <button class="qbtn escalate" onclick="peSelectOutcome('${item.id}','Template-Spec Issue', this)">📐 Template/Spec issue</button>
+        </div>
+
+        <div id="ecr-prompt-${item.id}"></div>
+
+        <button class="cpar-confirm-close-btn" id="pe-submit-${item.id}" onclick="event.stopPropagation();peSubmitInvestigation('${item.id}')" disabled style="margin-top:12px">Submit investigation → QHSE</button>
       </div>
-      <div id="ecr-prompt-${item.id}"></div>
     </div>
   </div>`;
 }
 
-async function peOutcome(id, outcome) {
-  const item = CPAR_ITEMS.find(i => i.id === id);
-  if (!item) return;
-  if (outcome === 'Template-Spec Issue') return showECRPrompt(id);
-  await peCompleteInvestigation(id, outcome, '');
+function peSelectOutcome(id, outcome, btn) {
+  // Toggle selection visual on the two outcome buttons
+  const wrap = btn.parentElement;
+  wrap.querySelectorAll('.qbtn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  // Store selected outcome on the form root
+  const root = document.getElementById('pe-submit-'+id);
+  if (root) root.dataset.outcome = outcome;
+  // For Template/Spec issue, expand the ECR prompt
+  if (outcome === 'Template-Spec Issue') {
+    showECRPrompt(id);
+  } else {
+    document.getElementById('ecr-prompt-'+id).innerHTML = '';
+  }
+  refreshPESubmitState(id);
 }
 
 function showECRPrompt(id) {
   const item = CPAR_ITEMS.find(i => i.id === id);
+  if (!item) return;
   const f = item.fields || {};
   const subject = encodeURIComponent(`[CPAR ${f.Title}] ECR request — ${f.PrimaryModel||''}`);
   const bodyText = `CPAR Ref: ${f.Title}
@@ -12044,15 +12071,27 @@ ${f.CorrectiveAction||''}
   const mailto = `mailto:${ECR_EMAIL}?subject=${subject}&body=${body}`;
   const isLong = mailto.length > 1800;
   const buttonHtml = isLong
-    ? `<button onclick="copyECRBodyAndOpen('${escHtml(id)}', \`${escHtml(bodyText).replace(/`/g,'\\`')}\`)" style="display:inline-block;padding:8px 14px;background:#d97706;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">📧 Copy body &amp; open ECR email (body too long for mailto)</button>`
-    : `<a href="${mailto}" style="display:inline-block;padding:8px 14px;background:#d97706;color:#fff;text-decoration:none;border-radius:6px;font-size:12px;font-weight:700">📧 Open pre-filled ECR email</a>`;
+    ? `<button onclick="event.stopPropagation();copyECRBodyAndOpen('${escHtml(id)}', \`${escHtml(bodyText).replace(/`/g,'\\`')}\`)" style="display:inline-block;padding:8px 14px;background:#d97706;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">📧 Copy body &amp; open ECR email (body too long)</button>`
+    : `<a href="${mailto}" onclick="event.stopPropagation()" style="display:inline-block;padding:8px 14px;background:#d97706;color:#fff;text-decoration:none;border-radius:6px;font-size:12px;font-weight:700">📧 Open pre-filled ECR email</a>`;
   document.getElementById('ecr-prompt-'+id).innerHTML = `
     <div style="margin-top:10px;padding:12px;background:#fff8e6;border:1px solid #fde68a;border-radius:8px">
       <div style="font-size:12px;font-weight:700;color:#d97706;margin-bottom:6px">📐 Raise ECR with Prism Engineering</div>
       ${buttonHtml}
-      <input type="text" id="ecr-ref-${id}" placeholder="Paste ECR ref (e.g. ECR-191)" style="display:block;margin-top:10px;padding:8px;border:1.5px solid #fde68a;border-radius:6px;font-family:'JetBrains Mono',monospace;width:100%;box-sizing:border-box">
-      <button class="qbtn approve" onclick="peSubmitECR('${id}')" style="margin-top:8px">Save &amp; complete investigation</button>
+      <input type="text" id="ecr-ref-${id}" placeholder="Paste ECR ref (e.g. ECR-191)" oninput="refreshPESubmitState('${id}')" style="display:block;margin-top:10px;padding:8px;border:1.5px solid #fde68a;border-radius:6px;font-family:'JetBrains Mono',monospace;width:100%;box-sizing:border-box">
     </div>`;
+}
+
+function refreshPESubmitState(id) {
+  const root = document.getElementById('pe-submit-'+id);
+  if (!root) return;
+  const outcome = root.dataset.outcome || '';
+  const notes = (document.getElementById('pe-notes-'+id)?.value || '').trim();
+  let ok = !!outcome && !!notes;
+  if (outcome === 'Template-Spec Issue') {
+    const ecr = (document.getElementById('ecr-ref-'+id)?.value || '').trim();
+    if (!ecr) ok = false;
+  }
+  root.disabled = !ok;
 }
 
 async function copyECRBodyAndOpen(id, bodyText) {
@@ -12069,52 +12108,63 @@ async function copyECRBodyAndOpen(id, bodyText) {
   window.open(`mailto:${ECR_EMAIL}?subject=${subject}&body=${encodeURIComponent('See pasted description below.')}`, '_self');
 }
 
-async function peSubmitECR(id) {
-  if (_isBusy(id)) return; // ignore double-click
+async function peSubmitInvestigation(id) {
+  if (_isBusy(id)) return;
   _setBusy(id);
+  const submitBtn = document.getElementById('pe-submit-'+id);
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Saving…'; }
   try {
-    const ref = document.getElementById('ecr-ref-'+id).value.trim();
-    if (!ref) { toast('Paste the ECR ref first', 'w'); return; }
-    await peCompleteInvestigation(id, 'Template-Spec Issue', ref);
+    const root = document.getElementById('pe-submit-'+id);
+    const outcome = root?.dataset.outcome || '';
+    const notes = (document.getElementById('pe-notes-'+id)?.value || '').trim();
+    const ecrRef = (document.getElementById('ecr-ref-'+id)?.value || '').trim();
+    if (!outcome || !notes) { toast('Notes and outcome required', 'w'); return; }
+    if (outcome === 'Template-Spec Issue' && !ecrRef) { toast('ECR ref required', 'w'); return; }
+    await peCompleteInvestigation(id, outcome, ecrRef, notes);
   } finally {
     _clearBusy(id);
+    if (submitBtn) { submitBtn.textContent = 'Submit investigation → QHSE'; refreshPESubmitState(id); }
   }
 }
 
-async function peCompleteInvestigation(id, outcome, ecrRef) {
-  // Note: peSubmitECR also sets busy on the same id; the inner check is a no-op in that path
-  // but protects direct callers from double-clicking the outcome buttons.
-  const wasBusy = _isBusy(id);
-  if (!wasBusy) _setBusy(id);
+async function peCompleteInvestigation(id, outcome, ecrRef, investigationNotes='') {
+  const item = CPAR_ITEMS.find(i => i.id === id);
+  if (!item) return;
+  const me = msalInstance.getAllAccounts()[0]?.username || '?';
+  if (me === '?') { toast('Sign-in expired — refresh', 'u'); return; }
+  const meName = (me.split('@')[0] || me);
+  const now = new Date().toISOString();
+  // Append investigation findings to existing CorrectiveAction with a clear header
+  const existingAction = item.fields?.CorrectiveAction || '';
+  const investigationHeader = `\n\n[INVESTIGATION by ${meName} — ${outcome}${ecrRef ? ' · ' + ecrRef : ''}]\n`;
+  const newAction = investigationNotes
+    ? (existingAction + investigationHeader + investigationNotes).trim()
+    : existingAction;
+  const newHistory = appendCPARHistory(item.fields?.History || '', {
+    by:me, ev:'investigated', outcome, ecrRef: ecrRef || undefined,
+    notes: investigationNotes ? investigationNotes.slice(0, 200) : undefined,
+  });
+  const fields = {
+    Status: CPAR_STATUS.AWAITING_SIGNOFF,
+    InvestigatedBy: me, InvestigatedAt: now,
+    InvestigationOutcome: outcome,
+    ECRRef: ecrRef,
+    CorrectiveAction: newAction,
+    History: newHistory,
+  };
   try {
-    const item = CPAR_ITEMS.find(i => i.id === id);
-    if (!item) return;
-    const me = msalInstance.getAllAccounts()[0]?.username || '?';
-    if (me === '?') { toast('Sign-in expired — refresh', 'u'); return; }
-    const now = new Date().toISOString();
-    const newHistory = appendCPARHistory(item.fields?.History || '', { by:me, ev:'investigated', outcome, ecrRef });
-    const fields = {
-      Status: CPAR_STATUS.AWAITING_SIGNOFF,
-      InvestigatedBy: me, InvestigatedAt: now,
-      InvestigationOutcome: outcome, ECRRef: ecrRef,
-      History: newHistory,
-    };
-    try {
-      const token  = await getGraphToken();
-      const siteId = await getSpSiteId();
-      const listId = await getListIdByName(SP_CPAR_LIST);
-      const r = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}/fields`, {
-        method:'PATCH', headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' },
-        body: JSON.stringify(fields)
-      });
-      if (!r.ok) throw new Error(r.status+' '+await r.text());
-      Object.assign(item.fields, fields);
-      toast('Investigation complete — sent to QHSE', 's');
-      renderQualitySubview();
-    } catch(e) { toast('Failed: '+e.message, 'u'); }
-  } finally {
-    if (!wasBusy) _clearBusy(id);
-  }
+    const token  = await getGraphToken();
+    const siteId = await getSpSiteId();
+    const listId = await getListIdByName(SP_CPAR_LIST);
+    const r = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}/fields`, {
+      method:'PATCH', headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' },
+      body: JSON.stringify(fields)
+    });
+    if (!r.ok) throw new Error(r.status+' '+await r.text());
+    Object.assign(item.fields, fields);
+    toast('Investigation complete — sent to QHSE', 's');
+    renderQualitySubview();
+  } catch(e) { toast('Failed: '+e.message, 'u'); }
 }
 let regFromDate = '';
 let regToDate = '';
