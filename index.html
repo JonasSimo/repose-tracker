@@ -2700,7 +2700,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <button class="nav-item" data-view="production" onclick="navTo('production')">Production Plan</button>
         <button class="nav-item" data-view="stats" onclick="navTo('stats')">Stats</button>
         <button class="nav-item" data-view="issues" id="issues-tab-btn" onclick="navTo('issues')">CPARs</button>
-        <button class="nav-item tab-btn" data-view="quality" id="quality-tab-btn" onclick="navTo('quality')" style="display:none">Quality</button>
+        <button class="nav-item tab-btn" data-view="quality" id="quality-tab-btn" onclick="navTo('quality')">Quality</button>
         <button class="nav-item" data-view="timing" id="timing-tab-btn" onclick="navTo('timing')" style="display:none">Job Timing</button>
         <button class="nav-item" data-view="maintenance" id="mt-tab-btn" onclick="navTo('maintenance')">Maintenance</button>
         <button class="nav-item" data-view="safety" onclick="navTo('safety')">Near Misses</button>
@@ -7014,12 +7014,14 @@ function updateAuthBadge() {
     mtIsManager = wmIsManager; // QHSE Managers gate — same set as Stats / Woodmill manager actions
     mtState.isManager = mtIsManager;
     cpIsManager = COMPLAINTS_MANAGERS.has(graphAccount.username.toLowerCase());
+    _cparRecomputeManager();
     const _statsAccess = STATS_TEAM_ACCESS[graphAccount.username.toLowerCase()];
     if (_statsAccess) {
       statsAllowedTeams = _statsAccess;
       statsUnlocked = true;
       const qbtn = document.getElementById('quality-tab-btn');
       if (qbtn) qbtn.style.display = '';
+      _cparRecomputeManager();
     }
     else { statsAllowedTeams = null; }
     // Innovation Station access
@@ -7940,6 +7942,7 @@ function submitStatsPassword() {
     statsUnlocked = true;
     const qbtn = document.getElementById('quality-tab-btn');
     if (qbtn) qbtn.style.display = '';
+    _cparRecomputeManager();
     document.getElementById('stats-pw-error').style.display = 'none';
     showStatsContent();
   } else {
@@ -11264,6 +11267,21 @@ function openIssuesView() {
 }
 
 // ── Quality tab (CPAR ISO 9001) ────────────────────────────
+// Manager auto-detect — replaces Stats-password gating for Quality manager chips.
+// Logged-in user email is checked against the union of all CPAR manager lists.
+let cparIsManager = false;
+function _cparRecomputeManager() {
+  const me = (msalInstance.getAllAccounts()[0]?.username || '').toLowerCase().trim();
+  if (!me) { cparIsManager = false; return; }
+  const all = new Set([
+    ...CPAR_QHSE_REVIEWERS.map(e => e.toLowerCase()),
+    ...CPAR_INVESTIGATORS.map(x => x.email.toLowerCase()),
+    ...CPAR_PE_VIEW_OVERSEERS.map(e => e.toLowerCase()),
+    'mitch@reposefurniture.co.uk',
+    'richard.semmens@reposefurniture.co.uk',
+  ]);
+  cparIsManager = all.has(me);
+}
 let cparSubview = 'review';
 function openQualityView() {
   if (!statsUnlocked) {
