@@ -12401,14 +12401,54 @@ function renderQualityDashboard(host) {
   renderRecentRepeats();
 }
 
-function drawChartRaisedClosed() {
+let _chartItemsCache = null;
+let _chartItemsCacheAt = 0;
+async function fetchCPARsForChart() {
+  // Use cached data if fetched within last 5 minutes
+  if (_chartItemsCache && (Date.now() - _chartItemsCacheAt < 300000)) return _chartItemsCache;
+  try {
+    const siteId = await getSpSiteId();
+    const listId = await getListIdByName(SP_CPAR_LIST);
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - 13); // 13 months window for 12-month chart
+    const cutoffIso = cutoff.toISOString();
+    const items = await graphGetAll(
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999&$filter=fields/Created ge '${cutoffIso}'`
+    );
+    _chartItemsCache = items;
+    _chartItemsCacheAt = Date.now();
+    return items;
+  } catch(e) {
+    console.warn('fetchCPARsForChart failed, falling back to CPAR_ITEMS:', e.message);
+    return CPAR_ITEMS;
+  }
+}
+
+async function drawChartRaisedClosed() {
+  const host = document.getElementById('dash-chart-1');
+  if (!host) return;
+  // Initial render with CPAR_ITEMS for instant feedback
+  _drawChartRaisedClosedFromItems(CPAR_ITEMS, host, true);
+  // Then fetch wider window and re-render with accurate data
+  const wider = await fetchCPARsForChart();
+  if (wider && wider !== CPAR_ITEMS) _drawChartRaisedClosedFromItems(wider, host, false);
+}
+
+function _drawChartRaisedClosedFromItems(items, host, partialFlag) {
   const months = [];
   const now = new Date();
   for (let i = 11; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    months.push({ y:d.getFullYear(), m:d.getMonth(), label: d.toLocaleDateString('en-GB', { month:'short', year:'2-digit' }), raised:0, closed:0 });
+    months.push({
+      y: d.getFullYear(),
+      m: d.getMonth(),
+      label: d.toLocaleDateString('en-GB', { month:'short', year:'2-digit' }),
+      monthName: d.toLocaleDateString('en-GB', { month:'long', year:'numeric' }),
+      raised: 0,
+      closed: 0,
+    });
   }
-  for (const item of CPAR_ITEMS) {
+  for (const item of items) {
     const f = item.fields || {};
     const r = parseCPARDate(f.LoggedAt);
     if (r.getTime()) {
@@ -12423,25 +12463,38 @@ function drawChartRaisedClosed() {
       }
     }
   }
-  const w = 720, h = 200, pad = 32;
+  const w = 720, h = 220, pad = 32;
   const max = Math.max(...months.flatMap(m => [m.raised, m.closed]), 5);
   const x = i => pad + i * ((w - pad*2) / (months.length - 1));
   const y = v => h - pad - (v / max) * (h - pad*2);
-  const linePath = key => 'M' + months.map((m,i) => `${x(i)},${y(m[key])}`).join(' L');
-  document.getElementById('dash-chart-1').innerHTML = `
-    <div style="font-size:13px;font-weight:700;margin-bottom:6px">Monthly raised vs closed (12-month trailing)</div>
+  const linePath = key => 'M' + months.map((m, i) => `${x(i)},${y(m[key])}`).join(' L');
+
+  host.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+      <div style="font-size:13px;font-weight:700">Monthly raised vs closed (12-month trailing)</div>
+      ${partialFlag ? '<span style="font-size:11px;color:var(--text3);font-style:italic">loading wider history…</span>' : ''}
+    </div>
     <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;font-family:inherit;font-size:10px">
       <line x1="${pad}" y1="${h-pad}" x2="${w-pad}" y2="${h-pad}" stroke="#ccc"/>
-      ${months.map((m,i) => `<text x="${x(i)}" y="${h-pad+14}" text-anchor="middle" fill="#888">${escHtml(m.label)}</text>`).join('')}
+      ${months.map((m, i) => `<text x="${x(i)}" y="${h-pad+14}" text-anchor="middle" fill="#888">${escHtml(m.label)}</text>`).join('')}
       <text x="${pad-4}" y="${pad}" text-anchor="end" fill="#888">${max}</text>
       <text x="${pad-4}" y="${h-pad}" text-anchor="end" fill="#888">0</text>
       <path d="${linePath('raised')}" fill="none" stroke="#dc2626" stroke-width="2"/>
       <path d="${linePath('closed')}" fill="none" stroke="#059669" stroke-width="2"/>
-      ${months.map((m,i) => `<g><circle cx="${x(i)}" cy="${y(m.raised)}" r="3" fill="#dc2626"/><circle cx="${x(i)}" cy="${y(m.closed)}" r="3" fill="#059669"/></g>`).join('')}
+      ${months.map((m, i) => `
+        <g>
+          <circle cx="${x(i)}" cy="${y(m.raised)}" r="5" fill="#dc2626" style="cursor:help">
+            <title>${escHtml(m.monthName)} — Raised: ${m.raised}</title>
+          </circle>
+          <circle cx="${x(i)}" cy="${y(m.closed)}" r="5" fill="#059669" style="cursor:help">
+            <title>${escHtml(m.monthName)} — Closed: ${m.closed}</title>
+          </circle>
+        </g>`).join('')}
     </svg>
     <div style="display:flex;gap:14px;font-size:11px;margin-top:6px">
       <span><span style="display:inline-block;width:10px;height:3px;background:#dc2626;vertical-align:middle"></span> Raised</span>
       <span><span style="display:inline-block;width:10px;height:3px;background:#059669;vertical-align:middle"></span> Closed</span>
+      <span style="margin-left:auto;color:var(--text3)">Hover any point for exact count</span>
     </div>
   `;
 }
