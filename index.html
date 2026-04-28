@@ -10614,6 +10614,27 @@ let cparFilterStatus = 'open';
 let cparFilterTeam = '';
 let cparListLoaded = false;
 
+// ── History audit trail (JSON-lines stored in History column) ──
+function appendCPARHistory(currentHistory, event) {
+  const line = JSON.stringify({ t: new Date().toISOString(), ...event });
+  return currentHistory ? currentHistory + '\n' + line : line;
+}
+function parseCPARHistory(historyText) {
+  if (!historyText) return [];
+  return historyText.split('\n').filter(Boolean).map(l => {
+    try { return JSON.parse(l); } catch { return { t:'?', ev:'parse-error', raw:l }; }
+  });
+}
+// Self-test (runs once at module load)
+(function testHistory() {
+  const empty = appendCPARHistory('', { by:'a@b.co', ev:'raised' });
+  console.assert(empty.split('\n').length === 1, 'history append empty');
+  const two = appendCPARHistory(empty, { by:'a@b.co', ev:'closed-out' });
+  console.assert(two.split('\n').length === 2, 'history append second');
+  const parsed = parseCPARHistory(two);
+  console.assert(parsed.length === 2 && parsed[0].ev === 'raised' && parsed[1].ev === 'closed-out', 'history parse');
+})();
+
 let cparSelectedGroups = {}; // { 'Back Error': 'Post wrong size', 'Seat Error': '' }
 
 // Form state — persists while modal is open
