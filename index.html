@@ -11672,7 +11672,56 @@ function renderRegister() {
   `;
 }
 
-function exportRegisterCSV() { /* Task 19 */ toast('Export — wiring in Task 19', 'w'); }
+function csvEscape(v) {
+  if (v === null || v === undefined) return '';
+  const s = String(v);
+  if (/[",\n\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+
+function exportRegisterCSV() {
+  const filtered = CPAR_ITEMS.filter(i => {
+    const f = i.fields || {};
+    const d = parseCPARDate(f.LoggedAt);
+    if (!d.getTime()) return false;
+    if (d < new Date(regFromDate)) return false;
+    if (d > new Date(regToDate+'T23:59:59')) return false;
+    if (regTeamFilter && f.SourceDept !== regTeamFilter) return false;
+    if (regStatusFilter && f.Status !== regStatusFilter) return false;
+    return true;
+  }).sort((a,b) => parseCPARDate(b.fields.LoggedAt) - parseCPARDate(a.fields.LoggedAt));
+
+  const headers = ['REF','Date Raised','Raised By Team','Source Dept','Category','Job Ref','Model','QTY','Description',
+    'Closed-Out By','Closed-Out At','Disposition','Disposition Notes','Containment','Root Cause','Corrective Action',
+    'Reviewed By','Reviewed At','Review Decision','Investigator','Investigation Outcome','ECR Ref',
+    'Closed By','Closed At','Repeat?','Repeat Linked Refs','Eff. Verified By','Eff. Verified At','Eff. Verified?',
+    'Recurrence Note','Linked-From Ref','Days Open','Status'];
+
+  const rows = filtered.map(i => {
+    const f = i.fields || {};
+    const open = parseCPARDate(f.LoggedAt);
+    const close = parseCPARDate(f.ClosedAt) || new Date();
+    const days = open.getTime() ? workingDaysBetween(open, close) : '';
+    return [
+      f.Title, (f.LoggedAt||'').slice(0,16), f.RaisedByTeam, f.SourceDept, f.IssueCategory,
+      (f.PrimaryREP||'')+'/'+(f.PrimaryJobNo||''), f.PrimaryModel, f.QTY||1, f.Description,
+      f.ClosedOutBy, f.ClosedOutAt, f.Disposition, f.DispositionNotes, f.Containment, f.CauseCode, f.CorrectiveAction,
+      f.ReviewedBy, f.ReviewedAt, f.ReviewDecision, f.InvestigatorAssigned, f.InvestigationOutcome, f.ECRRef,
+      f.ClosedBy, f.ClosedAt, f.IsRepeat ? 'Yes' : '', f.RepeatLinkedRefs,
+      f.EffectivenessVerifiedBy, f.EffectivenessVerifiedAt,
+      f.EffectivenessVerified === true ? 'Yes' : f.EffectivenessVerified === false ? 'No' : '',
+      f.RecurrenceNote, f.LinkedFromRef, days, f.Status,
+    ].map(csvEscape).join(',');
+  });
+
+  const csv = [headers.join(','), ...rows].join('\r\n');
+  const blob = new Blob(['﻿' + csv], { type:'text/csv;charset=utf-8' }); // BOM for Excel
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `cpar-register-${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  toast(`Exported ${rows.length} CPARs`, 's');
+}
 function renderQualityDashboard(host) { host.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text3)">Dashboard — Phase 6</div>'; }
 
 // Filter: open CPARs (any age) + everything created in the last CPAR_HISTORY_DAYS.
