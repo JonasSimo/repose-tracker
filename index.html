@@ -2614,13 +2614,8 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 <style id="cpar-print-stylesheet">
-@media print {
-  body * { visibility: hidden !important; }
-  #cpar-print-area, #cpar-print-area * { visibility: visible !important; }
-  #cpar-print-area { display: block !important; position: absolute; left: 0; top: 0; width: 100%; padding: 16mm; background: #fff; }
-  @page { size: A4 portrait; margin: 0; }
-}
-#cpar-print-area { display: none; }
+/* Print area lives offscreen at all times — it's only ever rendered inside a transient print iframe (see printCPAR). */
+#cpar-print-area { position: absolute; left: -10000px; top: -10000px; width: 210mm; }
 #cpar-print-area .h { display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #1e3a5f; padding-bottom:8px; margin-bottom:12px }
 #cpar-print-area .h .lg { font-size:20px; font-weight:800; color:#1e3a5f }
 #cpar-print-area .h .lgs { font-size:9px; color:#666; text-transform:uppercase; letter-spacing:.1em }
@@ -11695,7 +11690,30 @@ function printCPAR(id) {
   const item = CPAR_ITEMS.find(i => i.id === id);
   if (!item) { toast('CPAR not found', 'w'); return; }
   populateCPARPrint(item);
-  setTimeout(() => window.print(), 50);
+  // Clone the populated print area into a transient iframe and print from there.
+  // Bypasses @media-print visibility quirks across Chrome/Edge/Safari.
+  const printAreaHtml = document.getElementById('cpar-print-area').innerHTML;
+  const styleNode = document.getElementById('cpar-print-stylesheet');
+  const printStyles = styleNode ? styleNode.innerHTML : '';
+  const iframe = document.createElement('iframe');
+  iframe.style.cssText = 'position:fixed;left:-10000px;top:-10000px;width:210mm;height:297mm;border:0';
+  document.body.appendChild(iframe);
+  const doc = iframe.contentDocument;
+  doc.open();
+  doc.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escHtml(item.fields.Title || 'CPAR')} — Non-Conformance Report</title>
+    <style>
+      @page { size: A4 portrait; margin: 0; }
+      *, *::before, *::after { box-sizing: border-box; }
+      body { margin: 0; padding: 16mm; font-family: 'Inter', Arial, sans-serif; color: #0e023a; background: #fff; }
+      ${printStyles.replace(/#cpar-print-area\s*\{[^}]*\}/, '').replace(/#cpar-print-area\s+/g, '')}
+    </style>
+  </head><body>${printAreaHtml}</body></html>`);
+  doc.close();
+  setTimeout(() => {
+    try { iframe.contentWindow.focus(); iframe.contentWindow.print(); }
+    catch(e) { console.error('print error:', e); toast('Print failed: '+e.message, 'u'); }
+    setTimeout(() => iframe.remove(), 1500);
+  }, 100);
 }
 
 async function loadCPARPhoto(id) {
