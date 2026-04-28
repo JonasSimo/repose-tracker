@@ -10707,7 +10707,8 @@ let cparListLoaded = false;
 
 // ── History audit trail (JSON-lines stored in History column) ──
 function appendCPARHistory(currentHistory, event) {
-  const line = JSON.stringify({ t: new Date().toISOString(), ...event });
+  // Spread first, then set t — guarantees the timestamp can't be overwritten by caller-supplied keys.
+  const line = JSON.stringify({ ...event, t: new Date().toISOString() });
   return currentHistory ? currentHistory + '\n' + line : line;
 }
 function parseCPARHistory(historyText) {
