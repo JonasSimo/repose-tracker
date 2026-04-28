@@ -13527,6 +13527,7 @@ async function submitCPARCloseout(id) {
   btn.disabled = true; btn.textContent = 'Saving…';
 
   const me = msalInstance.getAllAccounts()[0]?.username || '?';
+  if (!me || me === '?') { toast('Sign-in expired — refresh and try again', 'u'); return; }
   const now = new Date().toISOString();
   const newHistory = appendCPARHistory(item.fields?.History || '', {
     by: me, ev:'closed-out',
