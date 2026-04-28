@@ -8906,7 +8906,7 @@ function renderStatsDashboard() {
       </div>
       <div class="cpar-stat-pills">
         ${cparOpen.length  ? `<span class="cpar-stat-pill open">${cparOpen.length} open</span>` : ''}
-        ${cparAmber.length ? `<span class="cpar-stat-pill amber">${cparAmber.length} 48h+</span>` : ''}
+        ${cparAmber.length ? `<span class="cpar-stat-pill amber">${cparAmber.length} 1d+</span>` : ''}
         ${cparRed.length   ? `<span class="cpar-stat-pill overdue">${cparRed.length} overdue</span>` : ''}
         ${cparClosed.length ? `<span class="cpar-stat-pill closed">${cparClosed.length} closed</span>` : ''}
         ${!cpars.length    ? '<span style="font-size:12px;color:var(--repose-grey)">No issues this period</span>' : ''}
@@ -10068,9 +10068,9 @@ function renderDetailCPAR() {
         <div class="q-section-title">SLA Compliance (closed issues)</div>
         ${closed.length ? `<div style="height:140px"><canvas id="ch-q-sla"></canvas></div>
         <div class="q-sla-legend">
-          <div class="q-sla-row"><div class="q-sla-dot" style="background:#059669"></div><span class="q-sla-label">Within 48h</span><span class="q-sla-pct" style="color:#059669">${withinSLA.length} (${closed.length ? Math.round(withinSLA.length/closed.length*100) : 0}%)</span></div>
-          <div class="q-sla-row"><div class="q-sla-dot" style="background:#d97706"></div><span class="q-sla-label">48h – 4 days</span><span class="q-sla-pct" style="color:#d97706">${slaAmber.length} (${closed.length ? Math.round(slaAmber.length/closed.length*100) : 0}%)</span></div>
-          <div class="q-sla-row"><div class="q-sla-dot" style="background:var(--red)"></div><span class="q-sla-label">Breached 4-day target</span><span class="q-sla-pct" style="color:var(--red)">${slaBreached.length} (${closed.length ? Math.round(slaBreached.length/closed.length*100) : 0}%)</span></div>
+          <div class="q-sla-row"><div class="q-sla-dot" style="background:#059669"></div><span class="q-sla-label">Within 1 working day</span><span class="q-sla-pct" style="color:#059669">${withinSLA.length} (${closed.length ? Math.round(withinSLA.length/closed.length*100) : 0}%)</span></div>
+          <div class="q-sla-row"><div class="q-sla-dot" style="background:#d97706"></div><span class="q-sla-label">1-2 working days</span><span class="q-sla-pct" style="color:#d97706">${slaAmber.length} (${closed.length ? Math.round(slaAmber.length/closed.length*100) : 0}%)</span></div>
+          <div class="q-sla-row"><div class="q-sla-dot" style="background:var(--red)"></div><span class="q-sla-label">Breached 2-day target</span><span class="q-sla-pct" style="color:var(--red)">${slaBreached.length} (${closed.length ? Math.round(slaBreached.length/closed.length*100) : 0}%)</span></div>
         </div>` : '<div style="padding:20px;text-align:center;color:var(--repose-grey);font-size:12px">No closed issues this period</div>'}
       </div>
     </div>
@@ -10200,7 +10200,7 @@ function renderDetailCPAR() {
     if (closed.length && document.getElementById('ch-q-sla')) {
       statsCharts['ch-q-sla'] = new Chart(document.getElementById('ch-q-sla').getContext('2d'), {
         type:'doughnut',
-        data:{ labels:['Within 48h','48h – 4 days','Breached'], datasets:[{ data:[withinSLA.length, slaAmber.length, slaBreached.length], backgroundColor:['#059669','#d97706','#dc2626'], borderWidth:0 }] },
+        data:{ labels:['Within 1 working day','1-2 working days','Breached'], datasets:[{ data:[withinSLA.length, slaAmber.length, slaBreached.length], backgroundColor:['#059669','#d97706','#dc2626'], borderWidth:0 }] },
         options:{ responsive:true, maintainAspectRatio:false, animation:false, cutout:'65%', plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: ctx => ` ${ctx.raw} issues (${closed.length ? Math.round(ctx.raw/closed.length*100) : 0}%)` } } } },
       });
     }
@@ -14761,7 +14761,7 @@ async function sendOpenCPARDigest() {
     };
 
     const rowColour = (s) => s === 'red' ? '#fff8f8' : s === 'amber' ? '#fffbeb' : '#f0f7ff';
-    const statusLabel = (s) => s === 'red' ? '🔴 4+ days' : s === 'amber' ? '🟡 48h+' : s === 'closed' ? '✅ Closed' : '🔵 Open';
+    const statusLabel = (s) => s === 'red' ? '🔴 2+ days' : s === 'amber' ? '🟡 1 day+' : s === 'closed' ? '✅ Closed' : '🔵 Open';
 
     const tableHead = `<thead><tr style="background:#1e3a5f;color:#fff">
       <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Ref</th>
