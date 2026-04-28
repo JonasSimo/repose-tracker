@@ -195,8 +195,13 @@ module.exports = async function (context, myTimer) {
   const yest = lastWorkingDay();
   const yestPrefix = yest.toISOString().slice(0,10);
 
-  const uphGroup = new Set(['Upholstery','Upholstery Arms','Upholstery Backs','Upholstery Seats']);
-  const canonicalTeam = t => uphGroup.has(t) ? 'Upholstery' : t;
+  const uphGroupLc = new Set(['upholstery','upholstery arms','upholstery backs','upholstery seats']);
+  const canonicalTeam = t => {
+    const norm = (t || '').trim();
+    if (!norm) return 'Unknown';
+    if (uphGroupLc.has(norm.toLowerCase())) return 'Upholstery';
+    return norm;
+  };
   const sentTeams = new Set();
 
   for (const team of Object.keys(TEAM_MANAGERS)) {

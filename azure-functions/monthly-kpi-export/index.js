@@ -129,8 +129,13 @@ module.exports = async function (context, myTimer) {
     `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999`
   );
   // Roll Upholstery sub-teams into parent so KPI rows match the ALL row's sum.
-  const uphGroup = new Set(['Upholstery','Upholstery Arms','Upholstery Backs','Upholstery Seats']);
-  const canonicalTeam = t => uphGroup.has(t) ? 'Upholstery' : (t || 'Unknown');
+  const uphGroupLc = new Set(['upholstery','upholstery arms','upholstery backs','upholstery seats']);
+  const canonicalTeam = t => {
+    const norm = (t || '').trim();
+    if (!norm) return 'Unknown';
+    if (uphGroupLc.has(norm.toLowerCase())) return 'Upholstery';
+    return norm;
+  };
   const teams = [...new Set(items.map(i => canonicalTeam(i.fields?.SourceDept)).filter(Boolean))].sort();
 
   const headers = ['Period','Team','Opened','Closed','Still Open EOM','MTTR (work hrs)','Top Cause','Top Cause Count','Repeat-flagged','ECR-linked','Eff. Verified','Eff. Failed'];
