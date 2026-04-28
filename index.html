@@ -11584,9 +11584,34 @@ function effVerifyOpen(id) {
   effVerify(id, false, note.trim());
 }
 
-// Stub — Task 22 implements this
 async function effCreateRecurrence(originalItem, recurrenceNote) {
-  console.warn('effCreateRecurrence — Task 22 will implement');
+  const f = originalItem.fields || {};
+  const token  = await getGraphToken();
+  const siteId = await getSpSiteId();
+  const listId = await getListIdByName(SP_CPAR_LIST);
+  const newRef = await getNextCPARRef(siteId, listId);
+  const me = msalInstance.getAllAccounts()[0]?.username || '?';
+  const now = new Date();
+  const loggedAt = now.toISOString();
+  const initialHistory = appendCPARHistory('', { by:me, ev:'raised-from-recurrence', linkedFrom: f.Title, note: recurrenceNote });
+  const fields = {
+    Title: newRef,
+    RaisedByTeam: f.RaisedByTeam,
+    PrimaryREP: f.PrimaryREP, PrimaryJobNo: f.PrimaryJobNo, PrimaryModel: f.PrimaryModel,
+    PrimaryWeek: f.PrimaryWeek, PrimaryPrep: f.PrimaryPrep,
+    AffectedJobs: f.AffectedJobs || '[]', TotalAffected: f.TotalAffected || '1',
+    QTY: f.QTY || '1', SourceDept: f.SourceDept, IssueCategory: f.IssueCategory,
+    Description: '[RECURRENCE of '+f.Title+'] '+recurrenceNote,
+    Status: CPAR_STATUS.OPEN, LoggedAt: loggedAt,
+    LinkedFromRef: f.Title, History: initialHistory,
+  };
+  const r = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`, {
+    method:'POST', headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' },
+    body: JSON.stringify({ fields })
+  });
+  if (!r.ok) throw new Error('create '+r.status+' '+await r.text());
+  const created = await r.json();
+  CPAR_ITEMS.unshift({ id: created.id, fields });
 }
 
 // QHSE / management oversight — see all PE investigations read-only.
