@@ -10105,7 +10105,7 @@ function renderDetailCPAR() {
                 <div class="q-issue-desc">${escHtml(f.Description||f.IssueCategory||'—')}</div>
                 <div class="q-issue-meta">${escHtml(normaliseTeam(f.RaisedByTeam||'?'))} · ${escHtml(f.IssueCategory||'—')} · ${ageDays < 0 ? 'date unknown' : ageDays === 0 ? 'today' : ageDays+'d ago'}</div>
               </div>
-              <div class="q-issue-badge" style="background:${hrs>=96?'var(--rbg)':hrs>=48?'#fff8e6':'var(--bbg)'};color:${bcol}">${blbl}</div>
+              <div class="q-issue-badge" style="background:${wHrs>=18?'var(--rbg)':wHrs>=9?'#fff8e6':'var(--bbg)'};color:${bcol}">${blbl}</div>
             </div>`;
           }).join('')
       }
