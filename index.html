@@ -13081,10 +13081,10 @@ function renderCPARCard(item) {
       <div class="cpar-cause-grid" style="grid-template-columns:repeat(2,1fr)">
         ${CPAR_DISPOSITIONS.map(d=>`<button class="cpar-cause-option ${_getCparDraft(item.id,'disposition')===d?'selected':''}" data-disp="${escHtml(d)}" onclick="selectCPARDisposition('${item.id}',this)">${escHtml(d)}</button>`).join('')}
       </div>
-      <textarea class="cpar-action-input" id="cpar-disp-notes-${item.id}" maxlength="2000" placeholder="Disposition notes (required if Other)…" style="min-height:48px;display:none">${escHtml(_getCparDraft(item.id, 'dispNotes'))}</textarea>
+      <textarea class="cpar-action-input" id="cpar-disp-notes-${item.id}" maxlength="2000" placeholder="Disposition notes (required if Other)…" style="min-height:48px;display:${_getCparDraft(item.id,'disposition')==='Other'?'block':'none'}">${escHtml(_getCparDraft(item.id, 'dispNotes'))}</textarea>
 
-      <div class="cpar-cause-label" style="margin-top:10px" id="cpar-containment-label-${item.id}">Containment — what stopped this batch progressing? <span style="color:var(--red)">*</span></div>
-      <textarea class="cpar-action-input" id="cpar-containment-${item.id}" maxlength="2000" placeholder="e.g. Job quarantined, adjacent jobs inspected — none affected">${escHtml(_getCparDraft(item.id, 'containment'))}</textarea>
+      <div class="cpar-cause-label" style="margin-top:10px" id="cpar-containment-label-${item.id}">${_getCparDraft(item.id,'disposition')==='Use-as-is' ? 'Containment <span style="color:var(--text3)">(optional)</span>' : 'Containment — what stopped this batch progressing? <span style="color:var(--red)">*</span>'}</div>
+      <textarea class="cpar-action-input" id="cpar-containment-${item.id}" maxlength="2000" placeholder="${_getCparDraft(item.id,'disposition')==='Use-as-is' ? 'Containment (optional for Use-as-is)' : 'e.g. Job quarantined, adjacent jobs inspected — none affected'}">${escHtml(_getCparDraft(item.id, 'containment'))}</textarea>
 
       <div class="cpar-cause-label" style="margin-top:10px">Root Cause <span style="color:var(--red)">*</span></div>
       <div class="cpar-cause-grid">
