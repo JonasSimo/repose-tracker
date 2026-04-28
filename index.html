@@ -12063,7 +12063,26 @@ function drawChartMTTR() {
     </div>
   `;
 }
-function renderRecentRepeats()   { document.getElementById('dash-recent-repeats').innerHTML = '<div style="color:var(--text3);padding:14px">Repeats — Task 27</div>'; }
+function renderRecentRepeats() {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 30);
+  const recent = CPAR_ITEMS
+    .filter(i => i.fields?.IsRepeat && parseCPARDate(i.fields?.LoggedAt) >= cutoff)
+    .sort((a, b) => parseCPARDate(b.fields.LoggedAt) - parseCPARDate(a.fields.LoggedAt));
+  document.getElementById('dash-recent-repeats').innerHTML = `
+    <div style="font-size:13px;font-weight:700;margin-bottom:8px">Recent repeat-flagged issues (last 30d)</div>
+    ${recent.length ? recent.map(i => {
+      const f = i.fields || {};
+      return `<div style="display:flex;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;align-items:center">
+        <span style="font-family:monospace;font-weight:700;width:80px">${escHtml(f.Title || '')}</span>
+        <span style="width:120px">${escHtml(f.PrimaryModel || '')}</span>
+        <span style="width:140px">${escHtml(f.CauseCode || '')}</span>
+        <span style="flex:1;color:var(--text3)">${escHtml((f.RepeatLinkedRefs || '').split(';').slice(0, 3).join(', '))}</span>
+        <span style="color:var(--text3)">${escHtml((f.LoggedAt || '').slice(0, 10))}</span>
+      </div>`;
+    }).join('') : '<div style="color:var(--text3);padding:8px">No repeat-flagged issues in last 30 days.</div>'}
+  `;
+}
 
 // Filter: open CPARs (any age) + everything created in the last CPAR_HISTORY_DAYS.
 // Status indexed manually; Created is auto-indexed by SharePoint.
