@@ -11553,7 +11553,22 @@ async function effVerify(id, verified, recurrenceNote='') {
   if (me === '?') { toast('Sign-in expired — refresh', 'u'); return; }
   if (verified && !confirm(`Mark ${item.fields.Title} as verified effective and archive?`)) return;
   const now = new Date().toISOString();
-  const newHistory = appendCPARHistory(item.fields?.History || '', { by:me, ev:'effectiveness-verified', verified });
+
+  let recurrenceRef = null;
+  // For recurrence path: create the new linked CPAR FIRST, before archiving the original.
+  // If creation fails, original stays in Awaiting Effectiveness Check (recoverable).
+  if (!verified) {
+    try {
+      recurrenceRef = await effCreateRecurrence(item, recurrenceNote);
+    } catch(e) {
+      toast('Could not create recurrence — original NOT archived. Try again. ('+e.message+')', 'u');
+      return;
+    }
+  }
+
+  const newHistory = appendCPARHistory(item.fields?.History || '', {
+    by:me, ev:'effectiveness-verified', verified, ...(recurrenceRef ? { recurrenceRef } : {})
+  });
   const fields = {
     Status: CPAR_STATUS.ARCHIVED,
     EffectivenessVerifiedBy: me,
@@ -11572,8 +11587,7 @@ async function effVerify(id, verified, recurrenceNote='') {
     });
     if (!r.ok) throw new Error(r.status+' '+await r.text());
     Object.assign(item.fields, fields);
-    if (!verified) await effCreateRecurrence(item, recurrenceNote);
-    toast(verified ? 'Archived — verified effective' : 'Archived — recurrence created', 's');
+    toast(verified ? 'Archived — verified effective' : `Archived — recurrence created (${recurrenceRef})`, 's');
     renderQualitySubview();
   } catch(e) { toast('Failed: '+e.message, 'u'); }
 }
@@ -11612,6 +11626,7 @@ async function effCreateRecurrence(originalItem, recurrenceNote) {
   if (!r.ok) throw new Error('create '+r.status+' '+await r.text());
   const created = await r.json();
   CPAR_ITEMS.unshift({ id: created.id, fields });
+  return newRef;
 }
 
 // QHSE / management oversight — see all PE investigations read-only.
