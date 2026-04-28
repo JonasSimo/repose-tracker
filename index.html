@@ -12352,7 +12352,8 @@ function getCPARCompletedBy(f) {
 function renderCPARCard(item) {
   const f = item.fields||{};
   const status = getCPARStatus(item);
-  const isClosed = status === 'closed';
+  const isEditable = status === 'open' || status === 'amber' || status === 'red' || status === 'return';
+  const isClosed = !isEditable; // keep the existing var name to minimise template changes
   const age = formatCPARAge(parseCPARDate(f.LoggedAt));
   const badgeCls = status === 'red' ? 'overdue' : status;
   const metaParts = [f.PrimaryWeek, f.QTY ? `${f.QTY} chair${f.QTY!=1?'s':''}` : ''].filter(Boolean);
@@ -12421,7 +12422,7 @@ function renderCPARCard(item) {
       <details style="margin-top:6px"><summary style="font-size:11px;color:var(--text3);cursor:pointer">History</summary>
         <pre style="font-size:10px;background:var(--bg);padding:6px;border-radius:4px;max-height:160px;overflow:auto;font-family:'JetBrains Mono',monospace;white-space:pre-wrap">${escHtml(f.History||'(no history)')}</pre>
       </details>
-      <button onclick="printCPAR('${item.id}')" style="margin-top:8px;padding:7px 12px;border-radius:6px;border:1.5px solid var(--border2);background:var(--bg2);font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;color:var(--text2)">🖨 Print Non-Conformance Report (PDF)</button>
+      ${(f.Status === CPAR_STATUS.CLOSED || f.Status === CPAR_STATUS.ARCHIVED || f.Status === 'Closed') ? `<button onclick="printCPAR('${item.id}')" style="margin-top:8px;padding:7px 12px;border-radius:6px;border:1.5px solid var(--border2);background:var(--bg2);font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;color:var(--text2)">🖨 Print Non-Conformance Report (PDF)</button>` : ''}
     </div>` : `
     <button class="cpar-closeout-btn" id="cpar-co-btn-${item.id}" onclick="toggleCPARCloseout('${item.id}')">Close Out Issue ▼</button>
     <div class="cpar-closeout-panel" id="cpar-co-${item.id}">
