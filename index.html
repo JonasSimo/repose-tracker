@@ -1326,9 +1326,27 @@ body.tablet-mode .uh-token-icon { font-size:14px; }
 .issues-chip.amber.active { background:var(--amber); border-color:var(--amber); color:#fff; }
 .issues-chip.red.active { background:var(--red); border-color:var(--red); color:#fff; }
 .issues-chip.green.active { background:var(--green); border-color:var(--green); color:#fff; }
-.issues-team-chip { padding:5px 11px; border-radius:14px; border:1.5px solid var(--border2); background:var(--bg3); font-size:11px; font-weight:600; cursor:pointer; color:var(--text2); font-family:inherit; transition:.1s; white-space:nowrap; flex-shrink:0; }
-.issues-team-chip:hover { border-color:var(--repose-blue); }
-.issues-team-chip.active { background:var(--repose-navy); color:#fff; border-color:var(--repose-navy); }
+.issues-team-chip {
+  padding: 7px 14px; font-size: 12px; font-weight: 700;
+  border: 2px solid var(--border2); border-radius: 16px;
+  background: #fff; color: var(--text2); cursor: pointer;
+  font-family: inherit; transition: all .15s;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.issues-team-chip .dot {
+  display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--text3);
+}
+.issues-team-chip:hover {
+  border-color: var(--blue); transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(20,161,233,.10);
+}
+.issues-team-chip.active {
+  background: var(--text); color: #fff; border-color: var(--text);
+}
+.issues-team-chip.active .dot { background: #fff; }
+.issues-team-chip.all { font-weight: 600; color: var(--text3); }
+.issues-team-chip.all.active { background: var(--text3); border-color: var(--text3); color: #fff; }
 .issues-list-wrap { flex:1; overflow-y:auto; padding:10px 14px; }
 .issues-empty { text-align:center; padding:40px 20px; color:var(--text3); font-size:13px; }
 .issues-loading { text-align:center; padding:40px 20px; color:var(--text2); font-size:13px; }
@@ -11404,6 +11422,27 @@ function renderIssuesIntoQuality(host) {
 
   const teams = ['', 'Woodmill', 'Cutting', 'Sewing', 'Upholstery', 'Foam', 'Stores', 'Assembly', 'QC', 'Admin'];
 
+  const TEAM_COLOURS = {
+    'Woodmill': '#7c3aed',
+    'Cutting': '#0284c7',
+    'Sewing': '#d97706',
+    'Upholstery': '#dc2626',
+    'Foam': '#0891b2',
+    'Stores': '#6b7280',
+    'Assembly': '#059669',
+    'QC': '#ea580c',
+    'Admin': '#9333ea',
+  };
+  const teamChipsHtml = teams.map(t => {
+    const isActive = cparFilterTeam === t;
+    const isAll = t === '';
+    const colour = TEAM_COLOURS[t] || 'var(--text3)';
+    return `<button class="issues-team-chip ${isActive ? 'active' : ''} ${isAll ? 'all' : ''}" onclick="cparFilterTeam='${t}'; renderQualitySubview();">
+      ${isAll ? '' : `<span class="dot" style="background:${colour}"></span>`}
+      ${t || 'All teams'}
+    </button>`;
+  }).join('');
+
   host.innerHTML = `
     <!-- Stat tiles -->
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:14px">
@@ -11435,8 +11474,8 @@ function renderIssuesIntoQuality(host) {
     </div>
 
     <!-- Team filter -->
-    <div style="display:flex;gap:6px;flex-wrap:wrap;padding:8px 0;border-bottom:1px dashed var(--border);margin-bottom:10px">
-      ${teams.map(t => `<button class="issues-team-chip ${cparFilterTeam === t ? 'active' : ''}" onclick="cparFilterTeam='${t}'; renderQualitySubview();">${t || 'All teams'}</button>`).join('')}
+    <div style="display:flex;gap:6px;flex-wrap:wrap;padding:10px 0;border-bottom:1px dashed var(--border);margin-bottom:10px">
+      ${teamChipsHtml}
     </div>
 
     <!-- Status chips + search -->
