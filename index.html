@@ -10560,6 +10560,36 @@ const CPAR_CAUSE_CODES = [
   'Material Defect',
 ];
 
+// ── ISO 9001 redesign — new constants ─────────────────────
+const CPAR_DISPOSITIONS = ['Reworked', 'Scrapped', 'Use-as-is', 'Returned to supplier', 'Other'];
+const CPAR_REVIEW_DECISIONS = ['Approved', 'Escalated', 'Returned'];
+const CPAR_INVESTIGATION_OUTCOMES = ['Human Error', 'Template-Spec Issue'];
+const CPAR_INVESTIGATORS = [
+  { email: 'mark.staniland@reposefurniture.co.uk',  name: 'Mark Staniland'   },
+  { email: 'gareth.stringer@reposefurniture.co.uk', name: 'Gareth Stringer'  },
+];
+const CPAR_QHSE_REVIEWERS = ['jonas.simonaitis@reposefurniture.co.uk'];
+
+// Status enum — replaces old binary Open/Closed
+const CPAR_STATUS = {
+  OPEN:                'Open',
+  PENDING_REVIEW:      'Pending QHSE Review',
+  RETURNED:            'Returned to Area Manager',
+  INVESTIGATION:       'Investigation',
+  AWAITING_SIGNOFF:    'Awaiting Final Sign-Off',
+  CLOSED:              'Closed',
+  AWAITING_EFF_CHECK:  'Awaiting Effectiveness Check',
+  ARCHIVED:            'Archived',
+};
+const CPAR_REPEAT_WINDOW_DAYS = 30;
+const CPAR_REPEAT_THRESHOLD   = 3; // 3rd or later occurrence triggers repeat flag
+const CPAR_EFF_CHECK_DAYS     = 30;
+
+// PHCF doc-control header values (rendered on print PDF)
+const PHCF_DOC = { id:'PHCF-NCR-001', issue:'2', date:'Apr 2026' };
+
+const ECR_EMAIL = 'ECR@prismmedical.co.uk';
+
 // Team name normalisation — maps raw Excel/form values to canonical chip names
 const TEAM_NAME_MAP = {
   'woodmill': 'Woodmill', 'wood mill': 'Woodmill',
