@@ -12375,7 +12375,7 @@ function renderCPARCard(item) {
   const repeatBanner = f.IsRepeat ? `
     <div class="cpar-repeat-banner">
       🔴 REPEAT — same model + cause flagged
-      ${(f.RepeatLinkedRefs||'').split(';').filter(Boolean).slice(0,3).map(r => `<a onclick="openCPARByRef('${escHtml(r)}')">${escHtml(r)}</a>`).join(', ')}
+      ${(f.RepeatLinkedRefs||'').split(';').filter(Boolean).slice(0,3).map(r => `<a data-ref="${escHtml(r)}" onclick="openCPARByRef(this.dataset.ref)">${escHtml(r)}</a>`).join(', ')}
     </div>
   ` : '';
   const returnBanner = (status === 'return' && f.ReturnedNote) ? `
