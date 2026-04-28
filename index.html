@@ -11579,6 +11579,12 @@ function toggleCPARCloseout(id) {
     btn.textContent = isOpen ? 'Close Out Issue ▲' : 'Close Out Issue ▼';
   }
   if (isOpen) loadCPARPhoto(id);
+  if (isOpen) {
+    ['action', 'containment', 'disp-notes'].forEach(suffix => {
+      const el = document.getElementById('cpar-'+suffix+'-'+id);
+      if (el) el.oninput = () => refreshCPARSubmitState(id);
+    });
+  }
 }
 
 async function loadCPARPhoto(id) {
@@ -12473,11 +12479,27 @@ function selectCPARDisposition(id, btn) {
 }
 
 function selectCPARCause(id, btn) {
-  const panel = document.getElementById(`cpar-co-${id}`);
-  panel?.querySelectorAll('.cpar-cause-option').forEach(b => b.classList.remove('selected'));
+  const grid = btn.parentElement;
+  grid.querySelectorAll('.cpar-cause-option').forEach(b => b.classList.remove('selected'));
   btn.classList.add('selected');
-  const closeBtn = document.getElementById(`cpar-close-${id}`);
-  if (closeBtn) closeBtn.disabled = false;
+  document.getElementById('cpar-co-'+id).dataset.cause = btn.dataset.cause;
+  refreshCPARSubmitState(id);
+}
+
+function refreshCPARSubmitState(id) {
+  const root  = document.getElementById('cpar-co-'+id);
+  if (!root) return;
+  const disp  = root.dataset.disposition || '';
+  const cause = root.dataset.cause || '';
+  const action = (document.getElementById('cpar-action-'+id)?.value || '').trim();
+  const cont   = (document.getElementById('cpar-containment-'+id)?.value || '').trim();
+  const dispNotes = (document.getElementById('cpar-disp-notes-'+id)?.value || '').trim();
+
+  let ok = !!disp && !!cause && !!action;
+  if (disp === 'Other' && !dispNotes) ok = false;
+  if (disp && disp !== 'Use-as-is' && !cont) ok = false;
+
+  document.getElementById('cpar-close-'+id).disabled = !ok;
 }
 
 async function confirmCloseCPAR(id) {
