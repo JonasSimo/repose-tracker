@@ -19,7 +19,8 @@ self.addEventListener('install', (event) => {
     caches.open(CACHE_VERSION).then((cache) =>
       // Best-effort precache. Don't fail install if a single asset 404s.
       Promise.all(SHELL_ASSETS.map((url) => cache.add(url).catch(() => null)))
-    ).then(() => self.skipWaiting())
+    )
+    // Don't skipWaiting — let users finish their current action before activating new SW
   );
 });
 
