@@ -11921,22 +11921,23 @@ async function sendReturnEmail(item, note) {
 }
 
 async function effVerify(id, verified, recurrenceNote='') {
-  if (_isBusy(id)) return; // ignore double-click
+  if (_isBusy(id)) return;
   _setBusy(id);
   try {
     const item = CPAR_ITEMS.find(i => i.id === id);
     if (!item) return;
     const me = msalInstance.getAllAccounts()[0]?.username || '?';
-    if (me === '?') { toast('Sign-in expired — refresh', 'u'); return; }
+    if (!me || me === '?') { toast('Sign-in expired — refresh', 'u'); return; }
     if (verified && !confirm(`Mark ${item.fields.Title} as verified effective and archive?`)) return;
     const now = new Date().toISOString();
 
-    let recurrenceRef = null;
-    // For recurrence path: create the new linked CPAR FIRST, before archiving the original.
-    // If creation fails, original stays in Awaiting Effectiveness Check (recoverable).
-    if (!verified) {
+    // For recurrence path: create the new linked CPAR FIRST. If a previous attempt
+    // already created one (PATCH failure on retry), reuse the cached ref instead of duplicating.
+    let recurrenceRef = item._pendingRecurrenceRef || null;
+    if (!verified && !recurrenceRef) {
       try {
         recurrenceRef = await effCreateRecurrence(item, recurrenceNote);
+        item._pendingRecurrenceRef = recurrenceRef;
       } catch(e) {
         toast('Could not create recurrence — original NOT archived. Try again. ('+e.message+')', 'u');
         return;
@@ -11954,20 +11955,22 @@ async function effVerify(id, verified, recurrenceNote='') {
       History: newHistory,
     };
     if (!verified && recurrenceNote) fields.RecurrenceNote = recurrenceNote;
-    try {
-      const token  = await getGraphToken();
-      const siteId = await getSpSiteId();
-      const listId = await getListIdByName(SP_CPAR_LIST);
-      const r = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}/fields`, {
-        method:'PATCH', headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' },
-        body: JSON.stringify(fields)
-      });
-      if (!r.ok) throw new Error(r.status+' '+await r.text());
-      Object.assign(item.fields, fields);
-      _invalidateChartCache();
-      toast(verified ? 'Archived — verified effective' : `Archived — recurrence created (${recurrenceRef})`, 's');
-      renderQualitySubview();
-    } catch(e) { toast('Failed: '+e.message, 'u'); }
+
+    const token  = await getGraphToken();
+    const siteId = await getSpSiteId();
+    const listId = await getListIdByName(SP_CPAR_LIST);
+    const r = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}/fields`, {
+      method:'PATCH', headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' },
+      body: JSON.stringify(fields)
+    });
+    if (!r.ok) throw new Error(r.status+' '+await r.text());
+    Object.assign(item.fields, fields);
+    delete item._pendingRecurrenceRef; // clear marker on success
+    if (typeof _invalidateChartCache === 'function') _invalidateChartCache();
+    toast(verified ? 'Archived — verified effective' : `Archived — recurrence ${recurrenceRef}`, 's');
+    renderQualitySubview();
+  } catch(e) {
+    toast('Failed: '+e.message, 'u');
   } finally {
     _clearBusy(id);
   }
