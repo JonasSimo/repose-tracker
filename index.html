@@ -11336,18 +11336,26 @@ function openIssuesView() {
 // ── Quality tab (CPAR ISO 9001) ────────────────────────────
 // Manager auto-detect — replaces Stats-password gating for Quality manager chips.
 // Logged-in user email is checked against the union of all CPAR manager lists.
-let cparIsManager = false;
+// Role flags computed from logged-in user's email; set by _cparRecomputeManager().
+let cparIsQHSE = false;     // QHSE Manager — sees QHSE Review queue, approves/escalates/returns
+let cparIsPE = false;       // Production Engineer — sees PE View
+let cparIsOverseer = false; // Read-only oversight (Jonas, Richard) — sees PE View read-only
+let cparIsManager = false;  // Union — gates the manager chips visibility (Dashboard, Register)
 function _cparRecomputeManager() {
   const me = (msalInstance.getAllAccounts()[0]?.username || '').toLowerCase().trim();
-  if (!me) { cparIsManager = false; return; }
-  const all = new Set([
+  cparIsQHSE = false; cparIsPE = false; cparIsOverseer = false; cparIsManager = false;
+  if (!me) return;
+  const qhse = new Set([
     ...CPAR_QHSE_REVIEWERS.map(e => e.toLowerCase()),
-    ...CPAR_INVESTIGATORS.map(x => x.email.toLowerCase()),
-    ...CPAR_PE_VIEW_OVERSEERS.map(e => e.toLowerCase()),
     'mitch@reposefurniture.co.uk',
     'richard.semmens@reposefurniture.co.uk',
   ]);
-  cparIsManager = all.has(me);
+  const pe = new Set(CPAR_INVESTIGATORS.map(x => x.email.toLowerCase()));
+  const overseer = new Set(CPAR_PE_VIEW_OVERSEERS.map(e => e.toLowerCase()));
+  cparIsQHSE = qhse.has(me);
+  cparIsPE = pe.has(me);
+  cparIsOverseer = overseer.has(me);
+  cparIsManager = cparIsQHSE || cparIsPE || cparIsOverseer;
 }
 let cparSubview = 'issues';
 function openQualityView() {
@@ -11369,13 +11377,19 @@ function setQualitySubview(v) {
 function renderQualitySubview() {
   const host = document.getElementById('quality-subview');
   if (!host) return;
-  // Hide manager chips for non-managers
-  const managerChips = ['review','pe','dash','register'];
+  // Per-chip role gating
+  const chipAccess = {
+    review:   () => cparIsQHSE,
+    pe:       () => cparIsPE || cparIsOverseer,
+    dash:     () => cparIsManager,
+    register: () => cparIsManager,
+  };
   document.querySelectorAll('.quality-chip').forEach(c => {
-    if (managerChips.includes(c.dataset.view)) c.style.display = cparIsManager ? '' : 'none';
+    const v = c.dataset.view;
+    if (chipAccess[v]) c.style.display = chipAccess[v]() ? '' : 'none';
   });
-  // Non-manager hitting a manager chip via stale state → bounce to issues
-  if (!cparIsManager && managerChips.includes(cparSubview)) cparSubview = 'issues';
+  // Bounce out of a chip the user can't access
+  if (chipAccess[cparSubview] && !chipAccess[cparSubview]()) cparSubview = 'issues';
 
   if (cparSubview === 'issues')   { host.innerHTML = ''; renderIssuesIntoQuality(host); return; }
   if (cparSubview === 'review')   host.innerHTML = renderQHSEReview();
@@ -11704,6 +11718,7 @@ function renderQHSEReviewCard(item) {
 }
 
 async function qhseApprove(id) {
+  if (!cparIsQHSE) { toast('Only QHSE can take this action', 'u'); return; }
   if (_isBusy(id)) return; // ignore double-click
   _setBusy(id);
   try {
@@ -11740,6 +11755,7 @@ async function qhseApprove(id) {
 
 let _escId = null;
 function qhseEscalateOpen(id) {
+  if (!cparIsQHSE) { toast('Only QHSE can take this action', 'u'); return; }
   _escId = id;
   const item = CPAR_ITEMS.find(i => i.id === id);
   document.getElementById('modal-esc-ref').textContent = item?.fields?.Title || id;
@@ -11829,6 +11845,7 @@ async function sendInvestigatorEmail(item, toEmail) {
 
 let _retId = null;
 function qhseReturnOpen(id) {
+  if (!cparIsQHSE) { toast('Only QHSE can take this action', 'u'); return; }
   _retId = id;
   const item = CPAR_ITEMS.find(i => i.id === id);
   document.getElementById('modal-ret-ref').textContent = item?.fields?.Title || id;
