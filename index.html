@@ -14339,47 +14339,6 @@ async function submitCPARCloseout(id, ev) {
   }
 }
 
-async function confirmCloseCPAR(id) {
-  const panel = document.getElementById(`cpar-co-${id}`);
-  const causeBtn = panel?.querySelector('.cpar-cause-option.selected');
-  if (!causeBtn) { toast('Select a root cause first', 'u'); return; }
-  const causeCode = causeBtn.dataset.cause;
-  const action = (document.getElementById(`cpar-action-${id}`)?.value||'').trim();
-  if (!action) { toast('Corrective action description is required before closing a CPAR', 'u'); return; }
-  const closeBtn = document.getElementById(`cpar-close-${id}`);
-  if (!closeBtn) return;
-  closeBtn.disabled = true; closeBtn.textContent = 'Saving…';
-
-  try {
-    const siteId = await getSpSiteId();
-    const listId = await getListIdByName(SP_CPAR_LIST);
-    const now = new Date();
-    const closedAt = `${now.toLocaleDateString('en-GB')} ${now.toTimeString().slice(0,5)}`;
-    const closedBy = graphAccount?.name || graphAccount?.username || 'Manager';
-
-    const token = await getGraphToken();
-    const res = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}`, {
-      method:'PATCH',
-      headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
-      body: JSON.stringify({ fields:{ Status:'Closed', CauseCode:causeCode, CorrectiveAction:action, ClosedBy:closedBy, ClosedAt:closedAt }})
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-    const item = CPAR_ITEMS.find(i => i.id === id);
-    if (item) Object.assign(item.fields, { Status:'Closed', CauseCode:causeCode, CorrectiveAction:action, ClosedBy:closedBy, ClosedAt:closedAt });
-    if (typeof _invalidateChartCache === 'function') _invalidateChartCache();
-
-    toast('CPAR closed ✓', 's');
-    updateIssuesTabBadge();
-    updateTeamCounts();
-    renderIssuesList();
-  } catch(e) {
-    console.warn('confirmCloseCPAR:', e);
-    toast('Could not close CPAR — check connection', 'u');
-    if (closeBtn) { closeBtn.disabled = false; closeBtn.textContent = '✓ Mark as Closed'; }
-  }
-}
-
 // ═══════════════════════════════════════════════
 // ORDER CHECK
 // ═══════════════════════════════════════════════
