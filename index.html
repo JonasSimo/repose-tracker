@@ -11384,6 +11384,10 @@ function renderQualitySubview() {
 }
 
 function renderIssuesIntoQuality(host) {
+  // Clear the legacy #issues-list to prevent duplicate-ID collisions with cards we render in Quality.
+  const legacyList = document.getElementById('issues-list');
+  if (legacyList) legacyList.innerHTML = '';
+
   const items = CPAR_ITEMS || [];
 
   // Stat tiles — match maintenance .mt-tile style
@@ -12871,7 +12875,7 @@ function renderCPARCard(item) {
       </details>
       ${(f.Status === CPAR_STATUS.CLOSED || f.Status === CPAR_STATUS.ARCHIVED || f.Status === 'Closed') ? `<button onclick="printCPAR('${item.id}')" style="margin-top:8px;padding:7px 12px;border-radius:6px;border:1.5px solid var(--border2);background:var(--bg2);font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;color:var(--text2)">🖨 Print Non-Conformance Report (PDF)</button>` : ''}
     </div>` : `
-    <button class="cpar-closeout-btn" id="cpar-co-btn-${item.id}" onclick="event.stopPropagation();toggleCPARCloseout('${item.id}')">Close Out Issue ▼</button>
+    <button class="cpar-closeout-btn" id="cpar-co-btn-${item.id}" onclick="event.stopPropagation();toggleCPARCloseout('${item.id}', event)">Close Out Issue ▼</button>
     <div class="cpar-closeout-panel" id="cpar-co-${item.id}">
       ${f.HasPhoto ? `<div class="cpar-photo-wrap" id="cpar-photo-wrap-${item.id}"><div class="cpar-photo-loading">Loading photo…</div></div>` : ''}
 
@@ -12892,7 +12896,7 @@ function renderCPARCard(item) {
       <div class="cpar-cause-label" style="margin-top:10px">Corrective Action Taken <span style="color:var(--red)">*</span></div>
       <textarea class="cpar-action-input" id="cpar-action-${item.id}" maxlength="10000" placeholder="Describe what was done to resolve this…"></textarea>
 
-      <button class="cpar-confirm-close-btn" id="cpar-close-${item.id}" onclick="submitCPARCloseout('${item.id}')" disabled>Submit close-out → QHSE Review</button>
+      <button class="cpar-confirm-close-btn" id="cpar-close-${item.id}" onclick="event.stopPropagation();submitCPARCloseout('${item.id}', event)" disabled>Submit close-out → QHSE Review</button>
     </div>`}
   </div>`;
 }
@@ -12947,21 +12951,28 @@ function formatCPARAge(date) {
 
 const _cparPhotoCache = {};
 
-function toggleCPARCloseout(id) {
-  const panel = document.getElementById(`cpar-co-${id}`);
-  const btn = document.getElementById(`cpar-co-btn-${id}`);
+function toggleCPARCloseout(id, ev) {
+  // Resolve elements relative to the clicked button's containing card to avoid duplicate-ID collisions
+  // (the standalone view-issues view also has matching IDs).
+  const btn = ev?.currentTarget || document.querySelector(`#cpar-co-btn-${id}`);
+  const card = btn?.closest('.cpar-card');
+  const panel = card ? card.querySelector('.cpar-closeout-panel') : document.getElementById(`cpar-co-${id}`);
+  const realBtn = card ? card.querySelector('.cpar-closeout-btn') : document.getElementById(`cpar-co-btn-${id}`);
   if (!panel) return;
   const isOpen = panel.classList.toggle('open');
-  if (btn) {
-    btn.classList.toggle('active', isOpen);
-    btn.textContent = isOpen ? 'Close Out Issue ▲' : 'Close Out Issue ▼';
+  if (realBtn) {
+    realBtn.classList.toggle('active', isOpen);
+    realBtn.textContent = isOpen ? 'Close Out Issue ▲' : 'Close Out Issue ▼';
   }
   if (isOpen) {
-    loadCPARPhoto(id);
-    ['action', 'containment', 'disp-notes'].forEach(suffix => {
-      const el = document.getElementById('cpar-'+suffix+'-'+id);
-      if (el) el.oninput = () => refreshCPARSubmitState(id);
-    });
+    if (typeof loadCPARPhoto === 'function') loadCPARPhoto(id);
+    // Wire textarea oninputs scoped to this card only
+    if (card) {
+      ['action', 'containment', 'disp-notes'].forEach(suffix => {
+        const el = card.querySelector(`#cpar-${suffix}-${id}`) || card.querySelector(`[id="cpar-${suffix}-${id}"]`);
+        if (el) el.oninput = () => refreshCPARSubmitState(id, ev);
+      });
+    }
   }
 }
 
@@ -13980,97 +13991,105 @@ function selectCPARDisposition(id, btn) {
   const wrap = btn.parentElement;
   wrap.querySelectorAll('.cpar-cause-option').forEach(b => b.classList.remove('selected'));
   btn.classList.add('selected');
-  document.getElementById('cpar-co-'+id).dataset.disposition = btn.dataset.disp;
-  // toggle disposition-notes visibility for "Other"
-  const notes = document.getElementById('cpar-disp-notes-'+id);
-  notes.style.display = (btn.dataset.disp === 'Other') ? 'block' : 'none';
-  // toggle containment requirement: optional only if disposition === Use-as-is
-  const cont = document.getElementById('cpar-containment-'+id);
-  const lab  = document.getElementById('cpar-containment-label-'+id);
+  const card = btn.closest('.cpar-card');
+  const root = card ? card.querySelector('.cpar-closeout-panel') : document.getElementById('cpar-co-'+id);
+  if (root) root.dataset.disposition = btn.dataset.disp;
+  const notes = card ? card.querySelector('#cpar-disp-notes-'+id) : document.getElementById('cpar-disp-notes-'+id);
+  if (notes) notes.style.display = (btn.dataset.disp === 'Other') ? 'block' : 'none';
+  const cont = card ? card.querySelector('#cpar-containment-'+id) : document.getElementById('cpar-containment-'+id);
+  const lab  = card ? card.querySelector('#cpar-containment-label-'+id) : document.getElementById('cpar-containment-label-'+id);
   if (btn.dataset.disp === 'Use-as-is') {
-    cont.placeholder = 'Containment (optional for Use-as-is)';
-    lab.innerHTML = 'Containment <span style="color:var(--text3)">(optional)</span>';
+    if (cont) cont.placeholder = 'Containment (optional for Use-as-is)';
+    if (lab) lab.innerHTML = 'Containment <span style="color:var(--text3)">(optional)</span>';
   } else {
-    cont.placeholder = 'e.g. Job quarantined, adjacent jobs inspected — none affected';
-    lab.innerHTML = 'Containment — what stopped this batch progressing? <span style="color:var(--red)">*</span>';
+    if (cont) cont.placeholder = 'e.g. Job quarantined, adjacent jobs inspected — none affected';
+    if (lab) lab.innerHTML = 'Containment — what stopped this batch progressing? <span style="color:var(--red)">*</span>';
   }
-  refreshCPARSubmitState(id);
+  refreshCPARSubmitState(id, btn);
 }
 
 function selectCPARCause(id, btn) {
   const grid = btn.parentElement;
   grid.querySelectorAll('.cpar-cause-option').forEach(b => b.classList.remove('selected'));
   btn.classList.add('selected');
-  document.getElementById('cpar-co-'+id).dataset.cause = btn.dataset.cause;
-  refreshCPARSubmitState(id);
+  const card = btn.closest('.cpar-card');
+  const root = card ? card.querySelector('.cpar-closeout-panel') : document.getElementById('cpar-co-'+id);
+  if (root) root.dataset.cause = btn.dataset.cause;
+  refreshCPARSubmitState(id, btn);
 }
 
-function refreshCPARSubmitState(id) {
-  const root  = document.getElementById('cpar-co-'+id);
+function refreshCPARSubmitState(id, ctx) {
+  // ctx may be an Event, an element, or undefined; we resolve the card from any of them
+  const startEl = (ctx && (ctx.currentTarget || ctx.target || ctx)) || null;
+  const card = (startEl && startEl.closest) ? startEl.closest('.cpar-card') : null;
+  const q = sel => card ? card.querySelector(sel) : document.querySelector(sel);
+  const root  = q('.cpar-closeout-panel');
   if (!root) return;
   const disp  = root.dataset.disposition || '';
   const cause = root.dataset.cause || '';
-  const action = (document.getElementById('cpar-action-'+id)?.value || '').trim();
-  const cont   = (document.getElementById('cpar-containment-'+id)?.value || '').trim();
-  const dispNotes = (document.getElementById('cpar-disp-notes-'+id)?.value || '').trim();
+  const action     = (q('#cpar-action-'+id)?.value || '').trim();
+  const cont       = (q('#cpar-containment-'+id)?.value || '').trim();
+  const dispNotes  = (q('#cpar-disp-notes-'+id)?.value || '').trim();
 
   let ok = !!disp && !!cause && !!action;
   if (disp === 'Other' && !dispNotes) ok = false;
   if (disp && disp !== 'Use-as-is' && !cont) ok = false;
 
-  document.getElementById('cpar-close-'+id).disabled = !ok;
+  const closeBtn = q('#cpar-close-'+id);
+  if (closeBtn) closeBtn.disabled = !ok;
 }
 
-async function submitCPARCloseout(id) {
-  const item = CPAR_ITEMS.find(i => i.id === id);
-  if (!item) return;
-  const root = document.getElementById('cpar-co-'+id);
-  const disposition  = root.dataset.disposition || '';
-  const cause        = root.dataset.cause || '';
-  const action       = document.getElementById('cpar-action-'+id).value.trim();
-  const containment  = document.getElementById('cpar-containment-'+id).value.trim();
-  const dispNotes    = document.getElementById('cpar-disp-notes-'+id).value.trim();
-  if (!disposition || !cause || !action) return;
-
-  const btn = document.getElementById('cpar-close-'+id);
-  btn.disabled = true; btn.textContent = 'Saving…';
-
-  const me = msalInstance.getAllAccounts()[0]?.username || '?';
-  if (!me || me === '?') { toast('Sign-in expired — refresh and try again', 'u'); return; }
-  const now = new Date().toISOString();
-  const newHistory = appendCPARHistory(item.fields?.History || '', {
-    by: me, ev:'closed-out',
-    fields:{ disposition, cause, hasContainment: !!containment, dispNotes: !!dispNotes }
-  });
-
-  // Run repeat detection now that CauseCode is known
-  const merged = { Title: item.fields.Title, PrimaryModel: item.fields.PrimaryModel, CauseCode: cause };
-  const { isRepeat, linkedRefs } = detectRepeat(merged, CPAR_ITEMS);
-
-  const updateFields = {
-    Status: CPAR_STATUS.PENDING_REVIEW,
-    Disposition: disposition,
-    DispositionNotes: dispNotes,
-    Containment: containment,
-    CauseCode: cause,
-    CorrectiveAction: action,
-    ClosedOutBy: me,
-    ClosedOutAt: now,
-    History: newHistory,
-    IsRepeat: isRepeat,
-    RepeatLinkedRefs: linkedRefs.join(';'),
-  };
-
-  // If this is a re-submission after Return, clear the stale review fields so
-  // the audit trail isn't contradictory (Status=PendingReview but ReviewDecision=Returned).
-  if (item.fields?.Status === CPAR_STATUS.RETURNED) {
-    updateFields.ReviewDecision = '';
-    updateFields.ReviewedBy = '';
-    updateFields.ReviewedAt = '';
-    updateFields.ReturnedNote = '';
-  }
-
+async function submitCPARCloseout(id, ev) {
+  if (_isBusy(id)) return;
+  _setBusy(id);
   try {
+    const item = CPAR_ITEMS.find(i => i.id === id);
+    if (!item) return;
+    const btn = ev?.currentTarget;
+    const card = btn?.closest('.cpar-card') || document.querySelector(`#cpar-card-${id}`);
+    const q = sel => card ? card.querySelector(sel) : document.querySelector(sel);
+    const root = q('.cpar-closeout-panel');
+    if (!root) { toast('Could not find closeout form', 'u'); return; }
+    const disposition = root.dataset.disposition || '';
+    const cause = root.dataset.cause || '';
+    const action      = (q('#cpar-action-'+id)?.value || '').trim();
+    const containment = (q('#cpar-containment-'+id)?.value || '').trim();
+    const dispNotes   = (q('#cpar-disp-notes-'+id)?.value || '').trim();
+
+    if (!disposition || !cause || !action) return;
+    const me = msalInstance.getAllAccounts()[0]?.username || '?';
+    if (!me || me === '?') { toast('Sign-in expired — refresh and try again', 'u'); return; }
+
+    const submitBtn = q('#cpar-close-'+id);
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Saving…'; }
+
+    const now = new Date().toISOString();
+    const newHistory = appendCPARHistory(item.fields?.History || '', {
+      by: me, ev:'closed-out',
+      fields:{ disposition, cause, hasContainment: !!containment, dispNotes: !!dispNotes }
+    });
+    const merged = { Title: item.fields.Title, PrimaryModel: item.fields.PrimaryModel, CauseCode: cause };
+    const { isRepeat, linkedRefs } = detectRepeat(merged, CPAR_ITEMS);
+    const updateFields = {
+      Status: CPAR_STATUS.PENDING_REVIEW,
+      Disposition: disposition,
+      DispositionNotes: dispNotes,
+      Containment: containment,
+      CauseCode: cause,
+      CorrectiveAction: action,
+      ClosedOutBy: me,
+      ClosedOutAt: now,
+      History: newHistory,
+      IsRepeat: isRepeat,
+      RepeatLinkedRefs: linkedRefs.join(';'),
+    };
+    if (item.fields?.Status === CPAR_STATUS.RETURNED) {
+      updateFields.ReviewDecision = '';
+      updateFields.ReviewedBy = '';
+      updateFields.ReviewedAt = '';
+      updateFields.ReturnedNote = '';
+    }
+
     const token  = await getGraphToken();
     const siteId = await getSpSiteId();
     const listId = await getListIdByName(SP_CPAR_LIST);
@@ -14082,12 +14101,13 @@ async function submitCPARCloseout(id) {
     if (!r.ok) throw new Error('PATCH '+r.status+' '+await r.text());
     Object.assign(item.fields, updateFields);
     toast('Closed out — sent to QHSE Review', 's');
-    renderIssuesList();
-    updateIssuesTabBadge();
+    renderQualitySubview();
+    if (typeof updateIssuesTabBadge === 'function') updateIssuesTabBadge();
   } catch(e) {
     console.error('submitCPARCloseout', e);
     toast('Failed: '+e.message, 'u');
-    btn.disabled = false; btn.textContent = 'Submit close-out → QHSE Review';
+  } finally {
+    _clearBusy(id);
   }
 }
 
