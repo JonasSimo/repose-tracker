@@ -11459,7 +11459,7 @@ function renderIssuesIntoQuality(host) {
           const st = getCPARStatus(i);
           const stLabel = escHtml(getCPARStatusLabel(st));
           return `
-            <tr style="cursor:pointer" onclick="toggleQualityIssueRow('${i.id}')">
+            <tr style="cursor:pointer" onclick="qualityRowClick(event, '${i.id}')">
               <td style="font-family:'JetBrains Mono',monospace;font-weight:700">${ref}</td>
               <td>${escHtml((f.LoggedAt||'').slice(0,10))}</td>
               <td>${escHtml(f.SourceDept || f.RaisedByTeam || '')}</td>
@@ -11489,6 +11489,14 @@ function toggleQualityIssueRow(id) {
     row.style.display = 'none';
     card.innerHTML = '';
   }
+}
+function qualityRowClick(event, id) {
+  // Only toggle if the click started on a TD inside this row, not on a button/input/etc bubbling up.
+  const tag = (event.target.tagName || '').toLowerCase();
+  if (tag === 'button' || tag === 'input' || tag === 'textarea' || tag === 'select' || tag === 'a') return;
+  // Also bail if the click target is inside the expanded detail row's card area (clicks there should never collapse).
+  if (event.target.closest('.cpar-card')) return;
+  toggleQualityIssueRow(id);
 }
 let cparReviewFilter = 'review';
 function setQHSEFilter(k) { cparReviewFilter = k; renderQualitySubview(); }
@@ -12700,7 +12708,7 @@ function renderCPARCard(item) {
       </details>
       ${(f.Status === CPAR_STATUS.CLOSED || f.Status === CPAR_STATUS.ARCHIVED || f.Status === 'Closed') ? `<button onclick="printCPAR('${item.id}')" style="margin-top:8px;padding:7px 12px;border-radius:6px;border:1.5px solid var(--border2);background:var(--bg2);font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;color:var(--text2)">🖨 Print Non-Conformance Report (PDF)</button>` : ''}
     </div>` : `
-    <button class="cpar-closeout-btn" id="cpar-co-btn-${item.id}" onclick="toggleCPARCloseout('${item.id}')">Close Out Issue ▼</button>
+    <button class="cpar-closeout-btn" id="cpar-co-btn-${item.id}" onclick="event.stopPropagation();toggleCPARCloseout('${item.id}')">Close Out Issue ▼</button>
     <div class="cpar-closeout-panel" id="cpar-co-${item.id}">
       ${f.HasPhoto ? `<div class="cpar-photo-wrap" id="cpar-photo-wrap-${item.id}"><div class="cpar-photo-loading">Loading photo…</div></div>` : ''}
 
