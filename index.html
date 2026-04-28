@@ -12676,7 +12676,7 @@ function renderRecentRepeats() {
 const CPAR_HISTORY_DAYS = 90;
 function _cparFilterUrl(siteId, listId) {
   const cutoff = new Date(Date.now() - CPAR_HISTORY_DAYS * 86400000).toISOString();
-  const filter = `fields/Status ne 'Closed' or fields/Created ge '${cutoff}'`;
+  const filter = `(fields/Status ne 'Closed' and fields/Status ne 'Archived') or fields/Created ge '${cutoff}'`;
   return `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items` +
          `?$expand=fields&$top=999&$filter=${encodeURIComponent(filter)}`;
 }
