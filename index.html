@@ -14271,6 +14271,10 @@ async function submitCPARCloseout(id, ev) {
   } catch(e) {
     console.error('submitCPARCloseout', e);
     toast('Failed: '+e.message, 'u');
+    // Restore button so user can retry
+    const card = document.querySelector(`#cpar-card-${id}`);
+    const submitBtn = card ? card.querySelector('#cpar-close-'+id) : document.getElementById('cpar-close-'+id);
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Submit close-out → QHSE Review'; }
   } finally {
     _clearBusy(id);
   }
