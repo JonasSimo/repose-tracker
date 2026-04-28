@@ -54,6 +54,11 @@ async function sendMail(t, recipients, subject, html) {
   });
 }
 
+function appendHistoryLine(currentHistory, event) {
+  const line = JSON.stringify({ ...event, t: new Date().toISOString() });
+  return currentHistory ? currentHistory + '\n' + line : line;
+}
+
 const REPEAT_DAYS = 30;
 const REPEAT_THRESHOLD = 3;
 
@@ -84,9 +89,10 @@ module.exports = async function (context, myTimer) {
     if (matches.length >= REPEAT_THRESHOLD - 1) {
       const linked = matches.map(m => m.fields.Title).filter(Boolean).join(';');
       try {
+        const newHistory = appendHistoryLine(i.fields?.History || '', { by:'system', ev:'repeat-flagged-by-sweep', linked });
         const r = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${i.id}/fields`, {
           method:'PATCH', headers:{ Authorization:'Bearer '+t, 'Content-Type':'application/json' },
-          body: JSON.stringify({ IsRepeat: true, RepeatLinkedRefs: linked })
+          body: JSON.stringify({ IsRepeat: true, RepeatLinkedRefs: linked, History: newHistory })
         });
         if (r.ok) flipped++;
       } catch(e) { context.log.warn('flip failed for '+f.Title+': '+e.message); }
