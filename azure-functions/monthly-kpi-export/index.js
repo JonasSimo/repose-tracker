@@ -147,7 +147,7 @@ module.exports = async function (context, myTimer) {
       if (c) causeCounts[c] = (causeCounts[c]||0)+1;
     }
     const top = Object.entries(causeCounts).sort((a,b) => b[1]-a[1])[0] || ['', 0];
-    const repeats   = opened.filter(i => i.fields?.IsRepeat).length;
+    const repeats   = opened.filter(i => i.fields?.IsRepeat === true).length;
     const ecrLinked = closed.filter(i => i.fields?.ECRRef).length;
     const effOk     = closed.filter(i => i.fields?.EffectivenessVerified === true).length;
     const effFail   = closed.filter(i => i.fields?.EffectivenessVerified === false).length;

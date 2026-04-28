@@ -11400,7 +11400,7 @@ function renderIssuesIntoQuality(host) {
   const todoCount     = items.filter(i => { const s = i.fields?.Status; return s === CPAR_STATUS.OPEN || s === CPAR_STATUS.RETURNED || (!s); }).length;
   const progressCount = items.filter(i => [CPAR_STATUS.PENDING_REVIEW, CPAR_STATUS.INVESTIGATION, CPAR_STATUS.AWAITING_SIGNOFF].includes(i.fields?.Status)).length;
   const closedCount   = items.filter(i => isClosed(i) && parseCPARDate(i.fields?.ClosedAt) >= monthAgo).length;
-  const repeatCount   = items.filter(i => i.fields?.IsRepeat && parseCPARDate(i.fields?.LoggedAt) >= monthAgo).length;
+  const repeatCount   = items.filter(i => i.fields?.IsRepeat === true && parseCPARDate(i.fields?.LoggedAt) >= monthAgo).length;
   const overdueCount  = items.filter(i => {
     const st = getCPARStatus(i);
     return st === 'amber' || st === 'red';
@@ -11421,7 +11421,7 @@ function renderIssuesIntoQuality(host) {
     closed: i => { const s = i.fields?.Status; if (s !== CPAR_STATUS.CLOSED && s !== 'Closed') return false; const d = parseCPARDate(i.fields?.ClosedAt); return d.getTime() && (Date.now() - d.getTime() < 30*86400000); },
     all: i => i.fields?.Status !== CPAR_STATUS.ARCHIVED && i.fields?.Status !== CPAR_STATUS.AWAITING_EFF_CHECK,
     repeat: i => {
-      if (!i.fields?.IsRepeat) return false;
+      if (i.fields?.IsRepeat !== true) return false;
       if (i.fields?.Status === CPAR_STATUS.ARCHIVED || i.fields?.Status === CPAR_STATUS.AWAITING_EFF_CHECK) return false;
       return true;
     },
@@ -11552,7 +11552,7 @@ function renderIssuesIntoQuality(host) {
               <td>${escHtml(f.IssueCategory || '')}</td>
               <td>${escHtml((f.PrimaryREP||'')+(f.PrimaryModel?' · '+f.PrimaryModel:''))}</td>
               <td style="text-align:right;font-family:'JetBrains Mono',monospace">${escHtml(String(f.QTY||1))}</td>
-              <td><span class="cpar-status-badge ${st}">${stLabel}</span>${f.IsRepeat ? ' <span style="background:#fff1f1;color:#991b1b;border:1px solid #fca5a5;font-size:9px;font-weight:700;padding:1px 5px;border-radius:6px;margin-left:4px">REPEAT</span>' : ''}</td>
+              <td><span class="cpar-status-badge ${st}">${stLabel}</span>${f.IsRepeat === true ? ' <span style="background:#fff1f1;color:#991b1b;border:1px solid #fca5a5;font-size:9px;font-weight:700;padding:1px 5px;border-radius:6px;margin-left:4px">REPEAT</span>' : ''}</td>
               <td style="color:var(--text3);font-size:14px">▾</td>
             </tr>
             <tr id="quality-issue-detail-${i.id}" style="display:none"><td colspan="8" style="padding:0;background:var(--bg3)"><div id="quality-issue-card-${i.id}" style="padding:14px"></div></td></tr>
@@ -11672,7 +11672,7 @@ function renderQHSEReview() {
 function renderQHSEReviewCard(item) {
   const f = item.fields || {};
   const ref = f.Title || '?';
-  const repeatLabel = f.IsRepeat
+  const repeatLabel = f.IsRepeat === true
     ? '<span style="background:#fff1f1;color:#991b1b;border:1px solid #fca5a5;font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px;margin-left:6px">REPEAT</span>'
     : '';
   return `
@@ -12073,7 +12073,7 @@ function renderPECardReadonly(item) {
     <div class="cpar-card-header">
       <span class="cpar-ref">${escHtml(f.Title||'')}</span>
       <span class="cpar-status-badge invest">Investigation</span>
-      ${f.IsRepeat ? '<span style="background:#fff1f1;color:#991b1b;border:1px solid #fca5a5;font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px;margin-left:6px">REPEAT</span>' : ''}
+      ${f.IsRepeat === true ? '<span style="background:#fff1f1;color:#991b1b;border:1px solid #fca5a5;font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px;margin-left:6px">REPEAT</span>' : ''}
       <span style="margin-left:auto;font-size:10px;color:var(--text3)">${escHtml((f.EscalatedAt||'').slice(0,10))}</span>
     </div>
     <div class="cpar-card-body">
@@ -12094,7 +12094,7 @@ function renderPECard(item) {
     <div class="cpar-card-header">
       <span class="cpar-ref">${escHtml(f.Title||'')}</span>
       <span class="cpar-status-badge invest">Investigation</span>
-      ${f.IsRepeat ? '<span style="background:#fff1f1;color:#991b1b;border:1px solid #fca5a5;font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px;margin-left:6px">REPEAT</span>' : ''}
+      ${f.IsRepeat === true ? '<span style="background:#fff1f1;color:#991b1b;border:1px solid #fca5a5;font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px;margin-left:6px">REPEAT</span>' : ''}
     </div>
     <div class="cpar-card-body">
       <div class="cpar-source-line"><span class="cpar-source-badge">${escHtml(f.SourceDept||'?')}</span>${escHtml(f.IssueCategory||'')}</div>
@@ -12310,7 +12310,7 @@ function renderRegister() {
             <td style="padding:5px;text-align:right">${escHtml(String(f.QTY||1))}</td>
             <td style="padding:5px">${escHtml(f.CauseCode||'')}</td>
             <td style="padding:5px">${escHtml(f.Status||'')}</td>
-            <td style="padding:5px;text-align:center">${f.IsRepeat?'<span style="color:#dc2626;font-weight:700">●</span>':''}</td>
+            <td style="padding:5px;text-align:center">${f.IsRepeat === true?'<span style="color:#dc2626;font-weight:700">●</span>':''}</td>
           </tr>`; }).join('')}
         </tbody>
       </table>
@@ -12353,7 +12353,7 @@ function exportRegisterCSV() {
       (f.PrimaryREP||'')+'/'+(f.PrimaryJobNo||''), f.PrimaryModel, f.QTY||1, f.Description,
       f.ClosedOutBy, f.ClosedOutAt, f.Disposition, f.DispositionNotes, f.Containment, f.CauseCode, f.CorrectiveAction,
       f.ReviewedBy, f.ReviewedAt, f.ReviewDecision, f.InvestigatorAssigned, f.InvestigationOutcome, f.ECRRef,
-      f.ClosedBy, f.ClosedAt, f.IsRepeat ? 'Yes' : '', f.RepeatLinkedRefs,
+      f.ClosedBy, f.ClosedAt, f.IsRepeat === true ? 'Yes' : '', f.RepeatLinkedRefs,
       f.EffectivenessVerifiedBy, f.EffectivenessVerifiedAt,
       f.EffectivenessVerified === true ? 'Yes' : f.EffectivenessVerified === false ? 'No' : '',
       f.RecurrenceNote, f.LinkedFromRef, days, f.Status,
@@ -12390,7 +12390,7 @@ function renderQualityDashboard(host) {
     ? Math.round(mttrSamples.reduce((a,b) => a+b, 0) / mttrSamples.length * 10) / 10
     : '—';
   const repeatThisMonth = items.filter(i =>
-    i.fields?.IsRepeat && parseCPARDate(i.fields?.LoggedAt) >= monthStart
+    i.fields?.IsRepeat === true && parseCPARDate(i.fields?.LoggedAt) >= monthStart
   ).length;
 
   host.innerHTML = `
@@ -12606,7 +12606,7 @@ function renderRecentRepeats() {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - 30);
   const recent = CPAR_ITEMS
-    .filter(i => i.fields?.IsRepeat && parseCPARDate(i.fields?.LoggedAt) >= cutoff)
+    .filter(i => i.fields?.IsRepeat === true && parseCPARDate(i.fields?.LoggedAt) >= cutoff)
     .sort((a, b) => parseCPARDate(b.fields.LoggedAt) - parseCPARDate(a.fields.LoggedAt));
   document.getElementById('dash-recent-repeats').innerHTML = `
     <div style="font-size:13px;font-weight:700;margin-bottom:8px">Recent repeat-flagged issues (last 30d)</div>
@@ -12912,7 +12912,7 @@ function renderCPARCard(item) {
       <button class="cpar-spec-btn" onclick="openSpecModalByRep('${escHtml(j.rep||'')}')">View Spec</button>
     </div>`).join('')}</div>` : '';
 
-  const repeatBanner = f.IsRepeat ? `
+  const repeatBanner = f.IsRepeat === true ? `
     <div class="cpar-repeat-banner">
       🔴 REPEAT — same model + cause flagged
       ${(f.RepeatLinkedRefs||'').split(';').filter(Boolean).slice(0,3).map(r => `<a data-ref="${escHtml(r)}" onclick="openCPARByRef(this.dataset.ref)">${escHtml(r)}</a>`).join(', ')}
@@ -13102,7 +13102,7 @@ function showCPARSummaryModal(item) {
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
       <span class="cpar-ref" style="font-size:18px">${escHtml(f.Title||'')}</span>
       <span class="cpar-status-badge ${status}">${escHtml(statusLabel)}</span>
-      ${f.IsRepeat ? '<span style="background:#fff1f1;color:#991b1b;border:1px solid #fca5a5;font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px">REPEAT</span>' : ''}
+      ${f.IsRepeat === true ? '<span style="background:#fff1f1;color:#991b1b;border:1px solid #fca5a5;font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px">REPEAT</span>' : ''}
       <span style="margin-left:auto;font-size:11px;color:var(--text3)">Logged ${escHtml((f.LoggedAt||'').slice(0,16))}</span>
     </div>
     <div style="font-size:12px;color:var(--text2);margin-bottom:8px">
