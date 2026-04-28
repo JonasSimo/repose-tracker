@@ -14229,6 +14229,8 @@ function selectCPARDisposition(id, btn) {
   const root = card ? card.querySelector('.cpar-closeout-panel') : document.getElementById('cpar-co-'+id);
   if (root) root.dataset.disposition = btn.dataset.disp;
   _saveCparDraft(id, 'disposition', btn.dataset.disp);
+  // Clear dispNotes draft when disposition is no longer 'Other' (it's hidden, shouldn't persist)
+  if (btn.dataset.disp !== 'Other') _saveCparDraft(id, 'dispNotes', '');
   const notes = card ? card.querySelector('#cpar-disp-notes-'+id) : document.getElementById('cpar-disp-notes-'+id);
   if (notes) notes.style.display = (btn.dataset.disp === 'Other') ? 'block' : 'none';
   const cont = card ? card.querySelector('#cpar-containment-'+id) : document.getElementById('cpar-containment-'+id);
