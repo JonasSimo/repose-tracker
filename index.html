@@ -12156,6 +12156,20 @@ function renderPECard(item) {
 }
 
 const _peEcrRefCache = new Map(); // CPAR id → last-typed ECR ref, survives card re-renders
+
+const _cparDraftCache = new Map(); // key: id+'|'+field, value: typed text
+function _draftKey(id, field) { return id + '|' + field; }
+function _saveCparDraft(id, field, val) {
+  if (val) _cparDraftCache.set(_draftKey(id, field), val);
+  else _cparDraftCache.delete(_draftKey(id, field));
+}
+function _getCparDraft(id, field) { return _cparDraftCache.get(_draftKey(id, field)) || ''; }
+function _clearCparDrafts(id) {
+  for (const k of [..._cparDraftCache.keys()]) {
+    if (k.startsWith(id + '|')) _cparDraftCache.delete(k);
+  }
+}
+
 function peSelectOutcome(id, outcome, btn) {
   // Toggle selection visual on the two outcome buttons
   const wrap = btn.parentElement;
@@ -13032,20 +13046,20 @@ function renderCPARCard(item) {
 
       <div class="cpar-cause-label">Disposition <span style="color:var(--red)">*</span></div>
       <div class="cpar-cause-grid" style="grid-template-columns:repeat(2,1fr)">
-        ${CPAR_DISPOSITIONS.map(d=>`<button class="cpar-cause-option" data-disp="${escHtml(d)}" onclick="selectCPARDisposition('${item.id}',this)">${escHtml(d)}</button>`).join('')}
+        ${CPAR_DISPOSITIONS.map(d=>`<button class="cpar-cause-option ${_getCparDraft(item.id,'disposition')===d?'selected':''}" data-disp="${escHtml(d)}" onclick="selectCPARDisposition('${item.id}',this)">${escHtml(d)}</button>`).join('')}
       </div>
-      <textarea class="cpar-action-input" id="cpar-disp-notes-${item.id}" maxlength="2000" placeholder="Disposition notes (required if Other)…" style="min-height:48px;display:none"></textarea>
+      <textarea class="cpar-action-input" id="cpar-disp-notes-${item.id}" maxlength="2000" placeholder="Disposition notes (required if Other)…" style="min-height:48px;display:none">${escHtml(_getCparDraft(item.id, 'dispNotes'))}</textarea>
 
       <div class="cpar-cause-label" style="margin-top:10px" id="cpar-containment-label-${item.id}">Containment — what stopped this batch progressing? <span style="color:var(--red)">*</span></div>
-      <textarea class="cpar-action-input" id="cpar-containment-${item.id}" maxlength="2000" placeholder="e.g. Job quarantined, adjacent jobs inspected — none affected"></textarea>
+      <textarea class="cpar-action-input" id="cpar-containment-${item.id}" maxlength="2000" placeholder="e.g. Job quarantined, adjacent jobs inspected — none affected">${escHtml(_getCparDraft(item.id, 'containment'))}</textarea>
 
       <div class="cpar-cause-label" style="margin-top:10px">Root Cause <span style="color:var(--red)">*</span></div>
       <div class="cpar-cause-grid">
-        ${CPAR_CAUSE_CODES.map(c=>`<button class="cpar-cause-option" data-cause="${escHtml(c)}" onclick="selectCPARCause('${item.id}',this)">${escHtml(c)}</button>`).join('')}
+        ${CPAR_CAUSE_CODES.map(c=>`<button class="cpar-cause-option ${_getCparDraft(item.id,'cause')===c?'selected':''}" data-cause="${escHtml(c)}" onclick="selectCPARCause('${item.id}',this)">${escHtml(c)}</button>`).join('')}
       </div>
 
       <div class="cpar-cause-label" style="margin-top:10px">Corrective Action Taken <span style="color:var(--red)">*</span></div>
-      <textarea class="cpar-action-input" id="cpar-action-${item.id}" maxlength="10000" placeholder="Describe what was done to resolve this…"></textarea>
+      <textarea class="cpar-action-input" id="cpar-action-${item.id}" maxlength="10000" placeholder="Describe what was done to resolve this…">${escHtml(_getCparDraft(item.id, 'action'))}</textarea>
 
       <button class="cpar-confirm-close-btn" id="cpar-close-${item.id}" onclick="event.stopPropagation();submitCPARCloseout('${item.id}', event)" disabled>Submit close-out → QHSE Review</button>
     </div>`}
@@ -13119,10 +13133,24 @@ function toggleCPARCloseout(id, ev) {
     if (typeof loadCPARPhoto === 'function') loadCPARPhoto(id);
     // Wire textarea oninputs scoped to this card only
     if (card) {
+      const fieldMap = { action:'action', containment:'containment', 'disp-notes':'dispNotes' };
       ['action', 'containment', 'disp-notes'].forEach(suffix => {
         const el = card.querySelector(`#cpar-${suffix}-${id}`) || card.querySelector(`[id="cpar-${suffix}-${id}"]`);
-        if (el) el.oninput = () => refreshCPARSubmitState(id, ev);
+        if (el) el.oninput = () => {
+          _saveCparDraft(id, fieldMap[suffix], el.value);
+          refreshCPARSubmitState(id, ev);
+        };
       });
+      // Restore dataset state from draft cache
+      const closeoutPanel = card.querySelector('.cpar-closeout-panel');
+      if (closeoutPanel) {
+        const cachedDisp = _getCparDraft(id, 'disposition');
+        const cachedCause = _getCparDraft(id, 'cause');
+        if (cachedDisp) closeoutPanel.dataset.disposition = cachedDisp;
+        if (cachedCause) closeoutPanel.dataset.cause = cachedCause;
+        // Refresh submit state to reflect cached values
+        refreshCPARSubmitState(id, ev);
+      }
     }
   }
 }
@@ -14156,6 +14184,7 @@ function selectCPARDisposition(id, btn) {
   const card = btn.closest('.cpar-card');
   const root = card ? card.querySelector('.cpar-closeout-panel') : document.getElementById('cpar-co-'+id);
   if (root) root.dataset.disposition = btn.dataset.disp;
+  _saveCparDraft(id, 'disposition', btn.dataset.disp);
   const notes = card ? card.querySelector('#cpar-disp-notes-'+id) : document.getElementById('cpar-disp-notes-'+id);
   if (notes) notes.style.display = (btn.dataset.disp === 'Other') ? 'block' : 'none';
   const cont = card ? card.querySelector('#cpar-containment-'+id) : document.getElementById('cpar-containment-'+id);
@@ -14177,6 +14206,7 @@ function selectCPARCause(id, btn) {
   const card = btn.closest('.cpar-card');
   const root = card ? card.querySelector('.cpar-closeout-panel') : document.getElementById('cpar-co-'+id);
   if (root) root.dataset.cause = btn.dataset.cause;
+  _saveCparDraft(id, 'cause', btn.dataset.cause);
   refreshCPARSubmitState(id, btn);
 }
 
@@ -14266,6 +14296,7 @@ async function submitCPARCloseout(id, ev) {
     );
     if (!r.ok) throw new Error('PATCH '+r.status+' '+await r.text());
     Object.assign(item.fields, updateFields);
+    _clearCparDrafts(id);
     _invalidateChartCache();
     toast('Closed out — sent to QHSE Review', 's');
     renderQualitySubview();
