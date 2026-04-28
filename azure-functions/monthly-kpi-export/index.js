@@ -12,6 +12,20 @@ const SP_HOST       = 'reposefurniturelimited.sharepoint.com';
 const SP_SITE_PATH  = '/sites/ReposeFurniture-PlanningRepose';
 const SP_CPAR_LIST  = 'CPARLog';
 
+// Mirror of index.html parseCPARDate — handles ISO and DD/MM/YYYY HH:MM legacy formats.
+function parseCPARDate(str) {
+  if (!str) return new Date(0);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    const [y, m, d] = str.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
+  if (/^\d{4}-\d{2}-\d{2}T/.test(str)) { const d = new Date(str); return isNaN(d) ? new Date(0) : d; }
+  const [datePart, timePart='00:00'] = String(str).split(' ');
+  const [d, m, y] = datePart.split('/');
+  if (!y) return new Date(0);
+  return new Date(`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}T${timePart}:00`);
+}
+
 const cca = new ConfidentialClientApplication({
   auth:{ clientId: CLIENT_ID, authority:`https://login.microsoftonline.com/${TENANT_ID}`, clientSecret: CLIENT_SECRET }
 });
@@ -112,19 +126,19 @@ module.exports = async function (context, myTimer) {
   for (const team of [...teams, 'ALL']) {
     const teamItems = team === 'ALL' ? items : items.filter(i => i.fields?.SourceDept === team);
     const opened = teamItems.filter(i => {
-      const d = new Date(i.fields?.LoggedAt); return d >= periodStart && d <= periodEnd;
+      const d = parseCPARDate(i.fields?.LoggedAt); return d >= periodStart && d <= periodEnd;
     });
     const closed = teamItems.filter(i => {
-      const d = new Date(i.fields?.ClosedAt); return d.getTime() && d >= periodStart && d <= periodEnd;
+      const d = parseCPARDate(i.fields?.ClosedAt); return d.getTime() && d >= periodStart && d <= periodEnd;
     });
     const stillOpen = teamItems.filter(i => {
       const s = i.fields?.Status;
       if (s === 'Closed' || s === 'Archived') return false;
-      const d = new Date(i.fields?.LoggedAt);
+      const d = parseCPARDate(i.fields?.LoggedAt);
       return d <= periodEnd;
     });
     const mttrSamples = closed.map(i =>
-      workingHoursBetween(new Date(i.fields.LoggedAt), new Date(i.fields.ClosedAt))
+      workingHoursBetween(parseCPARDate(i.fields.LoggedAt), parseCPARDate(i.fields.ClosedAt))
     ).filter(h => h > 0);
     const mttr = mttrSamples.length ? (mttrSamples.reduce((a,b)=>a+b,0) / mttrSamples.length).toFixed(1) : '';
     const causeCounts = {};

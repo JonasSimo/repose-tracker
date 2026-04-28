@@ -12,6 +12,27 @@ const SP_HOST       = 'reposefurniturelimited.sharepoint.com';
 const SP_SITE_PATH  = '/sites/ReposeFurniture-PlanningRepose';
 const SP_CPAR_LIST  = 'CPARLog';
 
+// Mirror of index.html parseCPARDate — handles ISO and DD/MM/YYYY HH:MM legacy formats.
+function parseCPARDate(str) {
+  if (!str) return new Date(0);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    const [y, m, d] = str.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
+  if (/^\d{4}-\d{2}-\d{2}T/.test(str)) { const d = new Date(str); return isNaN(d) ? new Date(0) : d; }
+  const [datePart, timePart='00:00'] = String(str).split(' ');
+  const [d, m, y] = datePart.split('/');
+  if (!y) return new Date(0);
+  return new Date(`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}T${timePart}:00`);
+}
+function _normaliseLoggedAtDay(la) {
+  if (!la) return '';
+  if (/^\d{4}-\d{2}-\d{2}/.test(la)) return la.slice(0,10);
+  // DD/MM/YYYY → YYYY-MM-DD
+  const [d, m, y] = String(la).split(/[/ ]/);
+  return y ? `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}` : '';
+}
+
 const cca = new ConfidentialClientApplication({
   auth:{ clientId: CLIENT_ID, authority:`https://login.microsoftonline.com/${TENANT_ID}`, clientSecret: CLIENT_SECRET }
 });
@@ -95,7 +116,7 @@ function lastWorkingDay(d=new Date()) {
   return x;
 }
 function daysOpen(loggedAt) {
-  const d = new Date(loggedAt);
+  const d = parseCPARDate(loggedAt);
   if (!d.getTime()) return '?';
   return Math.floor((Date.now() - d) / 86400000);
 }
@@ -186,7 +207,7 @@ module.exports = async function (context, myTimer) {
       const src = normaliseTeam(i.fields?.SourceDept);
       return canonicalTeam(src) === canon;
     });
-    const raisedYesterday = teamItems.filter(i => (i.fields?.LoggedAt||'').slice(0,10) === yestPrefix);
+    const raisedYesterday = teamItems.filter(i => _normaliseLoggedAtDay(i.fields?.LoggedAt) === yestPrefix);
     const stillOpen = teamItems.filter(i => {
       const s = i.fields?.Status;
       return s !== 'Closed' && s !== 'Archived';
@@ -198,7 +219,7 @@ module.exports = async function (context, myTimer) {
   }
 
   // Master combined digest
-  const yest2 = cparItems.filter(i => (i.fields?.LoggedAt||'').slice(0,10) === yestPrefix);
+  const yest2 = cparItems.filter(i => _normaliseLoggedAtDay(i.fields?.LoggedAt) === yestPrefix);
   const open2 = cparItems.filter(i => i.fields?.Status !== 'Closed' && i.fields?.Status !== 'Archived');
   const masterHtml = buildEmail('All Teams', yest2, open2, yest);
   await sendMail(t, DIGEST_MANAGEMENT, 'RepNet — All Teams CPAR Digest', masterHtml);

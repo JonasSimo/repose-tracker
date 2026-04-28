@@ -11237,7 +11237,7 @@ async function submitCPAR() {
     const ref = await getNextCPARRef(siteId, listId);
     const sourceLabel = CPAR_SOURCES.find(x => x.key === s.source)?.label || s.source;
     const now = new Date();
-    const loggedAt = `${now.toLocaleDateString('en-GB')} ${now.toTimeString().slice(0,5)}`;
+    const loggedAt = now.toISOString();
 
     const created = await graphPost(
       `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`,

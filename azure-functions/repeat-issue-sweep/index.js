@@ -11,6 +11,20 @@ const SP_HOST       = 'reposefurniturelimited.sharepoint.com';
 const SP_SITE_PATH  = '/sites/ReposeFurniture-PlanningRepose';
 const SP_CPAR_LIST  = 'CPARLog';
 
+// Mirror of index.html parseCPARDate — handles ISO and DD/MM/YYYY HH:MM legacy formats.
+function parseCPARDate(str) {
+  if (!str) return new Date(0);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    const [y, m, d] = str.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
+  if (/^\d{4}-\d{2}-\d{2}T/.test(str)) { const d = new Date(str); return isNaN(d) ? new Date(0) : d; }
+  const [datePart, timePart='00:00'] = String(str).split(' ');
+  const [d, m, y] = datePart.split('/');
+  if (!y) return new Date(0);
+  return new Date(`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}T${timePart}:00`);
+}
+
 const cca = new ConfidentialClientApplication({
   auth:{ clientId: CLIENT_ID, authority:`https://login.microsoftonline.com/${TENANT_ID}`, clientSecret: CLIENT_SECRET }
 });
@@ -83,7 +97,7 @@ module.exports = async function (context, myTimer) {
       const g = j.fields || {};
       if ((g.PrimaryModel||'').trim().toLowerCase() !== (f.PrimaryModel||'').trim().toLowerCase()) return false;
       if ((g.CauseCode||'').trim() !== (f.CauseCode||'').trim()) return false;
-      const d = new Date(g.LoggedAt);
+      const d = parseCPARDate(g.LoggedAt);
       return d.getTime() && d >= since;
     });
     if (matches.length >= REPEAT_THRESHOLD - 1) {
