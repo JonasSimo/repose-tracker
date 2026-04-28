@@ -11975,7 +11975,38 @@ function drawChartRaisedClosed() {
     </div>
   `;
 }
-function drawChartTopCauses()    { document.getElementById('dash-chart-2').innerHTML = '<div style="color:var(--text3);padding:14px">Chart 2 — Task 25</div>'; }
+function drawChartTopCauses() {
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+  const counts = {};
+  for (const item of CPAR_ITEMS) {
+    const f = item.fields || {};
+    const d = parseCPARDate(f.LoggedAt);
+    if (!d.getTime() || d < monthStart) continue;
+    const c = (f.CauseCode || 'Unspecified').trim();
+    counts[c] = (counts[c] || 0) + 1;
+  }
+  const top = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  if (!top.length) {
+    document.getElementById('dash-chart-2').innerHTML = '<div style="font-size:13px;font-weight:700;margin-bottom:6px">Top 5 causes — current month</div><div style="color:var(--text3);padding:8px">No CPARs this month yet.</div>';
+    return;
+  }
+  const max = top[0][1];
+  const colours = ['#dc2626', '#d97706', '#7c3aed', '#0284c7', '#059669'];
+  document.getElementById('dash-chart-2').innerHTML = `
+    <div style="font-size:13px;font-weight:700;margin-bottom:6px">Top 5 causes — current month</div>
+    ${top.map(([c, n], i) => `
+      <div style="display:flex;align-items:center;gap:8px;font-size:12px;margin-bottom:4px">
+        <span style="width:200px;flex-shrink:0">${escHtml(c)}</span>
+        <div style="flex:1;background:#eef2f5;border-radius:4px;height:18px;position:relative">
+          <div style="background:${colours[i]};height:100%;width:${(n / max * 100).toFixed(0)}%;border-radius:4px"></div>
+        </div>
+        <span style="width:30px;text-align:right;font-family:'JetBrains Mono',monospace;font-weight:700">${n}</span>
+      </div>
+    `).join('')}
+  `;
+}
 function drawChartMTTR()         { document.getElementById('dash-chart-3').innerHTML = '<div style="color:var(--text3);padding:14px">Chart 3 — Task 26</div>'; }
 function renderRecentRepeats()   { document.getElementById('dash-recent-repeats').innerHTML = '<div style="color:var(--text3);padding:14px">Repeats — Task 27</div>'; }
 
