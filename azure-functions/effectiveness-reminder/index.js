@@ -68,8 +68,23 @@ async function sendMail(t, recipients, subject, html) {
     }})
   });
 }
+async function sendMailCc(t, to, cc, subject, html) {
+  const r = await fetch(`https://graph.microsoft.com/v1.0/users/${SEND_FROM}/sendMail`, {
+    method:'POST', headers:{ Authorization:'Bearer '+t, 'Content-Type':'application/json' },
+    body: JSON.stringify({ message:{
+      subject, body:{ contentType:'HTML', content:html },
+      toRecipients: to.map(e => ({ emailAddress:{ address:e }})),
+      ccRecipients: cc.map(e => ({ emailAddress:{ address:e }})),
+    }})
+  });
+  if (!r.ok) {
+    const errText = await r.text().catch(() => '<unreadable>');
+    throw new Error(`sendMailCc failed: ${r.status} ${errText.slice(0,200)}`);
+  }
+}
 
-const QHSE_REVIEWERS = ['jonas.simonaitis@reposefurniture.co.uk'];
+const QHSE_PRIMARY = ['jonas.simonaitis@reposefurniture.co.uk'];
+const QHSE_CC = ['mitch@reposefurniture.co.uk', 'richard.semmens@reposefurniture.co.uk'];
 const EFF_DAYS = 30;
 
 module.exports = async function (context, myTimer) {
@@ -96,7 +111,7 @@ module.exports = async function (context, myTimer) {
   }
   if (!due.length && !overdue.length) { context.log('no eff checks due'); return; }
   const html = buildReminder(due, overdue);
-  await sendMail(t, QHSE_REVIEWERS, `Effectiveness re-checks due — ${due.length+overdue.length}`, html);
+  await sendMailCc(t, QHSE_PRIMARY, QHSE_CC, `Effectiveness re-checks due — ${due.length+overdue.length}`, html);
 };
 
 function buildReminder(due, overdue) {
