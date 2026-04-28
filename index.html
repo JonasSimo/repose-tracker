@@ -11755,21 +11755,48 @@ async function qhseEscalateConfirm(toEmail) {
 }
 async function sendInvestigatorEmail(item, toEmail) {
   const f = item.fields || {};
-  const subject = `[CPAR ${f.Title}] Investigation assigned — ${f.PrimaryModel||''}`;
-  const body = `<p>You have been assigned a CPAR investigation.</p>
-    <p><strong>Ref:</strong> ${escHtml(f.Title||'')}<br>
-    <strong>Source:</strong> ${escHtml(f.SourceDept||'')}<br>
-    <strong>Job:</strong> ${escHtml(f.PrimaryREP||'')} · ${escHtml(String(f.PrimaryJobNo||''))} · ${escHtml(f.PrimaryModel||'')}<br>
-    <strong>QTY:</strong> ${escHtml(String(f.QTY||1))}</p>
-    <p><strong>Description:</strong><br>${escHtml(f.Description||'')}</p>
-    <p><strong>Closed-out by:</strong> ${escHtml((f.ClosedOutBy||'').split('@')[0])}</p>
-    <p>Open in RepNet → Quality → PE View.</p>`;
-  const accounts = msalInstance.getAllAccounts();
-  const r = await msalInstance.acquireTokenSilent({ scopes: MAIL_SCOPES, account: accounts[0] });
-  await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
-    method:'POST', headers:{ Authorization:'Bearer '+r.accessToken, 'Content-Type':'application/json' },
-    body: JSON.stringify({ message:{ subject, body:{ contentType:'HTML', content:body }, toRecipients:[{ emailAddress:{ address:toEmail }}] }})
-  });
+  const peName = (toEmail.split('@')[0] || 'team').replace(/\./g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  const repnetUrl = location.origin + location.pathname;
+  const subject = `[CPAR ${f.Title}] Investigation assigned to you — ${f.PrimaryModel||''}`;
+  const body = `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f0f4f8;font-family:Arial,Helvetica,sans-serif">
+    <div style="max-width:600px;margin:24px auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
+      <div style="background:#7c3aed;padding:18px 24px;color:#fff">
+        <div style="font-size:18px;font-weight:700">CPAR Investigation Assigned</div>
+        <div style="opacity:.85;font-size:12px;margin-top:4px">Hi ${escHtml(peName)} — please investigate the following CPAR</div>
+      </div>
+      <div style="padding:20px 24px">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px">
+          <tr><td style="padding:5px 0;color:#6b7280;width:30%">Ref</td><td style="padding:5px 0;font-family:monospace;font-weight:700">${escHtml(f.Title||'')}</td></tr>
+          <tr><td style="padding:5px 0;color:#6b7280">Source</td><td style="padding:5px 0">${escHtml(f.SourceDept||'')}</td></tr>
+          <tr><td style="padding:5px 0;color:#6b7280">Job</td><td style="padding:5px 0">${escHtml(f.PrimaryREP||'')} · Job ${escHtml(String(f.PrimaryJobNo||''))} · ${escHtml(f.PrimaryModel||'')}</td></tr>
+          <tr><td style="padding:5px 0;color:#6b7280">QTY affected</td><td style="padding:5px 0">${escHtml(String(f.QTY||1))}</td></tr>
+          <tr><td style="padding:5px 0;color:#6b7280">Cause (initial)</td><td style="padding:5px 0">${escHtml(f.CauseCode||'—')}</td></tr>
+          <tr><td style="padding:5px 0;color:#6b7280;vertical-align:top">Description</td><td style="padding:5px 0">${escHtml(f.Description||'')}</td></tr>
+          <tr><td style="padding:5px 0;color:#6b7280">Closed-out by</td><td style="padding:5px 0">${escHtml((f.ClosedOutBy||'').split('@')[0])}</td></tr>
+        </table>
+        <p style="font-size:13px;color:#374151;margin:0 0 12px"><strong>What to do:</strong></p>
+        <ol style="font-size:13px;color:#374151;line-height:1.6;padding-left:20px;margin:0 0 16px">
+          <li>Open RepNet → <strong>Quality</strong> → <strong>PE View</strong></li>
+          <li>Find this CPAR in your list (filtered to your assignments)</li>
+          <li>Investigate root cause and write your findings in the notes field</li>
+          <li>Pick outcome: <em>Human Error</em> (training/process fix) or <em>Template/Spec Issue</em> (raise an ECR)</li>
+          <li>Submit — the CPAR returns to QHSE for final approval</li>
+        </ol>
+        <a href="${escHtml(repnetUrl)}" style="display:inline-block;padding:10px 20px;background:#7c3aed;color:#fff;text-decoration:none;border-radius:6px;font-size:13px;font-weight:700">Open RepNet →</a>
+      </div>
+      <div style="background:#f0f4f8;padding:12px 24px;font-size:11px;color:#6b7280;border-top:1px solid #e2e8f0">
+        Repose Furniture · QMS — automated email · Do not reply.
+      </div>
+    </div>
+  </body></html>`;
+  try {
+    const accounts = msalInstance.getAllAccounts();
+    const r = await msalInstance.acquireTokenSilent({ scopes: MAIL_SCOPES, account: accounts[0] });
+    await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
+      method:'POST', headers:{ Authorization:'Bearer '+r.accessToken, 'Content-Type':'application/json' },
+      body: JSON.stringify({ message:{ subject, body:{ contentType:'HTML', content:body }, toRecipients:[{ emailAddress:{ address:toEmail }}] }})
+    });
+  } catch(e) { console.warn('investigator email failed:', e.message); }
 }
 
 let _retId = null;
@@ -11821,20 +11848,48 @@ async function sendReturnEmail(item, note) {
   const to = f.ClosedOutBy;
   if (!to) return;
   const cc = (TEAM_MANAGERS[normaliseTeam(f.SourceDept)] || []).filter(e => e !== to);
-  const subject = `[CPAR ${f.Title}] Returned for revision`;
-  const body = `<p>Your closeout for ${escHtml(f.Title||'')} has been returned by QHSE for revision.</p>
-    <p><strong>Note from QHSE:</strong></p>
-    <blockquote style="background:#f0f4f8;padding:10px;border-left:3px solid #dc2626">${escHtml(note)}</blockquote>
-    <p>Please open the CPAR in RepNet, address the feedback, and resubmit close-out.</p>`;
-  const accounts = msalInstance.getAllAccounts();
-  const r = await msalInstance.acquireTokenSilent({ scopes: MAIL_SCOPES, account: accounts[0] });
-  await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
-    method:'POST', headers:{ Authorization:'Bearer '+r.accessToken, 'Content-Type':'application/json' },
-    body: JSON.stringify({ message:{ subject, body:{ contentType:'HTML', content:body },
-      toRecipients:[{ emailAddress:{ address:to }}],
-      ccRecipients: cc.map(e => ({ emailAddress:{ address:e }}))
-    }})
-  });
+  const repnetUrl = location.origin + location.pathname;
+  const recipientName = (to.split('@')[0] || '').replace(/\./g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  const subject = `[CPAR ${f.Title}] Returned for revision — please update`;
+  const body = `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f0f4f8;font-family:Arial,Helvetica,sans-serif">
+    <div style="max-width:600px;margin:24px auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
+      <div style="background:#dc2626;padding:18px 24px;color:#fff">
+        <div style="font-size:18px;font-weight:700">CPAR Returned by QHSE</div>
+        <div style="opacity:.85;font-size:12px;margin-top:4px">Hi ${escHtml(recipientName)} — your closeout needs revision</div>
+      </div>
+      <div style="padding:20px 24px">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:14px">
+          <tr><td style="padding:5px 0;color:#6b7280;width:30%">Ref</td><td style="padding:5px 0;font-family:monospace;font-weight:700">${escHtml(f.Title||'')}</td></tr>
+          <tr><td style="padding:5px 0;color:#6b7280">Source</td><td style="padding:5px 0">${escHtml(f.SourceDept||'')}</td></tr>
+          <tr><td style="padding:5px 0;color:#6b7280">Job</td><td style="padding:5px 0">${escHtml(f.PrimaryREP||'')} · Job ${escHtml(String(f.PrimaryJobNo||''))}</td></tr>
+        </table>
+        <p style="font-size:13px;color:#374151;margin:0 0 8px"><strong>Note from QHSE:</strong></p>
+        <blockquote style="background:#fff1f1;padding:12px 14px;margin:0 0 16px;border-left:3px solid #dc2626;border-radius:4px;font-size:13px;color:#991b1b">${escHtml(note)}</blockquote>
+        <p style="font-size:13px;color:#374151;margin:0 0 12px"><strong>What to do:</strong></p>
+        <ol style="font-size:13px;color:#374151;line-height:1.6;padding-left:20px;margin:0 0 16px">
+          <li>Open RepNet → <strong>Quality</strong> → <strong>Internal NCRs</strong></li>
+          <li>Find ${escHtml(f.Title||'')} in the "To do" tile (it's now in <em>Returned</em> status)</li>
+          <li>Click the row, click <em>Close Out Issue</em>, address the QHSE note above</li>
+          <li>Resubmit — it goes back to QHSE for review</li>
+        </ol>
+        <a href="${escHtml(repnetUrl)}" style="display:inline-block;padding:10px 20px;background:#dc2626;color:#fff;text-decoration:none;border-radius:6px;font-size:13px;font-weight:700">Open RepNet →</a>
+      </div>
+      <div style="background:#f0f4f8;padding:12px 24px;font-size:11px;color:#6b7280;border-top:1px solid #e2e8f0">
+        Repose Furniture · QMS — automated email · Do not reply.
+      </div>
+    </div>
+  </body></html>`;
+  try {
+    const accounts = msalInstance.getAllAccounts();
+    const r = await msalInstance.acquireTokenSilent({ scopes: MAIL_SCOPES, account: accounts[0] });
+    await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
+      method:'POST', headers:{ Authorization:'Bearer '+r.accessToken, 'Content-Type':'application/json' },
+      body: JSON.stringify({ message:{ subject, body:{ contentType:'HTML', content:body },
+        toRecipients:[{ emailAddress:{ address:to }}],
+        ccRecipients: cc.map(e => ({ emailAddress:{ address:e }}))
+      }})
+    });
+  } catch(e) { console.warn('return email failed:', e.message); }
 }
 
 async function effVerify(id, verified, recurrenceNote='') {
