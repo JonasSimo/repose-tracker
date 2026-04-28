@@ -9346,16 +9346,35 @@ function renderDetailQC() {
       });
     }
   }
+  // Build sets of mech-delivery and accessory-delivery REPs from Load Plan raw data.
+  // Some Assembly completions are mistakenly logged for these (they're not chairs and don't need chair QC).
+  const _mechDeliveryReps = new Set();
+  const _accDeliveryReps  = new Set();
+  (LS_RAW || []).forEach(col => (col.items || []).forEach(it => {
+    if (!it) return;
+    if (it.isMech || isMechDelivery(it.text || '')) {
+      if (it.rep7) _mechDeliveryReps.add(it.rep7);
+    }
+    if (isAccDelivery(it.text || '')) {
+      const job = accJobBase(it.text || '');
+      if (job) _accDeliveryReps.add(job);
+      if (it.rep7) _accDeliveryReps.add(it.rep7);
+    }
+  }));
   const isMechOnly = r7 => EXPRESS_TYPE_MAP.get(r7) === 'MFT';
-  const isExcluded = r7 => isMechOnly(r7) || _serviceReps.has(r7) || accQCDone.has(r7);
+  const isExcluded = r7 => isMechOnly(r7)
+    || _serviceReps.has(r7)
+    || _mechDeliveryReps.has(r7)
+    || _accDeliveryReps.has(r7)
+    || accQCDone.has(r7);
   const outstandingReps = [...allAssemblyReps].filter(r => !qcCompletedReps.has(r) && !isExcluded(r));
   const outstanding     = outstandingReps.length;
 
   // Build details for each outstanding REP (latest Assembly completion per REP)
-  const outstandingDetails = outstandingReps.map(rep => {
+  const outstandingDetails = outstandingReps.map(rep7 => {
     const matches = STATS_COMPLETIONS.filter(c =>
       c.fields.Team === 'Assembly' &&
-      String(c.fields.REP ?? '').replace(/\D/g, '').slice(-7) === rep
+      String(c.fields.REP ?? '').replace(/\D/g, '').slice(-7) === rep7
     );
     const comp = matches.reduce((latest, c) => {
       const t = parseDdmmyyyy(c.fields.CompletedDate)?.getTime() || 0;
@@ -9364,11 +9383,31 @@ function renderDetailQC() {
     }, null);
     const initials = comp?.fields.Initials || '';
     const name = STATS_OPERATORS.Assembly?.[initials] || initials || '—';
+
+    // Look up job + week-commencing in PROD
+    let jobNumber = '', wc = '';
+    outer: for (const wkKey of Object.keys(PROD)) {
+      for (const prep of [1,2,3,4,5,'express']) {
+        const arr = PROD[wkKey]?.[prep] || [];
+        for (const j of arr) {
+          const r = String(j.rep || '').replace(/\D/g, '').slice(-7);
+          if (r === rep7) {
+            jobNumber = j.itemNo ? String(j.itemNo) : '';
+            wc = wkKey;
+            break outer;
+          }
+        }
+      }
+    }
+
     return {
-      rep: comp?.fields.REP || `REP${rep}`,
+      rep: comp?.fields.REP || `REP${rep7}`,
+      rep7,
       date: comp?.fields.CompletedDate || '',
       _ts: parseDdmmyyyy(comp?.fields.CompletedDate)?.getTime() || 0,
       name,
+      jobNumber,
+      wc,
     };
   }).sort((a, b) => a._ts - b._ts);
 
@@ -9376,7 +9415,9 @@ function renderDetailQC() {
     ? outstandingDetails.map(o =>
         `<div class="comp-row no-exp" style="padding-left:16px;background:#fef2f2">
           <div class="row-team" style="font-weight:400;font-size:13px">
-            <span style="font-weight:600;color:#0e023a">${escHtml(o.rep)}</span>
+            <span style="font-weight:600;color:#0e023a;cursor:pointer;text-decoration:underline" onclick="event.stopPropagation();openSpecModalByRep('${escHtml(o.rep)}')">${escHtml(o.rep)}</span>
+            ${o.jobNumber ? `<span style="margin-left:8px;font-size:11px;color:var(--repose-grey)">Job ${escHtml(o.jobNumber)}</span>` : ''}
+            ${o.wc ? `<span style="margin-left:8px;font-size:11px;color:var(--repose-grey)">w/c ${escHtml(o.wc)}</span>` : ''}
             <span style="color:var(--repose-grey);margin-left:8px">${escHtml(o.date)}</span>
           </div>
           <div class="row-count" style="font-size:12px;color:var(--repose-grey)">${escHtml(o.name)}</div>
