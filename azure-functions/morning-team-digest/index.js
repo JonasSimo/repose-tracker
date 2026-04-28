@@ -210,7 +210,8 @@ module.exports = async function (context, myTimer) {
     const raisedYesterday = teamItems.filter(i => _normaliseLoggedAtDay(i.fields?.LoggedAt) === yestPrefix);
     const stillOpen = teamItems.filter(i => {
       const s = i.fields?.Status;
-      return s !== 'Closed' && s !== 'Archived';
+      // Team-actionable: Open, Returned-to-Area-Manager, or no status (legacy / freshly-raised)
+      return s === 'Open' || s === 'Returned to Area Manager' || !s;
     });
     if (!raisedYesterday.length && !stillOpen.length) continue;
     const html = buildEmail(canon, raisedYesterday, stillOpen, yest);
@@ -220,7 +221,10 @@ module.exports = async function (context, myTimer) {
 
   // Master combined digest
   const yest2 = cparItems.filter(i => _normaliseLoggedAtDay(i.fields?.LoggedAt) === yestPrefix);
-  const open2 = cparItems.filter(i => i.fields?.Status !== 'Closed' && i.fields?.Status !== 'Archived');
+  const open2 = cparItems.filter(i => {
+    const s = i.fields?.Status;
+    return s === 'Open' || s === 'Returned to Area Manager' || !s;
+  });
   const masterHtml = buildEmail('All Teams', yest2, open2, yest);
   await sendMail(t, DIGEST_MANAGEMENT, 'RepNet — All Teams CPAR Digest', masterHtml);
   context.log('CPAR digest done');
