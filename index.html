@@ -6726,26 +6726,48 @@ const GRAPH_READY = AZURE_CLIENT_ID !== 'YOUR_CLIENT_ID_HERE';
 // Tablet team lock — add ?team=Woodmill (or any team name) to the URL
 // to lock the tablet to that team only, hiding all others
 // Preserve team across MSAL redirect (sessionStorage cleared when tab closes)
+// Validation is case-insensitive (matches the inline manifest-swap script at
+// the top of <head>) but we normalise to the canonical casing in the Set so
+// downstream comparisons against TEAMS_CFG.name stay consistent.
 const _VALID_TEAMS = new Set(['Woodmill','Cutting','Sewing','Upholstery','Assembly','Foam','QC','Gluing','Seats']);
+const _TEAMS_BY_LOWER = new Map([..._VALID_TEAMS].map(t => [t.toLowerCase(), t]));
 const _paramTeam = new URLSearchParams(window.location.search).get('team') || '';
-const _validatedTeam = _VALID_TEAMS.has(_paramTeam) ? _paramTeam : '';
+const _validatedTeam = _TEAMS_BY_LOWER.get(_paramTeam.toLowerCase()) || '';
 if (_validatedTeam) sessionStorage.setItem('tabletTeam', _validatedTeam);
-const TABLET_TEAM = _validatedTeam || sessionStorage.getItem('tabletTeam') || '';
+// Re-canonicalise sessionStorage value too — the inline script may have written
+// the raw URL casing (e.g. 'qc') before this main-script validation ran.
+const _ssTeam = sessionStorage.getItem('tabletTeam') || '';
+const _ssTeamCanon = _TEAMS_BY_LOWER.get(_ssTeam.toLowerCase()) || '';
+if (_ssTeam && _ssTeam !== _ssTeamCanon) {
+  if (_ssTeamCanon) sessionStorage.setItem('tabletTeam', _ssTeamCanon);
+  else sessionStorage.removeItem('tabletTeam');
+}
+const TABLET_TEAM = _validatedTeam || _ssTeamCanon || '';
 
 // Single-tab lock — add ?tab=production (or any view name) to the URL
 // to lock the app to that tab only, hiding the nav menu
 // Preserve tab across MSAL redirect
 const _VALID_TABS = new Set(['team-select','overview','tracker','loadsheet','production','stats','issues','safety','ordercheck','timing','complaints','maintenance','innovation']);
-const _paramTab = new URLSearchParams(window.location.search).get('tab') || '';
+const _paramTab = (new URLSearchParams(window.location.search).get('tab') || '').toLowerCase();
 const _validatedTab = _VALID_TABS.has(_paramTab) ? _paramTab : '';
 if (_validatedTab) sessionStorage.setItem('tabletTab', _validatedTab);
-const TABLET_TAB = _validatedTab || sessionStorage.getItem('tabletTab') || '';
+const _ssTab = (sessionStorage.getItem('tabletTab') || '').toLowerCase();
+const _ssTabValid = _VALID_TABS.has(_ssTab) ? _ssTab : '';
+if (_ssTab && !_ssTabValid) sessionStorage.removeItem('tabletTab');
+const TABLET_TAB = _validatedTab || _ssTabValid || '';
 
 const _VALID_SUBS = new Set(['Arms', 'Backs', 'Seats']);
+const _SUBS_BY_LOWER = new Map([..._VALID_SUBS].map(s => [s.toLowerCase(), s]));
 const _paramSub = new URLSearchParams(window.location.search).get('sub') || '';
-const _validatedSub = _VALID_SUBS.has(_paramSub) ? _paramSub : '';
+const _validatedSub = _SUBS_BY_LOWER.get(_paramSub.toLowerCase()) || '';
 if (_validatedSub) sessionStorage.setItem('tabletSub', _validatedSub);
-const TABLET_SUB = _validatedSub || sessionStorage.getItem('tabletSub') || '';
+const _ssSub = sessionStorage.getItem('tabletSub') || '';
+const _ssSubCanon = _SUBS_BY_LOWER.get(_ssSub.toLowerCase()) || '';
+if (_ssSub && _ssSub !== _ssSubCanon) {
+  if (_ssSubCanon) sessionStorage.setItem('tabletSub', _ssSubCanon);
+  else sessionStorage.removeItem('tabletSub');
+}
+const TABLET_SUB = _validatedSub || _ssSubCanon || '';
 
 let msalInstance = null;
 let graphAccount  = null;
