@@ -77,6 +77,219 @@
     try { applyTeamLogos(); } catch (e) { console.warn('[skin-v4] applyTeamLogos:', e); }
     try { injectTvButton(); } catch (e) { console.warn('[skin-v4] injectTvButton:', e); }
     try { syncUser(); } catch (e) { console.warn('[skin-v4] syncUser:', e); }
+    try { injectTeamChart(); } catch (e) { console.warn('[skin-v4] injectTeamChart:', e); }
+  }
+
+  // ── 7. Team Planned-vs-Done chart on Stats team detail ────────
+  let _v4ChartInstance = null;
+  function injectTeamChart() {
+    const detail = document.getElementById('stats-detail');
+    if (!detail || detail.style.display === 'none') {
+      removeTeamChart();
+      return;
+    }
+    const view = detail.dataset.view;
+    const team = window.statsTeamFilter;
+    const period = window.teamTokenPeriod || 'week';
+
+    // Only show on team detail view
+    if (view !== 'team' || !team) {
+      removeTeamChart();
+      return;
+    }
+
+    const body = document.getElementById('stats-detail-body');
+    if (!body) return;
+
+    // If chart already up-to-date for this team+period, skip
+    const existing = document.getElementById('v4-team-chart');
+    if (existing &&
+        existing.dataset.team === team &&
+        existing.dataset.period === period) return;
+
+    removeTeamChart();
+
+    // Build data
+    const data = buildTeamChartData(team, period);
+    if (!data || !data.labels.length) return;
+
+    // Wrapper
+    const wrap = document.createElement('div');
+    wrap.id = 'v4-team-chart';
+    wrap.dataset.team = team;
+    wrap.dataset.period = period;
+    wrap.className = 'v4-team-chart-panel';
+    wrap.innerHTML = `
+      <div class="v4-team-chart-head">
+        <div class="v4-team-chart-title">Planned vs Done — <em>${escHtml(team)}</em></div>
+        <div class="v4-team-chart-sub">${escHtml(data.subtitle || '')}</div>
+      </div>
+      <div class="v4-team-chart-canvas-wrap"><canvas id="v4-team-chart-canvas"></canvas></div>
+      <div class="v4-team-chart-foot">
+        <span class="v4-legend"><i style="background:#0e023a"></i>Planned</span>
+        <span class="v4-legend"><i style="background:#14a1e9"></i>Done</span>
+        <span class="v4-team-chart-totals">${data.totalPlanned} planned · ${data.totalDone} done</span>
+      </div>
+    `;
+    body.insertBefore(wrap, body.firstChild);
+
+    // Render Chart.js
+    const ctx = document.getElementById('v4-team-chart-canvas');
+    if (window.Chart && ctx) {
+      _v4ChartInstance = new window.Chart(ctx.getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: data.labels,
+          datasets: [
+            { label: 'Planned', data: data.planned, backgroundColor: 'rgba(14,2,58,0.85)',  borderRadius: 4, borderSkipped: false },
+            { label: 'Done',    data: data.done,    backgroundColor: 'rgba(20,161,233,0.95)', borderRadius: 4, borderSkipped: false },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } },
+          scales: {
+            x: { grid: { display: false }, ticks: { font: { family: 'JetBrains Mono', size: 11 } } },
+            y: { beginAtZero: true, ticks: { precision: 0, font: { family: 'JetBrains Mono', size: 11 } }, grid: { color: 'rgba(14,2,58,0.06)' } },
+          },
+        },
+      });
+    }
+  }
+
+  function removeTeamChart() {
+    if (_v4ChartInstance) { try { _v4ChartInstance.destroy(); } catch (e) {} _v4ChartInstance = null; }
+    const existing = document.getElementById('v4-team-chart');
+    if (existing) existing.remove();
+  }
+
+  // Build planned vs done data for a team given the current period.
+  // Sources:
+  //   - PROD[wc][prep]      for planned counts per prep day
+  //   - STATS_COMPLETIONS   for actual completions
+  //   - statsRefDate()      reference date for the current period
+  function buildTeamChartData(team, period) {
+    const PROD = window.PROD || {};
+    const COMPS = window.STATS_COMPLETIONS || [];
+    const refDate = (typeof window.statsRefDate === 'function') ? window.statsRefDate() : new Date();
+    refDate.setHours(0, 0, 0, 0);
+
+    // Helper: parse a SharePoint CompletedDate (dd/mm/yyyy or ISO)
+    function parseDate(raw) {
+      if (!raw) return null;
+      let d;
+      if (/^\d{2}\/\d{2}\/\d{4}/.test(raw)) {
+        const [dd, mm, yyyy] = raw.split('/');
+        d = new Date(+yyyy, +mm - 1, +dd);
+      } else {
+        d = new Date(raw);
+      }
+      return isNaN(d) ? null : d;
+    }
+    function sameDay(a, b) {
+      return a && b && a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
+    }
+    function ddmmyyyy(d) {
+      return d.toLocaleDateString('en-GB');
+    }
+
+    // Find the PROD key whose .wc Monday matches the start-of-week of refDate.
+    function mondayOf(d) {
+      const x = new Date(d); const day = (x.getDay() + 6) % 7; x.setDate(x.getDate() - day); x.setHours(0,0,0,0);
+      return x;
+    }
+    function plannedFor(date) {
+      const targetMon = mondayOf(date);
+      const dow = (date.getDay() + 6) % 7; // 0=Mon, 4=Fri
+      if (dow > 4) return 0;
+      const prep = dow + 1;
+      // Find wc key whose .wc string matches targetMon (dd/mm/yyyy)
+      const targetStr = ddmmyyyy(targetMon);
+      const wcKey = Object.keys(PROD).find(k => PROD[k] && PROD[k].wc === targetStr);
+      if (!wcKey) return 0;
+      const jobs = (PROD[wcKey] && PROD[wcKey][prep]) || [];
+      return jobs.length;
+    }
+    function doneFor(date) {
+      const want = ddmmyyyy(date);
+      return COMPS.filter(c => c.fields && c.fields.Team === team && c.fields.CompletedDate === want).length;
+    }
+
+    const labels = [], planned = [], done = [];
+    let subtitle = '';
+
+    if (period === 'today' || period === 'yesterday') {
+      const d = new Date(refDate);
+      if (period === 'yesterday') d.setDate(d.getDate() - 1);
+      labels.push(d.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' }));
+      planned.push(plannedFor(d));
+      done.push(doneFor(d));
+      subtitle = period === 'today' ? 'Today' : 'Yesterday';
+    } else if (period === 'week' || !period) {
+      const mon = mondayOf(refDate);
+      const dayNames = ['Mon','Tue','Wed','Thu','Fri'];
+      for (let i = 0; i < 5; i++) {
+        const d = new Date(mon); d.setDate(mon.getDate() + i); d.setHours(0,0,0,0);
+        labels.push(dayNames[i]);
+        planned.push(plannedFor(d));
+        done.push(doneFor(d));
+      }
+      subtitle = 'Week of ' + mon.toLocaleDateString('en-GB', { day:'numeric', month:'short' });
+    } else if (period === 'month') {
+      // Group by week within the month
+      const ref = new Date(refDate);
+      const first = new Date(ref.getFullYear(), ref.getMonth(), 1);
+      const last  = new Date(ref.getFullYear(), ref.getMonth() + 1, 0);
+      // Walk weeks (Mon-Fri) intersecting this month
+      const monStart = mondayOf(first);
+      let cursor = new Date(monStart);
+      while (cursor <= last) {
+        const wkLabel = 'W' + (typeof window.isoWeekNumber === 'function' ? window.isoWeekNumber(cursor) : '?');
+        let wkPlanned = 0, wkDone = 0;
+        for (let i = 0; i < 5; i++) {
+          const d = new Date(cursor); d.setDate(cursor.getDate() + i); d.setHours(0,0,0,0);
+          if (d.getMonth() === ref.getMonth()) {
+            wkPlanned += plannedFor(d);
+            wkDone    += doneFor(d);
+          }
+        }
+        labels.push(wkLabel);
+        planned.push(wkPlanned);
+        done.push(wkDone);
+        cursor.setDate(cursor.getDate() + 7);
+      }
+      subtitle = ref.toLocaleDateString('en-GB', { month:'long', year:'numeric' });
+    } else if (period === 'year') {
+      const ref = new Date(refDate);
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      for (let m = 0; m < 12; m++) {
+        const first = new Date(ref.getFullYear(), m, 1);
+        const last  = new Date(ref.getFullYear(), m + 1, 0);
+        let mPlanned = 0, mDone = 0;
+        for (let d = new Date(first); d <= last; d.setDate(d.getDate() + 1)) {
+          const dow = (d.getDay() + 6) % 7;
+          if (dow <= 4) {
+            mPlanned += plannedFor(d);
+            mDone    += doneFor(d);
+          }
+        }
+        labels.push(months[m]);
+        planned.push(mPlanned);
+        done.push(mDone);
+      }
+      subtitle = '' + ref.getFullYear();
+    }
+
+    const totalPlanned = planned.reduce((a,b)=>a+b,0);
+    const totalDone    = done.reduce((a,b)=>a+b,0);
+    return { labels, planned, done, totalPlanned, totalDone, subtitle };
+  }
+
+  // Local escape for chart strings
+  function escHtml(s) {
+    if (s == null) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
   // ── 1. SVG sprite ─────────────────────────────────────────────

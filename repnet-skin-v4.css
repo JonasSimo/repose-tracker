@@ -879,6 +879,65 @@
   border-color: var(--repose-navy) !important;
 }
 
+/* ───── Team Planned-vs-Done chart panel (injected on team detail) ───── */
+.ui-v4 .v4-team-chart-panel {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 22px 24px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 0 var(--border), 0 14px 36px -22px rgba(14,2,58,0.18);
+}
+.ui-v4 .v4-team-chart-head {
+  display: flex; align-items: end; justify-content: space-between;
+  flex-wrap: wrap; gap: 10px;
+  padding-bottom: 12px; margin-bottom: 16px;
+  border-bottom: 1px dashed var(--border);
+}
+.ui-v4 .v4-team-chart-title {
+  font-family: "Bricolage Grotesque", "Manrope", system-ui, sans-serif;
+  font-weight: 800; font-size: 20px;
+  letter-spacing: -0.02em;
+  color: var(--repose-navy);
+}
+.ui-v4 .v4-team-chart-title em {
+  font-style: italic; color: var(--repose-blue); font-weight: 600;
+}
+.ui-v4 .v4-team-chart-sub {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--text2);
+}
+.ui-v4 .v4-team-chart-canvas-wrap {
+  height: 240px;
+  position: relative;
+}
+.ui-v4 .v4-team-chart-canvas-wrap canvas {
+  position: absolute; left: 0; top: 0; width: 100% !important; height: 100% !important;
+}
+.ui-v4 .v4-team-chart-foot {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border);
+  display: flex; align-items: center; gap: 18px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px; color: var(--text2);
+  letter-spacing: 0.06em;
+}
+.ui-v4 .v4-team-chart-foot .v4-legend {
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.ui-v4 .v4-team-chart-foot .v4-legend i {
+  display: inline-block;
+  width: 12px; height: 12px;
+  border-radius: 3px;
+}
+.ui-v4 .v4-team-chart-foot .v4-team-chart-totals {
+  margin-left: auto;
+  font-weight: 700; color: var(--repose-navy);
+  letter-spacing: 0.04em;
+}
+
 /* ───── Stats body — Team tokens section ───── */
 .ui-v4 .team-tokens-section {
   background: var(--bg2);
