@@ -15,18 +15,22 @@
   // Validate against the same allowlist the main script enforces — an
   // unknown ?team=foo would otherwise produce /manifest-foo.json (404)
   // and confuse iOS "Add to Home Screen".
-  var VALID_TEAMS = {woodmill:1,cutting:1,sewing:1,upholstery:1,assembly:1,foam:1,qc:1,gluing:1,seats:1};
-  var VALID_SUBS  = {arms:1,backs:1,seats:1};
+  // Only teams with per-sub manifests; sub is silently ignored for the rest
+  // (e.g. ?team=QC&sub=Arms must NOT build /manifest-qc-arms.json — 404).
+  var VALID_TEAMS    = {woodmill:1,cutting:1,sewing:1,upholstery:1,assembly:1,foam:1,qc:1,gluing:1,seats:1};
+  var TEAMS_WITH_SUB = {upholstery:1};
+  var VALID_SUBS     = {arms:1,backs:1,seats:1};
   var tpRaw = new URLSearchParams(location.search).get('team')
            || sessionStorage.getItem('tabletTeam') || '';
   var tsRaw = new URLSearchParams(location.search).get('sub')
            || sessionStorage.getItem('tabletSub')  || '';
   var tp = VALID_TEAMS[tpRaw.toLowerCase()] ? tpRaw : '';
-  var ts = VALID_SUBS[tsRaw.toLowerCase()]  ? tsRaw : '';
+  var tpKey = tp.toLowerCase();
+  var ts = (VALID_SUBS[tsRaw.toLowerCase()] && TEAMS_WITH_SUB[tpKey]) ? tsRaw : '';
   if (ts) sessionStorage.setItem('tabletSub', ts);
   var href = '/manifest.json';
   if (tp) {
-    href = '/manifest-' + tp.toLowerCase() + (ts ? '-' + ts.toLowerCase() : '') + '.json';
+    href = '/manifest-' + tpKey + (ts ? '-' + ts.toLowerCase() : '') + '.json';
     sessionStorage.setItem('tabletTeam', tp);
     document.documentElement.classList.add('tablet-team');
   }
