@@ -4247,14 +4247,14 @@ function renderJobs() {
             <div class="jc-started-label">▶ In progress · ${escHtml(startedName || s.startedBy || '')}${s.startedAt ? ' · '+escHtml(s.startedAt) : ''}</div>` :
             `<span class="jc-qty">Qty: ${job.qty||'—'}</span>`}
         </div>
-        ${activeTeam === 'Assembly' ? (() => { const _s = MECH_SERIALS.get(`${job.rep}__${activeWC}__${activePrep}`); return `<button class="serial-card-btn${_s?' saved':''}" onclick="event.stopPropagation();openMechSerialModal('${activeWC}','${activePrep}',${ji},'${escHtml(job.rep)}')">${_s ? `✓<br><span style="font-size:9px;letter-spacing:.02em">${escHtml(_s)}</span>` : '⊞<br>Serial'}</button>`; })() : ''}
-        ${activeTeam === 'Assembly' ? uhReadyTokens(activeWC, activePrep, ji) : ''}
+        ${!isQCMode() && activeTeam === 'Assembly' ? (() => { const _s = MECH_SERIALS.get(`${job.rep}__${activeWC}__${activePrep}`); return `<button class="serial-card-btn${_s?' saved':''}" onclick="event.stopPropagation();openMechSerialModal('${activeWC}','${activePrep}',${ji},'${escHtml(job.rep)}')">${_s ? `✓<br><span style="font-size:9px;letter-spacing:.02em">${escHtml(_s)}</span>` : '⊞<br>Serial'}</button>`; })() : ''}
+        ${!isQCMode() && activeTeam === 'Assembly' ? uhReadyTokens(activeWC, activePrep, ji) : ''}
         <button class="cpar-btn" onclick="event.stopPropagation();openCPARForm('${activeWC}','${activePrep}',${ji})" title="Raise Internal NCR for this job">⚠<br>NCR</button>
-        ${showStart && !s.done ? `<button class="start-btn${isStarted?' active':''}" onclick="event.stopPropagation();${isStarted?`unStartJob(${ji})`:`startJob(${ji})`}" title="${isStarted?'Cancel start':'Start this job'}">
+        ${!isQCMode() && showStart && !s.done ? `<button class="start-btn${isStarted?' active':''}" onclick="event.stopPropagation();${isStarted?`unStartJob(${ji})`:`startJob(${ji})`}" title="${isStarted?'Cancel start':'Start this job'}">
           <span class="sb-icon">${isStarted?'⏸':'▶'}</span>
           <span>${isStarted?'STARTED':'START'}</span>
         </button>` : ''}
-        ${activeTeam === 'Woodmill' && !job.isService ? (() => {
+        ${!isQCMode() && activeTeam === 'Woodmill' && !job.isService ? (() => {
           const gk = gluingKey(activeWC, activePrep, job.rep, activeSub);
           const g  = GLUING_QUEUE[gk];
           const cls = g?.done ? 'glued' : g ? 'flagged' : '';
@@ -4263,10 +4263,10 @@ function renderJobs() {
             <span class="glu-icon">🧲</span><span>${lbl}</span>
           </button>`;
         })() : ''}
-        <button class="tick-btn ${s.done?'ticked':''}" onclick="tickJob(${ji})">
+        ${!isQCMode() ? `<button class="tick-btn ${s.done?'ticked':''}" onclick="tickJob(${ji})">
           <span class="tb-icon">${s.done?'✓':'○'}</span>
           <span class="tb-label">${s.done?'DONE':'MARK'}</span>
-        </button>
+        </button>` : ''}
       </div>`;
   });
 
