@@ -2692,7 +2692,10 @@ document.addEventListener('DOMContentLoaded', () => {
     <span id="logo-fb" style="display:none;color:#fff;font-weight:700;font-size:16px;letter-spacing:-.02em">Repose</span>
   </div>
   <div class="topbar-center">
-    <img src="./repnet-logo-white.png" alt="RepNet" style="height:32px;width:auto;display:block">
+    <img id="repnet-logo-img" src="./repnet-logo-white.png" alt="RepNet"
+         style="height:32px;width:auto;display:block"
+         onerror="this.style.display='none';document.getElementById('repnet-logo-fb').style.display='block'">
+    <span id="repnet-logo-fb" style="display:none;color:#14a1e9;font-weight:900;font-size:24px;letter-spacing:-.04em">RepNet</span>
   </div>
   <div class="tr" style="display:flex;align-items:center;gap:10px">
     <button class="nms-raise-btn" onclick="openNmsModal()">⚠ Raise NMS</button>
