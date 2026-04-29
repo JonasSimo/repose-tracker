@@ -6859,6 +6859,11 @@ async function graphSignOut() {
     Object.keys(_cparPhotoCache).forEach(k => delete _cparPhotoCache[k]);
   }
   if (typeof _peEcrRefCache !== 'undefined') _peEcrRefCache.clear();
+  // Drop the in-memory CPAR list and the "loaded" flag so a different user
+  // signing in on the same tab doesn't see the previous user's NCR data,
+  // and so lazy paths (`if (!cparListLoaded) fetchCPARs()`) actually re-fetch.
+  if (typeof CPAR_ITEMS !== 'undefined') CPAR_ITEMS.length = 0;
+  if (typeof cparListLoaded !== 'undefined') cparListLoaded = false;
   updateAuthBadge();
   if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
     msalInstance.logoutRedirect({ account }).catch(console.error);
