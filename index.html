@@ -764,6 +764,22 @@ body.tablet-mode .uh-token-icon { font-size:14px; }
 .pp-job-top { display: flex; align-items: center; gap: 5px; }
 .pp-job-code { font-size: 12px; font-weight: 700; color: var(--repose-navy); white-space: nowrap; flex-shrink: 0; }
 .pp-job-rep  { font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 600; color: var(--text2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+
+/* ── Open QC NCR banner on Production Plan job cards ── */
+.pp-ncr-banner {
+  display: flex; align-items: flex-start; gap: 8px;
+  margin: 0 0 4px 0; padding: 7px 10px;
+  background: #fef2f2; border: 1px solid var(--red);
+  border-left: 4px solid var(--red); border-radius: 6px;
+  font-size: 11px; color: #7f1d1d; line-height: 1.4;
+  cursor: pointer; transition: .12s;
+}
+.pp-ncr-banner:hover { background: #fee2e2; }
+.pp-ncr-banner .pp-ncr-icon { font-size: 14px; flex-shrink: 0; }
+.pp-ncr-banner .pp-ncr-body { flex: 1; min-width: 0; }
+.pp-ncr-banner .pp-ncr-ref  { font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+.pp-ncr-banner .pp-ncr-desc { color: #991b1b; font-style: italic; margin-top: 2px; word-break: break-word; }
+.pp-ncr-banner .pp-ncr-cta  { color: var(--red); font-weight: 600; margin-top: 2px; }
 /* Team badge highlight/dim in production plan */
 .pp-badge-dim { opacity: 0.18; }
 .pp-badge-sel { outline: 2px solid var(--repose-blue); border-radius: 5px; padding: 1px; }
@@ -7446,7 +7462,10 @@ function renderProductionPlan() {
       ).join('');
   }
 
-  const wkData = PROD[activeProdWC] || {};
+  const wkData    = PROD[activeProdWC] || {};
+  // Build an index of open QC-raised NCRs once per render — used below to
+  // inject a red banner above any pp-job that has at least one open NCR.
+  const qcNcrMap  = buildQCNcrJobMap();
 
   // ── Past preps for the selected week ──
   const _wc = PROD[activeProdWC]?.wc || '';
@@ -7541,7 +7560,25 @@ function renderProductionPlan() {
             }
           });
           badgeHtml += '</div>';
+          // Per-job NCR banners — one per open QC-raised NCR. Click a
+          // banner to open the CPAR summary modal; clicks must not fall
+          // through to the pp-job click handler.
+          const ncrItems = qcNcrMap.get(j.rep + '#' + String(j.itemNo)) || [];
+          const ncrBanners = ncrItems.map(it => {
+            const f = it.fields || {};
+            const ref = escHtml(f.Title || '');
+            const desc = escHtml((f.Description || '').slice(0, 110)) + ((f.Description || '').length > 110 ? '…' : '');
+            return `<div class="pp-ncr-banner" onclick="event.stopPropagation();openCPARByRef('${ref}')" title="Open NCR ${ref}">
+              <span class="pp-ncr-icon">🔴</span>
+              <div class="pp-ncr-body">
+                <span class="pp-ncr-ref">NCR ${ref}</span> — returned by QC
+                ${desc ? `<div class="pp-ncr-desc">"${desc}"</div>` : ''}
+                <div class="pp-ncr-cta">Click to open NCR ▸</div>
+              </div>
+            </div>`;
+          }).join('');
           return `<div class="pp-job${rowCls}" onclick="ppJobClick('${col.key}',${ji},event)" style="cursor:pointer">
+            ${ncrBanners}
             <div class="pp-job-top">
               <span class="pp-job-code">${codeLabel}</span>
               <span class="pp-job-rep">${escHtml(j.rep)}</span>
