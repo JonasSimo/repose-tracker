@@ -124,14 +124,15 @@ function daysOpen(loggedAt) {
 }
 function rowHtml(i, includeDays) {
   const f = i.fields || {};
+  // Widths must sum to 100% and match the <colgroup> in buildEmail's tables.
   return `<tr style="border-bottom:1px solid #e2e8f0">
-    <td style="padding:6px;font-family:monospace;font-weight:700">${escHtml(f.Title)}</td>
-    <td style="padding:6px;font-family:monospace">${escHtml(f.PrimaryREP||'')}/${escHtml(String(f.PrimaryJobNo||''))}</td>
-    <td style="padding:6px">${escHtml((f.Description||'').slice(0,80))}</td>
-    <td style="padding:6px;text-align:right">${escHtml(String(f.QTY||1))}</td>
+    <td style="padding:6px;font-family:monospace;font-weight:700;white-space:nowrap">${escHtml(f.Title)}</td>
+    <td style="padding:6px;font-family:monospace;white-space:nowrap">${escHtml(f.PrimaryREP||'')}/${escHtml(String(f.PrimaryJobNo||''))}</td>
+    <td style="padding:6px">${escHtml((f.Description||'').slice(0,60))}</td>
+    <td style="padding:6px;text-align:right;white-space:nowrap">${escHtml(String(f.QTY||1))}</td>
     <td style="padding:6px">${escHtml(f.IssueCategory||'')}</td>
-    <td style="padding:6px">${escHtml(f.Status||'Open')}</td>
-    ${includeDays ? `<td style="padding:6px">${daysOpen(f.LoggedAt)}d</td>` : ''}
+    <td style="padding:6px;white-space:nowrap">${escHtml(f.Status||'Open')}</td>
+    ${includeDays ? `<td style="padding:6px;white-space:nowrap">${daysOpen(f.LoggedAt)}d</td>` : ''}
   </tr>`;
 }
 function buildEmail(team, raisedYesterday, stillOpen, yest) {
@@ -152,14 +153,35 @@ function buildEmail(team, raisedYesterday, stillOpen, yest) {
           : `<strong>No new Internal Non-Conformances</strong> raised against ${escHtml(team)} yesterday.`}
         ${stillOpen.length > 0 ? `<br><strong>${stillOpen.length}</strong> still open and awaiting close-out.` : ''}
       </p>
-      <h3 style="margin:0 0 8px;font-size:14px;color:#374151">Raised against you yesterday (${raisedYesterday.length})</h3>
-      <table width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border:1px solid ${border};border-radius:6px;overflow:hidden;font-size:12px">
-        <thead><tr style="background:${light}">${['Ref','Job','Description','QTY','Cat','Status'].map(h=>`<th style="padding:7px;text-align:left;font-size:10px;text-transform:uppercase;color:#6b7280">${h}</th>`).join('')}</tr></thead>
+      <h3 style="margin:0 0 8px;font-size:14px;color:#374151">Raised against your team yesterday (${raisedYesterday.length})</h3>
+      <table width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border:1px solid ${border};border-radius:6px;overflow:hidden;font-size:12px;table-layout:fixed">
+        <colgroup>
+          <col style="width:13%"><col style="width:14%"><col style="width:35%"><col style="width:8%"><col style="width:18%"><col style="width:12%">
+        </colgroup>
+        <thead><tr style="background:${light}">
+          <th style="padding:7px;text-align:left;font-size:10px;text-transform:uppercase;color:#6b7280">Ref</th>
+          <th style="padding:7px;text-align:left;font-size:10px;text-transform:uppercase;color:#6b7280">Job</th>
+          <th style="padding:7px;text-align:left;font-size:10px;text-transform:uppercase;color:#6b7280">Description</th>
+          <th style="padding:7px;text-align:right;font-size:10px;text-transform:uppercase;color:#6b7280">QTY</th>
+          <th style="padding:7px;text-align:left;font-size:10px;text-transform:uppercase;color:#6b7280">Cat</th>
+          <th style="padding:7px;text-align:left;font-size:10px;text-transform:uppercase;color:#6b7280">Status</th>
+        </tr></thead>
         <tbody>${rowsR}</tbody>
       </table>
-      <h3 style="margin:18px 0 8px;font-size:14px;color:#374151">Still open against you (${stillOpen.length})</h3>
-      <table width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border:1px solid ${border};border-radius:6px;overflow:hidden;font-size:12px">
-        <thead><tr style="background:${light}">${['Ref','Job','Description','QTY','Cat','Status','Days'].map(h=>`<th style="padding:7px;text-align:left;font-size:10px;text-transform:uppercase;color:#6b7280">${h}</th>`).join('')}</tr></thead>
+      <h3 style="margin:18px 0 8px;font-size:14px;color:#374151">Still open against your team (${stillOpen.length})</h3>
+      <table width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border:1px solid ${border};border-radius:6px;overflow:hidden;font-size:12px;table-layout:fixed">
+        <colgroup>
+          <col style="width:12%"><col style="width:13%"><col style="width:30%"><col style="width:7%"><col style="width:16%"><col style="width:14%"><col style="width:8%">
+        </colgroup>
+        <thead><tr style="background:${light}">
+          <th style="padding:7px;text-align:left;font-size:10px;text-transform:uppercase;color:#6b7280">Ref</th>
+          <th style="padding:7px;text-align:left;font-size:10px;text-transform:uppercase;color:#6b7280">Job</th>
+          <th style="padding:7px;text-align:left;font-size:10px;text-transform:uppercase;color:#6b7280">Description</th>
+          <th style="padding:7px;text-align:right;font-size:10px;text-transform:uppercase;color:#6b7280">QTY</th>
+          <th style="padding:7px;text-align:left;font-size:10px;text-transform:uppercase;color:#6b7280">Cat</th>
+          <th style="padding:7px;text-align:left;font-size:10px;text-transform:uppercase;color:#6b7280">Status</th>
+          <th style="padding:7px;text-align:left;font-size:10px;text-transform:uppercase;color:#6b7280">Days</th>
+        </tr></thead>
         <tbody>${rowsO}</tbody>
       </table>
       ${(raisedYesterday.length + stillOpen.length) > 0 ? `
