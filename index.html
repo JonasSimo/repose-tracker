@@ -11629,9 +11629,11 @@ async function submitCPAR() {
     updateIssuesTabBadge();
 
     // Refresh visual signals if the user is currently looking at them.
-    // (Delivery red stripe + Production red banner read from CPAR_ITEMS.)
+    // (Delivery red stripe + Production red banner + Team View top-of-view
+    // NCR summary banner all read from CPAR_ITEMS.)
     if (document.getElementById('view-loadsheet')?.classList.contains('active')) renderLoadSheet();
     if (document.getElementById('view-production')?.classList.contains('active')) renderProductionPlan();
+    if (document.getElementById('view-team-select')?.classList.contains('active') && typeof renderJobs === 'function') renderJobs();
 
   } catch(e) {
     console.error('submitCPAR:', e);
@@ -14902,6 +14904,7 @@ async function submitCPARCloseout(id, ev) {
     if (typeof updateIssuesTabBadge === 'function') updateIssuesTabBadge();
     if (document.getElementById('view-loadsheet')?.classList.contains('active')) renderLoadSheet();
     if (document.getElementById('view-production')?.classList.contains('active')) renderProductionPlan();
+    if (document.getElementById('view-team-select')?.classList.contains('active') && typeof renderJobs === 'function') renderJobs();
   } catch(e) {
     console.error('submitCPARCloseout', e);
     if (e.message && e.message.startsWith('404')) {
