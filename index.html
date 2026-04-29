@@ -12249,8 +12249,8 @@ try {
 function _draftKey(id, field) { return id + '|' + field; }
 function _saveCparDraft(id, field, val) {
   const k = _draftKey(id, field);
-  if (val) _cparDraftCache.set(k, val);
-  else _cparDraftCache.delete(k);
+  // Always set — empty strings are intentional clears, not "no draft"
+  _cparDraftCache.set(k, val || '');
   // Persist to localStorage so iPad redirect re-auth doesn't lose drafts
   try {
     const persisted = {};
@@ -12258,7 +12258,11 @@ function _saveCparDraft(id, field, val) {
     localStorage.setItem('cpar-drafts', JSON.stringify(persisted));
   } catch(e) { /* localStorage full or unavailable — non-fatal */ }
 }
-function _getCparDraft(id, field, fallback = '') { return _cparDraftCache.get(_draftKey(id, field)) || fallback || ''; }
+function _getCparDraft(id, field, fallback = '') {
+  const k = _draftKey(id, field);
+  // Distinguish "no draft" (cache miss) from "intentional clear" (empty string in cache)
+  return _cparDraftCache.has(k) ? _cparDraftCache.get(k) : (fallback || '');
+}
 function _clearCparDrafts(id) {
   for (const k of [..._cparDraftCache.keys()]) {
     if (k.startsWith(id + '|')) _cparDraftCache.delete(k);
