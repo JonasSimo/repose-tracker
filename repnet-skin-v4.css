@@ -48,70 +48,108 @@
   padding: 22px 14px;
 }
 
-/* Labels: hidden when collapsed, fade in on hover */
+/* Labels: take NO layout space when collapsed (so icons stay centered) */
 .ui-v4 .ui-v4-side .v4-lbl {
-  opacity: 0;
-  transition: opacity 0.18s ease;
+  display: none;
+}
+.ui-v4 .ui-v4-side:hover .v4-lbl {
   display: inline-block;
+  white-space: nowrap;
 }
-.ui-v4 .ui-v4-side:hover .v4-lbl { opacity: 1; }
 
-/* Section headers collapse to nothing when sidebar is collapsed */
+/* Section headers: just an empty divider line when collapsed */
 .ui-v4 .ui-v4-side .v4-h {
-  height: 0; padding: 0; margin: 0;
-  overflow: hidden;
-  transition: height 0.18s ease, padding 0.18s ease;
+  padding: 8px 0 4px;
+  margin: 4px 6px 0;
+  border-top: 1px solid rgba(255,255,255,0.08);
 }
+.ui-v4 .ui-v4-side .v4-h:first-of-type { border-top: none; }
 .ui-v4 .ui-v4-side:hover .v4-h {
-  height: auto; padding: 14px 10px 6px;
+  padding: 14px 10px 6px;
+  margin: 0;
+  border-top: none;
 }
 
-/* Brand logo fades + shrinks too */
-.ui-v4 .ui-v4-side .v4-brand img { transition: opacity 0.18s ease; opacity: 0; }
-.ui-v4 .ui-v4-side:hover .v4-brand img { opacity: 1; }
+/* Brand: keep a smaller version of the RepNet logo always visible */
 .ui-v4 .ui-v4-side .v4-brand {
-  padding: 8px 4px 14px;
+  padding: 6px 0 14px;
   border-bottom: 1px solid rgba(255,255,255,0.08);
   margin-bottom: 6px;
-  min-height: 40px;
+  display: flex; align-items: center; justify-content: center;
+  min-height: 36px;
 }
-.ui-v4 .ui-v4-side:hover .v4-brand { padding: 8px 10px 22px; margin-bottom: 8px; }
+.ui-v4 .ui-v4-side:hover .v4-brand {
+  padding: 8px 10px 22px;
+  margin-bottom: 8px;
+  justify-content: flex-start;
+}
+.ui-v4 .ui-v4-side .v4-brand img {
+  height: 18px; width: auto; max-width: 44px;
+  object-fit: contain;
+  transition: height 0.2s ease, max-width 0.2s ease;
+}
+.ui-v4 .ui-v4-side:hover .v4-brand img {
+  height: 28px; max-width: 220px;
+}
 
-/* Foot: when collapsed, show only avatar; on hover, full user / NMS / Repose / rollback */
-.ui-v4 .ui-v4-side .v4-user .nm,
-.ui-v4 .ui-v4-side .v4-user .role,
+/* Foot: in collapsed state hide everything except the avatar circle */
+.ui-v4 .ui-v4-side .v4-foot { padding: 10px 4px 0; }
+.ui-v4 .ui-v4-side:hover .v4-foot { padding: 14px 10px 0; }
+
 .ui-v4 .ui-v4-side .v4-user > div,
 .ui-v4 .ui-v4-side #v4-presence,
-.ui-v4 .ui-v4-side .v4-nms span,
 .ui-v4 .ui-v4-side .v4-repose,
-.ui-v4 .ui-v4-side .v4-rollback {
-  opacity: 0;
-  transition: opacity 0.18s ease;
-}
-.ui-v4 .ui-v4-side:hover .v4-user .nm,
-.ui-v4 .ui-v4-side:hover .v4-user .role,
-.ui-v4 .ui-v4-side:hover .v4-user > div,
-.ui-v4 .ui-v4-side:hover #v4-presence,
-.ui-v4 .ui-v4-side:hover .v4-nms span,
-.ui-v4 .ui-v4-side:hover .v4-repose,
-.ui-v4 .ui-v4-side:hover .v4-rollback { opacity: 1; }
+.ui-v4 .ui-v4-side .v4-rollback { display: none; }
+.ui-v4 .ui-v4-side:hover .v4-user > div { display: block; }
+.ui-v4 .ui-v4-side:hover #v4-presence { display: inline-block; }
+.ui-v4 .ui-v4-side:hover .v4-repose { display: flex; }
+.ui-v4 .ui-v4-side:hover .v4-rollback { display: block; }
 
-/* NMS button: when collapsed show just the ⚠ */
+/* User button — strip browser button defaults so it doesn't "glow" */
+.ui-v4 .ui-v4-side .v4-user {
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  color: inherit;
+  cursor: pointer;
+  padding: 6px 4px;
+  display: flex; align-items: center; gap: 10px; justify-content: center;
+  transition: background 0.12s ease;
+}
+.ui-v4 .ui-v4-side:hover .v4-user {
+  padding: 8px 4px;
+  justify-content: flex-start;
+}
+.ui-v4 .ui-v4-side .v4-user:hover { background: rgba(255,255,255,0.04); }
+.ui-v4 .ui-v4-side .v4-user:focus { outline: none; }
+.ui-v4 .ui-v4-side .v4-user:focus-visible { outline: 2px solid var(--repose-blue); outline-offset: 2px; }
+
+/* NMS: collapsed = just the ⚠ icon */
 .ui-v4 .ui-v4-side .v4-nms {
   padding: 9px 6px;
-  font-size: 13px;
+  font-size: 14px;
   overflow: hidden;
+  text-align: center;
+  white-space: nowrap;
 }
-.ui-v4 .ui-v4-side:hover .v4-nms { padding: 10px 12px; font-size: 12px; }
+.ui-v4 .ui-v4-side:hover .v4-nms {
+  padding: 10px 12px;
+  font-size: 12px;
+}
 
-/* Nav links — center icon when collapsed, left-align on hover */
+/* Nav links: icon-only column when collapsed, full label when expanded */
 .ui-v4 .ui-v4-side a {
-  padding: 10px 8px;
+  padding: 10px 0;
   justify-content: center;
+  gap: 0;
 }
 .ui-v4 .ui-v4-side:hover a {
   padding: 10px 12px;
   justify-content: flex-start;
+  gap: 12px;
 }
 .ui-v4 .ui-v4-side a .v4-gly {
   width: 22px; height: 22px;

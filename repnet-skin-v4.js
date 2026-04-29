@@ -183,17 +183,18 @@
       });
     }
 
-    // User box: delegates to the existing auth-badge / graphSignIn
+    // User box: delegate to whatever the auth-badge's current onclick is.
+    // updateAuthBadge() sets it to graphSignIn when signed-out and to
+    // graphSignOutConfirm when signed-in. Calling badge.onclick() runs the
+    // right handler for the current state.
     const userBtn = document.getElementById('v4-user-btn');
     if (userBtn) {
       userBtn.addEventListener('click', () => {
-        // Prefer calling graphSignIn directly; fall back to clicking the
-        // (display:none) auth-badge if the function isn't on window.
-        if (typeof window.graphSignIn === 'function') {
+        const badge = document.getElementById('auth-badge');
+        if (badge && typeof badge.onclick === 'function') {
+          badge.onclick();
+        } else if (typeof window.graphSignIn === 'function') {
           window.graphSignIn();
-        } else {
-          const badge = document.getElementById('auth-badge');
-          if (badge) badge.click();
         }
       });
     }
