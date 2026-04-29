@@ -76,7 +76,8 @@ const CC_MACHINES = [
 // machine identifiers (which may be display names, ids, or legacy variants) into
 // the canonical id used in WM_MACHINES / CC_MACHINES.
 function normaliseMachineId(raw) {
-  const s = (raw || '').toLowerCase().replace(/\s+/g, '').trim();
+  // Strip whitespace AND hyphens for fuzzy matching against include patterns.
+  const s = (raw || '').toLowerCase().replace(/[\s-]+/g, '').trim();
   if (!s) return '';
   // Cutting room
   if (s.includes('pathfinder1')) return 'pathfinder1';
@@ -102,7 +103,11 @@ function normaliseMachineId(raw) {
   if (s.includes('benchd') || s === 'd') return 'bench-d';
   if (s.includes('benche') || s === 'e') return 'bench-e';
   if (s.includes('benchf') || s.includes('seats')) return 'bench-f';
-  // Fallback: use the lowercased no-whitespace string
+  // Fallback: use the normalised string (logs the original for diagnosis)
+  if (s) {
+    // Log only known-non-trivial values to avoid noise on empty inputs
+    try { console.warn('[daily-report] unknown machine id:', JSON.stringify(raw)); } catch(e) {}
+  }
   return s;
 }
 
