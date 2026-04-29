@@ -11399,6 +11399,12 @@ async function submitCPAR() {
     toast(`${ref} raised successfully`, 's');
     closeCPARModal();
 
+    // QC inspection mode → open the sticker modal so the inspector can
+    // hand-copy the new NCR ref onto the physical red sticker.
+    if (activeTeam === 'QC') {
+      openQCStickerModal(ref, s.rep, s.jobNo, s.model, s.desc.trim());
+    }
+
     CPAR_ITEMS.unshift({ id:created.id, fields:{
       Title:ref, RaisedByTeam:activeHasSubs ? activeTeam + ' ' + activeSub : activeTeam, PrimaryREP:s.rep, PrimaryJobNo:s.jobNo,
       PrimaryModel:s.model, PrimaryWeek:s.week, PrimaryPrep:s.prep === 'express' ? 'express' : String(parseInt(s.prep)||0), AffectedJobs:JSON.stringify(s.extraJobs),
