@@ -807,7 +807,7 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f4f8;padding:32px 16p
 .header-sub{font-size:12px;color:#94a3b8;margin-top:2px}
 .header-date{text-align:right;color:#cbd5e1;font-size:12px;line-height:1.6}
 .header-date strong{display:block;font-size:18px;color:#fff;font-weight:700}
-.summary-bar{display:grid;grid-template-columns:repeat(5,1fr);border-bottom:1px solid #e5e7eb}
+.summary-bar{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid #e5e7eb}
 .summary-cell{padding:14px 10px;border-right:1px solid #e5e7eb;text-align:center}
 .summary-cell:last-child{border-right:none}
 .summary-num{font-size:24px;font-weight:800;color:#0e023a;line-height:1}
@@ -880,7 +880,9 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f4f8;padding:32px 16p
     <div class="summary-cell"><div class="summary-num ${totalBacklog>0?'amber':'green'}">${totalBacklog}</div><div class="summary-lbl">Backlog</div></div>
     <div class="summary-cell"><div class="summary-num blue">${qcTotal}</div><div class="summary-lbl">QC'd</div></div>
     <div class="summary-cell"><div class="summary-num ${nmsYest.length>0?'red':'green'}">${nmsYest.length}</div><div class="summary-lbl">Near Misses</div></div>
-    <div class="summary-cell"><div class="summary-num ${cparOpen>0?'red':'green'}">${cparOpen}</div><div class="summary-lbl">Open CPARs</div></div>
+    <div class="summary-cell"><div class="summary-num ${cparRaisedYestTotal>0?'amber':'green'}">${cparRaisedYestTotal}</div><div class="summary-lbl">NCRs Raised</div></div>
+    <div class="summary-cell"><div class="summary-num ${cparOpen>0?'red':'green'}">${cparOpen}</div><div class="summary-lbl">Open NCRs</div></div>
+    <div class="summary-cell"><div class="summary-num ${specYest.length>0?'amber':'green'}">${specYest.length}</div><div class="summary-lbl">Spec Changes</div></div>
   </div>
 
   <div class="body">
