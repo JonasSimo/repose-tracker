@@ -5228,9 +5228,21 @@ function renderCustomerPanel() {
 }
 
 function goToJob(wk, prep) {
-  clearSearch();
+  // Clear search synchronously — clearSearch() queues a 200 ms timer that
+  // would let the render below re-route into renderSearchResults() and
+  // flicker the search panel before the timer caught up.
+  clearTimeout(_searchTimer);
+  searchQuery = '';
+  const inp = document.getElementById('rep-search');
+  if (inp) inp.value = '';
+  const clr = document.getElementById('search-clear-btn');
+  if (clr) clr.style.display = 'none';
   activeWC = wk;
-  activePrep = prep;
+  // Inline onclick handlers in tv-ncr-row / pp-ncr-banner / search results
+  // pass `prep` as a string ('1','express'). renderPrepGrid compares
+  // activePrep with numeric `p` (1..5) via ===, so a string '1' never
+  // matches a number 1 and the prep button highlight breaks. Coerce here.
+  activePrep = prep === 'express' ? 'express' : (Number(prep) || prep);
   renderWeekList();
   renderPrepGrid();
   renderJobs();
