@@ -1761,8 +1761,20 @@ body.tablet-mode .uh-token-icon { font-size:14px; }
 .ls-item-rep.qc-done { background:#bbf7d0 !important; }
 .ls-item-rep.asm-done { background:repeating-linear-gradient(45deg,#fff7ed,#fff7ed 4px,#fed7aa 4px,#fed7aa 8px) !important; }
 .ls-item-rep.asm-done .ls-rep-num { color:#9a3412; }
-.ls-item-rep.qc-ncr-open { background:repeating-linear-gradient(45deg,#fff5f5,#fff5f5 4px,#fecaca 4px,#fecaca 8px) !important; }
+.ls-item-rep.qc-ncr-open {
+  background:repeating-linear-gradient(45deg,#fff5f5,#fff5f5 4px,#fecaca 4px,#fecaca 8px) !important;
+  animation: qcNcrPulse 1.4s ease-in-out infinite;
+  box-shadow: 0 0 0 0 rgba(220,38,38,.55);
+}
 .ls-item-rep.qc-ncr-open .ls-rep-num { color:#991b1b; font-weight:700; }
+@keyframes qcNcrPulse {
+  0%   { background:repeating-linear-gradient(45deg,#fff5f5,#fff5f5 4px,#fecaca 4px,#fecaca 8px) !important; box-shadow: 0 0 0 0 rgba(220,38,38,.55); }
+  50%  { background:repeating-linear-gradient(45deg,#fee2e2,#fee2e2 4px,#fca5a5 4px,#fca5a5 8px) !important; box-shadow: 0 0 0 4px rgba(220,38,38,0); }
+  100% { background:repeating-linear-gradient(45deg,#fff5f5,#fff5f5 4px,#fecaca 4px,#fecaca 8px) !important; box-shadow: 0 0 0 0 rgba(220,38,38,0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ls-item-rep.qc-ncr-open { animation: none; }
+}
 .ls-item-rep.exp-job { border-left:3px solid #e97132; padding-left:2px; }
 .ls-item-rep.exp-job .ls-rep-num { color:#b84d00; }
 .ls-item-rep.mft-job { border-left:3px solid #ff33cc; padding-left:2px; }
@@ -4064,6 +4076,9 @@ function renderPriorityJobsList() {
   const color = getTeamColor();
   const sk = activeSub;
   const showStart = showsStartButton();
+  // Open NCRs whose SourceDept matches the active team — flagged with a
+  // red banner above the affected job card so the team sees what to fix.
+  const teamNcrMap = buildSourceDeptNcrJobMap(activeTeam);
   let html = '';
 
   ['Yesterday', 'Today', 'Tomorrow'].forEach(dayLabel => {
@@ -4087,7 +4102,8 @@ function renderPriorityJobsList() {
         const isStarted = s.started && !s.done;
         const barColor  = s.done ? (isQcAuto || isAuto ? 'var(--teal)' : 'var(--green)') : isStarted ? 'var(--amber)' : color;
         const startedName = isStarted && s.startedBy ? resolveInitialsToName(s.startedBy, activeTeam) : '';
-        html += `
+        const ncrBanners = buildTeamViewNcrBannerHTML(teamNcrMap.get(job.rep + '#' + String(job.itemNo)));
+        html += ncrBanners + `
           <div class="job-card ${s.done?'done':isStarted?'in-progress':''}">
             <div class="jc-bar" style="background:${barColor}"></div>
             <div class="jc-body" onclick="openSpecModal('${wc}','${prep}',${ji})">
@@ -4305,6 +4321,9 @@ function renderJobs() {
   const qcBanner = isQCMode()
     ? `<div class="qc-mode-banner"><span class="qc-mode-banner-icon">🔍</span>QC inspection mode — read-only. Tap ⚠ NCR on any job to raise an Internal Non-Conformance.</div>`
     : '';
+  // Open NCRs whose SourceDept matches the active team — flagged with a
+  // red banner above the affected job card so the team sees what to fix.
+  const teamNcrMap = buildSourceDeptNcrJobMap(activeTeam);
   if (!total) {
     area.innerHTML = `${qcBanner}<div class="no-jobs"><div style="font-size:28px">🎉</div><p>No jobs for this prep day</p></div>`;
     renderUndo(); return;
@@ -4329,7 +4348,8 @@ function renderJobs() {
     const isStarted = s.started && !s.done;
     const barColor = s.done ? (isQcAuto ? 'var(--teal)' : isAuto ? 'var(--teal)' : 'var(--green)') : isStarted ? 'var(--amber)' : color;
     const startedName = isStarted && s.startedBy ? resolveInitialsToName(s.startedBy, activeTeam) : '';
-    html += `
+    const ncrBanners = buildTeamViewNcrBannerHTML(teamNcrMap.get(job.rep + '#' + String(job.itemNo)));
+    html += ncrBanners + `
       <div class="job-card ${s.done?'done':isStarted?'in-progress':''}">
         <div class="jc-bar" style="background:${barColor}"></div>
         <div class="jc-body" onclick="openSpecModal('${activeWC}','${activePrep}',${ji})">
@@ -13145,6 +13165,14 @@ function workingHoursBetween(start, end) {
   return total;
 }
 
+// Returns true if this CPAR is open or returned — i.e. action is still
+// required from the area manager. Used by Team View banner predicate.
+function isOpenNCR(item) {
+  const f = item?.fields || {};
+  return f.Status === CPAR_STATUS.OPEN
+      || f.Status === CPAR_STATUS.RETURNED;
+}
+
 // Returns true if this CPAR represents an open NCR raised by QC and is
 // currently sitting with the area manager (i.e. not yet closed-out into
 // Pending QHSE Review). Drives the red Delivery stripe + red Production
@@ -13152,8 +13180,7 @@ function workingHoursBetween(start, end) {
 function isOpenQCNCR(item) {
   const f = item?.fields || {};
   if (f.RaisedByTeam !== 'QC') return false;
-  return f.Status === CPAR_STATUS.OPEN
-      || f.Status === CPAR_STATUS.RETURNED;
+  return isOpenNCR(item);
 }
 
 // Extracts the 7-digit REP number from a 'REP 1234567' / 'REP1234567'
@@ -13192,6 +13219,47 @@ function buildQCNcrJobMap() {
     map.get(key).push(item);
   });
   return map;
+}
+
+// Returns a Map keyed by `${rep}#${jobNo}` of open NCRs whose SourceDept
+// matches the given team (case-insensitive). Used by Team View renderers
+// to flag the team responsible for an issue with a red banner.
+function buildSourceDeptNcrJobMap(team) {
+  const map = new Map();
+  if (!team) return map;
+  const tLower = String(team).toLowerCase();
+  CPAR_ITEMS.forEach(item => {
+    if (!isOpenNCR(item)) return;
+    const f = item.fields || {};
+    if (String(f.SourceDept || '').toLowerCase() !== tLower) return;
+    const rep = String(f.PrimaryREP || '').trim();
+    const job = String(f.PrimaryJobNo || '').trim();
+    if (!rep || !job) return;
+    const key = rep + '#' + job;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(item);
+  });
+  return map;
+}
+
+// Render a stack of red NCR banners for a given list of CPAR items.
+// Reused by both Team View renderers (renderJobs + renderPriorityJobsList).
+function buildTeamViewNcrBannerHTML(items) {
+  if (!items || !items.length) return '';
+  return items.map(it => {
+    const f = it.fields || {};
+    const ref = escHtml(f.Title || '');
+    const fullDesc = f.Description || '';
+    const desc = escHtml(fullDesc.slice(0, 110)) + (fullDesc.length > 110 ? '…' : '');
+    return `<div class="pp-ncr-banner" onclick="event.stopPropagation();openCPARByRef('${ref}')" title="Open NCR ${ref}">
+      <span class="pp-ncr-icon">🔴</span>
+      <div class="pp-ncr-body">
+        <span class="pp-ncr-ref">NCR ${ref}</span> — action required against your team
+        ${desc ? `<div class="pp-ncr-desc">"${desc}"</div>` : ''}
+        <div class="pp-ncr-cta">Click to open NCR ▸</div>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 function getCPARStatus(item) {
