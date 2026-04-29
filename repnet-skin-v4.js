@@ -181,10 +181,10 @@
         <span class="v4-home-card-cta">Open →</span>
       </button>
 
-      <button type="button" class="v4-home-card" data-jump="overview">
-        <span class="v4-home-card-ico">⊞</span>
-        <span class="v4-home-card-title">Load Plan</span>
-        <span class="v4-home-card-desc">REP-by-REP completion grid across every department.</span>
+      <button type="button" class="v4-home-card" data-jump="quality">
+        <span class="v4-home-card-ico">✓</span>
+        <span class="v4-home-card-title">Quality</span>
+        <span class="v4-home-card-desc">Internal NCRs, QHSE review, supplier registers.</span>
         <span class="v4-home-card-cta">Open →</span>
       </button>
 
