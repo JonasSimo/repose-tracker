@@ -48,38 +48,42 @@
   padding: 22px 14px;
 }
 
-/* Labels: take NO layout space when collapsed (so icons stay centered) */
-.ui-v4 .ui-v4-side .v4-lbl {
-  display: none;
-}
+/* ───── Labels (text in nav links + headers) ───── */
+.ui-v4 .ui-v4-side .v4-lbl { display: none; }
 .ui-v4 .ui-v4-side:hover .v4-lbl {
   display: inline-block;
   white-space: nowrap;
 }
 
-/* Section headers: just an empty divider line when collapsed */
+/* ───── Section group headers ───── */
 .ui-v4 .ui-v4-side .v4-h {
-  padding: 8px 0 4px;
-  margin: 4px 6px 0;
+  /* Collapsed: a thin divider line. Expanded: a section label. */
+  height: 0;
   border-top: 1px solid rgba(255,255,255,0.08);
+  margin: 8px 14px 4px;
+  padding: 0;
+  overflow: hidden;
+  transition: height 0.18s ease, padding 0.18s ease, margin 0.18s ease;
 }
-.ui-v4 .ui-v4-side .v4-h:first-of-type { border-top: none; }
+.ui-v4 .ui-v4-side .v4-h:first-of-type { border-top: none; margin-top: 0; }
 .ui-v4 .ui-v4-side:hover .v4-h {
+  height: auto;
   padding: 14px 10px 6px;
   margin: 0;
   border-top: none;
 }
 
-/* Brand: keep a smaller version of the RepNet logo always visible */
+/* ───── Brand (RepNet logo) ───── */
 .ui-v4 .ui-v4-side .v4-brand {
-  padding: 6px 0 14px;
+  padding: 4px 0 12px;
   border-bottom: 1px solid rgba(255,255,255,0.08);
   margin-bottom: 6px;
   display: flex; align-items: center; justify-content: center;
-  min-height: 36px;
+  min-height: 38px;
+  transition: padding 0.2s ease, margin 0.2s ease;
 }
 .ui-v4 .ui-v4-side:hover .v4-brand {
-  padding: 8px 10px 22px;
+  padding: 8px 10px 18px;
   margin-bottom: 8px;
   justify-content: flex-start;
 }
@@ -92,69 +96,195 @@
   height: 28px; max-width: 220px;
 }
 
-/* Foot: in collapsed state hide everything except the avatar circle */
-.ui-v4 .ui-v4-side .v4-foot { padding: 10px 4px 0; }
-.ui-v4 .ui-v4-side:hover .v4-foot { padding: 14px 10px 0; }
-
-.ui-v4 .ui-v4-side .v4-user > div,
-.ui-v4 .ui-v4-side #v4-presence,
-.ui-v4 .ui-v4-side .v4-repose,
-.ui-v4 .ui-v4-side .v4-rollback { display: none; }
-.ui-v4 .ui-v4-side:hover .v4-user > div { display: block; }
-.ui-v4 .ui-v4-side:hover #v4-presence { display: inline-block; }
-.ui-v4 .ui-v4-side:hover .v4-repose { display: flex; }
-.ui-v4 .ui-v4-side:hover .v4-rollback { display: block; }
-
-/* User button — strip browser button defaults so it doesn't "glow" */
-.ui-v4 .ui-v4-side .v4-user {
-  background: transparent;
-  border: none;
-  border-radius: 8px;
-  width: 100%;
-  text-align: left;
-  font-family: inherit;
-  color: inherit;
-  cursor: pointer;
-  padding: 6px 4px;
-  display: flex; align-items: center; gap: 10px; justify-content: center;
-  transition: background 0.12s ease;
-}
-.ui-v4 .ui-v4-side:hover .v4-user {
-  padding: 8px 4px;
-  justify-content: flex-start;
-}
-.ui-v4 .ui-v4-side .v4-user:hover { background: rgba(255,255,255,0.04); }
-.ui-v4 .ui-v4-side .v4-user:focus { outline: none; }
-.ui-v4 .ui-v4-side .v4-user:focus-visible { outline: 2px solid var(--repose-blue); outline-offset: 2px; }
-
-/* NMS: collapsed = just the ⚠ icon */
-.ui-v4 .ui-v4-side .v4-nms {
-  padding: 9px 6px;
-  font-size: 14px;
-  overflow: hidden;
-  text-align: center;
-  white-space: nowrap;
-}
-.ui-v4 .ui-v4-side:hover .v4-nms {
-  padding: 10px 12px;
-  font-size: 12px;
-}
-
-/* Nav links: icon-only column when collapsed, full label when expanded */
+/* ───── Nav links: icon column → labelled list on hover ───── */
 .ui-v4 .ui-v4-side a {
-  padding: 10px 0;
-  justify-content: center;
+  padding: 0;
+  margin: 2px 8px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
   gap: 0;
+  transition: padding 0.18s ease, margin 0.18s ease, gap 0.18s ease;
 }
 .ui-v4 .ui-v4-side:hover a {
-  padding: 10px 12px;
+  padding: 0 12px;
+  margin: 2px 6px;
   justify-content: flex-start;
   gap: 12px;
 }
 .ui-v4 .ui-v4-side a .v4-gly {
   width: 22px; height: 22px;
   flex-shrink: 0;
+  display: grid; place-items: center;
 }
+
+/* Active pill — clean square in collapsed, full pill on hover */
+.ui-v4 .ui-v4-side a.on {
+  background: linear-gradient(180deg, rgba(20,161,233,0.22), rgba(20,161,233,0.10));
+  color: #fff;
+  border: 1px solid rgba(20,161,233,0.45);
+  box-shadow: 0 4px 12px -6px rgba(20,161,233,0.5);
+}
+
+/* ───── Foot: user, NMS, Repose, rollback ───── */
+.ui-v4 .ui-v4-side .v4-foot {
+  padding: 10px 8px 8px;
+  display: flex; flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  margin-top: auto;
+}
+.ui-v4 .ui-v4-side:hover .v4-foot {
+  padding: 14px 10px 8px;
+}
+
+/* User button: clean — no browser default glow */
+.ui-v4 .ui-v4-side .v4-user {
+  background: transparent;
+  border: none;
+  border-radius: 10px;
+  width: 100%;
+  font-family: inherit;
+  color: inherit;
+  cursor: pointer;
+  padding: 4px;
+  display: flex; align-items: center; gap: 10px; justify-content: center;
+  transition: background 0.12s ease, padding 0.18s ease;
+}
+.ui-v4 .ui-v4-side:hover .v4-user {
+  padding: 6px 8px;
+  justify-content: flex-start;
+}
+.ui-v4 .ui-v4-side .v4-user:hover { background: rgba(255,255,255,0.05); }
+.ui-v4 .ui-v4-side .v4-user:focus { outline: none; }
+.ui-v4 .ui-v4-side .v4-user:focus-visible { outline: 2px solid var(--repose-blue); outline-offset: 2px; }
+
+/* Avatar circle */
+.ui-v4 .ui-v4-side .v4-user .av {
+  width: 36px; height: 36px;
+  border-radius: 999px;
+  display: grid; place-items: center;
+  font-family: "Bricolage Grotesque", "Manrope", system-ui, sans-serif;
+  font-weight: 800; font-size: 14px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--repose-blue), #0a78b8);
+  flex-shrink: 0;
+  border: 1.5px solid rgba(255,255,255,0.1);
+}
+/* Signed-out: clearer "sign in" cue (arrow) */
+.ui-v4 .ui-v4-side .v4-user .av.signed-out {
+  background: rgba(255,255,255,0.06);
+  border: 1.5px dashed rgba(255,255,255,0.3);
+  color: rgba(255,255,255,0.85);
+  font-size: 18px; font-weight: 600;
+}
+
+/* User info text — only visible when expanded */
+.ui-v4 .ui-v4-side .v4-user-info {
+  flex: 1; min-width: 0;
+  text-align: left;
+  display: none;
+}
+.ui-v4 .ui-v4-side:hover .v4-user-info { display: block; }
+.ui-v4 .ui-v4-side .v4-user-info .nm {
+  font-family: "Bricolage Grotesque", "Manrope", system-ui, sans-serif;
+  font-weight: 600; font-size: 13px;
+  color: #fff;
+  letter-spacing: -0.005em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ui-v4 .ui-v4-side .v4-user-info .role {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  color: rgba(255,255,255,0.5);
+  letter-spacing: 0.06em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* Online presence dot — only on hover */
+.ui-v4 .ui-v4-side #v4-presence {
+  display: none;
+  width: 8px; height: 8px; border-radius: 999px;
+  background: #4ade80;
+  box-shadow: 0 0 0 4px rgba(74,222,128,0.18);
+  flex-shrink: 0;
+}
+.ui-v4 .ui-v4-side:hover #v4-presence { display: inline-block; }
+
+/* NMS button: collapsed = ⚠ icon only, full button on hover */
+.ui-v4 .ui-v4-side .v4-nms {
+  width: 100%;
+  height: 40px;
+  border-radius: 10px;
+  background: rgba(220,38,38,0.18);
+  border: 1px solid rgba(220,38,38,0.4);
+  color: #fecaca;
+  font-family: "Bricolage Grotesque", "Manrope", system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  gap: 0;
+  letter-spacing: -0.005em;
+  padding: 0;
+  transition: background 0.12s ease, gap 0.18s ease, font-size 0.18s ease;
+}
+.ui-v4 .ui-v4-side:hover .v4-nms {
+  font-size: 12px;
+  gap: 6px;
+  padding: 0 12px;
+}
+.ui-v4 .ui-v4-side .v4-nms:hover { background: rgba(220,38,38,0.28); color: #fff; }
+.ui-v4 .ui-v4-side .v4-nms-icon { font-size: 16px; line-height: 1; }
+
+/* Repose footer — small mark in collapsed mode, full lockup on hover */
+.ui-v4 .ui-v4-side .v4-repose {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: 8px 0 0;
+  margin-top: 4px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  opacity: 0.55;
+  transition: opacity 0.12s ease, gap 0.18s ease, padding 0.18s ease;
+}
+.ui-v4 .ui-v4-side:hover .v4-repose {
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 10px 4px 0;
+}
+.ui-v4 .ui-v4-side .v4-repose img {
+  height: 14px; width: auto; max-width: 36px;
+  object-fit: contain;
+  filter: brightness(0) invert(1);
+  transition: height 0.2s ease, max-width 0.2s ease;
+}
+.ui-v4 .ui-v4-side:hover .v4-repose img {
+  height: 16px; max-width: 80px;
+}
+.ui-v4 .ui-v4-side .v4-repose span {
+  display: none;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 9px;
+  letter-spacing: 0.18em; text-transform: uppercase;
+  color: rgba(255,255,255,0.7);
+}
+.ui-v4 .ui-v4-side:hover .v4-repose span { display: inline; }
+
+/* Rollback link — collapsed: tiny dot indicator, hover: full link */
+.ui-v4 .ui-v4-side .v4-rollback {
+  display: none;
+  padding: 6px 12px; text-align: center;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  color: rgba(255,255,255,0.4);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-decoration: none;
+}
+.ui-v4 .ui-v4-side:hover .v4-rollback { display: block; }
+.ui-v4 .ui-v4-side .v4-rollback:hover { color: rgba(255,255,255,0.7); }
 
 /* Active view fills remaining width */
 .ui-v4 .view.active { flex: 1 1 auto !important; min-width: 0 !important; }

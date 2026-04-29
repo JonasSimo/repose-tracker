@@ -159,14 +159,14 @@
   ${navHtml}
   <div class="v4-foot">
     <button type="button" class="v4-user" id="v4-user-btn" title="Sign in">
-      <span class="av" id="v4-avatar">?</span>
-      <div style="flex:1;min-width:0;text-align:left;">
+      <span class="av" id="v4-avatar">→</span>
+      <div class="v4-user-info">
         <div class="nm" id="v4-username">Sign in</div>
         <div class="role" id="v4-userrole">Tap to sign in</div>
       </div>
-      <span id="v4-presence" style="width:8px;height:8px;border-radius:999px;background:#a8a8a8;"></span>
+      <span id="v4-presence"></span>
     </button>
-    <button type="button" class="v4-nms" id="v4-nms-btn">⚠ Raise NMS</button>
+    <button type="button" class="v4-nms" id="v4-nms-btn" title="Raise Near Miss"><span class="v4-nms-icon">⚠</span><span class="v4-lbl">Raise NMS</span></button>
     <div class="v4-repose">
       <img src="./Repose_RGB_logo_Colour_with_strapline_1500pxW.png" alt="Repose" onerror="this.style.display='none'">
       <span>Repose Furniture</span>
@@ -297,8 +297,13 @@
     const t = (authName.textContent || 'Sign in').trim();
     if (nameEl.textContent !== t) nameEl.textContent = t;
     if (avEl) {
-      const initials = t.split(/\s+/).map(s => s[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '?';
-      if (avEl.textContent !== initials) avEl.textContent = initials;
+      // When signed in: initials. When signed out: a clear "sign-in" arrow.
+      const isSignedOut = t === 'Sign in' || !t;
+      const next = isSignedOut
+        ? '→'
+        : (t.split(/\s+/).map(s => s[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '→');
+      if (avEl.textContent !== next) avEl.textContent = next;
+      avEl.classList.toggle('signed-out', isSignedOut);
     }
     if (presence && authDot) {
       const on = !authDot.classList.contains('off');
