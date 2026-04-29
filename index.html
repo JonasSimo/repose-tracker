@@ -13472,7 +13472,7 @@ function buildDigestHtml(dateLabel, cparsArr, teamName) {
   <div style="max-width:680px;margin:24px auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
     <div style="background:${navy};padding:22px 28px">
       <img src="https://brave-island-06ef03810.1.azurestaticapps.net/repnet-logo-white.png" alt="RepNet" style="height:22px;width:auto;display:block;margin-bottom:8px">
-      <div style="color:#fff;font-size:20px;font-weight:700;letter-spacing:-.3px">RepNet — Daily Issues Digest</div>
+      <div style="color:#fff;font-size:20px;font-weight:700;letter-spacing:-.3px">RepNet — Internal Non-Conformances</div>
       <div style="color:rgba(255,255,255,.7);font-size:13px;margin-top:5px">${escHtml(dateLabel)}${teamName ? ' · ' + escHtml(teamName) + ' Team' : ' · All Teams'}</div>
     </div>
     <div style="padding:20px 28px">
@@ -13563,7 +13563,7 @@ async function sendDailyDigest(btn) {
       seenTeams.add(canonTeam);
       const teamCPARs = byTeam[canonTeam] || [];
       if (!teamCPARs.length) continue; // no issues for this team yesterday — skip
-      const subject = `RepNet Issues Digest — ${canonTeam} · ${yestLabel}`;
+      const subject = `RepNet — ${canonTeam} Internal Non-Conformances · ${yestLabel}`;
       const html    = buildDigestHtml(yestLabel, teamCPARs, canonTeam);
       const recipList = [...new Set(recipients)];
       const body = {
@@ -13586,7 +13586,7 @@ async function sendDailyDigest(btn) {
 
     // If no per-team emails were sent (no issues yesterday) OR as a summary:
     // Send a full digest to management
-    const summarySubject = `RepNet Daily Digest — ${yestLabel}${allYest.length ? ' · '+allYest.length+' issue'+(allYest.length!==1?'s':'') : ' · No issues'}`;
+    const summarySubject = `RepNet — All Teams Internal Non-Conformances · ${yestLabel}${allYest.length ? ' · '+allYest.length+' issue'+(allYest.length!==1?'s':'') : ' · No issues'}`;
     const summaryHtml    = buildDigestHtml(yestLabel, allYest, '');
     const summaryRecips  = [...DIGEST_MANAGEMENT];
     if (signedInEmail && !summaryRecips.includes(signedInEmail)) summaryRecips.push(signedInEmail);
