@@ -871,6 +871,8 @@ body.tablet-mode .uh-token-icon { font-size:14px; }
 .search-no-results { padding: 30px 16px; text-align: center; color: var(--text3); font-size: 13px; }
 .sr-mark-btn { flex-shrink:0; padding: 6px 14px; border-radius: 6px; border: none; background: var(--blue); color: #fff; font-size: 12px; font-weight: 700; cursor: pointer; }
 .sr-mark-btn:active { opacity: .8; }
+.sr-ncr-btn { flex-shrink:0; padding: 6px 12px; border-radius: 6px; border: 1.5px solid var(--aborder); background: var(--abg); color: var(--amber); font-size: 11px; font-weight: 700; font-family: inherit; cursor: pointer; transition:.12s; white-space:nowrap; }
+.sr-ncr-btn:hover { border-color: var(--amber); background: #fef3c7; }
 .sr-nav { flex-shrink:0; font-size:11px; color:var(--text3); cursor:pointer; padding: 4px; }
 /* Load plan search highlight */
 .rep-row.ov-highlight { background: #fef9c3 !important; outline: 2px solid #d97706; outline-offset: -2px; border-radius: 4px; }
@@ -5020,7 +5022,8 @@ function renderSearchResults() {
         </div>
         <div class="sr-ctx">${ctx}</div>
       </div>
-      ${!isDone ? `<button class="sr-mark-btn" onclick="tickFromSearch('${wk}','${p}',${ji})">MARK</button>` : ''}
+      <button class="sr-ncr-btn" onclick="event.stopPropagation();openCPARForm('${wk}','${p}',${ji})" title="Raise Internal NCR for this job">⚠ NCR</button>
+      ${!isDone && !isQCMode() ? `<button class="sr-mark-btn" onclick="tickFromSearch('${wk}','${p}',${ji})">MARK</button>` : ''}
       <span class="sr-nav" onclick="goToJob('${wk}','${p}')">→</span>
     </div>`;
   }).join('');
