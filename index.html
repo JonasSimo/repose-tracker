@@ -11857,7 +11857,7 @@ async function sendInvestigatorEmail(item, toEmail) {
   const body = `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f0f4f8;font-family:Arial,Helvetica,sans-serif">
     <div style="max-width:600px;margin:24px auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
       <div style="background:#7c3aed;padding:18px 24px;color:#fff">
-        <div style="font-size:18px;font-weight:700">CPAR Investigation Assigned</div>
+        <div style="font-size:18px;font-weight:700">Internal Non-Conformance — Investigation Assigned</div>
         <div style="opacity:.85;font-size:12px;margin-top:4px">Hi ${escHtml(peName)} — please investigate the following CPAR</div>
       </div>
       <div style="padding:20px 24px">
@@ -11970,7 +11970,7 @@ async function sendReturnEmail(item, note) {
   const body = `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f0f4f8;font-family:Arial,Helvetica,sans-serif">
     <div style="max-width:600px;margin:24px auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
       <div style="background:#dc2626;padding:18px 24px;color:#fff">
-        <div style="font-size:18px;font-weight:700">CPAR Returned by QHSE</div>
+        <div style="font-size:18px;font-weight:700">Internal Non-Conformance Returned by QHSE</div>
         <div style="opacity:.85;font-size:12px;margin-top:4px">Hi ${escHtml(recipientName)} — your closeout needs revision</div>
       </div>
       <div style="padding:20px 24px">
@@ -14926,7 +14926,7 @@ async function sendOpenCPARDigest() {
 <body style="margin:0;padding:0;background:#f0f4f8;font-family:Arial,Helvetica,sans-serif">
   <div style="max-width:700px;margin:24px auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
     <div style="background:#1e3a5f;padding:22px 28px">
-      <div style="color:#fff;font-size:20px;font-weight:700">RepNet — CPAR Report · ${escHtml(canonTeam)}</div>
+      <div style="color:#fff;font-size:20px;font-weight:700">RepNet — Internal Non-Conformances · ${escHtml(canonTeam)}</div>
       <div style="color:rgba(255,255,255,.7);font-size:13px;margin-top:5px">${escHtml(now)}</div>
     </div>
     <div style="padding:20px 28px">
@@ -14946,7 +14946,7 @@ async function sendOpenCPARDigest() {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: {
-            subject: `CPAR Report — ${canonTeam} · ${openForTeam.length} open · ${now}`,
+            subject: `Internal Non-Conformances — ${canonTeam} · ${openForTeam.length} open · ${now}`,
             body: { contentType: 'HTML', content: html },
             toRecipients: recipList.map(a => ({ emailAddress: { address: a } })),
           },

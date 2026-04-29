@@ -142,14 +142,14 @@ function buildEmail(team, raisedYesterday, stillOpen, yest) {
   return `<!DOCTYPE html><html><body style="margin:0;padding:0;background:${light};font-family:Arial,Helvetica,sans-serif">
   <div style="max-width:680px;margin:24px auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
     <div style="background:${navy};padding:22px 28px">
-      <div style="color:#fff;font-size:20px;font-weight:700">RepNet — ${escHtml(team)} CPAR Digest</div>
+      <div style="color:#fff;font-size:20px;font-weight:700">RepNet — ${escHtml(team)} Internal Non-Conformances</div>
       <div style="color:rgba(255,255,255,.7);font-size:13px;margin-top:4px">${escHtml(dateStr)}</div>
     </div>
     <div style="padding:20px 28px">
       <p style="margin:0 0 14px;font-size:14px;color:#374151">
         ${raisedYesterday.length > 0
-          ? `<strong>${raisedYesterday.length} new CPAR${raisedYesterday.length===1?'':'s'}</strong> raised against ${escHtml(team)} yesterday.`
-          : `<strong>No new CPARs</strong> raised against ${escHtml(team)} yesterday.`}
+          ? `<strong>${raisedYesterday.length} new Internal Non-Conformance${raisedYesterday.length===1?'':'s'}</strong> raised against ${escHtml(team)} yesterday.`
+          : `<strong>No new Internal Non-Conformances</strong> raised against ${escHtml(team)} yesterday.`}
         ${stillOpen.length > 0 ? `<br><strong>${stillOpen.length}</strong> still open and awaiting close-out.` : ''}
       </p>
       <h3 style="margin:0 0 8px;font-size:14px;color:#374151">Raised against you yesterday (${raisedYesterday.length})</h3>
@@ -223,7 +223,7 @@ module.exports = async function (context, myTimer) {
     if (!raisedYesterday.length && !stillOpen.length) continue;
     const html = buildEmail(canon, raisedYesterday, stillOpen, yest);
     try {
-      await sendMail(t, TEAM_MANAGERS[team], `RepNet — ${canon} CPAR Digest`, html);
+      await sendMail(t, TEAM_MANAGERS[team], `RepNet — ${canon} Internal Non-Conformances`, html);
       context.log(`Sent ${canon} digest (${raisedYesterday.length} new, ${stillOpen.length} open)`);
     } catch(e) {
       context.log.warn(`Team digest failed for ${canon}: ${e.message}`);
@@ -238,7 +238,7 @@ module.exports = async function (context, myTimer) {
   });
   const masterHtml = buildEmail('All Teams', yest2, open2, yest);
   try {
-    await sendMail(t, DIGEST_MANAGEMENT, 'RepNet — All Teams CPAR Digest', masterHtml);
+    await sendMail(t, DIGEST_MANAGEMENT, 'RepNet — All Teams Internal Non-Conformances', masterHtml);
   } catch(e) {
     context.log.warn(`Master digest failed: ${e.message}`);
   }

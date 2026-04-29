@@ -175,11 +175,11 @@ module.exports = async function (context, myTimer) {
   const html = `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f0f4f8;font-family:Arial,Helvetica,sans-serif">
     <div style="max-width:600px;margin:24px auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
       <div style="background:#1e3a5f;padding:18px 24px;color:#fff">
-        <div style="font-size:18px;font-weight:700">CPAR Monthly KPI — ${period}</div>
+        <div style="font-size:18px;font-weight:700">Internal Non-Conformances — Monthly KPI · ${period}</div>
         <div style="opacity:.85;font-size:12px;margin-top:4px">Per-team rollup attached as CSV</div>
       </div>
       <div style="padding:20px 24px;font-size:13px;color:#374151;line-height:1.6">
-        <p style="margin:0 0 12px">The attached CSV (<code>${filename}</code>) contains the CPAR KPI rollup for <strong>${period}</strong>:</p>
+        <p style="margin:0 0 12px">The attached CSV (<code>${filename}</code>) contains the Internal Non-Conformances KPI rollup for <strong>${period}</strong>:</p>
         <ul style="padding-left:18px;margin:0 0 14px">
           <li><strong>Period</strong> — month covered</li>
           <li><strong>Team</strong> — one row per Source Dept + a final ALL row</li>
@@ -198,6 +198,6 @@ module.exports = async function (context, myTimer) {
       </div>
     </div>
   </body></html>`;
-  await sendMailWithAttachment(t, KPI_RECIPIENTS, `CPAR KPI ${period}`, html, filename, csv);
+  await sendMailWithAttachment(t, KPI_RECIPIENTS, `Internal Non-Conformances KPI — ${period}`, html, filename, csv);
   context.log('KPI export sent for '+period);
 };

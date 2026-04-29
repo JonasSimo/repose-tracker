@@ -127,7 +127,7 @@ function buildReminder(due, overdue) {
   return `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f0f4f8;font-family:Arial,Helvetica,sans-serif">
     <div style="max-width:640px;margin:24px auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
       <div style="background:#d97706;padding:18px 24px;color:#fff">
-        <div style="font-size:18px;font-weight:700">CPAR Effectiveness Re-Check Reminder</div>
+        <div style="font-size:18px;font-weight:700">Internal Non-Conformance — Effectiveness Re-Check Reminder</div>
         <div style="opacity:.85;font-size:12px;margin-top:4px">Weekly Monday digest — ISO 9001 §10.2.1 e</div>
       </div>
       <div style="padding:20px 24px">
