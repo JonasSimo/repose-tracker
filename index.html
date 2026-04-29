@@ -11578,27 +11578,32 @@ async function submitCPAR() {
     const raisingSub     = s.raisingSub     || activeSub;
     const raisedByTeamStr = raisingHasSubs ? raisingTeam + ' ' + raisingSub : raisingTeam;
 
+    // Build a single field bag so the Graph POST and the local unshift can
+    // never disagree on shape (PrimaryJobNo as String vs Number, Status as
+    // literal vs CPAR_STATUS.OPEN, etc.). Predicates that compare strings
+    // would fail until the next fetchCPARs() refresh otherwise.
+    const newFields = {
+      Title:         ref,
+      RaisedByTeam:  raisedByTeamStr,
+      PrimaryREP:    s.rep,
+      PrimaryJobNo:  String(s.jobNo||''),
+      PrimaryModel:  s.model,
+      PrimaryWeek:   s.week,
+      PrimaryPrep:   s.prep === 'express' ? 'express' : String(parseInt(s.prep)||0),
+      AffectedJobs:  JSON.stringify(s.extraJobs),
+      TotalAffected: String(1 + s.extraJobs.length),
+      QTY:           String(s.qty||1),
+      SourceDept:    sourceLabel,
+      IssueCategory: s.category||'',
+      CauseCode:     s.causeCode||'',
+      Description:   s.desc.trim(),
+      Status:        CPAR_STATUS.OPEN,
+      LoggedAt:      loggedAt,
+      HasPhoto:      s.photoFile ? true : false,
+    };
     const created = await graphPost(
       `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`,
-      { fields: {
-        Title:         ref,
-        RaisedByTeam:  raisedByTeamStr,
-        PrimaryREP:    s.rep,
-        PrimaryJobNo:  String(s.jobNo||''),
-        PrimaryModel:  s.model,
-        PrimaryWeek:   s.week,
-        PrimaryPrep:   s.prep === 'express' ? 'express' : String(parseInt(s.prep)||0),
-        AffectedJobs:  JSON.stringify(s.extraJobs),
-        TotalAffected: String(1 + s.extraJobs.length),
-        QTY:           String(s.qty||1),
-        SourceDept:    sourceLabel,
-        IssueCategory: s.category||'',
-        CauseCode:     s.causeCode||'',
-        Description:   s.desc.trim(),
-        Status:        'Open',
-        LoggedAt:      loggedAt,
-        HasPhoto:      s.photoFile ? true : false,
-      }}
+      { fields: newFields }
     );
 
     if (s.photoFile && created.id) {
@@ -11616,13 +11621,9 @@ async function submitCPAR() {
       openQCStickerModal(ref, s.rep, s.jobNo, s.model, s.desc.trim());
     }
 
-    CPAR_ITEMS.unshift({ id:created.id, fields:{
-      Title:ref, RaisedByTeam:raisedByTeamStr, PrimaryREP:s.rep, PrimaryJobNo:s.jobNo,
-      PrimaryModel:s.model, PrimaryWeek:s.week, PrimaryPrep:s.prep === 'express' ? 'express' : String(parseInt(s.prep)||0), AffectedJobs:JSON.stringify(s.extraJobs),
-      TotalAffected:String(1+s.extraJobs.length), QTY:String(s.qty||1), SourceDept:sourceLabel,
-      IssueCategory:s.category||'', CauseCode:s.causeCode||'', Description:s.desc.trim(), Status:'Open',
-      LoggedAt:loggedAt, HasPhoto:!!s.photoFile,
-    }});
+    // Use the same field bag the POST sent so the local unshifted shape
+    // matches what fetchCPARs() will eventually return for this row.
+    CPAR_ITEMS.unshift({ id:created.id, fields:{ ...newFields } });
     if (document.getElementById('view-issues').classList.contains('active')) renderIssuesList();
 
     // Update Issues tab button counter
