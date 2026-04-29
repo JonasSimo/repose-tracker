@@ -236,11 +236,17 @@
 }
 
 /* TV mode: when fullscreen on Delivery, hide chrome, fill screen */
-.ui-v4.tv-mode body { padding-left: 0; }
-.ui-v4.tv-mode .ui-v4-side { display: none; }
+.ui-v4.tv-mode body { padding: 0 !important; }
+.ui-v4.tv-mode .ui-v4-side { display: none !important; }
 .ui-v4.tv-mode .topbar { display: none !important; }
 .ui-v4.tv-mode .view:not(#view-loadsheet) { display: none !important; }
-.ui-v4.tv-mode #view-loadsheet { display: block !important; height: 100vh; }
+.ui-v4.tv-mode #view-loadsheet {
+  display: flex !important;          /* keep flex so .ls-wrap stretches */
+  flex: 1 1 100% !important;         /* claim the whole row */
+  width: 100% !important;
+  height: 100vh !important;
+  flex-direction: column !important;
+}
 .ui-v4.tv-mode .ls-titlebar .ui-v4-tv-btn { display: none; }
 
 /* ───── Mobile / tablet: hide sidebar; bring back topbar ───── */

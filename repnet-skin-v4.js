@@ -24,7 +24,6 @@
     { v: 'production',   g: '▣',     l: 'Production Plan' },
     { h: 'Quality / QHSE' },
     { v: 'stats',        g: 'STATS', l: 'Stats' },
-    { v: 'issues',       g: '⚑',     l: 'Internal NCRs' },
     { v: 'quality',      g: '✓',     l: 'Quality' },
     { v: 'safety',       g: '⚠',     l: 'Near Misses' },
     { v: 'complaints',   g: '✉',     l: 'Complaints' },
@@ -159,14 +158,14 @@
   </div>
   ${navHtml}
   <div class="v4-foot">
-    <div class="v4-user">
+    <button type="button" class="v4-user" id="v4-user-btn" title="Sign in">
       <span class="av" id="v4-avatar">?</span>
-      <div style="flex:1;min-width:0;">
+      <div style="flex:1;min-width:0;text-align:left;">
         <div class="nm" id="v4-username">Sign in</div>
-        <div class="role">Operator</div>
+        <div class="role" id="v4-userrole">Tap to sign in</div>
       </div>
       <span id="v4-presence" style="width:8px;height:8px;border-radius:999px;background:#a8a8a8;"></span>
-    </div>
+    </button>
     <button type="button" class="v4-nms" id="v4-nms-btn">⚠ Raise NMS</button>
     <div class="v4-repose">
       <img src="./Repose_RGB_logo_Colour_with_strapline_1500pxW.png" alt="Repose" onerror="this.style.display='none'">
@@ -181,6 +180,21 @@
     if (nmsBtn) {
       nmsBtn.addEventListener('click', () => {
         if (typeof window.openNmsModal === 'function') window.openNmsModal();
+      });
+    }
+
+    // User box: delegates to the existing auth-badge / graphSignIn
+    const userBtn = document.getElementById('v4-user-btn');
+    if (userBtn) {
+      userBtn.addEventListener('click', () => {
+        // Prefer calling graphSignIn directly; fall back to clicking the
+        // (display:none) auth-badge if the function isn't on window.
+        if (typeof window.graphSignIn === 'function') {
+          window.graphSignIn();
+        } else {
+          const badge = document.getElementById('auth-badge');
+          if (badge) badge.click();
+        }
       });
     }
   }
