@@ -1371,6 +1371,47 @@ body.tablet-mode .uh-token-icon { font-size:14px; }
 }
 .qc-mode-banner-icon { font-size: 16px; }
 
+/* ── Team-level NCR summary banner (top of Team View) ── */
+.tv-ncr-summary {
+  margin: 0 0 12px 0; border-radius: 10px; overflow: hidden;
+  border: 2px solid var(--red); background: #fef2f2;
+  box-shadow: 0 0 0 0 rgba(220,38,38,.5);
+  animation: tvNcrSummaryPulse 1.6s ease-in-out infinite;
+}
+.tv-ncr-summary-hdr {
+  background: var(--red); color: #fff;
+  padding: 10px 14px; font-size: 13px; font-weight: 800;
+  letter-spacing: .02em;
+}
+.tv-ncr-summary-rows { display: flex; flex-direction: column; }
+.tv-ncr-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 14px; font-size: 12px; cursor: pointer;
+  border-top: 1px solid #fecaca; transition: background .12s;
+  flex-wrap: wrap;
+}
+.tv-ncr-row:hover { background: #fee2e2; }
+.tv-ncr-row-ref {
+  font-family: 'JetBrains Mono', monospace; font-weight: 800;
+  color: #991b1b; flex-shrink: 0;
+}
+.tv-ncr-row-meta { font-weight: 700; color: #7f1d1d; flex-shrink: 0; }
+.tv-ncr-row-when { color: #b91c1c; font-size: 11px; flex-shrink: 0; }
+.tv-ncr-row-status { padding: 1px 7px; border-radius: 6px; font-size: 10px; font-weight: 700; letter-spacing: .03em; }
+.tv-ncr-row-status.returned { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+.tv-ncr-row-desc {
+  font-style: italic; color: #991b1b; flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tv-ncr-row-cta { color: var(--red); font-weight: 700; font-size: 14px; margin-left: auto; }
+@keyframes tvNcrSummaryPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220,38,38,.55); }
+  50%      { box-shadow: 0 0 0 6px rgba(220,38,38,0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tv-ncr-summary { animation: none; }
+}
+
 /* ═══ ISSUES VIEW ═══ */
 .issues-wrap { display:flex; flex-direction:column; height:100%; overflow:hidden; }
 .issues-header { background:var(--bg2); border-bottom:1px solid var(--border); padding:10px 14px; display:flex; flex-direction:column; gap:8px; flex-shrink:0; }
@@ -4056,9 +4097,10 @@ function renderPriorityJobsList() {
   const qcBanner = isQCMode()
     ? `<div class="qc-mode-banner"><span class="qc-mode-banner-icon">🔍</span>QC inspection mode — read-only. Tap ⚠ NCR on any job to raise an Internal Non-Conformance.</div>`
     : '';
+  const tvNcrSummary = buildTeamNcrSummaryBannerHTML(activeTeam);
 
   if (!jobs.length) {
-    area.innerHTML = qcBanner + `<div class="pj-clear">
+    area.innerHTML = qcBanner + tvNcrSummary + `<div class="pj-clear">
       <div class="pj-clear-icon">🎉</div>
       <div class="pj-clear-title">All clear!</div>
       <div class="pj-clear-sub">${activeTeam}${subLabel} has no outstanding jobs<br>in Yesterday, Today or Tomorrow's load plan.</div>
@@ -4143,7 +4185,7 @@ function renderPriorityJobsList() {
     html += `</div>`;
   });
 
-  area.innerHTML = qcBanner + html;
+  area.innerHTML = qcBanner + tvNcrSummary + html;
   renderUndo();
 }
 
@@ -4321,11 +4363,12 @@ function renderJobs() {
   const qcBanner = isQCMode()
     ? `<div class="qc-mode-banner"><span class="qc-mode-banner-icon">🔍</span>QC inspection mode — read-only. Tap ⚠ NCR on any job to raise an Internal Non-Conformance.</div>`
     : '';
-  // Open NCRs whose SourceDept matches the active team — flagged with a
-  // red banner above the affected job card so the team sees what to fix.
+  // Open NCRs against the active team — top-of-view summary (visible
+  // regardless of week/prep) plus per-job banners on cards in this view.
+  const tvNcrSummary = buildTeamNcrSummaryBannerHTML(activeTeam);
   const teamNcrMap = buildSourceDeptNcrJobMap(activeTeam);
   if (!total) {
-    area.innerHTML = `${qcBanner}<div class="no-jobs"><div style="font-size:28px">🎉</div><p>No jobs for this prep day</p></div>`;
+    area.innerHTML = `${qcBanner}${tvNcrSummary}<div class="no-jobs"><div style="font-size:28px">🎉</div><p>No jobs for this prep day</p></div>`;
     renderUndo(); return;
   }
 
@@ -4389,7 +4432,7 @@ function renderJobs() {
       </div>`;
   });
 
-  area.innerHTML = qcBanner + html;
+  area.innerHTML = qcBanner + tvNcrSummary + html;
   renderQCSyncBar();
   renderUndo();
 }
@@ -13260,6 +13303,52 @@ function buildTeamViewNcrBannerHTML(items) {
       </div>
     </div>`;
   }).join('');
+}
+
+// Top-of-view team-level NCR summary. Lists every open NCR whose SourceDept
+// matches the active team across all weeks/preps, so the area manager can
+// see what to fix regardless of which prep day they're currently viewing.
+// Each row navigates to the affected prep+week AND opens the CPAR modal.
+function buildTeamNcrSummaryBannerHTML(team) {
+  if (!team) return '';
+  const tLower = String(team).toLowerCase();
+  const items = CPAR_ITEMS.filter(it => {
+    if (!isOpenNCR(it)) return false;
+    return String(it.fields?.SourceDept || '').toLowerCase() === tLower;
+  });
+  if (!items.length) return '';
+  const rows = items.map(it => {
+    const f = it.fields || {};
+    const ref  = escHtml(f.Title || '');
+    const rep  = escHtml(f.PrimaryREP || '');
+    const job  = escHtml(String(f.PrimaryJobNo || ''));
+    const wk   = escHtml(f.PrimaryWeek || '');
+    const prep = String(f.PrimaryPrep || '');
+    const prepLbl = prep === 'express' ? 'Express' : 'Prep ' + escHtml(prep);
+    const fullDesc = f.Description || '';
+    const desc = escHtml(fullDesc.slice(0, 90)) + (fullDesc.length > 90 ? '…' : '');
+    const isReturned = f.Status === CPAR_STATUS.RETURNED;
+    const statusPill = isReturned
+      ? `<span class="tv-ncr-row-status returned">QHSE returned</span>`
+      : '';
+    // goToJob may not be applicable when wk/prep are empty or invalid — guard.
+    const navAttr = wk && prep
+      ? `goToJob('${wk}','${prep}');`
+      : '';
+    return `<div class="tv-ncr-row" onclick="${navAttr}openCPARByRef('${ref}')" title="Open NCR ${ref}">
+      <span class="tv-ncr-row-ref">${ref}</span>
+      <span class="tv-ncr-row-meta">${rep} / Job ${job}</span>
+      <span class="tv-ncr-row-when">${wk} · ${prepLbl}</span>
+      ${statusPill}
+      ${desc ? `<span class="tv-ncr-row-desc">"${desc}"</span>` : ''}
+      <span class="tv-ncr-row-cta">▸</span>
+    </div>`;
+  }).join('');
+  const count = items.length;
+  return `<div class="tv-ncr-summary">
+    <div class="tv-ncr-summary-hdr">🔴 ${count} open NCR${count !== 1 ? 's' : ''} against ${escHtml(team)} — action required</div>
+    <div class="tv-ncr-summary-rows">${rows}</div>
+  </div>`;
 }
 
 function getCPARStatus(item) {
