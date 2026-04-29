@@ -6765,6 +6765,9 @@ async function graphSignIn() {
     ]);
     startQCAutoSync();
     fetchSpecAlerts().catch(console.warn);
+    // Eager-load CPAR list so Team View / Delivery / Production show NCR
+    // signals (top banner, red stripe, red banner) without a Quality detour.
+    fetchCPARs().catch(e => console.warn('cpars:', e.message));
     if (!_refreshInterval)     _refreshInterval     = setInterval(refreshCompletions, 60 * 1000);
     if (!_fullRefreshInterval) _fullRefreshInterval = setInterval(fullRefresh, 10 * 60 * 1000);
   } catch(e) {
@@ -7309,6 +7312,9 @@ async function initGraph() {
     loadMechSerials().catch(e => console.warn('mechserials:', e.message));
     loadMechQCFromSharePoint().catch(e => console.warn('mechQC:', e.message));
     fetchSpecAlerts().catch(console.warn);
+    // Eager-load CPAR list so Team View / Delivery / Production show NCR
+    // signals (top banner, red stripe, red banner) without a Quality detour.
+    fetchCPARs().catch(e => console.warn('cpars:', e.message));
     // Defer QC auto-sync 15s so the initial heavy load (production workbook + lists)
     // fully settles before the QC workbook starts. 5s wasn't enough — Graph was still
     // tenant-throttling user-initiated nav requests (Near-Miss site lookup) on top.
@@ -13145,6 +13151,13 @@ async function fetchCPARs() {
     renderIssuesList();
     updateIssuesTabBadge();
     updateTeamCounts();
+    // If the user is currently in Team View, re-render so the top-of-view
+    // NCR summary banner appears without requiring a Quality detour.
+    try {
+      if (document.getElementById('view-team-select')?.classList.contains('active') && typeof renderJobs === 'function') {
+        renderJobs();
+      }
+    } catch(_) { /* render may fail if DOM not ready — non-fatal */ }
   } catch(e) {
     console.warn('fetchCPARs:', e);
     if (listEl) listEl.innerHTML = `<div class="issues-empty">Could not load issues — ${escHtml(e.message)}</div>`;
