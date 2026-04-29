@@ -13146,7 +13146,16 @@ async function fetchCPARs() {
         `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999`
       );
     }
-    CPAR_ITEMS = items.sort((a,b) => parseCPARDate(b.fields?.LoggedAt) - parseCPARDate(a.fields?.LoggedAt));
+    // Preserve any locally-unshifted CPARs that aren't yet visible to the
+    // SP query (eventual consistency). If the user just raised an NCR and
+    // immediately navigated to Delivery / Production, the lazy fetch could
+    // arrive before SP's indexer caught up, and a wholesale CPAR_ITEMS = items
+    // would lose the local stub — making the red stripe / banner disappear
+    // for ~30 s until next sync.
+    const fetchedIds = new Set(items.map(i => i.id));
+    const localOnly  = CPAR_ITEMS.filter(i => i && i.id && !fetchedIds.has(i.id));
+    CPAR_ITEMS = [...localOnly, ...items]
+      .sort((a,b) => parseCPARDate(b.fields?.LoggedAt) - parseCPARDate(a.fields?.LoggedAt));
     cparListLoaded = true;
     renderIssuesList();
     updateIssuesTabBadge();
