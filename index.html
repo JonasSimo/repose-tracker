@@ -6682,6 +6682,15 @@ async function _graphFetchWithRetry(url, init, retries = 4) {
 function _handleCparPatch404(id, ref) {
   const idx = (typeof CPAR_ITEMS !== 'undefined') ? CPAR_ITEMS.findIndex(i => i.id === id) : -1;
   if (idx >= 0) CPAR_ITEMS.splice(idx, 1);
+  // Dismiss any open modals tied to this id
+  const escModal = document.getElementById('modal-escalate');
+  const retModal = document.getElementById('modal-return');
+  const delModal = document.getElementById('modal-cpar-delete');
+  if (escModal) escModal.style.display = 'none';
+  if (retModal) retModal.style.display = 'none';
+  if (delModal) delModal.style.display = 'none';
+  // Clear stale drafts so they don't accumulate in localStorage
+  if (typeof _clearCparDrafts === 'function') _clearCparDrafts(id);
   if (typeof toast === 'function') toast(`CPAR ${ref} was deleted by another user — refreshed`, 'u');
   if (typeof renderQualitySubview === 'function') renderQualitySubview();
 }
