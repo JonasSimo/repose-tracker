@@ -394,6 +394,26 @@
           `<use href="#${TEAM_TO_SPRITE[key]}"/></svg>`;
       }
     }
+
+    // Production Plan team highlight buttons (.pp-team-btn)
+    // Markup: `${t.icon} ${t.lbl}` where lbl is an abbreviation (WM/FM/CT/SW/UH/AS/QC).
+    const PP_LBL_TO_TEAM = {
+      'WM': 'Woodmill', 'FM': 'Foam', 'CT': 'Cutting',
+      'SW': 'Sewing', 'UH': 'Upholstery', 'AS': 'Assembly', 'QC': 'QC',
+    };
+    const ppBtns = document.querySelectorAll('.pp-team-btn');
+    for (const btn of ppBtns) {
+      if (btn.querySelector('.team-svg-icon')) continue;
+      const txt = btn.textContent.replace(/\s+/g, ' ').trim();
+      const m = txt.match(/(?:^|\s)([A-Z]{2})$/);
+      const lbl = m ? m[1] : null;
+      const key = lbl && PP_LBL_TO_TEAM[lbl];
+      if (!key || !TEAM_TO_SPRITE[key]) continue;
+      btn.innerHTML =
+        `<span class="team-svg-icon" style="display:inline-flex;vertical-align:-3px;margin-right:4px;color:inherit;">` +
+        `<svg viewBox="0 0 24 24" width="14" height="14"><use href="#${TEAM_TO_SPRITE[key]}"/></svg>` +
+        `</span>` + lbl;
+    }
   }
 
   // ── 5. Delivery TV View button ────────────────────────────────

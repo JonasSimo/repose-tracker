@@ -689,6 +689,43 @@
 }
 
 /* ═════════════════════════════════════════════════════════════════
+   PRODUCTION PLAN — collapse NCR banner into a small red dot
+   ═════════════════════════════════════════════════════════════════ */
+.ui-v4 .pp-job { position: relative; }
+.ui-v4 .pp-ncr-banner {
+  /* Replace the full-width red banner with a tiny circular indicator
+     pinned to the top-right of the job card. Click still opens the NCR. */
+  position: absolute;
+  top: 6px; right: 6px;
+  width: 14px; height: 14px;
+  background: var(--red);
+  border: 2px solid #fff;
+  border-radius: 999px;
+  margin: 0; padding: 0;
+  overflow: hidden;
+  font-size: 0; color: transparent;
+  cursor: pointer;
+  box-shadow: 0 0 0 1px rgba(220,38,38,0.4),
+              0 2px 6px -2px rgba(220,38,38,0.5);
+  transition: transform 0.12s ease, background 0.12s ease;
+  display: block;
+  z-index: 5;
+}
+.ui-v4 .pp-ncr-banner > * { display: none; }
+.ui-v4 .pp-ncr-banner:hover {
+  transform: scale(1.25);
+  background: #b91c1c;
+}
+
+/* Multiple NCRs on one job — stack horizontally */
+.ui-v4 .pp-ncr-banner ~ .pp-ncr-banner { right: 26px; }
+.ui-v4 .pp-ncr-banner ~ .pp-ncr-banner ~ .pp-ncr-banner { right: 46px; }
+.ui-v4 .pp-ncr-banner ~ .pp-ncr-banner ~ .pp-ncr-banner ~ .pp-ncr-banner { right: 66px; }
+
+/* Make room on the right of the job code so the dot doesn't overlap */
+.ui-v4 .pp-job .pp-job-top { padding-right: 24px; }
+
+/* ═════════════════════════════════════════════════════════════════
    STATS VIEW — editorial restyle
    ═════════════════════════════════════════════════════════════════ */
 .ui-v4 #view-stats {
@@ -840,6 +877,121 @@
 .ui-v4 .stats-back-btn:hover {
   color: var(--repose-navy) !important;
   border-color: var(--repose-navy) !important;
+}
+
+/* ───── Stats body — Team tokens section ───── */
+.ui-v4 .team-tokens-section {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 16px !important;
+  padding: 22px 24px !important;
+  margin-bottom: 16px !important;
+  box-shadow: 0 1px 0 var(--border), 0 12px 36px -22px rgba(14,2,58,0.18);
+}
+.ui-v4 .team-tokens-header {
+  display: flex !important;
+  align-items: end !important;
+  justify-content: space-between !important;
+  margin-bottom: 14px !important;
+  padding-bottom: 12px !important;
+  border-bottom: 1px dashed var(--border) !important;
+}
+.ui-v4 .team-tokens-title {
+  font-family: "Bricolage Grotesque", "Manrope", system-ui, sans-serif !important;
+  font-weight: 800 !important;
+  font-size: 22px !important;
+  letter-spacing: -0.02em !important;
+  color: var(--repose-navy) !important;
+}
+.ui-v4 .team-tokens-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)) !important;
+  gap: 12px !important;
+}
+
+/* Stat cards — refined editorial */
+.ui-v4 .stat-card {
+  background: var(--bg2) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 14px !important;
+  padding: 18px 20px !important;
+  box-shadow: 0 1px 0 var(--border) !important;
+  transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+  position: relative;
+}
+.ui-v4 .stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 1px 0 var(--border), 0 16px 32px -18px rgba(14,2,58,0.22) !important;
+}
+.ui-v4 .stat-card .card-label {
+  font-family: "JetBrains Mono", monospace !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.18em !important;
+  text-transform: uppercase !important;
+  color: var(--text2) !important;
+  margin-bottom: 8px !important;
+}
+.ui-v4 .stat-card .card-number {
+  font-family: "Bricolage Grotesque", "Manrope", system-ui, sans-serif !important;
+  font-weight: 800 !important;
+  font-size: 38px !important;
+  letter-spacing: -0.04em !important;
+  color: var(--repose-navy) !important;
+  line-height: 1 !important;
+}
+.ui-v4 .stat-card .card-sub {
+  font-family: "JetBrains Mono", monospace !important;
+  font-size: 11px !important;
+  color: var(--text2) !important;
+  letter-spacing: 0.04em !important;
+  margin-top: 4px !important;
+}
+.ui-v4 .stat-card .card-arrow {
+  position: absolute !important;
+  right: 16px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  font-size: 22px !important;
+  color: var(--text3) !important;
+  font-family: "JetBrains Mono", monospace !important;
+  transition: transform 0.15s ease, color 0.15s ease !important;
+}
+.ui-v4 .stat-card:hover .card-arrow {
+  color: var(--repose-blue) !important;
+  transform: translateY(-50%) translateX(4px) !important;
+}
+.ui-v4 .stat-card .prog-bar {
+  height: 5px !important;
+  background: var(--bg4) !important;
+  border-radius: 999px !important;
+  overflow: hidden !important;
+  margin-top: 10px !important;
+}
+.ui-v4 .stat-card .prog-fill {
+  height: 100% !important;
+  border-radius: 999px !important;
+  background: var(--repose-blue) !important;
+}
+
+/* Dash bottom row — refined grid */
+.ui-v4 .dash-bottom {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)) !important;
+  gap: 12px !important;
+  margin-top: 16px !important;
+}
+.ui-v4 .dash-issues {
+  margin-top: 16px !important;
+}
+
+/* Detail title */
+.ui-v4 .stats-detail-title {
+  font-family: "Bricolage Grotesque", "Manrope", system-ui, sans-serif !important;
+  font-weight: 800 !important;
+  font-size: 22px !important;
+  letter-spacing: -0.02em !important;
+  color: var(--repose-navy) !important;
 }
 
 /* ───── Mobile / tablet: hide sidebar; bring back topbar ───── */
