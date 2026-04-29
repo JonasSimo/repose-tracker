@@ -1,6 +1,16 @@
 'use strict';
 const { ConfidentialClientApplication } = require('@azure/msal-node');
 const fetch = require('node-fetch');
+const fs = require('fs');
+const path = require('path');
+
+let LOGO_DATAURL = '';
+try {
+  const buf = fs.readFileSync(path.join(__dirname, 'repnet-logo-white.png'));
+  LOGO_DATAURL = 'data:image/png;base64,' + buf.toString('base64');
+} catch(e) {
+  // Fallback: empty (header falls back to text wordmark)
+}
 
 const TENANT_ID     = process.env.TENANT_ID;
 const CLIENT_ID     = process.env.CLIENT_ID;
@@ -127,6 +137,7 @@ function buildReminder(due, overdue) {
   return `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f0f4f8;font-family:Arial,Helvetica,sans-serif">
     <div style="max-width:640px;margin:24px auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
       <div style="background:#d97706;padding:18px 24px;color:#fff">
+        ${LOGO_DATAURL ? `<img src="${LOGO_DATAURL}" alt="RepNet" style="height:22px;width:auto;display:block;margin-bottom:8px">` : ''}
         <div style="font-size:18px;font-weight:700">Internal Non-Conformance — Effectiveness Re-Check Reminder</div>
         <div style="opacity:.85;font-size:12px;margin-top:4px">Weekly Monday digest — ISO 9001 §10.2.1 e</div>
       </div>
