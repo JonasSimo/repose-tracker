@@ -11010,14 +11010,63 @@ const cparFormState = {
 
 // ── Open/close modal ─────────────────────────────────────
 
+// Walk the in-memory STATE map for this (wc, prep, ji) and return the name
+// of the most recently-completed team (Assembly / Upholstery / Sewing /
+// Cutting / Woodmill / Foam) excluding QC. Returns null if no team has
+// marked the job done yet.
+function findLastCompletionTeamForJob(wc, prep, ji) {
+  let bestTeam = null;
+  let bestTime = 0;
+  TEAMS_CFG.forEach(t => {
+    if (t.name === 'QC') return;
+    const subKeys = t.hasSubs ? SUBS : ['all'];
+    subKeys.forEach(sk => {
+      const s = STATE[t.name]?.[sk]?.[wc]?.[prep]?.[ji];
+      if (!s?.done) return;
+      const dStr = (s.doneDate || '').trim();
+      const tStr = (s.doneAt   || '00:00').trim();
+      const m = dStr.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      if (!m) return;
+      const ts = new Date(`${m[3]}-${m[2]}-${m[1]}T${tStr}:00`).getTime();
+      if (Number.isFinite(ts) && ts > bestTime) {
+        bestTime = ts;
+        bestTeam = t.name;
+      }
+    });
+  });
+  return bestTeam;
+}
+
+// Map a STATE team name to the closest CPAR_SOURCES key. Assembly defects
+// almost always show as upholstery-finish issues (visible during QC) so
+// Assembly maps to 'upholstery' as the most useful default; the QC user
+// can override in the dropdown if Assembly is the actual culprit.
+function teamNameToCparSourceKey(team) {
+  if (!team) return '';
+  const t = String(team).toLowerCase();
+  if (t === 'assembly')              return 'upholstery';
+  if (t.startsWith('upholstery'))    return 'upholstery';
+  if (t === 'sewing')                return 'sewing';
+  if (t === 'cutting')               return 'cutting';
+  if (t === 'woodmill')              return 'woodmill';
+  if (t === 'foam')                  return 'foam';
+  return '';
+}
+
 function openCPARForm(wc, prep, ji) {
   const job = PROD[wc]?.[prep]?.[ji];
   if (!job) return;
 
+  // QC inspection mode pre-selects the most-recent completion team as the
+  // likely source (typically Upholstery or Assembly). QC can override.
+  const prefillSource = activeTeam === 'QC'
+    ? teamNameToCparSourceKey(findLastCompletionTeamForJob(wc, prep, ji))
+    : '';
+
   Object.assign(cparFormState, {
     wc, prep:String(prep), ji,
     rep:job.rep, jobNo:job.itemNo, model:(job.spec?.model||'').trim(),
-    week:wc, source:'', category:'', causeCode:'', desc:'', qty:1,
+    week:wc, source:prefillSource, category:'', causeCode:'', desc:'', qty:1,
     extraJobs:[], photoFile:null, photoDataUrl:null,
   });
 
@@ -11036,6 +11085,13 @@ function openCPARForm(wc, prep, ji) {
   catWrap.style.display = 'none'; catWrap.innerHTML = '';
 
   renderCPARSourceGrid();
+  // If the source was auto-prefilled (QC mode), trigger the cascade so the
+  // Type-of-issue panel for that source is rendered on form open.
+  if (prefillSource) {
+    selectCPARSource(prefillSource);
+    const grid = document.getElementById('cpar-source-grid');
+    if (grid) grid.value = prefillSource;
+  }
   renderCPARJobsItems('');
   document.getElementById('cpar-modal').style.display = 'flex';
 }
