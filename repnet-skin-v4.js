@@ -144,11 +144,11 @@
   function injectSidebar() {
     if (document.getElementById('ui-v4-side')) return;
     const navHtml = NAV.map(item => {
-      if (item.h) return `<div class="v4-h">${item.h}</div>`;
+      if (item.h) return `<div class="v4-h"><span class="v4-lbl">${item.h}</span></div>`;
       const glyHtml = item.g === 'STATS'
         ? `<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><use href="#v4-stats-icon"/></svg>`
         : item.g;
-      return `<a href="#${item.v}" data-view="${item.v}"><span class="v4-gly">${glyHtml}</span> ${item.l}</a>`;
+      return `<a href="#${item.v}" data-view="${item.v}" title="${item.l}"><span class="v4-gly">${glyHtml}</span><span class="v4-lbl">${item.l}</span></a>`;
     }).join('');
 
     const sideHtml = `

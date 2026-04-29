@@ -24,18 +24,98 @@
 }
 
 .ui-v4 .ui-v4-side {
-  /* Now a normal flex child instead of position:fixed — guarantees the rest
-     of the content actually shifts right of it. */
+  /* Auto-collapsing sidebar:
+     - default state: 64px wide, icons only
+     - on :hover: expands to 240px with labels
+     The flex layout transitions smoothly; main content shifts. */
   position: static !important;
-  flex: 0 0 240px !important;
-  width: 240px !important;
+  flex: 0 0 64px !important;
+  width: 64px !important;
   height: 100vh !important;
   background: var(--repose-navy); color: #fff;
-  padding: 22px 14px;
+  padding: 18px 10px;
   display: flex; flex-direction: column; gap: 4px;
+  overflow-x: hidden;
   overflow-y: auto;
   z-index: 100;
   order: -1; /* always first */
+  transition: flex-basis 0.22s ease, width 0.22s ease, padding 0.22s ease;
+  white-space: nowrap;
+}
+.ui-v4 .ui-v4-side:hover {
+  flex: 0 0 240px !important;
+  width: 240px !important;
+  padding: 22px 14px;
+}
+
+/* Labels: hidden when collapsed, fade in on hover */
+.ui-v4 .ui-v4-side .v4-lbl {
+  opacity: 0;
+  transition: opacity 0.18s ease;
+  display: inline-block;
+}
+.ui-v4 .ui-v4-side:hover .v4-lbl { opacity: 1; }
+
+/* Section headers collapse to nothing when sidebar is collapsed */
+.ui-v4 .ui-v4-side .v4-h {
+  height: 0; padding: 0; margin: 0;
+  overflow: hidden;
+  transition: height 0.18s ease, padding 0.18s ease;
+}
+.ui-v4 .ui-v4-side:hover .v4-h {
+  height: auto; padding: 14px 10px 6px;
+}
+
+/* Brand logo fades + shrinks too */
+.ui-v4 .ui-v4-side .v4-brand img { transition: opacity 0.18s ease; opacity: 0; }
+.ui-v4 .ui-v4-side:hover .v4-brand img { opacity: 1; }
+.ui-v4 .ui-v4-side .v4-brand {
+  padding: 8px 4px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  margin-bottom: 6px;
+  min-height: 40px;
+}
+.ui-v4 .ui-v4-side:hover .v4-brand { padding: 8px 10px 22px; margin-bottom: 8px; }
+
+/* Foot: when collapsed, show only avatar; on hover, full user / NMS / Repose / rollback */
+.ui-v4 .ui-v4-side .v4-user .nm,
+.ui-v4 .ui-v4-side .v4-user .role,
+.ui-v4 .ui-v4-side .v4-user > div,
+.ui-v4 .ui-v4-side #v4-presence,
+.ui-v4 .ui-v4-side .v4-nms span,
+.ui-v4 .ui-v4-side .v4-repose,
+.ui-v4 .ui-v4-side .v4-rollback {
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+.ui-v4 .ui-v4-side:hover .v4-user .nm,
+.ui-v4 .ui-v4-side:hover .v4-user .role,
+.ui-v4 .ui-v4-side:hover .v4-user > div,
+.ui-v4 .ui-v4-side:hover #v4-presence,
+.ui-v4 .ui-v4-side:hover .v4-nms span,
+.ui-v4 .ui-v4-side:hover .v4-repose,
+.ui-v4 .ui-v4-side:hover .v4-rollback { opacity: 1; }
+
+/* NMS button: when collapsed show just the ⚠ */
+.ui-v4 .ui-v4-side .v4-nms {
+  padding: 9px 6px;
+  font-size: 13px;
+  overflow: hidden;
+}
+.ui-v4 .ui-v4-side:hover .v4-nms { padding: 10px 12px; font-size: 12px; }
+
+/* Nav links — center icon when collapsed, left-align on hover */
+.ui-v4 .ui-v4-side a {
+  padding: 10px 8px;
+  justify-content: center;
+}
+.ui-v4 .ui-v4-side:hover a {
+  padding: 10px 12px;
+  justify-content: flex-start;
+}
+.ui-v4 .ui-v4-side a .v4-gly {
+  width: 22px; height: 22px;
+  flex-shrink: 0;
 }
 
 /* Active view fills remaining width */
@@ -249,9 +329,165 @@
 }
 .ui-v4.tv-mode .ls-titlebar .ui-v4-tv-btn { display: none; }
 
+/* ═════════════════════════════════════════════════════════════════
+   STATS VIEW — editorial restyle
+   ═════════════════════════════════════════════════════════════════ */
+.ui-v4 #view-stats {
+  background: var(--bg);
+}
+.ui-v4 .stats-content {
+  padding: 0 !important;
+}
+
+.ui-v4 .stats-header {
+  padding: 22px 28px 14px !important;
+  display: flex !important;
+  align-items: end !important;
+  gap: 18px !important;
+  flex-wrap: wrap !important;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg2);
+}
+.ui-v4 .stats-title {
+  font-family: "Bricolage Grotesque", "Manrope", system-ui, sans-serif !important;
+  font-weight: 800 !important;
+  font-size: 30px !important;
+  letter-spacing: -0.025em !important;
+  color: var(--repose-navy) !important;
+  line-height: 1 !important;
+  flex: 1 1 auto !important;
+  margin: 0 !important;
+}
+
+/* Period toggle — segmented pill control */
+.ui-v4 .stats-period-toggle {
+  display: flex !important;
+  gap: 2px !important;
+  background: var(--bg3) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 12px !important;
+  padding: 3px !important;
+}
+.ui-v4 .stats-period-btn {
+  padding: 7px 14px !important;
+  border: none !important;
+  background: transparent !important;
+  font-family: "Bricolage Grotesque", "Manrope", system-ui, sans-serif !important;
+  font-weight: 600 !important;
+  font-size: 12px !important;
+  color: var(--text2) !important;
+  cursor: pointer;
+  border-radius: 8px !important;
+  letter-spacing: -0.005em !important;
+  transition: all 0.12s ease !important;
+}
+.ui-v4 .stats-period-btn:hover {
+  color: var(--repose-navy) !important;
+  background: rgba(14,2,58,0.04) !important;
+}
+.ui-v4 .stats-period-btn.active {
+  background: var(--repose-navy) !important;
+  color: #fff !important;
+  box-shadow: 0 2px 8px -2px rgba(14,2,58,0.4) !important;
+}
+
+/* Refresh button */
+.ui-v4 .stats-refresh-btn {
+  padding: 8px 14px !important;
+  border-radius: 10px !important;
+  border: 1px solid var(--border2) !important;
+  background: var(--bg2) !important;
+  font-family: "Bricolage Grotesque", "Manrope", system-ui, sans-serif !important;
+  font-weight: 600 !important;
+  font-size: 12px !important;
+  color: var(--text2) !important;
+  cursor: pointer;
+  letter-spacing: -0.005em !important;
+}
+.ui-v4 .stats-refresh-btn:hover {
+  border-color: var(--repose-navy) !important;
+  color: var(--repose-navy) !important;
+}
+
+/* Date nav row */
+.ui-v4 .stats-date-nav {
+  padding: 14px 28px !important;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+.ui-v4 .stats-nav-arrow {
+  width: 34px !important; height: 34px !important;
+  border-radius: 10px !important;
+  border: 1px solid var(--border) !important;
+  background: var(--bg2) !important;
+  color: var(--text2) !important;
+  font-family: "JetBrains Mono", monospace !important;
+  font-weight: 700 !important;
+  cursor: pointer;
+}
+.ui-v4 .stats-nav-arrow:hover {
+  color: var(--repose-navy) !important;
+  border-color: var(--repose-navy) !important;
+}
+.ui-v4 .stats-nav-arrow:disabled { opacity: 0.4 !important; cursor: not-allowed !important; }
+.ui-v4 .stats-nav-label {
+  font-family: "Bricolage Grotesque", "Manrope", system-ui, sans-serif !important;
+  font-weight: 700 !important;
+  font-size: 14px !important;
+  color: var(--repose-navy) !important;
+  letter-spacing: -0.01em !important;
+  padding: 0 8px !important;
+}
+.ui-v4 .stats-nav-today {
+  margin-left: 10px !important;
+  padding: 6px 12px !important;
+  border-radius: 8px !important;
+  border: 1px solid rgba(20,161,233,0.4) !important;
+  background: rgba(20,161,233,0.08) !important;
+  color: var(--repose-blue) !important;
+  font-weight: 600 !important;
+  font-size: 12px !important;
+  cursor: pointer;
+}
+
+/* Stats body padding */
+.ui-v4 .stats-scroll {
+  padding: 22px 28px !important;
+}
+.ui-v4 #stats-dashboard {
+  padding: 22px 28px !important;
+}
+
+/* Back button on detail */
+.ui-v4 .stats-detail-header {
+  padding: 16px 28px !important;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+}
+.ui-v4 .stats-back-btn {
+  padding: 7px 14px !important;
+  border-radius: 10px !important;
+  border: 1px solid var(--border2) !important;
+  background: var(--bg2) !important;
+  font-family: "Bricolage Grotesque", "Manrope", system-ui, sans-serif !important;
+  font-weight: 600 !important;
+  font-size: 12px !important;
+  color: var(--text2) !important;
+  cursor: pointer;
+}
+.ui-v4 .stats-back-btn:hover {
+  color: var(--repose-navy) !important;
+  border-color: var(--repose-navy) !important;
+}
+
 /* ───── Mobile / tablet: hide sidebar; bring back topbar ───── */
 @media (max-width: 900px) {
-  .ui-v4 body { padding-left: 0; }
+  .ui-v4 body {
+    flex-direction: column !important;
+  }
   .ui-v4 .ui-v4-side { display: none; }
   .ui-v4 .topbar { display: flex !important; }
 }
