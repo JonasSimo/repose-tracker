@@ -1816,9 +1816,8 @@ body.tablet-mode .uh-token-icon { font-size:14px; }
 }
 .ls-item-rep.qc-ncr-open .ls-rep-num { color:#991b1b; font-weight:700; }
 @keyframes qcNcrPulse {
-  0%   { background:repeating-linear-gradient(45deg,#fff5f5,#fff5f5 4px,#fecaca 4px,#fecaca 8px) !important; box-shadow: 0 0 0 0 rgba(220,38,38,.55); }
-  50%  { background:repeating-linear-gradient(45deg,#fee2e2,#fee2e2 4px,#fca5a5 4px,#fca5a5 8px) !important; box-shadow: 0 0 0 4px rgba(220,38,38,0); }
-  100% { background:repeating-linear-gradient(45deg,#fff5f5,#fff5f5 4px,#fecaca 4px,#fecaca 8px) !important; box-shadow: 0 0 0 0 rgba(220,38,38,0); }
+  0%, 100% { background:repeating-linear-gradient(45deg,#fff5f5,#fff5f5 4px,#fecaca 4px,#fecaca 8px) !important; box-shadow: 0 0 0 0 rgba(220,38,38,.55); }
+  50%      { background:repeating-linear-gradient(45deg,#fee2e2,#fee2e2 4px,#fca5a5 4px,#fca5a5 8px) !important; box-shadow: 0 0 0 4px rgba(220,38,38,0); }
 }
 @media (prefers-reduced-motion: reduce) {
   .ls-item-rep.qc-ncr-open { animation: none; }
