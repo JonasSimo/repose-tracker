@@ -15,7 +15,9 @@
 
 /* ───── Chrome swap: hide topbar, shift body, show sidebar ───── */
 .ui-v4 .topbar { display: none !important; }
-.ui-v4 body    { padding-left: 240px; }
+.ui-v4 body    { padding-left: 240px !important; }
+/* Belt-and-braces in case the body padding is overridden by host styles */
+.ui-v4 .view   { box-sizing: border-box; }
 
 .ui-v4 .ui-v4-side {
   position: fixed; left: 0; top: 0; bottom: 0; width: 240px;

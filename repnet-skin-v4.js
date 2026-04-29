@@ -223,16 +223,21 @@
       }
       if (key === 'Gluing' && !card.classList.contains('gluing-card')) card.classList.add('gluing-card');
     }
-    const btns = document.querySelectorAll('.team-sidebar .team-btn, .team-sidebar .team-item');
+    // Tracker team-sidebar entries — real markup has emoji INSIDE .team-name text
+    const btns = document.querySelectorAll('.team-sidebar .team-btn, #teamList .team-btn');
     for (const btn of btns) {
-      const nameEl = btn.querySelector('.team-name, .tname');
+      if (btn.querySelector('.team-svg-icon')) continue; // already done
+      const nameEl = btn.querySelector('.team-name');
       if (!nameEl) continue;
       const key = findKey(nameEl.textContent);
       if (!key) continue;
-      const iconBox = btn.querySelector('.team-icon, .ticon');
-      if (iconBox && !iconBox.querySelector('.team-svg-icon')) {
-        iconBox.innerHTML = `<svg class="team-svg-icon" viewBox="0 0 24 24" width="22" height="22"><use href="#${TEAM_TO_SPRITE[key]}"/></svg>`;
-      }
+      // Strip leading emoji + space, prepend SVG, keep the team name
+      const cleaned = nameEl.textContent.replace(/^\s*\S+\s+/, '').trim();
+      nameEl.innerHTML =
+        `<span class="team-svg-icon" style="display:inline-flex;vertical-align:-4px;margin-right:6px;color:inherit;">` +
+        `<svg viewBox="0 0 24 24" width="18" height="18"><use href="#${TEAM_TO_SPRITE[key]}"/></svg>` +
+        `</span>` +
+        cleaned;
       if (key === 'Gluing' && !btn.classList.contains('gluing-team')) btn.classList.add('gluing-team');
     }
   }

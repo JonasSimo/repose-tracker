@@ -4,7 +4,7 @@
 // the next reload picks up any deploy. Graph / MSAL / SharePoint are never cached.
 //
 // Bump CACHE_VERSION when shipping a breaking shell change to force a refresh.
-const CACHE_VERSION = 'repnet-shell-v25';
+const CACHE_VERSION = 'repnet-shell-v26';
 const SHELL_ASSETS = [
   '/',
   '/index.html',
@@ -13,6 +13,8 @@ const SHELL_ASSETS = [
   '/msal-browser.min.js',
   '/chart.umd.min.js',
   '/repnet-logo-white.png',
+  '/repnet-skin-v4.css',
+  '/repnet-skin-v4.js',
 ];
 
 self.addEventListener('message', (e) => {
