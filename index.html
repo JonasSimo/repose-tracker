@@ -11140,6 +11140,10 @@ const cparFormState = {
   rep:'', jobNo:0, model:'', week:'',
   source:'', category:'', causeCode:'', desc:'', qty:1,
   extraJobs:[], photoFile:null, photoDataUrl:null,
+  // Snapshot of the raising team taken at form-open. Used by submitCPAR
+  // and the post-submit sticker so a mid-flight team-sidebar switch can't
+  // mis-tag the NCR (raising as 'QC' but persisted as 'Sewing' etc.).
+  raisingTeam:'', raisingHasSubs:false, raisingSub:'',
 };
 
 // ── Open/close modal ─────────────────────────────────────
@@ -11201,6 +11205,7 @@ function openCPARForm(wc, prep, ji) {
     rep:job.rep, jobNo:job.itemNo, model:(job.spec?.model||'').trim(),
     week:wc, source:prefillSource, category:'', causeCode:'', desc:'', qty:1,
     extraJobs:[], photoFile:null, photoDataUrl:null,
+    raisingTeam:activeTeam, raisingHasSubs:activeHasSubs, raisingSub:activeSub,
   });
 
   document.getElementById('cpar-modal-sub').textContent =
@@ -11558,11 +11563,19 @@ async function submitCPAR() {
     const now = new Date();
     const loggedAt = now.toISOString();
 
+    // Use the snapshot taken at form-open so a mid-flight team-sidebar
+    // switch can't mis-tag the NCR. Fall back to current activeTeam for
+    // older callers that didn't populate the snapshot.
+    const raisingTeam    = s.raisingTeam    || activeTeam;
+    const raisingHasSubs = s.raisingHasSubs ?? activeHasSubs;
+    const raisingSub     = s.raisingSub     || activeSub;
+    const raisedByTeamStr = raisingHasSubs ? raisingTeam + ' ' + raisingSub : raisingTeam;
+
     const created = await graphPost(
       `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`,
       { fields: {
         Title:         ref,
-        RaisedByTeam:  activeHasSubs ? activeTeam + ' ' + activeSub : activeTeam,
+        RaisedByTeam:  raisedByTeamStr,
         PrimaryREP:    s.rep,
         PrimaryJobNo:  String(s.jobNo||''),
         PrimaryModel:  s.model,
@@ -11590,13 +11603,14 @@ async function submitCPAR() {
     closeCPARModal();
 
     // QC inspection mode → open the sticker modal so the inspector can
-    // hand-copy the new NCR ref onto the physical red sticker.
-    if (activeTeam === 'QC') {
+    // hand-copy the new NCR ref onto the physical red sticker. Use the
+    // snapshot so a mid-flight team switch can't suppress the modal.
+    if (raisingTeam === 'QC') {
       openQCStickerModal(ref, s.rep, s.jobNo, s.model, s.desc.trim());
     }
 
     CPAR_ITEMS.unshift({ id:created.id, fields:{
-      Title:ref, RaisedByTeam:activeHasSubs ? activeTeam + ' ' + activeSub : activeTeam, PrimaryREP:s.rep, PrimaryJobNo:s.jobNo,
+      Title:ref, RaisedByTeam:raisedByTeamStr, PrimaryREP:s.rep, PrimaryJobNo:s.jobNo,
       PrimaryModel:s.model, PrimaryWeek:s.week, PrimaryPrep:s.prep === 'express' ? 'express' : String(parseInt(s.prep)||0), AffectedJobs:JSON.stringify(s.extraJobs),
       TotalAffected:String(1+s.extraJobs.length), QTY:String(s.qty||1), SourceDept:sourceLabel,
       IssueCategory:s.category||'', CauseCode:s.causeCode||'', Description:s.desc.trim(), Status:'Open',
