@@ -4,20 +4,30 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
 <title>Repose Production Tracker</title>
-<link rel="manifest" id="manifest-link" href="/manifest.json">
 <script>
+// Inject the <link rel="manifest"> dynamically so Safari (WebKit) can't
+// early-fetch a default manifest before our team-swap logic runs. With a
+// static <link>, iOS Safari grabs /manifest.json the moment it parses the
+// tag — even if a later inline script swaps the href. Creating the link
+// element in JS guarantees the URL we write is the one Safari fetches,
+// which makes "Add to Home Screen" pick up the correct start_url.
 (function(){
   var tp = new URLSearchParams(location.search).get('team')
         || sessionStorage.getItem('tabletTeam');
   var ts = new URLSearchParams(location.search).get('sub')
         || sessionStorage.getItem('tabletSub') || '';
   if (ts) sessionStorage.setItem('tabletSub', ts);
+  var href = '/manifest.json';
   if (tp) {
-    var manifestName = 'manifest-' + tp.toLowerCase() + (ts ? '-' + ts.toLowerCase() : '') + '.json';
-    document.getElementById('manifest-link').href = '/' + manifestName;
-    document.documentElement.classList.add('tablet-team');
+    href = '/manifest-' + tp.toLowerCase() + (ts ? '-' + ts.toLowerCase() : '') + '.json';
     sessionStorage.setItem('tabletTeam', tp);
+    document.documentElement.classList.add('tablet-team');
   }
+  var l = document.createElement('link');
+  l.rel  = 'manifest';
+  l.id   = 'manifest-link';
+  l.href = href;
+  document.head.appendChild(l);
   var tv = new URLSearchParams(location.search).get('tab')
         || sessionStorage.getItem('tabletTab');
   if (tv) {
