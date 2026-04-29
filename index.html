@@ -1333,6 +1333,16 @@ body.tablet-mode .uh-token-icon { font-size:14px; }
 }
 .cpar-btn:hover { border-color: var(--amber); background: #fef3c7; }
 
+/* ── QC inspection mode banner above job list ── */
+.qc-mode-banner {
+  margin: 0 0 10px 0; padding: 10px 14px;
+  background: linear-gradient(90deg, #ecfeff 0%, #cffafe 100%);
+  border: 1px solid #67e8f9; border-left: 4px solid var(--teal, #0e7490);
+  border-radius: 8px; color: #155e75; font-size: 12px; font-weight: 600;
+  display: flex; align-items: center; gap: 8px;
+}
+.qc-mode-banner-icon { font-size: 16px; }
+
 /* ═══ ISSUES VIEW ═══ */
 .issues-wrap { display:flex; flex-direction:column; height:100%; overflow:hidden; }
 .issues-header { background:var(--bg2); border-bottom:1px solid var(--border); padding:10px 14px; display:flex; flex-direction:column; gap:8px; flex-shrink:0; }
@@ -3948,9 +3958,12 @@ function renderPriorityJobsList() {
   statsEl.style.display = 'none';
 
   const jobs = getPriorityJobs(activeTeam, activeSub);
+  const qcBanner = isQCMode()
+    ? `<div class="qc-mode-banner"><span class="qc-mode-banner-icon">🔍</span>QC inspection mode — read-only. Tap ⚠ NCR on any job to raise an Internal Non-Conformance.</div>`
+    : '';
 
   if (!jobs.length) {
-    area.innerHTML = `<div class="pj-clear">
+    area.innerHTML = qcBanner + `<div class="pj-clear">
       <div class="pj-clear-icon">🎉</div>
       <div class="pj-clear-title">All clear!</div>
       <div class="pj-clear-sub">${activeTeam}${subLabel} has no outstanding jobs<br>in Yesterday, Today or Tomorrow's load plan.</div>
@@ -4031,7 +4044,7 @@ function renderPriorityJobsList() {
     html += `</div>`;
   });
 
-  area.innerHTML = html;
+  area.innerHTML = qcBanner + html;
   renderUndo();
 }
 
@@ -4206,8 +4219,11 @@ function renderJobs() {
   document.getElementById('stat-bar').style.width   = pct+'%';
 
   const area = document.getElementById('jobListArea');
+  const qcBanner = isQCMode()
+    ? `<div class="qc-mode-banner"><span class="qc-mode-banner-icon">🔍</span>QC inspection mode — read-only. Tap ⚠ NCR on any job to raise an Internal Non-Conformance.</div>`
+    : '';
   if (!total) {
-    area.innerHTML = `<div class="no-jobs"><div style="font-size:28px">🎉</div><p>No jobs for this prep day</p></div>`;
+    area.innerHTML = `${qcBanner}<div class="no-jobs"><div style="font-size:28px">🎉</div><p>No jobs for this prep day</p></div>`;
     renderUndo(); return;
   }
 
@@ -4270,7 +4286,7 @@ function renderJobs() {
       </div>`;
   });
 
-  area.innerHTML = html;
+  area.innerHTML = qcBanner + html;
   renderQCSyncBar();
   renderUndo();
 }
