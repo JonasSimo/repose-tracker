@@ -273,10 +273,12 @@ function workingHoursBetween(s, e) {
 function getCPARStatus(item) {
   const f = item.fields || {};
   const s = f.Status;
-  // New explicit statuses (treat as closed for daily report purposes)
-  if (s === 'Closed' || s === 'Archived' || s === 'Awaiting Effectiveness Check') return 'closed';
+  // Closed = no further action expected
+  if (s === 'Closed' || s === 'Archived') return 'closed';
+  // Awaiting Effectiveness Check = pending QHSE action (treated as 'effchk' to match front-end)
+  if (s === 'Awaiting Effectiveness Check') return 'effchk';
   // In-flight (still considered "open" for daily report)
-  if (s === 'Pending QHSE Review' || s === 'Investigation' || s === 'Awaiting Final Sign-Off' || s === 'Returned to Area Manager') {
+  if (s === 'Pending QHSE Review' || s === 'Investigation' || s === 'Awaiting Final Sign-Off' || s === 'Returned to Area Manager' || s === 'Awaiting Effectiveness Check') {
     // Use working-hours age for amber/red bucketing
     const dt = parseLoggedAt(f.LoggedAt);
     if (!dt || !dt.getTime()) return 'open';
