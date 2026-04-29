@@ -1733,6 +1733,8 @@ body.tablet-mode .uh-token-icon { font-size:14px; }
 .ls-item-rep.qc-done { background:#bbf7d0 !important; }
 .ls-item-rep.asm-done { background:repeating-linear-gradient(45deg,#fff7ed,#fff7ed 4px,#fed7aa 4px,#fed7aa 8px) !important; }
 .ls-item-rep.asm-done .ls-rep-num { color:#9a3412; }
+.ls-item-rep.qc-ncr-open { background:repeating-linear-gradient(45deg,#fff5f5,#fff5f5 4px,#fecaca 4px,#fecaca 8px) !important; }
+.ls-item-rep.qc-ncr-open .ls-rep-num { color:#991b1b; font-weight:700; }
 .ls-item-rep.exp-job { border-left:3px solid #e97132; padding-left:2px; }
 .ls-item-rep.exp-job .ls-rep-num { color:#b84d00; }
 .ls-item-rep.mft-job { border-left:3px solid #ff33cc; padding-left:2px; }
@@ -10408,6 +10410,10 @@ function renderLoadSheet() {
   for (let i = 1; i <= 3; i++) targetKeys.add(localDateKey(addWorkdays(today, i)));
   const cols = LS_RAW.filter(c => targetKeys.has(localDateKey(c.date)));
 
+  // Build the set of rep7 numbers with at least one open QC-raised NCR
+  // once per render — used to colour the Delivery stripe red.
+  const qcReturnSet = buildQCNcrRep7Set();
+
   wrap.innerHTML = cols.map(col => {
     const label    = lsDayLabel(col.date);
     const cls      = lsDayCls(col.date);
@@ -10433,7 +10439,11 @@ function renderLoadSheet() {
         const expType    = EXPRESS_TYPE_MAP.get(item.rep7);
         const expCls     = expType === 'MFT' ? ' mft-job' : expType === 'EXP' ? ' exp-job' : '';
         const isAsmDone  = !isDone && isAssemblyFullyDoneForRep(item.rep7);
-        const cls        = `ls-item-rep${expCls}${isDone?' qc-done':isAsmDone?' asm-done':''}${isChanged?' ls-changed':''}`;
+        // Stripe priority (highest wins): qc-done (green) > qc-ncr-open
+        // (red, NCR sitting with area manager) > asm-done (orange).
+        const isQcReturn = !isDone && qcReturnSet.has(item.rep7);
+        const stripeCls  = isDone ? ' qc-done' : isQcReturn ? ' qc-ncr-open' : isAsmDone ? ' asm-done' : '';
+        const cls        = `ls-item-rep${expCls}${stripeCls}${isChanged?' ls-changed':''}`;
         return `<div class="${cls}"${isChanged?` style="${delayStyle}"`:''}>
           <div class="ls-rep-num">${item.rep7}${mechTag}${servTag}</div>
           ${extra ? `<div class="ls-rep-desc">${escHtml(extra)}</div>` : ''}
