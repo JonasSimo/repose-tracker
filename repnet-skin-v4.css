@@ -15,18 +15,31 @@
 
 /* ───── Chrome swap: hide topbar, shift body, show sidebar ───── */
 .ui-v4 .topbar { display: none !important; }
-.ui-v4 body    { padding-left: 240px !important; }
-/* Belt-and-braces in case the body padding is overridden by host styles */
-.ui-v4 .view   { box-sizing: border-box; }
+
+/* Switch body from flex-column to flex-row so the sidebar sits as the first
+   row child and the active view fills the remaining width naturally. */
+.ui-v4 body {
+  flex-direction: row !important;
+  padding: 0 !important;
+}
 
 .ui-v4 .ui-v4-side {
-  position: fixed; left: 0; top: 0; bottom: 0; width: 240px;
+  /* Now a normal flex child instead of position:fixed — guarantees the rest
+     of the content actually shifts right of it. */
+  position: static !important;
+  flex: 0 0 240px !important;
+  width: 240px !important;
+  height: 100vh !important;
   background: var(--repose-navy); color: #fff;
   padding: 22px 14px;
   display: flex; flex-direction: column; gap: 4px;
   overflow-y: auto;
   z-index: 100;
+  order: -1; /* always first */
 }
+
+/* Active view fills remaining width */
+.ui-v4 .view.active { flex: 1 1 auto !important; min-width: 0 !important; }
 .ui-v4 .ui-v4-side::after {
   content: ""; position: absolute; inset: 0; pointer-events: none;
   background: radial-gradient(400px 200px at 0% 0%, rgba(20,161,233,0.16), transparent 60%);

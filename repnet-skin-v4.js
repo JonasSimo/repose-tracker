@@ -14,23 +14,63 @@
 
   document.documentElement.classList.add('ui-v4');
 
+  // Constants must be declared BEFORE ready(init) — `defer` fires init
+  // synchronously, so a const declared further down would be in the TDZ.
+  const NAV = [
+    { h: 'Production' },
+    { v: 'team-select',  g: '▤',     l: 'Team View' },
+    { v: 'overview',     g: '⊞',     l: 'Load Plan' },
+    { v: 'loadsheet',    g: '↗',     l: 'Delivery' },
+    { v: 'production',   g: '▣',     l: 'Production Plan' },
+    { h: 'Quality / QHSE' },
+    { v: 'stats',        g: 'STATS', l: 'Stats' },
+    { v: 'issues',       g: '⚑',     l: 'Internal NCRs' },
+    { v: 'quality',      g: '✓',     l: 'Quality' },
+    { v: 'safety',       g: '⚠',     l: 'Near Misses' },
+    { v: 'complaints',   g: '✉',     l: 'Complaints' },
+    { h: 'Operations' },
+    { v: 'maintenance',  g: '⚒',     l: 'Maintenance' },
+    { v: 'timing',       g: '⏱',     l: 'Job Timing' },
+    { v: 'innovation',   g: '✦',     l: 'Innovation' },
+  ];
+
+  const TEAM_TO_SPRITE = {
+    'Woodmill': 'v4-team-woodmill',
+    'Foam': 'v4-team-foam',
+    'Cutting': 'v4-team-cutting',
+    'Sewing': 'v4-team-sewing',
+    'Upholstery': 'v4-team-upholstery',
+    'Assembly': 'v4-team-assembly',
+    'QC': 'v4-team-qc',
+    'Gluing': 'v4-team-gluing',
+  };
+
   function ready(fn) {
     if (document.readyState !== 'loading') fn();
     else document.addEventListener('DOMContentLoaded', fn, { once: true });
   }
-  ready(init);
 
   function init() {
-    injectSprite();
-    injectSidebar();
-    wireNav();
-    patchNavTo();
-    applyAll();
-    setInterval(applyAll, 2500);
-    document.addEventListener('fullscreenchange', () => {
-      if (!document.fullscreenElement) document.documentElement.classList.remove('tv-mode');
-    });
+    try {
+      injectSprite();
+      injectSidebar();
+      wireNav();
+      patchNavTo();
+      applyAll();
+      setInterval(applyAll, 2500);
+      document.addEventListener('fullscreenchange', () => {
+        if (!document.fullscreenElement) document.documentElement.classList.remove('tv-mode');
+      });
+      console.log('[skin-v4] activated. body padding-left:',
+        getComputedStyle(document.body).paddingLeft,
+        '· flex-direction:',
+        getComputedStyle(document.body).flexDirection);
+    } catch (e) {
+      console.error('[skin-v4] init failed:', e);
+    }
   }
+
+  ready(init);
 
   function applyAll() {
     try { applyTeamLogos(); } catch (e) { console.warn('[skin-v4] applyTeamLogos:', e); }
@@ -102,24 +142,6 @@
   }
 
   // ── 2. Sidebar markup ─────────────────────────────────────────
-  const NAV = [
-    { h: 'Production' },
-    { v: 'team-select',  g: '▤',     l: 'Team View' },
-    { v: 'overview',     g: '⊞',     l: 'Load Plan' },
-    { v: 'loadsheet',    g: '↗',     l: 'Delivery' },
-    { v: 'production',   g: '▣',     l: 'Production Plan' },
-    { h: 'Quality / QHSE' },
-    { v: 'stats',        g: 'STATS', l: 'Stats' },
-    { v: 'issues',       g: '⚑',     l: 'Internal NCRs' },
-    { v: 'quality',      g: '✓',     l: 'Quality' },
-    { v: 'safety',       g: '⚠',     l: 'Near Misses' },
-    { v: 'complaints',   g: '✉',     l: 'Complaints' },
-    { h: 'Operations' },
-    { v: 'maintenance',  g: '⚒',     l: 'Maintenance' },
-    { v: 'timing',       g: '⏱',     l: 'Job Timing' },
-    { v: 'innovation',   g: '✦',     l: 'Innovation' },
-  ];
-
   function injectSidebar() {
     if (document.getElementById('ui-v4-side')) return;
     const navHtml = NAV.map(item => {
@@ -192,16 +214,6 @@
   }
 
   // ── 4. Team logos ─────────────────────────────────────────────
-  const TEAM_TO_SPRITE = {
-    'Woodmill': 'v4-team-woodmill',
-    'Foam': 'v4-team-foam',
-    'Cutting': 'v4-team-cutting',
-    'Sewing': 'v4-team-sewing',
-    'Upholstery': 'v4-team-upholstery',
-    'Assembly': 'v4-team-assembly',
-    'QC': 'v4-team-qc',
-    'Gluing': 'v4-team-gluing',
-  };
   function findKey(text) {
     if (!text) return null;
     const t = text.replace(/\s+/g, ' ').trim();
