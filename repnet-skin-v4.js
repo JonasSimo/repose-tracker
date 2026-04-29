@@ -18,6 +18,7 @@
   // synchronously, so a const declared further down would be in the TDZ.
   const NAV = [
     { h: 'Production' },
+    { v: 'home',         g: '⌂',     l: 'Home' },
     { v: 'team-select',  g: '▤',     l: 'Team View' },
     { v: 'overview',     g: '⊞',     l: 'Load Plan' },
     { v: 'loadsheet',    g: '↗',     l: 'Delivery' },
@@ -42,6 +43,7 @@
     'Assembly': 'v4-team-assembly',
     'QC': 'v4-team-qc',
     'Gluing': 'v4-team-gluing',
+    'Development': 'v4-team-development',
   };
 
   function ready(fn) {
@@ -52,17 +54,17 @@
   function init() {
     try {
       injectSprite();
+      injectHomeView();
       injectSidebar();
       wireNav();
       patchNavTo();
+      goHome();
       applyAll();
       setInterval(applyAll, 2500);
       document.addEventListener('fullscreenchange', () => {
         if (!document.fullscreenElement) document.documentElement.classList.remove('tv-mode');
       });
-      console.log('[skin-v4] activated. body padding-left:',
-        getComputedStyle(document.body).paddingLeft,
-        '· flex-direction:',
+      console.log('[skin-v4] activated. body flex-direction:',
         getComputedStyle(document.body).flexDirection);
     } catch (e) {
       console.error('[skin-v4] init failed:', e);
@@ -130,6 +132,17 @@
       <circle cx="22" cy="6.5" r="0.5" fill="currentColor" opacity="0.4"/>
       <circle cx="22" cy="10.5" r="0.5" fill="currentColor" opacity="0.4"/>
     </symbol>
+    <!-- Development — flask -->
+    <symbol id="v4-team-development" viewBox="0 0 24 24">
+      <g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round">
+        <path d="M9 3 L15 3"/>
+        <path d="M10 3 L10 9 L4.5 18 Q3.5 21 6.5 21 L17.5 21 Q20.5 21 19.5 18 L14 9 L14 3"/>
+      </g>
+      <path d="M7.5 15 L16.5 15" stroke="currentColor" stroke-width="1.2" opacity="0.45"/>
+      <circle cx="10" cy="18" r="0.9" fill="currentColor" opacity="0.55"/>
+      <circle cx="13.5" cy="19" r="0.7" fill="currentColor" opacity="0.45"/>
+      <circle cx="11.5" cy="17" r="0.5" fill="currentColor" opacity="0.4"/>
+    </symbol>
     <symbol id="v4-stats-icon" viewBox="0 0 16 16">
       <rect x="2" y="9" width="2.5" height="5" rx="0.4" fill="currentColor"/>
       <rect x="6.75" y="6" width="2.5" height="8" rx="0.4" fill="currentColor"/>
@@ -138,6 +151,99 @@
   </defs>
 </svg>`;
     document.body.insertAdjacentHTML('afterbegin', sprite);
+  }
+
+  // ── 1b. Home view (only exists with ?ui=v4) ───────────────────
+  function injectHomeView() {
+    if (document.getElementById('view-home')) return;
+    const html = `
+<div class="view" id="view-home">
+  <div class="v4-home">
+    <div class="v4-home-eyebrow">
+      <span>Repose</span>
+      <i></i>
+      <span>powered by</span>
+      <img src="./repnet-logo-white.png" alt="RepNet" class="v4-home-mark" onerror="this.style.display='none'">
+    </div>
+
+    <h1 class="v4-home-title">
+      The factory, <em>in real time.</em>
+    </h1>
+    <p class="v4-home-sub">
+      Every team. Every job. From cut to delivery — all on one screen.
+    </p>
+
+    <div class="v4-home-grid">
+      <button type="button" class="v4-home-card" data-jump="team-select">
+        <span class="v4-home-card-ico">▤</span>
+        <span class="v4-home-card-title">Team View</span>
+        <span class="v4-home-card-desc">Pick your team and tick off jobs as you go.</span>
+        <span class="v4-home-card-cta">Open →</span>
+      </button>
+
+      <button type="button" class="v4-home-card" data-jump="overview">
+        <span class="v4-home-card-ico">⊞</span>
+        <span class="v4-home-card-title">Load Plan</span>
+        <span class="v4-home-card-desc">REP-by-REP completion grid across every department.</span>
+        <span class="v4-home-card-cta">Open →</span>
+      </button>
+
+      <button type="button" class="v4-home-card" data-jump="loadsheet">
+        <span class="v4-home-card-ico">↗</span>
+        <span class="v4-home-card-title">Delivery</span>
+        <span class="v4-home-card-desc">Weekly load sheet. Vans, customers, ready-to-ship.</span>
+        <span class="v4-home-card-cta">Open →</span>
+      </button>
+
+      <button type="button" class="v4-home-card" data-jump="stats">
+        <span class="v4-home-card-ico">
+          <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
+            <use href="#v4-stats-icon"/>
+          </svg>
+        </span>
+        <span class="v4-home-card-title">Stats</span>
+        <span class="v4-home-card-desc">Production numbers, QC, scrap and trends.</span>
+        <span class="v4-home-card-cta">Open →</span>
+      </button>
+    </div>
+
+    <div class="v4-home-foot">
+      <span class="v4-home-tag">RepNet · QHSE production tracker</span>
+      <span class="v4-home-tag">Repose Furniture · 2026</span>
+    </div>
+  </div>
+</div>`;
+    // Insert as a sibling of the existing views (after the topbar)
+    const topbar = document.querySelector('.topbar');
+    if (topbar && topbar.parentElement) {
+      topbar.insertAdjacentHTML('afterend', html);
+    } else {
+      document.body.insertAdjacentHTML('afterbegin', html);
+    }
+
+    // Card click → route to the underlying view via existing navTo
+    document.querySelectorAll('.v4-home-card[data-jump]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const target = btn.dataset.jump;
+        if (typeof window.navTo === 'function') window.navTo(target);
+        else showHostView(target);
+        syncActive(target);
+      });
+    });
+  }
+
+  // Show a host view by id ('team-select', 'overview', etc.) without navTo
+  function showHostView(viewId) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    const target = document.getElementById('view-' + viewId);
+    if (target) target.classList.add('active');
+  }
+
+  // Show our home view, hiding all host views
+  function goHome() {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    const home = document.getElementById('view-home');
+    if (home) home.classList.add('active');
   }
 
   // ── 2. Sidebar markup ─────────────────────────────────────────
@@ -210,12 +316,16 @@
     for (const a of links) {
       a.addEventListener('click', e => {
         e.preventDefault();
-        if (typeof window.navTo === 'function') window.navTo(a.dataset.view);
-        syncActive(a.dataset.view);
+        const view = a.dataset.view;
+        if (view === 'home') {
+          goHome();
+        } else if (typeof window.navTo === 'function') {
+          window.navTo(view);
+        }
+        syncActive(view);
       });
     }
-    const initial = document.querySelector('.nav-item.active')?.dataset.view || 'team-select';
-    syncActive(initial);
+    syncActive('home');
   }
   function patchNavTo() {
     if (typeof window.navTo !== 'function' || window.__v4NavToPatched) return;
@@ -266,6 +376,21 @@
         `</span>` +
         cleaned;
       if (key === 'Gluing' && !btn.classList.contains('gluing-team')) btn.classList.add('gluing-team');
+    }
+
+    // Maintenance team tiles (.mt-tile .mt-icon)
+    const mtTiles = document.querySelectorAll('.mt-tile');
+    for (const tile of mtTiles) {
+      const nameEl = tile.querySelector('.mt-team');
+      if (!nameEl) continue;
+      const key = findKey(nameEl.textContent);
+      if (!key) continue;
+      const iconBox = tile.querySelector('.mt-icon');
+      if (iconBox && !iconBox.querySelector('.team-svg-icon')) {
+        iconBox.innerHTML =
+          `<svg class="team-svg-icon" viewBox="0 0 24 24" width="32" height="32" style="color:var(--repose-navy);">` +
+          `<use href="#${TEAM_TO_SPRITE[key]}"/></svg>`;
+      }
     }
   }
 
