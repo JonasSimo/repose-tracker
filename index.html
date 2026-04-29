@@ -4010,7 +4010,7 @@ function renderPriorityJobsList() {
             </div>
             ${activeTeam === 'Assembly' ? (() => { const _s = MECH_SERIALS.get(`${job.rep}__${wc}__${prep}`); return `<button class="serial-card-btn${_s?' saved':''}" onclick="event.stopPropagation();openMechSerialModal('${wc}','${prep}',${ji},'${escHtml(job.rep)}')">${_s ? `✓<br><span style="font-size:9px;letter-spacing:.02em">${escHtml(_s)}</span>` : '⊞<br>Serial'}</button>`; })() : ''}
             ${activeTeam === 'Assembly' ? uhReadyTokens(wc, prep, ji) : ''}
-            <button class="cpar-btn" onclick="event.stopPropagation();openCPARForm('${wc}','${prep}',${ji})" title="Raise CPAR for this job">⚠<br>CPAR</button>
+            <button class="cpar-btn" onclick="event.stopPropagation();openCPARForm('${wc}','${prep}',${ji})" title="Raise Internal NCR for this job">⚠<br>NCR</button>
             ${showStart && !s.done ? `<button class="start-btn${isStarted?' active':''}" onclick="event.stopPropagation();${isStarted?`priorityUnStartJob('${wc}','${prep}',${ji})`:`priorityStartJob('${wc}','${prep}',${ji})`}" title="${isStarted?'Cancel start':'Start this job'}">
               <span class="sb-icon">${isStarted?'⏸':'▶'}</span>
               <span>${isStarted?'STARTED':'START'}</span>
@@ -4167,6 +4167,11 @@ function getTeamColor() {
   return TEAMS_CFG.find(t=>t.name===activeTeam)?.color || '#14a1e9';
 }
 
+// QC inspection mode flag. In QC mode the Team View hides completion
+// buttons (tick/start/glu/serial) and exposes only the Raise NCR button.
+// QC inspects + raises NCRs; closeout happens in the Quality view.
+function isQCMode() { return activeTeam === 'QC'; }
+
 function renderJobs() {
   if (searchQuery) { renderSearchResults(); return; }
   if (activeWC === 'PRIORITY') { renderPriorityJobsList(); return; }
@@ -4244,7 +4249,7 @@ function renderJobs() {
         </div>
         ${activeTeam === 'Assembly' ? (() => { const _s = MECH_SERIALS.get(`${job.rep}__${activeWC}__${activePrep}`); return `<button class="serial-card-btn${_s?' saved':''}" onclick="event.stopPropagation();openMechSerialModal('${activeWC}','${activePrep}',${ji},'${escHtml(job.rep)}')">${_s ? `✓<br><span style="font-size:9px;letter-spacing:.02em">${escHtml(_s)}</span>` : '⊞<br>Serial'}</button>`; })() : ''}
         ${activeTeam === 'Assembly' ? uhReadyTokens(activeWC, activePrep, ji) : ''}
-        <button class="cpar-btn" onclick="event.stopPropagation();openCPARForm('${activeWC}','${activePrep}',${ji})" title="Raise CPAR for this job">⚠<br>CPAR</button>
+        <button class="cpar-btn" onclick="event.stopPropagation();openCPARForm('${activeWC}','${activePrep}',${ji})" title="Raise Internal NCR for this job">⚠<br>NCR</button>
         ${showStart && !s.done ? `<button class="start-btn${isStarted?' active':''}" onclick="event.stopPropagation();${isStarted?`unStartJob(${ji})`:`startJob(${ji})`}" title="${isStarted?'Cancel start':'Start this job'}">
           <span class="sb-icon">${isStarted?'⏸':'▶'}</span>
           <span>${isStarted?'STARTED':'START'}</span>
