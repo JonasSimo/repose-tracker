@@ -13285,7 +13285,9 @@ function isOpenNCR(item) {
 // banner. Pure function over `item.fields` — safe to call from renderers.
 function isOpenQCNCR(item) {
   const f = item?.fields || {};
-  if (f.RaisedByTeam !== 'QC') return false;
+  // Tolerate legacy/imported rows whose RaisedByTeam was written 'qc' or
+  // ' QC ' — normaliseTeam() collapses those onto canonical 'QC'.
+  if (normaliseTeam(f.RaisedByTeam || '') !== 'QC') return false;
   return isOpenNCR(item);
 }
 
