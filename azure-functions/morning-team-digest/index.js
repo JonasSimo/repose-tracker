@@ -153,7 +153,7 @@ function buildEmail(team, raisedYesterday, stillOpen, yest) {
   return `<!DOCTYPE html><html><body style="margin:0;padding:0;background:${light};font-family:Arial,Helvetica,sans-serif">
   <div style="max-width:680px;margin:24px auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
     <div style="background:${navy};padding:22px 28px">
-      ${LOGO_DATAURL ? `<img src="${LOGO_DATAURL}" alt="RepNet" style="height:24px;width:auto;display:block;margin-bottom:8px">` : ''}
+      ${LOGO_DATAURL ? `<img src="${LOGO_DATAURL}" alt="RepNet" style="height:24px;width:auto;display:block;margin-bottom:8px">` : `<div style="font-size:14px;font-weight:900;color:#14a1e9;letter-spacing:-.04em;margin-bottom:8px">RepNet</div>`}
       <div style="color:#fff;font-size:20px;font-weight:700">${escHtml(team)} Internal Non-Conformances</div>
       <div style="color:rgba(255,255,255,.7);font-size:13px;margin-top:4px">${escHtml(dateStr)}</div>
     </div>
