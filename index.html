@@ -11520,6 +11520,11 @@ async function submitCPAR() {
     // Update Issues tab button counter
     updateIssuesTabBadge();
 
+    // Refresh visual signals if the user is currently looking at them.
+    // (Delivery red stripe + Production red banner read from CPAR_ITEMS.)
+    if (document.getElementById('view-loadsheet')?.classList.contains('active')) renderLoadSheet();
+    if (document.getElementById('view-production')?.classList.contains('active')) renderProductionPlan();
+
   } catch(e) {
     console.error('submitCPAR:', e);
     toast('Could not save CPAR — check connection', 'u');
@@ -14704,6 +14709,8 @@ async function submitCPARCloseout(id, ev) {
     toast('Closed out — sent to QHSE Review', 's');
     renderQualitySubview();
     if (typeof updateIssuesTabBadge === 'function') updateIssuesTabBadge();
+    if (document.getElementById('view-loadsheet')?.classList.contains('active')) renderLoadSheet();
+    if (document.getElementById('view-production')?.classList.contains('active')) renderProductionPlan();
   } catch(e) {
     console.error('submitCPARCloseout', e);
     if (e.message && e.message.startsWith('404')) {
