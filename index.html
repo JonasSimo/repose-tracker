@@ -14388,6 +14388,10 @@ async function submitCPARCloseout(id, ev) {
     });
     const merged = { Title: item.fields.Title, PrimaryModel: item.fields.PrimaryModel, CauseCode: cause };
     const { isRepeat, linkedRefs } = detectRepeat(merged, CPAR_ITEMS);
+    // Sticky: once flagged repeat, stays repeat until explicitly cleared by sweep/QHSE
+    const wasRepeat = item.fields?.IsRepeat === true;
+    const finalIsRepeat = wasRepeat || isRepeat;
+    const finalLinkedRefs = (wasRepeat && !isRepeat) ? (item.fields?.RepeatLinkedRefs || '') : linkedRefs.join(';');
     const updateFields = {
       Status: CPAR_STATUS.PENDING_REVIEW,
       Disposition: disposition,
@@ -14398,8 +14402,8 @@ async function submitCPARCloseout(id, ev) {
       ClosedOutBy: me,
       ClosedOutAt: now,
       History: newHistory,
-      IsRepeat: isRepeat,
-      RepeatLinkedRefs: linkedRefs.join(';'),
+      IsRepeat: finalIsRepeat,
+      RepeatLinkedRefs: finalLinkedRefs,
     };
     if (item.fields?.Status === CPAR_STATUS.RETURNED) {
       updateFields.ReviewDecision = '';
