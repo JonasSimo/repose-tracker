@@ -4008,17 +4008,17 @@ function renderPriorityJobsList() {
                 <div class="jc-started-label">▶ In progress · ${escHtml(startedName || s.startedBy || '')}${s.startedAt?' · '+escHtml(s.startedAt):''}</div>` :
                 `<span class="jc-qty">Qty: ${job.qty||'—'}</span>`}
             </div>
-            ${activeTeam === 'Assembly' ? (() => { const _s = MECH_SERIALS.get(`${job.rep}__${wc}__${prep}`); return `<button class="serial-card-btn${_s?' saved':''}" onclick="event.stopPropagation();openMechSerialModal('${wc}','${prep}',${ji},'${escHtml(job.rep)}')">${_s ? `✓<br><span style="font-size:9px;letter-spacing:.02em">${escHtml(_s)}</span>` : '⊞<br>Serial'}</button>`; })() : ''}
-            ${activeTeam === 'Assembly' ? uhReadyTokens(wc, prep, ji) : ''}
+            ${!isQCMode() && activeTeam === 'Assembly' ? (() => { const _s = MECH_SERIALS.get(`${job.rep}__${wc}__${prep}`); return `<button class="serial-card-btn${_s?' saved':''}" onclick="event.stopPropagation();openMechSerialModal('${wc}','${prep}',${ji},'${escHtml(job.rep)}')">${_s ? `✓<br><span style="font-size:9px;letter-spacing:.02em">${escHtml(_s)}</span>` : '⊞<br>Serial'}</button>`; })() : ''}
+            ${!isQCMode() && activeTeam === 'Assembly' ? uhReadyTokens(wc, prep, ji) : ''}
             <button class="cpar-btn" onclick="event.stopPropagation();openCPARForm('${wc}','${prep}',${ji})" title="Raise Internal NCR for this job">⚠<br>NCR</button>
-            ${showStart && !s.done ? `<button class="start-btn${isStarted?' active':''}" onclick="event.stopPropagation();${isStarted?`priorityUnStartJob('${wc}','${prep}',${ji})`:`priorityStartJob('${wc}','${prep}',${ji})`}" title="${isStarted?'Cancel start':'Start this job'}">
+            ${!isQCMode() && showStart && !s.done ? `<button class="start-btn${isStarted?' active':''}" onclick="event.stopPropagation();${isStarted?`priorityUnStartJob('${wc}','${prep}',${ji})`:`priorityStartJob('${wc}','${prep}',${ji})`}" title="${isStarted?'Cancel start':'Start this job'}">
               <span class="sb-icon">${isStarted?'⏸':'▶'}</span>
               <span>${isStarted?'STARTED':'START'}</span>
             </button>` : ''}
-            <button class="tick-btn ${s.done?'ticked':''}" onclick="priorityTickJob('${wc}','${prep}',${ji})">
+            ${!isQCMode() ? `<button class="tick-btn ${s.done?'ticked':''}" onclick="priorityTickJob('${wc}','${prep}',${ji})">
               <span class="tb-icon">${s.done?'✓':'○'}</span>
               <span class="tb-label">${s.done?'DONE':'MARK'}</span>
-            </button>
+            </button>` : ''}
           </div>`;
       } else {
         // Fallback: rep not yet loaded into PROD — show simple row
