@@ -3795,11 +3795,19 @@ function showView(name) {
   if (lbl) lbl.textContent = NAV_LABELS[name] || name;
   document.getElementById('view-' + name).classList.add('active');
   if (name === 'overview')    { if (!ovActiveTab) ovActiveTab = 'live'; buildOvSlots(ovActiveTab==='wk1'?5:ovActiveTab==='wk2'?10:0); applyStateToOvBadges(); renderOverviewTabs(); renderOverview(); populateCustomerDropdown(); }
-  if (name === 'loadsheet')   { renderLoadSheet(); ensureDeliveryStateLoaded(); }
+  if (name === 'loadsheet')   {
+    renderLoadSheet();
+    ensureDeliveryStateLoaded();
+    // Lazy-load CPAR list on first Delivery visit so the red NCR stripe lights up
+    // without forcing the user to swing past Quality/Issues first.
+    if (!cparListLoaded) fetchCPARs().then(() => renderLoadSheet()).catch(e => console.warn('cpars:', e.message));
+  }
   if (name === 'production')  {
     renderProductionPlan();
     if (ppAutoSyncInterval) clearInterval(ppAutoSyncInterval);
     ppAutoSyncInterval = setInterval(() => loadProductionFromSharePoint(), 60000);
+    // Same lazy-load for the Production red NCR banners.
+    if (!cparListLoaded) fetchCPARs().then(() => renderProductionPlan()).catch(e => console.warn('cpars:', e.message));
   } else {
     if (ppAutoSyncInterval) { clearInterval(ppAutoSyncInterval); ppAutoSyncInterval = null; }
   }
