@@ -993,6 +993,343 @@
   letter-spacing: -0.02em !important;
   color: var(--repose-navy) !important;
 }
+.ui-v4 .stats-detail-period {
+  font-family: "JetBrains Mono", monospace !important;
+  font-size: 11px !important;
+  letter-spacing: 0.14em !important;
+  text-transform: uppercase !important;
+  color: var(--repose-blue) !important;
+  background: var(--bbg) !important;
+  border: 1px solid var(--bborder) !important;
+  padding: 4px 12px !important;
+  border-radius: 999px !important;
+  margin-left: auto !important;
+}
+
+/* ───── Team tokens (per-team chips inside Stats) ───── */
+.ui-v4 .team-token {
+  background: var(--bg2) !important;
+  border: 1.5px solid var(--border) !important;
+  border-radius: 12px !important;
+  padding: 14px 14px 12px !important;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease !important;
+}
+.ui-v4 .team-token:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 14px 28px -16px rgba(14,2,58,0.25) !important;
+}
+.ui-v4 .team-token::before {
+  height: 3px !important;
+  border-radius: 12px 12px 0 0 !important;
+}
+
+/* ───── Chart panels ───── */
+.ui-v4 .chart-panel {
+  background: var(--bg2) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 16px !important;
+  padding: 22px 24px !important;
+  margin-bottom: 16px !important;
+  box-shadow: 0 1px 0 var(--border), 0 14px 36px -22px rgba(14,2,58,0.18) !important;
+}
+.ui-v4 .chart-panel-title {
+  font-family: "Bricolage Grotesque", "Manrope", system-ui, sans-serif !important;
+  font-weight: 700 !important;
+  font-size: 16px !important;
+  letter-spacing: -0.01em !important;
+  color: var(--repose-navy) !important;
+  margin-bottom: 16px !important;
+  padding-bottom: 10px !important;
+  border-bottom: 1px dashed var(--border) !important;
+}
+
+/* ───── Detail card wrapper ───── */
+.ui-v4 .detail-card {
+  background: var(--bg2) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 16px !important;
+  overflow: hidden !important;
+  margin-bottom: 16px !important;
+  box-shadow: 0 1px 0 var(--border), 0 8px 24px -16px rgba(14,2,58,0.12) !important;
+}
+.ui-v4 .detail-section-head {
+  padding: 12px 18px !important;
+  background: var(--bg3) !important;
+  border-bottom: 1px solid var(--border) !important;
+  font-family: "JetBrains Mono", monospace !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.18em !important;
+  text-transform: uppercase !important;
+  color: var(--text2) !important;
+}
+
+/* ───── Completion / team rows ───── */
+.ui-v4 .comp-row {
+  padding: 14px 18px !important;
+  gap: 14px !important;
+  border-bottom: 1px solid var(--border) !important;
+  transition: background 0.12s ease;
+}
+.ui-v4 .comp-row:hover:not(.no-exp) { background: var(--bg3) !important; }
+.ui-v4 .row-team {
+  font-family: "Bricolage Grotesque", "Manrope", system-ui, sans-serif !important;
+  font-weight: 700 !important;
+  font-size: 14px !important;
+  color: var(--repose-navy) !important;
+  letter-spacing: -0.005em !important;
+}
+.ui-v4 .row-count {
+  font-family: "JetBrains Mono", monospace !important;
+  font-weight: 700 !important;
+  font-size: 16px !important;
+  color: var(--repose-blue) !important;
+  min-width: 44px !important;
+  text-align: right !important;
+}
+.ui-v4 .row-expand {
+  color: var(--text3) !important;
+  font-family: "JetBrains Mono", monospace !important;
+}
+.ui-v4 .team-badge {
+  font-family: "JetBrains Mono", monospace !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.12em !important;
+  text-transform: uppercase !important;
+  padding: 3px 10px !important;
+  border-radius: 999px !important;
+  background: var(--bg3) !important;
+  color: var(--text2) !important;
+  border: 1px solid var(--border) !important;
+}
+
+/* Sub-rows (expanded) */
+.ui-v4 .sub-rows { background: var(--bg3) !important; }
+.ui-v4 .sub-row {
+  padding: 9px 18px 9px 40px !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+.ui-v4 .sub-name {
+  font-family: "Manrope", system-ui, sans-serif !important;
+  font-weight: 500 !important;
+  font-size: 13px !important;
+  color: var(--repose-navy) !important;
+}
+.ui-v4 .sub-initials {
+  font-family: "JetBrains Mono", monospace !important;
+  font-size: 10px !important;
+  letter-spacing: 0.04em !important;
+  color: var(--text3) !important;
+}
+.ui-v4 .sub-count {
+  font-family: "JetBrains Mono", monospace !important;
+  font-weight: 700 !important;
+  font-size: 13px !important;
+  color: var(--repose-blue) !important;
+}
+
+/* ───── Operator leaderboard rows ───── */
+.ui-v4 .person-row {
+  padding: 12px 18px !important;
+  gap: 14px !important;
+  border-bottom: 1px solid var(--border) !important;
+  transition: background 0.12s ease;
+}
+.ui-v4 .person-row:hover { background: var(--bg3) !important; }
+.ui-v4 .person-rank {
+  font-family: "Bricolage Grotesque", "Manrope", system-ui, sans-serif !important;
+  font-weight: 800 !important;
+  font-size: 14px !important;
+  width: 28px !important;
+  text-align: center !important;
+  color: var(--text3) !important;
+  letter-spacing: -0.01em !important;
+}
+.ui-v4 .person-rank.gold {
+  color: #fff !important;
+  background: linear-gradient(135deg, #fbbf24, #d97706) !important;
+  border-radius: 999px !important;
+  width: 26px !important; height: 26px !important;
+  line-height: 26px !important;
+  box-shadow: 0 4px 10px -4px rgba(217,119,6,0.5) !important;
+}
+.ui-v4 .person-rank.silver {
+  color: #fff !important;
+  background: linear-gradient(135deg, #d1d5db, #9ca3af) !important;
+  border-radius: 999px !important;
+  width: 26px !important; height: 26px !important;
+  line-height: 26px !important;
+  box-shadow: 0 4px 10px -4px rgba(156,163,175,0.5) !important;
+}
+.ui-v4 .person-rank.bronze {
+  color: #fff !important;
+  background: linear-gradient(135deg, #d97706, #92400e) !important;
+  border-radius: 999px !important;
+  width: 26px !important; height: 26px !important;
+  line-height: 26px !important;
+  box-shadow: 0 4px 10px -4px rgba(146,64,14,0.5) !important;
+}
+.ui-v4 .person-name {
+  font-family: "Bricolage Grotesque", "Manrope", system-ui, sans-serif !important;
+  font-weight: 600 !important;
+  font-size: 14px !important;
+  color: var(--repose-navy) !important;
+  letter-spacing: -0.005em !important;
+}
+.ui-v4 .person-team {
+  font-family: "JetBrains Mono", monospace !important;
+  font-size: 10px !important;
+  letter-spacing: 0.1em !important;
+  color: var(--text3) !important;
+  text-transform: uppercase !important;
+}
+.ui-v4 .person-count {
+  font-family: "JetBrains Mono", monospace !important;
+  font-weight: 700 !important;
+  font-size: 16px !important;
+  color: var(--repose-blue) !important;
+}
+
+/* ───── Filter chips (Stats detail) ───── */
+.ui-v4 .stats-chips {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 6px !important;
+  margin-bottom: 14px !important;
+  padding: 4px !important;
+  background: var(--bg3) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 12px !important;
+  width: fit-content !important;
+}
+.ui-v4 .stats-chip {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 8px !important;
+  padding: 6px 14px !important;
+  font-family: "Bricolage Grotesque", "Manrope", system-ui, sans-serif !important;
+  font-weight: 600 !important;
+  font-size: 12px !important;
+  letter-spacing: -0.005em !important;
+  color: var(--text2) !important;
+  cursor: pointer !important;
+  transition: all 0.12s ease !important;
+}
+.ui-v4 .stats-chip:hover {
+  color: var(--repose-navy) !important;
+  background: rgba(14,2,58,0.04) !important;
+  border-color: transparent !important;
+}
+.ui-v4 .stats-chip.active {
+  background: #d97706 !important;
+  color: #fff !important;
+  box-shadow: 0 2px 8px -2px rgba(217,119,6,0.5) !important;
+}
+.ui-v4 .stats-chip.all-chip.active {
+  background: var(--repose-navy) !important;
+  box-shadow: 0 2px 8px -2px rgba(14,2,58,0.5) !important;
+}
+.ui-v4 .changes-count {
+  font-family: "JetBrains Mono", monospace !important;
+  font-size: 11px !important;
+  letter-spacing: 0.04em !important;
+  color: var(--text2) !important;
+  margin-bottom: 12px !important;
+}
+
+/* ───── Spec-change alert rows ───── */
+.ui-v4 .stats-alert-row {
+  padding: 14px 18px !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+.ui-v4 .alert-top { gap: 10px !important; margin-bottom: 8px !important; }
+.ui-v4 .alert-rep {
+  font-family: "JetBrains Mono", monospace !important;
+  font-weight: 700 !important;
+  font-size: 13px !important;
+  color: var(--repose-navy) !important;
+  background: var(--bbg) !important;
+  padding: 2px 8px !important;
+  border-radius: 4px !important;
+  border: 1px solid var(--bborder) !important;
+}
+.ui-v4 .alert-field {
+  font-family: "JetBrains Mono", monospace !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  color: #92400e !important;
+  background: var(--abg) !important;
+  border: 1px solid var(--aborder) !important;
+  padding: 2px 8px !important;
+  border-radius: 999px !important;
+}
+.ui-v4 .alert-date {
+  font-family: "JetBrains Mono", monospace !important;
+  font-size: 10px !important;
+  letter-spacing: 0.06em !important;
+  color: var(--text3) !important;
+  margin-left: auto !important;
+}
+.ui-v4 .alert-change {
+  font-size: 13px !important;
+  line-height: 1.5 !important;
+  color: var(--text) !important;
+  margin-bottom: 10px !important;
+}
+.ui-v4 .alert-change strong {
+  color: var(--repose-navy) !important;
+  font-family: "Bricolage Grotesque", "Manrope", system-ui, sans-serif !important;
+  font-weight: 700 !important;
+}
+
+/* Alert action buttons */
+.ui-v4 .btn-dismiss,
+.ui-v4 .btn-scrap {
+  font-family: "Bricolage Grotesque", "Manrope", system-ui, sans-serif !important;
+  font-weight: 600 !important;
+  font-size: 12px !important;
+  letter-spacing: -0.005em !important;
+  padding: 8px 14px !important;
+  border-radius: 10px !important;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+.ui-v4 .btn-dismiss {
+  background: var(--abg) !important;
+  border: 1px solid var(--aborder) !important;
+  color: #92400e !important;
+}
+.ui-v4 .btn-dismiss:hover { background: #fef3c7 !important; border-color: #d97706 !important; }
+.ui-v4 .btn-scrap {
+  background: var(--bg2) !important;
+  border: 1px solid var(--rborder) !important;
+  color: var(--red) !important;
+}
+.ui-v4 .btn-scrap:hover { background: var(--rbg) !important; border-color: var(--red) !important; }
+
+.ui-v4 .actioned-badge {
+  font-family: "JetBrains Mono", monospace !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.1em !important;
+  text-transform: uppercase !important;
+  padding: 4px 10px !important;
+  border-radius: 999px !important;
+}
+
+/* ───── Scrap rows ───── */
+.ui-v4 .scrap-row {
+  padding: 14px 18px !important;
+  gap: 12px !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+.ui-v4 .scrap-row:hover { background: var(--bg3) !important; }
 
 /* ───── Mobile / tablet: hide sidebar; bring back topbar ───── */
 @media (max-width: 900px) {
