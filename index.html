@@ -12,10 +12,17 @@
 // element in JS guarantees the URL we write is the one Safari fetches,
 // which makes "Add to Home Screen" pick up the correct start_url.
 (function(){
-  var tp = new URLSearchParams(location.search).get('team')
-        || sessionStorage.getItem('tabletTeam');
-  var ts = new URLSearchParams(location.search).get('sub')
-        || sessionStorage.getItem('tabletSub') || '';
+  // Validate against the same allowlist the main script enforces — an
+  // unknown ?team=foo would otherwise produce /manifest-foo.json (404)
+  // and confuse iOS "Add to Home Screen".
+  var VALID_TEAMS = {woodmill:1,cutting:1,sewing:1,upholstery:1,assembly:1,foam:1,qc:1,gluing:1,seats:1};
+  var VALID_SUBS  = {arms:1,backs:1,seats:1};
+  var tpRaw = new URLSearchParams(location.search).get('team')
+           || sessionStorage.getItem('tabletTeam') || '';
+  var tsRaw = new URLSearchParams(location.search).get('sub')
+           || sessionStorage.getItem('tabletSub')  || '';
+  var tp = VALID_TEAMS[tpRaw.toLowerCase()] ? tpRaw : '';
+  var ts = VALID_SUBS[tsRaw.toLowerCase()]  ? tsRaw : '';
   if (ts) sessionStorage.setItem('tabletSub', ts);
   var href = '/manifest.json';
   if (tp) {
