@@ -62,6 +62,40 @@ const CC_MACHINES = [
   { id:'pathfinder2',  name:'Pathfinder 2'  },
 ];
 
+// Mirror of front-end resolution (index.html ~18188). Normalises raw SP-stored
+// machine identifiers (which may be display names, ids, or legacy variants) into
+// the canonical id used in WM_MACHINES / CC_MACHINES.
+function normaliseMachineId(raw) {
+  const s = (raw || '').toLowerCase().replace(/\s+/g, '').trim();
+  if (!s) return '';
+  // Cutting room
+  if (s.includes('pathfinder1')) return 'pathfinder1';
+  if (s.includes('pathfinder2')) return 'pathfinder2';
+  if (s.includes('pathfinder'))  return 'pathfinder1'; // legacy pre-split
+  if (s.includes('lectra'))      return 'lectra';
+  // Woodmill — saws
+  if (s.includes('bandsaw'))     return 'bandsaw';
+  if (s.includes('panelsaw1') || s.includes('panel-saw-1')) return 'panel-saw-1';
+  if (s.includes('panelsaw2') || s.includes('panel-saw-2')) return 'panel-saw-2';
+  if (s.includes('crosscutsaw1') || s.includes('crosscut-saw-1')) return 'crosscut-saw-1';
+  if (s.includes('crosscutsaw2') || s.includes('crosscut-saw-2')) return 'crosscut-saw-2';
+  // Woodmill — machines
+  if (s.includes('pillardrill')) return 'pillar-drill';
+  if (s.includes('tnut1') || s.includes('t-nut-1') || s.includes('tnutmachine1')) return 't-nut-1';
+  if (s.includes('tnut2') || s.includes('t-nut-2') || s.includes('tnutmachine2')) return 't-nut-2';
+  if (s.includes('cnc1') || s.includes('cnc-1') || s.includes('cncmachine1')) return 'cnc-1';
+  if (s.includes('cnc2') || s.includes('cnc-2') || s.includes('cncmachine2')) return 'cnc-2';
+  // Woodmill — benches
+  if (s.includes('bencha') || s === 'a') return 'bench-a';
+  if (s.includes('benchb') || s === 'b') return 'bench-b';
+  if (s.includes('benchc') || s === 'c') return 'bench-c';
+  if (s.includes('benchd') || s === 'd') return 'bench-d';
+  if (s.includes('benche') || s === 'e') return 'bench-e';
+  if (s.includes('benchf') || s.includes('seats')) return 'bench-f';
+  // Fallback: use the lowercased no-whitespace string
+  return s;
+}
+
 const TEAM_NAME_MAP = {
   'woodmill':'Woodmill','wood mill':'Woodmill',
   'cutting':'Cutting','cutting room':'Cutting',
@@ -462,7 +496,7 @@ async function fetchAllData(context) {
     const items  = await graphGetAll(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${WM_LIST_ID}/items?$expand=fields&$top=999`);
     for (const item of items) {
       const f = item.fields;
-      const mid     = (f.MachineId||f.machineId||f.Title||'').trim();
+      const mid     = normaliseMachineId(f.MachineId||f.machineId||f.Title||'');
       const dateStr = f.InspectedAt ? wmDateStr(new Date(f.InspectedAt)) : '';
       if (!mid||!dateStr) continue;
       if (!wmByMachineDate[mid]) wmByMachineDate[mid] = {};
@@ -480,7 +514,7 @@ async function fetchAllData(context) {
     const items  = await graphGetAll(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999`);
     for (const item of items) {
       const f = item.fields;
-      const mid     = (f.MachineId||f.machineId||f.Title||'').trim();
+      const mid     = normaliseMachineId(f.MachineId||f.machineId||f.Title||'');
       const dateStr = f.InspectedAt ? wmDateStr(new Date(f.InspectedAt)) : '';
       if (!mid||!dateStr) continue;
       if (!ccByMachineDate[mid]) ccByMachineDate[mid] = {};
