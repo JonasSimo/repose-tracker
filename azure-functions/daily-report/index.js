@@ -947,7 +947,7 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f4f8;padding:32px 16p
     </div>
 
     <div class="section">
-      <div class="section-title">Spec Changes — ${yestLabel}</div>
+      <div class="section-title">Spec Changes — ${yestLabel} <span style="color:#9ca3af;font-weight:400;font-size:13px">(${specYest.length} yesterday)</span></div>
       <table class="spec-table">
         <thead><tr><th>REP</th><th>Field</th><th>From</th><th>To</th><th>Time</th></tr></thead>
         <tbody>${specRows}</tbody>
