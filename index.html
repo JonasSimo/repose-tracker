@@ -11857,6 +11857,7 @@ async function sendInvestigatorEmail(item, toEmail) {
   const body = `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f0f4f8;font-family:Arial,Helvetica,sans-serif">
     <div style="max-width:600px;margin:24px auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
       <div style="background:#7c3aed;padding:18px 24px;color:#fff">
+        <img src="https://brave-island-06ef03810.1.azurestaticapps.net/repnet-logo-white.png" alt="RepNet" style="height:22px;width:auto;display:block;margin-bottom:8px">
         <div style="font-size:18px;font-weight:700">Internal Non-Conformance — Investigation Assigned</div>
         <div style="opacity:.85;font-size:12px;margin-top:4px">Hi ${escHtml(peName)} — please investigate the following CPAR</div>
       </div>
@@ -11970,6 +11971,7 @@ async function sendReturnEmail(item, note) {
   const body = `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f0f4f8;font-family:Arial,Helvetica,sans-serif">
     <div style="max-width:600px;margin:24px auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
       <div style="background:#dc2626;padding:18px 24px;color:#fff">
+        <img src="https://brave-island-06ef03810.1.azurestaticapps.net/repnet-logo-white.png" alt="RepNet" style="height:22px;width:auto;display:block;margin-bottom:8px">
         <div style="font-size:18px;font-weight:700">Internal Non-Conformance Returned by QHSE</div>
         <div style="opacity:.85;font-size:12px;margin-top:4px">Hi ${escHtml(recipientName)} — your closeout needs revision</div>
       </div>
@@ -13483,6 +13485,7 @@ function buildDigestHtml(dateLabel, cparsArr, teamName) {
 <body style="margin:0;padding:0;background:#f0f4f8;font-family:Arial,Helvetica,sans-serif">
   <div style="max-width:680px;margin:24px auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
     <div style="background:${navy};padding:22px 28px">
+      <img src="https://brave-island-06ef03810.1.azurestaticapps.net/repnet-logo-white.png" alt="RepNet" style="height:22px;width:auto;display:block;margin-bottom:8px">
       <div style="color:#fff;font-size:20px;font-weight:700;letter-spacing:-.3px">RepNet — Daily Issues Digest</div>
       <div style="color:rgba(255,255,255,.7);font-size:13px;margin-top:5px">${escHtml(dateLabel)}${teamName ? ' · ' + escHtml(teamName) + ' Team' : ' · All Teams'}</div>
     </div>
