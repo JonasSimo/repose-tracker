@@ -11459,6 +11459,7 @@ function cparPhotoSelected(input) {
 async function submitCPAR() {
   const s = cparFormState;
   if (!s.source) { toast('Select where the issue came from', 'u'); return; }
+  if (!(s.category||'').trim()) { toast('Select a Type of Issue category', 'u'); return; }
   if (!(s.desc||'').trim()) { toast('Enter a description', 'u'); return; }
 
   const btn = document.getElementById('cpar-submit-btn');
