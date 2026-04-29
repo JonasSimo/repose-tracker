@@ -13219,12 +13219,16 @@ async function fetchCPARs() {
     renderIssuesList();
     updateIssuesTabBadge();
     updateTeamCounts();
-    // If the user is currently in Team View, re-render so the top-of-view
-    // NCR summary banner appears without requiring a Quality detour.
+    // If the user is currently in any NCR-signal-bearing view, re-render so
+    // the top-of-view banner / red stripe / red Production banner appear
+    // without requiring a Quality detour. The eager sign-in fetch fires
+    // before the user navigates, so the active view at that moment may be
+    // Delivery / Production / Quality, not just Team View.
     try {
-      if (document.getElementById('view-team-select')?.classList.contains('active') && typeof renderJobs === 'function') {
-        renderJobs();
-      }
+      if (document.getElementById('view-team-select')?.classList.contains('active') && typeof renderJobs === 'function') renderJobs();
+      if (document.getElementById('view-loadsheet')?.classList.contains('active') && typeof renderLoadSheet === 'function') renderLoadSheet();
+      if (document.getElementById('view-production')?.classList.contains('active') && typeof renderProductionPlan === 'function') renderProductionPlan();
+      if (document.getElementById('view-quality')?.classList.contains('active') && typeof renderQualitySubview === 'function') renderQualitySubview();
     } catch(_) { /* render may fail if DOM not ready — non-fatal */ }
   } catch(e) {
     console.warn('fetchCPARs:', e);
