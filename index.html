@@ -12071,7 +12071,7 @@ async function sendInvestigatorEmail(item, toEmail) {
   const subject = `[CPAR ${f.Title}] Investigation assigned to you — ${f.PrimaryModel||''}`;
   const body = `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f0f4f8;font-family:Arial,Helvetica,sans-serif">
     <div style="max-width:600px;margin:24px auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
-      <div style="background:#7c3aed;padding:18px 24px;color:#fff">
+      <div style="background:#0e023a;padding:18px 24px;color:#fff">
         <img src="https://brave-island-06ef03810.1.azurestaticapps.net/repnet-logo-white.png" alt="RepNet" style="height:22px;width:auto;display:block;margin-bottom:8px">
         <div style="font-size:18px;font-weight:700">Internal Non-Conformance — Investigation Assigned</div>
         <div style="opacity:.85;font-size:12px;margin-top:4px">Hi ${escHtml(peName)} — please investigate the following CPAR</div>
@@ -12094,7 +12094,7 @@ async function sendInvestigatorEmail(item, toEmail) {
           <li>Pick outcome: <em>Human Error</em> (training/process fix) or <em>Template/Spec Issue</em> (raise an ECR)</li>
           <li>Submit — the CPAR returns to QHSE for final approval</li>
         </ol>
-        <a href="${escHtml(repnetUrl)}" style="display:inline-block;padding:10px 20px;background:#7c3aed;color:#fff;text-decoration:none;border-radius:6px;font-size:13px;font-weight:700">Open RepNet →</a>
+        <a href="${escHtml(repnetUrl)}" style="display:inline-block;padding:10px 20px;background:#14a1e9;color:#fff;text-decoration:none;border-radius:6px;font-size:13px;font-weight:700">Open RepNet →</a>
       </div>
       <div style="background:#f0f4f8;padding:12px 24px;font-size:11px;color:#6b7280;border-top:1px solid #e2e8f0">
         Repose Furniture · QMS — automated email · Do not reply.
