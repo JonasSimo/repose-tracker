@@ -6665,7 +6665,7 @@ async function _graphFetchWithRetry(url, init, retries = 4) {
     init = { ...(init || {}), headers: { ...((init && init.headers) || {}), Prefer: 'HonorNonIndexedQueriesWarningMayFailRandomly' } };
   }
   let r = await fetch(url, init);
-  while ((r.status === 429 || r.status === 503) && retries > 0) {
+  while ((r.status === 429 || r.status === 503 || r.status === 504 || r.status === 502) && retries > 0) {
     // Honour Retry-After up to 20s; default 4s when missing. Jitter prevents lockstep thunder-herd.
     const baseSec   = Math.min(20, Math.max(1, parseInt(r.headers.get('Retry-After') || '4', 10)));
     const jitterSec = Math.random() * 2;
