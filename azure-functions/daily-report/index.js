@@ -37,17 +37,24 @@ const TEAMS_CFG = [
 ];
 const PROD_TEAMS = TEAMS_CFG.filter(t => t.name !== 'QC');
 
+// Mirror of WM_MACHINES from index.html — keep in sync.
 const WM_MACHINES = [
-  { id:'bandsaw',        name:'Bandsaw'        },
-  { id:'panel-saw-1',    name:'Panel Saw 1'    },
-  { id:'panel-saw-2',    name:'Panel Saw 2'    },
-  { id:'crosscut-saw-1', name:'Crosscut Saw 1' },
-  { id:'crosscut-saw-2', name:'Crosscut Saw 2' },
-  { id:'moulder',        name:'Moulder'        },
-  { id:'spindle',        name:'Spindle Moulder'},
-  { id:'planer',         name:'Planer Thicknesser'},
-  { id:'sander',         name:'Wide Belt Sander'},
-  { id:'pillar-drill',   name:'Pillar Drill'   },
+  { id:'bandsaw',        name:'Bandsaw',          group:'Saws'     },
+  { id:'panel-saw-1',    name:'Panel Saw 1',       group:'Saws'     },
+  { id:'panel-saw-2',    name:'Panel Saw 2',       group:'Saws'     },
+  { id:'crosscut-saw-1', name:'Crosscut Saw 1',    group:'Saws'     },
+  { id:'crosscut-saw-2', name:'Crosscut Saw 2',    group:'Saws'     },
+  { id:'pillar-drill',   name:'Pillar Drill',      group:'Machines' },
+  { id:'t-nut-1',        name:'T-Nut Machine 1',   group:'Machines' },
+  { id:'t-nut-2',        name:'T-Nut Machine 2',   group:'Machines' },
+  { id:'cnc-1',          name:'CNC Machine 1',     group:'Machines' },
+  { id:'cnc-2',          name:'CNC Machine 2',     group:'Machines' },
+  { id:'bench-a',        name:'Bench A',           group:'Benches'  },
+  { id:'bench-b',        name:'Bench B',           group:'Benches'  },
+  { id:'bench-c',        name:'Bench C',           group:'Benches'  },
+  { id:'bench-d',        name:'Bench D',           group:'Benches'  },
+  { id:'bench-e',        name:'Bench E',           group:'Benches'  },
+  { id:'bench-f',        name:'Seats',             group:'Benches'  },
 ];
 const CC_MACHINES = [
   { id:'lectra',       name:'Lectra Vector' },
