@@ -12432,7 +12432,7 @@ function renderPECard(item) {
       <!-- Investigation form — visible by default for Mark/Gareth -->
       <div style="margin-top:10px;padding:12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px">
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);margin-bottom:6px">Investigation findings <span style="color:var(--red)">*</span></div>
-        <textarea id="pe-notes-${item.id}" maxlength="20000" placeholder="What did you find? Root cause, contributing factors, what was done…" oninput="refreshPESubmitState('${item.id}')" style="width:100%;padding:9px;border:1.5px solid var(--border);border-radius:6px;font-family:inherit;font-size:13px;min-height:80px;resize:vertical;box-sizing:border-box"></textarea>
+        <textarea id="pe-notes-${item.id}" maxlength="20000" placeholder="What did you find? Root cause, contributing factors, what was done…" oninput="_saveCparDraft('${item.id}','peNotes',this.value);refreshPESubmitState('${item.id}')" style="width:100%;padding:9px;border:1.5px solid var(--border);border-radius:6px;font-family:inherit;font-size:13px;min-height:80px;resize:vertical;box-sizing:border-box">${escHtml(_getCparDraft(item.id, 'peNotes', ''))}</textarea>
 
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);margin-top:10px;margin-bottom:6px">Outcome <span style="color:var(--red)">*</span></div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
@@ -12564,7 +12564,8 @@ function refreshPESubmitState(id) {
   const root = document.getElementById('pe-submit-'+id);
   if (!root) return;
   const outcome = root.dataset.outcome || '';
-  const notes = (document.getElementById('pe-notes-'+id)?.value || '').trim();
+  const liveNotes = (document.getElementById('pe-notes-'+id)?.value || '').trim();
+  const notes = liveNotes || _getCparDraft(id, 'peNotes', '').trim();
   let ok = !!outcome && !!notes;
   if (outcome === 'Template-Spec Issue') {
     const ecr = (document.getElementById('ecr-ref-'+id)?.value || '').trim();
@@ -12595,7 +12596,8 @@ async function peSubmitInvestigation(id) {
   try {
     const root = document.getElementById('pe-submit-'+id);
     const outcome = root?.dataset.outcome || '';
-    const notes = (document.getElementById('pe-notes-'+id)?.value || '').trim();
+    const liveNotes = (document.getElementById('pe-notes-'+id)?.value || '').trim();
+    const notes = liveNotes || _getCparDraft(id, 'peNotes', '').trim();
     const ecrRef = (document.getElementById('ecr-ref-'+id)?.value || '').trim();
     if (!outcome || !notes) { toast('Notes and outcome required', 'w'); return; }
     if (outcome === 'Template-Spec Issue' && !ecrRef) { toast('ECR ref required', 'w'); return; }
@@ -12641,6 +12643,7 @@ async function peCompleteInvestigation(id, outcome, ecrRef, investigationNotes='
     });
     if (!r.ok) throw new Error(r.status+' '+await r.text());
     Object.assign(item.fields, fields);
+    _clearCparDrafts(id);
     _peEcrRefCache.delete(id);
     _invalidateChartCache();
     if (typeof _invalidateRecurrenceMap === 'function') _invalidateRecurrenceMap();
