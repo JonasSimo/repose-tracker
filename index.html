@@ -12575,24 +12575,48 @@ function _getRecurrenceMap() {
 function _invalidateRecurrenceMap() { _recurrenceMap = null; _recurrenceMapStamp = 0; }
 
 const _cparDraftCache = new Map(); // key: id+'|'+field, value: typed text
-// Load persisted drafts from localStorage on init
+// Per-key write timestamp (epoch ms) for TTL pruning of orphan drafts. Kept
+// in a parallel map so the in-memory string lookup stays a flat get().
+const _cparDraftStamp = new Map();
+const CPAR_DRAFT_TTL_MS = 30 * 86400000; // 30 days — long enough for holiday absences
+// Load persisted drafts from localStorage on init. Tolerate both legacy
+// shape ({key: 'text'}) and new shape ({key: {v:'text', t: 1700000000000}}).
+// Drop entries older than the TTL on load so stale drafts can't accumulate
+// forever for users who type into the form and never submit.
 try {
   const persisted = JSON.parse(localStorage.getItem('cpar-drafts') || '{}');
-  for (const [k, v] of Object.entries(persisted)) {
-    if (typeof v === 'string') _cparDraftCache.set(k, v);
+  const now = Date.now();
+  for (const [k, raw] of Object.entries(persisted)) {
+    if (typeof raw === 'string') {
+      // Legacy entry — no timestamp; keep it but stamp it now so the next
+      // prune cycle still respects the TTL window.
+      _cparDraftCache.set(k, raw);
+      _cparDraftStamp.set(k, now);
+    } else if (raw && typeof raw === 'object' && typeof raw.v === 'string') {
+      const t = Number.isFinite(raw.t) ? raw.t : 0;
+      if (t && (now - t) > CPAR_DRAFT_TTL_MS) continue; // expired — skip
+      _cparDraftCache.set(k, raw.v);
+      _cparDraftStamp.set(k, t || now);
+    }
   }
 } catch(e) { /* corrupt JSON — ignore */ }
 function _draftKey(id, field) { return id + '|' + field; }
+function _persistCparDrafts() {
+  try {
+    const persisted = {};
+    for (const [k, v] of _cparDraftCache.entries()) {
+      persisted[k] = { v, t: _cparDraftStamp.get(k) || Date.now() };
+    }
+    localStorage.setItem('cpar-drafts', JSON.stringify(persisted));
+  } catch(e) { /* localStorage full or unavailable — non-fatal */ }
+}
 function _saveCparDraft(id, field, val) {
   const k = _draftKey(id, field);
   // Always set — empty strings are intentional clears, not "no draft"
   _cparDraftCache.set(k, val || '');
+  _cparDraftStamp.set(k, Date.now());
   // Persist to localStorage so iPad redirect re-auth doesn't lose drafts
-  try {
-    const persisted = {};
-    for (const [key, value] of _cparDraftCache.entries()) persisted[key] = value;
-    localStorage.setItem('cpar-drafts', JSON.stringify(persisted));
-  } catch(e) { /* localStorage full or unavailable — non-fatal */ }
+  _persistCparDrafts();
 }
 function _getCparDraft(id, field, fallback = '') {
   const k = _draftKey(id, field);
@@ -12601,13 +12625,12 @@ function _getCparDraft(id, field, fallback = '') {
 }
 function _clearCparDrafts(id) {
   for (const k of [..._cparDraftCache.keys()]) {
-    if (k.startsWith(id + '|')) _cparDraftCache.delete(k);
+    if (k.startsWith(id + '|')) {
+      _cparDraftCache.delete(k);
+      _cparDraftStamp.delete(k);
+    }
   }
-  try {
-    const persisted = {};
-    for (const [k, v] of _cparDraftCache.entries()) persisted[k] = v;
-    localStorage.setItem('cpar-drafts', JSON.stringify(persisted));
-  } catch(e) {}
+  _persistCparDrafts();
 }
 
 function peSelectOutcome(id, outcome, btn) {
