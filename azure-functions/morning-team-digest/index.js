@@ -6,7 +6,7 @@ const TENANT_ID     = process.env.TENANT_ID;
 const CLIENT_ID     = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
 const SEND_FROM     = process.env.SEND_FROM;
-const REPNET_URL    = process.env.REPNET_URL || 'https://reposefurniture-repnet.azurestaticapps.net';
+const REPNET_URL    = process.env.REPNET_URL || 'https://brave-island-06ef03810.1.azurestaticapps.net/';
 
 const SP_HOST       = 'reposefurniturelimited.sharepoint.com';
 const SP_SITE_PATH  = '/sites/ReposeFurniture-PlanningRepose';
