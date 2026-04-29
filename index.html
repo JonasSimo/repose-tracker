@@ -10820,6 +10820,7 @@ const CPAR_SOURCES = [
   { key:'cutting',     label:'Cutting',             color:'#0284c7' },
   { key:'sewing',      label:'Sewing',              color:'#d97706' },
   { key:'upholstery',  label:'Upholstery',          color:'#dc2626' },
+  { key:'assembly',    label:'Assembly',            color:'#0e023a' },
   { key:'foam',        label:'Foam',                color:'#0891b2' },
   { key:'stores',      label:'Stores',              color:'#6b7280' },
   { key:'admin',       label:'Admin',               color:'#9333ea' },
@@ -10878,6 +10879,7 @@ const CPAR_CATEGORIES = {
   cutting: [], // handled via CPAR_CUTTING_GROUPS + CPAR_CUTTING_DIRECT
   sewing: [], // handled via CPAR_SEWING_GROUPS + CPAR_SEWING_DIRECT
   upholstery: [], // handled via CPAR_UPHOLSTERY_GROUPS + CPAR_UPHOLSTERY_DIRECT
+  assembly:    ['Missing parts/fixings','Wrong mech','Wrong castors/glides','Misaligned components','Damaged in assembly','Electrics/handset issue','Mechanism not working','Other'],
   foam:        ['Wrong size','Missing parts','Damaged','Other'],
   stores:      ['Missing parts','Wrong parts delivered','Late delivery','Damaged in stores','Other'],
   admin:       ['Wrong mech code on production plan','Wrong size frame information on paperwork','Incorrect part number for castors on list','Duplicated REP','Missing information','Incorrect assembly spec','Wrong fabric/leather'],
@@ -11106,14 +11108,13 @@ function findLastCompletionTeamForJob(wc, prep, ji) {
   return bestTeam;
 }
 
-// Map a STATE team name to the closest CPAR_SOURCES key. Assembly defects
-// almost always show as upholstery-finish issues (visible during QC) so
-// Assembly maps to 'upholstery' as the most useful default; the QC user
-// can override in the dropdown if Assembly is the actual culprit.
+// Map a STATE team name to the closest CPAR_SOURCES key. Assembly is now a
+// first-class CPAR source so QC's prefill matches the team that built the
+// chair last; the user can override in the dropdown.
 function teamNameToCparSourceKey(team) {
   if (!team) return '';
   const t = String(team).toLowerCase();
-  if (t === 'assembly')              return 'upholstery';
+  if (t === 'assembly')              return 'assembly';
   if (t.startsWith('upholstery'))    return 'upholstery';
   if (t === 'sewing')                return 'sewing';
   if (t === 'cutting')               return 'cutting';
