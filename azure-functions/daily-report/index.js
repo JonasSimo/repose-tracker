@@ -2,6 +2,16 @@
 
 const { ConfidentialClientApplication } = require('@azure/msal-node');
 const fetch = require('node-fetch');
+const fs = require('fs');
+const path = require('path');
+
+let LOGO_DATAURL = '';
+try {
+  const buf = fs.readFileSync(path.join(__dirname, 'repnet-logo-white.png'));
+  LOGO_DATAURL = 'data:image/png;base64,' + buf.toString('base64');
+} catch(e) {
+  // Fallback: empty (header falls back to text wordmark)
+}
 
 // ─── Config ────────────────────────────────────────────────────────────────
 const TENANT_ID     = process.env.TENANT_ID;
@@ -868,7 +878,7 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f4f8;padding:32px 16p
 <div class="email-wrap">
   <div class="header">
     <div class="header-left">
-      <div class="logo-row"><span class="logo-dot"></span><span class="logo-wordmark">RepNet</span></div>
+      <div class="logo-row">${LOGO_DATAURL ? `<img src="${LOGO_DATAURL}" alt="RepNet" style="height:28px;width:auto;display:block">` : `<span class="logo-dot"></span><span class="logo-wordmark">RepNet</span>`}</div>
       <div class="header-title">Daily Production Report</div>
       <div class="header-sub">Repose Furniture Ltd &nbsp;·&nbsp; Generated at ${genTime}</div>
     </div>
