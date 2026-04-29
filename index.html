@@ -3983,10 +3983,16 @@ function switchTeam(name, hasSubs) {
   activeTeam = name;
   activeHasSubs = hasSubs;
   activeSub = hasSubs ? 'Arms' : 'all';
-  if (activeWC === 'PRIORITY') { activeWC = WEEKS[2] || WEEKS[0]; activePrep = 1; }
+  // When the user was on Priority and switches team, we silently flip
+  // back to the current week / Prep 1. Re-render the week list and prep
+  // grid so the highlight follows — otherwise the old Priority button
+  // stays visually selected even though activeWC has moved.
+  const wasOnPriority = activeWC === 'PRIORITY';
+  if (wasOnPriority) { activeWC = WEEKS[2] || WEEKS[0]; activePrep = 1; }
   renderTeamSidebar();
   renderPriorityBtn();
   renderQCSyncBar();
+  if (wasOnPriority) { renderWeekList(); renderPrepGrid(); }
   renderJobs();
 }
 
