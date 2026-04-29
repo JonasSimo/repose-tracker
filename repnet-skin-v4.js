@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════
-   RepNet Skin v4 — feature-flag JS
+   RepNet Skin v4 — feature-flag JS  (hotfix: no subtree observers)
    Activates the new sidebar, team-logo SVGs, and Delivery TV View
    button when the URL has ?ui=v4. Default (no flag) = old UI.
    ═══════════════════════════════════════════════════════════════ */
@@ -9,15 +9,40 @@
   // ── 0. Flag detection ─────────────────────────────────────────
   const params = new URLSearchParams(location.search);
   const flag = params.get('ui');
-  // Future: flip the default by changing this line to `flag !== 'old'`
   const NEW_UI = flag === 'v4';
   if (!NEW_UI) return;
 
   document.documentElement.classList.add('ui-v4');
 
-  // ── 1. SVG sprite (team logos) ────────────────────────────────
-  const sprite = `
-<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  function ready(fn) {
+    if (document.readyState !== 'loading') fn();
+    else document.addEventListener('DOMContentLoaded', fn, { once: true });
+  }
+  ready(init);
+
+  function init() {
+    injectSprite();
+    injectSidebar();
+    wireNav();
+    patchNavTo();
+    applyAll();
+    setInterval(applyAll, 2500);
+    document.addEventListener('fullscreenchange', () => {
+      if (!document.fullscreenElement) document.documentElement.classList.remove('tv-mode');
+    });
+  }
+
+  function applyAll() {
+    try { applyTeamLogos(); } catch (e) { console.warn('[skin-v4] applyTeamLogos:', e); }
+    try { injectTvButton(); } catch (e) { console.warn('[skin-v4] injectTvButton:', e); }
+    try { syncUser(); } catch (e) { console.warn('[skin-v4] syncUser:', e); }
+  }
+
+  // ── 1. SVG sprite ─────────────────────────────────────────────
+  function injectSprite() {
+    if (document.getElementById('v4-sprite-root')) return;
+    const sprite = `
+<svg id="v4-sprite-root" width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
     <symbol id="v4-team-woodmill" viewBox="0 0 24 24">
       <path d="M6 6 Q3 6 3 10 Q3 14 6 14 L9 14 L9 6 Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
@@ -66,7 +91,6 @@
       <circle cx="22" cy="6.5" r="0.5" fill="currentColor" opacity="0.4"/>
       <circle cx="22" cy="10.5" r="0.5" fill="currentColor" opacity="0.4"/>
     </symbol>
-    <!-- Stats bar-chart for sidebar nav -->
     <symbol id="v4-stats-icon" viewBox="0 0 16 16">
       <rect x="2" y="9" width="2.5" height="5" rx="0.4" fill="currentColor"/>
       <rect x="6.75" y="6" width="2.5" height="8" rx="0.4" fill="currentColor"/>
@@ -74,10 +98,10 @@
     </symbol>
   </defs>
 </svg>`;
-  document.body.insertAdjacentHTML('afterbegin', sprite);
+    document.body.insertAdjacentHTML('afterbegin', sprite);
+  }
 
   // ── 2. Sidebar markup ─────────────────────────────────────────
-  // data-view values match navTo() targets in the existing app
   const NAV = [
     { h: 'Production' },
     { v: 'team-select',  g: '▤',     l: 'Team View' },
@@ -85,7 +109,7 @@
     { v: 'loadsheet',    g: '↗',     l: 'Delivery' },
     { v: 'production',   g: '▣',     l: 'Production Plan' },
     { h: 'Quality / QHSE' },
-    { v: 'stats',        g: 'STATS', l: 'Stats' }, // special: SVG icon
+    { v: 'stats',        g: 'STATS', l: 'Stats' },
     { v: 'issues',       g: '⚑',     l: 'Internal NCRs' },
     { v: 'quality',      g: '✓',     l: 'Quality' },
     { v: 'safety',       g: '⚠',     l: 'Near Misses' },
@@ -96,15 +120,17 @@
     { v: 'innovation',   g: '✦',     l: 'Innovation' },
   ];
 
-  const navHtml = NAV.map(item => {
-    if (item.h) return `<div class="v4-h">${item.h}</div>`;
-    const glyHtml = item.g === 'STATS'
-      ? `<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><use href="#v4-stats-icon"/></svg>`
-      : item.g;
-    return `<a href="#${item.v}" data-view="${item.v}"><span class="v4-gly">${glyHtml}</span> ${item.l}</a>`;
-  }).join('');
+  function injectSidebar() {
+    if (document.getElementById('ui-v4-side')) return;
+    const navHtml = NAV.map(item => {
+      if (item.h) return `<div class="v4-h">${item.h}</div>`;
+      const glyHtml = item.g === 'STATS'
+        ? `<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><use href="#v4-stats-icon"/></svg>`
+        : item.g;
+      return `<a href="#${item.v}" data-view="${item.v}"><span class="v4-gly">${glyHtml}</span> ${item.l}</a>`;
+    }).join('');
 
-  const sideHtml = `
+    const sideHtml = `
 <aside class="ui-v4-side" id="ui-v4-side">
   <div class="v4-brand">
     <img src="./repnet-logo-white.png" alt="RepNet" onerror="this.style.display='none'">
@@ -112,14 +138,14 @@
   ${navHtml}
   <div class="v4-foot">
     <div class="v4-user">
-      <span class="av" id="v4-avatar">JS</span>
+      <span class="av" id="v4-avatar">?</span>
       <div style="flex:1;min-width:0;">
         <div class="nm" id="v4-username">Sign in</div>
         <div class="role">Operator</div>
       </div>
       <span id="v4-presence" style="width:8px;height:8px;border-radius:999px;background:#a8a8a8;"></span>
     </div>
-    <button class="v4-nms" onclick="if(typeof openNmsModal==='function')openNmsModal()">⚠ Raise NMS</button>
+    <button type="button" class="v4-nms" id="v4-nms-btn">⚠ Raise NMS</button>
     <div class="v4-repose">
       <img src="./Repose_RGB_logo_Colour_with_strapline_1500pxW.png" alt="Repose" onerror="this.style.display='none'">
       <span>Repose Furniture</span>
@@ -127,35 +153,45 @@
     <a href="?ui=old" class="v4-rollback">Switch to old UI →</a>
   </div>
 </aside>`;
-  document.body.insertAdjacentHTML('beforeend', sideHtml);
+    document.body.insertAdjacentHTML('beforeend', sideHtml);
 
-  // ── 3. Wire nav clicks to existing navTo() ────────────────────
-  function syncActive(viewId) {
-    document.querySelectorAll('#ui-v4-side a[data-view]').forEach(a => {
-      a.classList.toggle('on', a.dataset.view === viewId);
-    });
+    const nmsBtn = document.getElementById('v4-nms-btn');
+    if (nmsBtn) {
+      nmsBtn.addEventListener('click', () => {
+        if (typeof window.openNmsModal === 'function') window.openNmsModal();
+      });
+    }
   }
-  document.querySelectorAll('#ui-v4-side a[data-view]').forEach(a => {
-    a.addEventListener('click', e => {
-      e.preventDefault();
-      if (typeof window.navTo === 'function') window.navTo(a.dataset.view);
-      syncActive(a.dataset.view);
-    });
-  });
-  // Monkey-patch navTo so old dropdown also keeps sidebar in sync
-  if (typeof window.navTo === 'function') {
-    const _origNavTo = window.navTo;
+
+  // ── 3. Wire nav ───────────────────────────────────────────────
+  function syncActive(viewId) {
+    const links = document.querySelectorAll('#ui-v4-side a[data-view]');
+    for (const a of links) a.classList.toggle('on', a.dataset.view === viewId);
+  }
+  function wireNav() {
+    const links = document.querySelectorAll('#ui-v4-side a[data-view]');
+    for (const a of links) {
+      a.addEventListener('click', e => {
+        e.preventDefault();
+        if (typeof window.navTo === 'function') window.navTo(a.dataset.view);
+        syncActive(a.dataset.view);
+      });
+    }
+    const initial = document.querySelector('.nav-item.active')?.dataset.view || 'team-select';
+    syncActive(initial);
+  }
+  function patchNavTo() {
+    if (typeof window.navTo !== 'function' || window.__v4NavToPatched) return;
+    const _orig = window.navTo;
     window.navTo = function (view) {
-      const r = _origNavTo.apply(this, arguments);
-      syncActive(view);
+      const r = _orig.apply(this, arguments);
+      try { syncActive(view); } catch (e) { console.warn('[skin-v4] syncActive:', e); }
       return r;
     };
+    window.__v4NavToPatched = true;
   }
-  // Set initial active item from current view if discoverable
-  const initial = (document.querySelector('.nav-item.active')?.dataset.view) || 'team-select';
-  syncActive(initial);
 
-  // ── 4. Team logo SVG injection (Team View sidebar + Team Select cards)
+  // ── 4. Team logos ─────────────────────────────────────────────
   const TEAM_TO_SPRITE = {
     'Woodmill': 'v4-team-woodmill',
     'Foam': 'v4-team-foam',
@@ -166,47 +202,40 @@
     'QC': 'v4-team-qc',
     'Gluing': 'v4-team-gluing',
   };
-
-  function svgFor(spriteId) {
-    return `<svg class="team-svg-icon" viewBox="0 0 24 24" width="22" height="22"><use href="#${spriteId}"/></svg>`;
+  function findKey(text) {
+    if (!text) return null;
+    const t = text.replace(/\s+/g, ' ').trim();
+    for (const k of Object.keys(TEAM_TO_SPRITE)) {
+      if (t === k || t.toLowerCase().includes(k.toLowerCase())) return k;
+    }
+    return null;
   }
-
   function applyTeamLogos() {
-    // Team Select cards
-    document.querySelectorAll('.team-card').forEach(card => {
+    const cards = document.querySelectorAll('.team-card');
+    for (const card of cards) {
       const nameEl = card.querySelector('.tc-name');
-      if (!nameEl) return;
-      const name = nameEl.textContent.replace(/\s+/g, ' ').trim();
-      const key = Object.keys(TEAM_TO_SPRITE).find(k =>
-        name === k || name.toLowerCase().includes(k.toLowerCase())
-      );
-      if (!key) return;
+      if (!nameEl) continue;
+      const key = findKey(nameEl.textContent);
+      if (!key) continue;
       const iconBox = card.querySelector('.tc-icon');
-      if (iconBox && !iconBox.querySelector('.team-svg-icon')) {
-        iconBox.innerHTML = svgFor(TEAM_TO_SPRITE[key]).replace('width="22"', 'width="48"').replace('height="22"', 'height="48"').replace('class="team-svg-icon"', 'class="tc-icon-svg"');
+      if (iconBox && !iconBox.querySelector('.tc-icon-svg')) {
+        iconBox.innerHTML = `<svg class="tc-icon-svg" viewBox="0 0 24 24" width="48" height="48"><use href="#${TEAM_TO_SPRITE[key]}"/></svg>`;
       }
-      if (key === 'Gluing') card.classList.add('gluing-card');
-    });
-    // Tracker team-sidebar entries (rendered by existing JS — class names may vary)
-    document.querySelectorAll('.team-sidebar .team-btn, .team-sidebar .team-item').forEach(btn => {
+      if (key === 'Gluing' && !card.classList.contains('gluing-card')) card.classList.add('gluing-card');
+    }
+    const btns = document.querySelectorAll('.team-sidebar .team-btn, .team-sidebar .team-item');
+    for (const btn of btns) {
       const nameEl = btn.querySelector('.team-name, .tname');
-      if (!nameEl) return;
-      const name = nameEl.textContent.replace(/\s+/g, ' ').trim();
-      const key = Object.keys(TEAM_TO_SPRITE).find(k =>
-        name === k || name.toLowerCase().includes(k.toLowerCase())
-      );
-      if (!key) return;
+      if (!nameEl) continue;
+      const key = findKey(nameEl.textContent);
+      if (!key) continue;
       const iconBox = btn.querySelector('.team-icon, .ticon');
       if (iconBox && !iconBox.querySelector('.team-svg-icon')) {
-        iconBox.innerHTML = svgFor(TEAM_TO_SPRITE[key]);
+        iconBox.innerHTML = `<svg class="team-svg-icon" viewBox="0 0 24 24" width="22" height="22"><use href="#${TEAM_TO_SPRITE[key]}"/></svg>`;
       }
-      if (key === 'Gluing') btn.classList.add('gluing-team');
-    });
+      if (key === 'Gluing' && !btn.classList.contains('gluing-team')) btn.classList.add('gluing-team');
+    }
   }
-  applyTeamLogos();
-  // Re-apply if the team list re-renders (it's vanilla JS innerHTML)
-  const teamObs = new MutationObserver(applyTeamLogos);
-  teamObs.observe(document.body, { childList: true, subtree: true });
 
   // ── 5. Delivery TV View button ────────────────────────────────
   function injectTvButton() {
@@ -224,27 +253,20 @@
     });
     bar.appendChild(btn);
   }
-  injectTvButton();
-  const tvObs = new MutationObserver(injectTvButton);
-  tvObs.observe(document.body, { childList: true, subtree: true });
 
-  // Esc / fullscreen exit clears TV mode
-  document.addEventListener('fullscreenchange', () => {
-    if (!document.fullscreenElement) document.documentElement.classList.remove('tv-mode');
-  });
-
-  // ── 6. Sync user info (best-effort) ───────────────────────────
+  // ── 6. User sync ──────────────────────────────────────────────
   function syncUser() {
-    const nameEl = document.querySelector('#v4-username');
-    const avEl = document.querySelector('#v4-avatar');
-    const presence = document.querySelector('#v4-presence');
+    const nameEl = document.getElementById('v4-username');
+    const avEl = document.getElementById('v4-avatar');
+    const presence = document.getElementById('v4-presence');
     const authName = document.querySelector('.auth-badge .auth-name');
     const authDot = document.querySelector('.auth-badge .auth-dot');
-    if (nameEl && authName) nameEl.textContent = authName.textContent || 'Sign in';
-    if (avEl && authName) {
-      const initials = (authName.textContent || '?')
-        .split(/\s+/).map(s => s[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
-      avEl.textContent = initials || '?';
+    if (!nameEl || !authName) return;
+    const t = (authName.textContent || 'Sign in').trim();
+    if (nameEl.textContent !== t) nameEl.textContent = t;
+    if (avEl) {
+      const initials = t.split(/\s+/).map(s => s[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '?';
+      if (avEl.textContent !== initials) avEl.textContent = initials;
     }
     if (presence && authDot) {
       const on = !authDot.classList.contains('off');
@@ -252,9 +274,4 @@
       presence.style.boxShadow = on ? '0 0 0 4px rgba(74,222,128,0.18)' : 'none';
     }
   }
-  syncUser();
-  const userObs = new MutationObserver(syncUser);
-  const authBadge = document.querySelector('.auth-badge');
-  if (authBadge) userObs.observe(authBadge, { childList: true, subtree: true, characterData: true });
-
 })();
