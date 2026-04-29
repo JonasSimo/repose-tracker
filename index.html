@@ -6815,6 +6815,10 @@ async function graphSignIn() {
     ]);
     startQCAutoSync();
     fetchSpecAlerts().catch(console.warn);
+    // MechQC populates the green QC ticks on the Delivery view. The redirect
+    // path eager-loads it; the popup path was missing it, so first opens of
+    // Delivery on desktop sat without ticks until the 60s refresh tick.
+    loadMechQCFromSharePoint().catch(e => console.warn('mechQC:', e.message));
     // Eager-load CPAR list so Team View / Delivery / Production show NCR
     // signals (top banner, red stripe, red banner) without a Quality detour.
     fetchCPARs().catch(e => console.warn('cpars:', e.message));
