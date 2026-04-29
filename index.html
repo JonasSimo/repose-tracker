@@ -13278,9 +13278,19 @@ function buildQCNcrJobMap() {
 function buildTeamNcrSummaryBannerHTML(team) {
   if (!team) return '';
   const tLower = String(team).toLowerCase();
+  // Match SourceDept loosely so legacy CPARs whose SourceDept is a sub-team
+  // label ('Upholstery Arms', 'Upholstery Backs', etc.) still appear under
+  // the parent team banner ('Upholstery'). canonicalTeam() collapses
+  // sub-teams onto the parent name.
+  const uphSubs = new Set(['upholstery arms','upholstery backs','upholstery seats']);
+  const canon = s => {
+    const v = String(s || '').toLowerCase().trim();
+    if (uphSubs.has(v)) return 'upholstery';
+    return v;
+  };
   const items = CPAR_ITEMS.filter(it => {
     if (!isOpenNCR(it)) return false;
-    return String(it.fields?.SourceDept || '').toLowerCase() === tLower;
+    return canon(it.fields?.SourceDept) === canon(tLower);
   });
   if (!items.length) return '';
   const rows = items.map(it => {
