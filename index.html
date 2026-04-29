@@ -13433,6 +13433,7 @@ function renderCPARCard(item) {
       ${(f.Status === CPAR_STATUS.CLOSED || f.Status === CPAR_STATUS.ARCHIVED || f.Status === 'Closed') ? `<button onclick="printCPAR('${item.id}')" style="margin-top:8px;padding:7px 12px;border-radius:6px;border:1.5px solid var(--border2);background:var(--bg2);font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;color:var(--text2)">🖨 Print Non-Conformance Report (PDF)</button>` : ''}
     </div>` : `
     <button class="cpar-closeout-btn" id="cpar-co-btn-${item.id}" onclick="event.stopPropagation();toggleCPARCloseout('${item.id}', event)">Close Out Issue ▼</button>
+    ${(graphAccount?.username||'').toLowerCase() === 'jonas.simonaitis@reposefurniture.co.uk' ? `<button class="qbtn escalate" onclick="event.stopPropagation();qhseEscalateOpen('${item.id}')" style="margin:6px 12px 0;font-size:11px;padding:5px 10px" title="Skip area-manager closeout and route directly to PE investigation (Jonas only)">→ Skip closeout — Escalate to PE</button>` : ''}
     <div class="cpar-closeout-panel" id="cpar-co-${item.id}">
       ${f.HasPhoto ? `<div class="cpar-photo-wrap" id="cpar-photo-wrap-${item.id}"><div class="cpar-photo-loading">Loading photo…</div></div>` : ''}
 
