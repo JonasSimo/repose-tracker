@@ -27,25 +27,46 @@
   /* Auto-collapsing sidebar:
      - default state: 64px wide, icons only
      - on :hover: expands to 240px with labels
-     The flex layout transitions smoothly; main content shifts. */
+     The flex layout transitions smoothly; main content shifts.
+     Brand pinned at top, foot pinned at bottom, nav scrolls between. */
   position: static !important;
   flex: 0 0 64px !important;
   width: 64px !important;
   height: 100vh !important;
   background: var(--repose-navy); color: #fff;
-  padding: 18px 10px;
-  display: flex; flex-direction: column; gap: 4px;
-  overflow-x: hidden;
-  overflow-y: auto;
+  padding: 14px 10px;
+  display: flex; flex-direction: column;
+  gap: 0;
+  overflow: hidden;             /* outer doesn't scroll — nav-area does */
   z-index: 100;
-  order: -1; /* always first */
+  order: -1;
   transition: flex-basis 0.22s ease, width 0.22s ease, padding 0.22s ease;
   white-space: nowrap;
 }
 .ui-v4 .ui-v4-side:hover {
   flex: 0 0 240px !important;
   width: 240px !important;
-  padding: 22px 14px;
+  padding: 18px 14px;
+}
+
+/* Middle scrollable nav region */
+.ui-v4 .ui-v4-side .v4-nav-area {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 4px 0;
+  /* hide scrollbar visually until hover */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.2) transparent;
+}
+.ui-v4 .ui-v4-side .v4-nav-area::-webkit-scrollbar { width: 4px; }
+.ui-v4 .ui-v4-side .v4-nav-area::-webkit-scrollbar-track { background: transparent; }
+.ui-v4 .ui-v4-side .v4-nav-area::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.15); border-radius: 999px;
+}
+.ui-v4 .ui-v4-side:hover .v4-nav-area::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.25);
 }
 
 /* ───── Labels (text in nav links + headers) ───── */
@@ -99,16 +120,17 @@
 /* ───── Nav links: icon column → labelled list on hover ───── */
 .ui-v4 .ui-v4-side a {
   padding: 0;
-  margin: 2px 8px;
-  height: 40px;
-  border-radius: 10px;
+  margin: 1px 6px;
+  height: 36px;
+  border-radius: 9px;
   display: flex; align-items: center; justify-content: center;
   gap: 0;
   transition: padding 0.18s ease, margin 0.18s ease, gap 0.18s ease;
 }
 .ui-v4 .ui-v4-side:hover a {
   padding: 0 12px;
-  margin: 2px 6px;
+  margin: 1px 4px;
+  height: 38px;
   justify-content: flex-start;
   gap: 12px;
 }
@@ -126,17 +148,21 @@
   box-shadow: 0 4px 12px -6px rgba(20,161,233,0.5);
 }
 
-/* ───── Foot: user, NMS, Repose, rollback ───── */
+/* ───── Foot: user, NMS, Repose, rollback (always pinned to bottom) ───── */
 .ui-v4 .ui-v4-side .v4-foot {
-  padding: 10px 8px 8px;
+  flex: 0 0 auto;
+  padding: 10px 6px 6px;
   display: flex; flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   border-top: 1px solid rgba(255,255,255,0.08);
-  margin-top: auto;
 }
 .ui-v4 .ui-v4-side:hover .v4-foot {
-  padding: 14px 10px 8px;
+  padding: 12px 10px 8px;
+  gap: 8px;
 }
+
+/* Brand also flex:0 so middle area takes remaining height */
+.ui-v4 .ui-v4-side .v4-brand { flex: 0 0 auto; }
 
 /* User button: clean — no browser default glow */
 .ui-v4 .ui-v4-side .v4-user {

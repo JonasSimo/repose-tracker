@@ -262,7 +262,9 @@
   <div class="v4-brand">
     <img src="./repnet-logo-white.png" alt="RepNet" onerror="this.style.display='none'">
   </div>
-  ${navHtml}
+  <div class="v4-nav-area">
+    ${navHtml}
+  </div>
   <div class="v4-foot">
     <button type="button" class="v4-user" id="v4-user-btn" title="Sign in">
       <span class="av" id="v4-avatar">→</span>
