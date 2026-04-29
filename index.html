@@ -13364,7 +13364,7 @@ function populateCPARPrint(item) {
       <div><div class="lg">Repose Furniture</div><div class="lgs">Quality Management System</div></div>
       <div class="meta"><div><strong>Doc:</strong> ${PHCF_DOC.id}</div><div><strong>Issue:</strong> ${PHCF_DOC.issue} · ${PHCF_DOC.date}</div><div><strong>Page:</strong> 1 of 1</div></div>
     </div>
-    <div class="title">Non-Conforming Job Note</div>
+    <div class="title">Internal Non-Conformance Report</div>
     <table>
       <tr><td class="lab">REF</td><td colspan="3" style="font-family:'JetBrains Mono',monospace;font-weight:700;color:#1e3a5f">${escHtml(ref)}</td></tr>
       <tr><td class="lab">Date Raised</td><td>${escHtml(dt(f.LoggedAt))}</td><td class="lab">Raised by</td><td>${escHtml((f.ClosedOutBy||f.RaisedByTeam||'').split('@')[0])}</td></tr>
