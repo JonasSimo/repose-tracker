@@ -15,6 +15,10 @@ const SHELL_ASSETS = [
   '/repnet-logo-white.png',
 ];
 
+self.addEventListener('message', (e) => {
+  if (e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting();
+});
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_VERSION).then((cache) =>
