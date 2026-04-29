@@ -13066,6 +13066,55 @@ function workingHoursBetween(start, end) {
   return total;
 }
 
+// Returns true if this CPAR represents an open NCR raised by QC and is
+// currently sitting with the area manager (i.e. not yet closed-out into
+// Pending QHSE Review). Drives the red Delivery stripe + red Production
+// banner. Pure function over `item.fields` — safe to call from renderers.
+function isOpenQCNCR(item) {
+  const f = item?.fields || {};
+  if (f.RaisedByTeam !== 'QC') return false;
+  return f.Status === CPAR_STATUS.OPEN
+      || f.Status === CPAR_STATUS.RETURNED;
+}
+
+// Extracts the 7-digit REP number from a 'REP 1234567' / 'REP1234567'
+// string. Used to match CPAR.PrimaryREP rows against Delivery view items
+// (which key on rep7 only).
+function extractRep7(repStr) {
+  const m = String(repStr || '').match(/(\d{7})/);
+  return m ? m[1] : '';
+}
+
+// Returns the set of rep7 strings that have at least one open QC-raised
+// NCR. Used by renderLoadSheet to colour the Delivery stripe red.
+function buildQCNcrRep7Set() {
+  const set = new Set();
+  CPAR_ITEMS.forEach(item => {
+    if (!isOpenQCNCR(item)) return;
+    const r = extractRep7(item.fields?.PrimaryREP);
+    if (r) set.add(r);
+  });
+  return set;
+}
+
+// Returns a Map keyed by `${rep}#${jobNo}` whose value is an array of the
+// matching open QC-raised CPAR items. Used by renderProductionPlan to draw
+// per-job red banners (one banner per NCR — multiple NCRs stack).
+function buildQCNcrJobMap() {
+  const map = new Map();
+  CPAR_ITEMS.forEach(item => {
+    if (!isOpenQCNCR(item)) return;
+    const f   = item.fields || {};
+    const rep = String(f.PrimaryREP || '').trim();
+    const job = String(f.PrimaryJobNo || '').trim();
+    if (!rep || !job) return;
+    const key = rep + '#' + job;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(item);
+  });
+  return map;
+}
+
 function getCPARStatus(item) {
   const f = item.fields || {};
   const s = f.Status;
