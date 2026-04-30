@@ -4,7 +4,7 @@
 // the next reload picks up any deploy. Graph / MSAL / SharePoint are never cached.
 //
 // Bump CACHE_VERSION when shipping a breaking shell change to force a refresh.
-const CACHE_VERSION = 'repnet-shell-v39';
+const CACHE_VERSION = 'repnet-shell-v40';
 const SHELL_ASSETS = [
   '/',
   '/index.html',
@@ -13,8 +13,6 @@ const SHELL_ASSETS = [
   '/msal-browser.min.js',
   '/chart.umd.min.js',
   '/repnet-logo-white.png',
-  '/repnet-skin-v4.css',
-  '/repnet-skin-v4.js',
 ];
 
 self.addEventListener('message', (e) => {
@@ -54,31 +52,19 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return;
   if (_bypass(req.url)) return;
 
-  // Stale-while-revalidate. Always resolves to a real Response — never null —
-  // so respondWith() never throws "Failed to convert value to 'Response'".
-  event.respondWith((async () => {
-    const cache  = await caches.open(CACHE_VERSION);
-    const cached = await cache.match(req);
-
-    const network = fetch(req).then((res) => {
-      if (res && res.status === 200 && res.type === 'basic') {
-        cache.put(req, res.clone()).catch(() => {});
-      }
-      return res;
-    });
-
-    if (cached) {
-      // Background-update the cache; swallow errors so they don't bubble.
-      network.catch(() => {});
-      return cached;
-    }
-
-    try {
-      return await network;
-    } catch (_) {
-      // No cache and network failed — return a synthetic 504 so respondWith
-      // gets a real Response. Page-level handling decides what to do.
-      return new Response('', { status: 504, statusText: 'Offline' });
-    }
-  })());
+  // Stale-while-revalidate for everything else (shell + same-origin static).
+  event.respondWith(
+    caches.open(CACHE_VERSION).then((cache) =>
+      cache.match(req).then((cached) => {
+        const network = fetch(req).then((res) => {
+          // Only cache same-origin successful responses.
+          if (res && res.status === 200 && res.type === 'basic') {
+            cache.put(req, res.clone()).catch(() => {});
+          }
+          return res;
+        }).catch(() => cached); // offline fallback
+        return cached || network;
+      })
+    )
+  );
 });
