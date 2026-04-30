@@ -10602,9 +10602,10 @@ function isAssemblyFullyDoneForRep(rep7) {
   return found; // false if no jobs found, true only when all found jobs are done
 }
 
-// Returns true if at least one Assembly job for this REP7 is done but not all of them.
+// Returns true if any Assembly job for this REP7 has been started but not yet completed.
+// Also true if at least one Assembly job is done while others remain — i.e. partway through.
 function isAssemblyInProgressForRep(rep7) {
-  let total = 0, done = 0;
+  let total = 0, done = 0, started = 0;
   for (const wk of Object.keys(PROD)) {
     const wkData = PROD[wk];
     if (!wkData) continue;
@@ -10616,11 +10617,15 @@ function isAssemblyInProgressForRep(rep7) {
         const jobRep7 = String(jobs[ji]?.rep ?? '').replace(/\D/g,'').slice(-7);
         if (jobRep7 !== rep7) continue;
         total++;
-        if (STATE['Assembly']?.['all']?.[wk]?.[prepKey]?.[ji]?.done) done++;
+        const s = STATE['Assembly']?.['all']?.[wk]?.[prepKey]?.[ji];
+        if (s?.done) done++;
+        if (s?.started && !s?.done) started++;
       }
     }
   }
-  return total > 0 && done > 0 && done < total;
+  if (total === 0) return false;
+  if (started > 0) return true;            // someone has clicked start, not yet done
+  return done > 0 && done < total;         // partial completion across multi-job REP
 }
 
 function lsDayLabel(date) {
