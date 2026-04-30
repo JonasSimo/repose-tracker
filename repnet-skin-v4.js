@@ -14,8 +14,12 @@
 
   document.documentElement.classList.add('ui-v4');
 
-  // Constants must be declared BEFORE ready(init) — `defer` fires init
-  // synchronously, so a const declared further down would be in the TDZ.
+  // ALL `let`/`const` declarations must come BEFORE ready(init) — `defer`
+  // fires init synchronously, so anything further down would be in the TDZ.
+
+  // Chart instance state (referenced by removeTeamChart/injectTeamChart)
+  let _v4ChartInstance = null;
+
   const NAV = [
     { h: 'Production' },
     { v: 'home',         g: '⌂',     l: 'Home' },
@@ -81,7 +85,6 @@
   }
 
   // ── 7. Team Planned-vs-Done chart on Stats team detail ────────
-  let _v4ChartInstance = null;
   function injectTeamChart() {
     const detail = document.getElementById('stats-detail');
     if (!detail || detail.style.display === 'none') {
