@@ -150,17 +150,44 @@
     const ctx = document.getElementById('v4-team-chart-canvas');
     if (window.Chart && ctx) {
       _v4ChartInstance = new window.Chart(ctx.getContext('2d'), {
-        type: 'bar',
+        type: 'line',
         data: {
           labels: data.labels,
           datasets: [
-            { label: 'Planned', data: data.planned, backgroundColor: 'rgba(14,2,58,0.85)',  borderRadius: 4, borderSkipped: false },
-            { label: 'Done',    data: data.done,    backgroundColor: 'rgba(20,161,233,0.95)', borderRadius: 4, borderSkipped: false },
+            {
+              label: 'Planned',
+              data: data.planned,
+              borderColor: '#0e023a',
+              backgroundColor: 'rgba(14,2,58,0.08)',
+              borderWidth: 2.4,
+              tension: 0.32,
+              fill: true,
+              pointRadius: 3.5,
+              pointHoverRadius: 6,
+              pointBackgroundColor: '#0e023a',
+              pointBorderColor: '#fff',
+              pointBorderWidth: 1.4,
+            },
+            {
+              label: 'Done',
+              data: data.done,
+              borderColor: '#14a1e9',
+              backgroundColor: 'rgba(20,161,233,0.10)',
+              borderWidth: 2.6,
+              tension: 0.32,
+              fill: true,
+              pointRadius: 3.5,
+              pointHoverRadius: 6,
+              pointBackgroundColor: '#14a1e9',
+              pointBorderColor: '#fff',
+              pointBorderWidth: 1.4,
+            },
           ],
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
           plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } },
           scales: {
             x: { grid: { display: false }, ticks: { font: { family: 'JetBrains Mono', size: 11 } } },
