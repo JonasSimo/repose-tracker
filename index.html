@@ -1852,6 +1852,7 @@ details.tv-ncr-summary[open] > .tv-ncr-summary-hdr .tv-ncr-summary-chev {
 .ls-rep-num .ls-mech-tag { font-size:8px; font-weight:700; background:#cffafe; color:#0e7490; border:1px solid #a5f3fc; border-radius:3px; padding:0 3px; vertical-align:middle; margin-left:3px; }
 .ls-rep-num .ls-acc-tag  { font-size:8px; font-weight:700; background:#f3e8ff; color:#7c3aed; border:1px solid #c4b5fd; border-radius:3px; padding:0 3px; vertical-align:middle; margin-left:3px; }
 .ls-rep-num .ls-serv-tag { font-size:8px; font-weight:700; background:#ede9fe; color:#6d28d9; border:1px solid #c4b5fd; border-radius:3px; padding:0 3px; vertical-align:middle; margin-left:3px; }
+.ls-rep-num .ls-asm-wip-tag { font-size:9px; background:#fff7ed; border:1px solid #fdba74; border-radius:3px; padding:0 2px; vertical-align:middle; margin-left:3px; line-height:1; }
 .ls-rep-desc    { font-size:9px; color:#555; line-height:1.1; padding-bottom:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 /* Text item types */
 .ls-item-text   { padding:1px 4px; border-bottom:1px solid #b8c4d8; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; line-height:1.25; }
@@ -10601,6 +10602,27 @@ function isAssemblyFullyDoneForRep(rep7) {
   return found; // false if no jobs found, true only when all found jobs are done
 }
 
+// Returns true if at least one Assembly job for this REP7 is done but not all of them.
+function isAssemblyInProgressForRep(rep7) {
+  let total = 0, done = 0;
+  for (const wk of Object.keys(PROD)) {
+    const wkData = PROD[wk];
+    if (!wkData) continue;
+    for (const prep of Object.keys(wkData)) {
+      const jobs = wkData[prep];
+      if (!Array.isArray(jobs)) continue;
+      const prepKey = prep === 'express' ? 'express' : Number(prep);
+      for (let ji = 0; ji < jobs.length; ji++) {
+        const jobRep7 = String(jobs[ji]?.rep ?? '').replace(/\D/g,'').slice(-7);
+        if (jobRep7 !== rep7) continue;
+        total++;
+        if (STATE['Assembly']?.['all']?.[wk]?.[prepKey]?.[ji]?.done) done++;
+      }
+    }
+  }
+  return total > 0 && done > 0 && done < total;
+}
+
 function lsDayLabel(date) {
   const today = new Date(); today.setHours(0,0,0,0);
   const diff = Math.round((date - today) / 86400000);
@@ -10667,9 +10689,11 @@ function renderLoadSheet() {
         // (red, NCR sitting with area manager) > asm-done (orange).
         const isQcReturn = !isDone && qcReturnSet.has(item.rep7);
         const stripeCls  = isDone ? ' qc-done' : isQcReturn ? ' qc-ncr-open' : isAsmDone ? ' asm-done' : '';
+        const isAsmWip   = !isDone && !isAsmDone && !isQcReturn && isAssemblyInProgressForRep(item.rep7);
+        const asmTag     = isAsmWip ? ' <span class="ls-asm-wip-tag" title="Assembly in progress">🔨</span>' : '';
         const cls        = `ls-item-rep${expCls}${stripeCls}${isChanged?' ls-changed':''}`;
         return `<div class="${cls}"${isChanged?` style="${delayStyle}"`:''}>
-          <div class="ls-rep-num">${item.rep7}${mechTag}${servTag}</div>
+          <div class="ls-rep-num">${item.rep7}${mechTag}${servTag}${asmTag}</div>
           ${extra ? `<div class="ls-rep-desc">${escHtml(extra)}</div>` : ''}
         </div>`;
       } else if (item.isAcc) {
