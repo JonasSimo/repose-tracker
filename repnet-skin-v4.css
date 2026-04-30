@@ -968,19 +968,20 @@
   gap: 12px !important;
 }
 
-/* Stat cards — refined editorial */
+/* Stat cards — refined editorial (matches the Production Today section styling) */
 .ui-v4 .stat-card {
   background: var(--bg2) !important;
   border: 1px solid var(--border) !important;
-  border-radius: 14px !important;
-  padding: 18px 20px !important;
-  box-shadow: 0 1px 0 var(--border) !important;
-  transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+  border-radius: 16px !important;
+  padding: 22px 24px !important;
+  box-shadow: 0 1px 0 var(--border), 0 12px 36px -22px rgba(14,2,58,0.18) !important;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease !important;
   position: relative;
 }
 .ui-v4 .stat-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 1px 0 var(--border), 0 16px 32px -18px rgba(14,2,58,0.22) !important;
+  transform: translateY(-2px) !important;
+  border-color: var(--border2) !important;
+  box-shadow: 0 1px 0 var(--border), 0 18px 36px -18px rgba(14,2,58,0.28) !important;
 }
 .ui-v4 .stat-card .card-label {
   font-family: "JetBrains Mono", monospace !important;
@@ -989,15 +990,18 @@
   letter-spacing: 0.18em !important;
   text-transform: uppercase !important;
   color: var(--text2) !important;
-  margin-bottom: 8px !important;
+  margin-bottom: 10px !important;
 }
 .ui-v4 .stat-card .card-number {
   font-family: "Bricolage Grotesque", "Manrope", system-ui, sans-serif !important;
   font-weight: 800 !important;
-  font-size: 38px !important;
+  font-size: 48px !important;
   letter-spacing: -0.04em !important;
   color: var(--repose-navy) !important;
   line-height: 1 !important;
+}
+.ui-v4 .stat-card .card-number.sm {
+  font-size: 38px !important;
 }
 .ui-v4 .stat-card .card-sub {
   font-family: "JetBrains Mono", monospace !important;
