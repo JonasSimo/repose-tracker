@@ -1389,11 +1389,29 @@ body.tablet-mode .uh-token-icon { font-size:14px; }
   box-shadow: 0 0 0 0 rgba(220,38,38,.5);
   animation: tvNcrSummaryPulse 1.6s ease-in-out infinite;
 }
+/* Native <details>/<summary> = no JS click handler needed */
 .tv-ncr-summary-hdr {
   background: var(--red); color: #fff;
   padding: 10px 14px; font-size: 13px; font-weight: 800;
   letter-spacing: .02em;
+  cursor: pointer; user-select: none;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  list-style: none;          /* Firefox: hide default disclosure marker */
 }
+.tv-ncr-summary-hdr::-webkit-details-marker { display: none; }
+.tv-ncr-summary-hdr::marker { display: none; content: ''; }
+.tv-ncr-summary-hdr:hover { background: #b91c1c; }
+.tv-ncr-summary-text { flex: 1; min-width: 0; }
+.tv-ncr-summary-chev {
+  flex-shrink: 0;
+  font-size: 14px; line-height: 1;
+  display: inline-block;
+  transition: transform .18s ease;
+}
+details.tv-ncr-summary[open] > .tv-ncr-summary-hdr .tv-ncr-summary-chev {
+  transform: rotate(180deg);
+}
+/* When collapsed, the rows are hidden by the browser; when open they show */
 .tv-ncr-summary-rows { display: flex; flex-direction: column; }
 .tv-ncr-row {
   display: flex; align-items: center; gap: 10px;
@@ -13442,10 +13460,13 @@ function buildTeamNcrSummaryBannerHTML(team) {
     </div>`;
   }).join('');
   const count = items.length;
-  return `<div class="tv-ncr-summary">
-    <div class="tv-ncr-summary-hdr">🔴 ${count} open NCR${count !== 1 ? 's' : ''} against ${escHtml(team)} — action required</div>
+  return `<details class="tv-ncr-summary">
+    <summary class="tv-ncr-summary-hdr">
+      <span class="tv-ncr-summary-text">🔴 ${count} open NCR${count !== 1 ? 's' : ''} against ${escHtml(team)} — action required</span>
+      <span class="tv-ncr-summary-chev" aria-hidden="true">▾</span>
+    </summary>
     <div class="tv-ncr-summary-rows">${rows}</div>
-  </div>`;
+  </details>`;
 }
 
 function getCPARStatus(item) {
