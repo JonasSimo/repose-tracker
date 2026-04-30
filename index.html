@@ -7323,9 +7323,19 @@ function updateAuthBadge() {
     mtState.isManager = mtIsManager;
     cpIsManager = COMPLAINTS_MANAGERS.has(graphAccount.username.toLowerCase());
     _cparRecomputeManager();
-    const _statsAccess = STATS_TEAM_ACCESS[graphAccount.username.toLowerCase()];
+    const _email = graphAccount.username.toLowerCase();
+    const _statsAccess = STATS_TEAM_ACCESS[_email];
     if (_statsAccess) {
       statsAllowedTeams = _statsAccess;
+      statsUnlocked = true;
+      const qbtn = document.getElementById('quality-tab-btn');
+      if (qbtn) qbtn.style.display = '';
+      _cparRecomputeManager();
+    }
+    else if (TEAM_VIEW_FULL_ACCESS.has(_email)) {
+      // Full-access managers (Jonas / Richard / Mitch) — bypass the
+      // password gate; null means no team restriction.
+      statsAllowedTeams = null;
       statsUnlocked = true;
       const qbtn = document.getElementById('quality-tab-btn');
       if (qbtn) qbtn.style.display = '';
