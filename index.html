@@ -1820,9 +1820,9 @@ details.tv-ncr-summary[open] > .tv-ncr-summary-hdr .tv-ncr-summary-chev {
 .ls-legend-item { display:inline-flex; align-items:center; gap:5px; white-space:nowrap; }
 .ls-legend-sw   { display:inline-block; width:14px; height:14px; border-radius:3px; border:1px solid #475569; line-height:14px; text-align:center; font-size:10px; }
 .ls-legend-sw.lg-default { background:#fff; }
-.ls-legend-sw.lg-asm     { background:repeating-linear-gradient(45deg,#fff7ed,#fff7ed 2px,#fed7aa 2px,#fed7aa 4px); }
-.ls-legend-sw.lg-ncr     { background:repeating-linear-gradient(45deg,#fff5f5,#fff5f5 2px,#fecaca 2px,#fecaca 4px); }
-.ls-legend-sw.lg-qc      { background:#bbf7d0; }
+.ls-legend-sw.lg-asm     { background:#ffedd5; box-shadow: inset 3px 0 0 #ea580c; }
+.ls-legend-sw.lg-ncr     { background:repeating-linear-gradient(135deg,#fee2e2,#fee2e2 3px,#fca5a5 3px,#fca5a5 6px); box-shadow: inset 3px 0 0 #dc2626; }
+.ls-legend-sw.lg-qc      { background:#bbf7d0; box-shadow: inset 3px 0 0 #16a34a; }
 .ls-legend-tag  { font-size:8px; font-weight:700; border-radius:3px; padding:0 4px; line-height:1.4; }
 .ls-cols-scroll { flex:1; display:flex; overflow-x:auto; overflow-y:hidden; gap:0; border-top:2px solid var(--repose-blue); }
 .ls-col         { flex:1; min-width:90px; display:flex; flex-direction:column; border-right:1px solid #c0c8d4; overflow:hidden; }
@@ -1840,18 +1840,26 @@ details.tv-ncr-summary[open] > .tv-ncr-summary-hdr .tv-ncr-summary-chev {
 .ls-col-body    { flex:1; overflow-y:auto; overflow-x:hidden; }
 .ls-item-rep    { padding:0 3px; border-bottom:1px solid #dde2ea; cursor:pointer; transition:background .1s; background:#fff; }
 .ls-item-rep:hover { background:#e8f4fd; }
-.ls-item-rep.qc-done { background:#bbf7d0 !important; }
-.ls-item-rep.asm-done { background:repeating-linear-gradient(45deg,#fff7ed,#fff7ed 4px,#fed7aa 4px,#fed7aa 8px) !important; }
+.ls-item-rep.qc-done  { background:#bbf7d0 !important; box-shadow: inset 4px 0 0 #16a34a; }
+/* Assembly done — calm "waiting for QC" state: solid peach + soft left bar, no stripes */
+.ls-item-rep.asm-done { background:#ffedd5 !important; box-shadow: inset 4px 0 0 #ea580c; }
 .ls-item-rep.asm-done .ls-rep-num { color:#9a3412; }
+/* QC issue raised — alert state: red stripes + pulse + inline NCR chip */
 .ls-item-rep.qc-ncr-open {
-  background:repeating-linear-gradient(45deg,#fff5f5,#fff5f5 4px,#fecaca 4px,#fecaca 8px) !important;
+  background:repeating-linear-gradient(135deg,#fee2e2,#fee2e2 5px,#fca5a5 5px,#fca5a5 10px) !important;
   animation: qcNcrPulse 1.4s ease-in-out infinite;
-  box-shadow: 0 0 0 0 rgba(220,38,38,.55);
+  box-shadow: inset 4px 0 0 #dc2626, 0 0 0 0 rgba(220,38,38,.55);
 }
-.ls-item-rep.qc-ncr-open .ls-rep-num { color:#991b1b; font-weight:700; }
+.ls-item-rep.qc-ncr-open .ls-rep-num { color:#7f1d1d; font-weight:800; }
+.ls-item-rep.qc-ncr-open .ls-rep-desc { color:#7f1d1d; font-weight:600; }
+.ls-ncr-chip {
+  display:inline-block; font-size:8px; font-weight:800; letter-spacing:.04em;
+  background:#dc2626; color:#fff; border-radius:3px; padding:0 4px;
+  margin-left:3px; vertical-align:middle; line-height:1.4;
+}
 @keyframes qcNcrPulse {
-  0%, 100% { background:repeating-linear-gradient(45deg,#fff5f5,#fff5f5 4px,#fecaca 4px,#fecaca 8px) !important; box-shadow: 0 0 0 0 rgba(220,38,38,.55); }
-  50%      { background:repeating-linear-gradient(45deg,#fee2e2,#fee2e2 4px,#fca5a5 4px,#fca5a5 8px) !important; box-shadow: 0 0 0 4px rgba(220,38,38,0); }
+  0%, 100% { background:repeating-linear-gradient(135deg,#fee2e2,#fee2e2 5px,#fca5a5 5px,#fca5a5 10px) !important; box-shadow: inset 4px 0 0 #dc2626, 0 0 0 0 rgba(220,38,38,.55); }
+  50%      { background:repeating-linear-gradient(135deg,#fecaca,#fecaca 5px,#f87171 5px,#f87171 10px) !important; box-shadow: inset 4px 0 0 #dc2626, 0 0 0 4px rgba(220,38,38,0); }
 }
 @media (prefers-reduced-motion: reduce) {
   .ls-item-rep.qc-ncr-open { animation: none; }
@@ -10720,6 +10728,7 @@ function renderLoadSheet() {
         const stripeCls  = isDone ? ' qc-done' : isQcReturn ? ' qc-ncr-open' : isAsmDone ? ' asm-done' : '';
         const isAsmWip   = !isDone && !isAsmDone && !isQcReturn && isAssemblyInProgressForRep(item.rep7);
         const asmTag     = isAsmWip ? ' <span class="ls-asm-wip-tag" title="Assembly in progress">🔨</span>' : '';
+        const ncrChip    = isQcReturn ? ' <span class="ls-ncr-chip">⚠ NCR</span>' : '';
         const cls        = `ls-item-rep${expCls}${stripeCls}${isChanged?' ls-changed':''}`;
         // Hover tooltip — explains the colour state
         let tip = '';
@@ -10730,7 +10739,7 @@ function renderLoadSheet() {
         const tipAttr = tip ? ` title="${escHtml(tip)}"` : '';
         const styleAttr = isChanged ? ` style="${delayStyle}"` : '';
         return `<div class="${cls}"${styleAttr}${tipAttr}>
-          <div class="ls-rep-num">${item.rep7}${mechTag}${servTag}${asmTag}</div>
+          <div class="ls-rep-num">${item.rep7}${mechTag}${servTag}${asmTag}${ncrChip}</div>
           ${extra ? `<div class="ls-rep-desc">${escHtml(extra)}</div>` : ''}
         </div>`;
       } else if (item.isAcc) {
