@@ -1812,6 +1812,18 @@ details.tv-ncr-summary[open] > .tv-ncr-summary-hdr .tv-ncr-summary-chev {
 /* ── Delivery Schedule — TV display ── */
 .ls-wrap        { display:flex; flex-direction:column; height:100%; overflow:hidden; background:#f0f2f5; }
 .ls-titlebar    { background:var(--repose-navy); color:#fff; text-align:center; padding:3px 16px; font-size:13px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; flex-shrink:0; display:flex; align-items:center; justify-content:space-between; }
+.ls-titlebar-left { display:flex; align-items:center; gap:10px; }
+.ls-tv-logo     { display:none; height:22px; width:auto; }
+/* Show RepNet logo in titlebar when in TV fullscreen mode (topbar is hidden then) */
+.tv-mode .ls-tv-logo { display:block; }
+.ls-legend      { background:#1e293b; color:#e2e8f0; display:flex; flex-wrap:wrap; align-items:center; gap:6px 14px; padding:4px 12px; font-size:10px; font-weight:600; border-bottom:1px solid #334155; flex-shrink:0; }
+.ls-legend-item { display:inline-flex; align-items:center; gap:5px; white-space:nowrap; }
+.ls-legend-sw   { display:inline-block; width:14px; height:14px; border-radius:3px; border:1px solid #475569; line-height:14px; text-align:center; font-size:10px; }
+.ls-legend-sw.lg-default { background:#fff; }
+.ls-legend-sw.lg-asm     { background:repeating-linear-gradient(45deg,#fff7ed,#fff7ed 2px,#fed7aa 2px,#fed7aa 4px); }
+.ls-legend-sw.lg-ncr     { background:repeating-linear-gradient(45deg,#fff5f5,#fff5f5 2px,#fecaca 2px,#fecaca 4px); }
+.ls-legend-sw.lg-qc      { background:#bbf7d0; }
+.ls-legend-tag  { font-size:8px; font-weight:700; border-radius:3px; padding:0 4px; line-height:1.4; }
 .ls-cols-scroll { flex:1; display:flex; overflow-x:auto; overflow-y:hidden; gap:0; border-top:2px solid var(--repose-blue); }
 .ls-col         { flex:1; min-width:90px; display:flex; flex-direction:column; border-right:1px solid #c0c8d4; overflow:hidden; }
 .ls-col:last-child { border-right:none; }
@@ -3134,9 +3146,19 @@ document.addEventListener('DOMContentLoaded', () => {
 <div class="view" id="view-loadsheet">
   <div class="ls-wrap">
     <div class="ls-titlebar">
-      <span>Weekly Factory Load Sheet</span>
+      <span class="ls-titlebar-left"><img class="ls-tv-logo" src="./repnet-logo-white.png" alt="RepNet" onerror="this.style.display='none'"><span class="ls-title-text">Weekly Factory Load Sheet</span></span>
       <span id="ls-sync-lbl" style="font-size:10px;font-weight:400;opacity:.7;letter-spacing:.02em">Sign in to load</span>
       <button style="padding:3px 10px;border-radius:6px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.1);color:#fff;font-size:11px;cursor:pointer;font-family:inherit" onclick="loadLoadPlanFromSharePoint()">↻ Sync</button>
+    </div>
+    <div class="ls-legend">
+      <span class="ls-legend-item"><span class="ls-legend-sw lg-default"></span>Not started</span>
+      <span class="ls-legend-item"><span class="ls-legend-sw">🔨</span>Assembly in progress</span>
+      <span class="ls-legend-item"><span class="ls-legend-sw lg-asm"></span>Assembly done — awaiting QC</span>
+      <span class="ls-legend-item"><span class="ls-legend-sw lg-ncr"></span>QC found issue (NCR open)</span>
+      <span class="ls-legend-item"><span class="ls-legend-sw lg-qc"></span>QC complete — ready</span>
+      <span class="ls-legend-item"><span class="ls-legend-tag" style="background:#cffafe;color:#0e7490;border:1px solid #a5f3fc">MECH</span>Mechanism only</span>
+      <span class="ls-legend-item"><span class="ls-legend-tag" style="background:#ede9fe;color:#6d28d9;border:1px solid #c4b5fd">SERV</span>Service chair</span>
+      <span class="ls-legend-item"><span class="ls-legend-tag" style="background:#f3e8ff;color:#7c3aed;border:1px solid #c4b5fd">ACC</span>Accessory only</span>
     </div>
     <div class="ls-cols-scroll" id="ls-cols"></div>
   </div>
@@ -10661,9 +10683,11 @@ function renderLoadSheet() {
   for (let i = 1; i <= 3; i++) targetKeys.add(localDateKey(addWorkdays(today, i)));
   const cols = LS_RAW.filter(c => targetKeys.has(localDateKey(c.date)));
 
-  // Build the set of rep7 numbers with at least one open QC-raised NCR
-  // once per render — used to colour the Delivery stripe red.
-  const qcReturnSet = buildQCNcrRep7Set();
+  // Build the set + description map of rep7 numbers with at least one
+  // open QC-raised NCR once per render — used to colour the Delivery
+  // stripe red and to populate tooltips on those items.
+  const qcReturnSet     = buildQCNcrRep7Set();
+  const qcReturnDescMap = buildQCNcrRep7DescMap();
 
   wrap.innerHTML = cols.map(col => {
     const label    = lsDayLabel(col.date);
@@ -10697,7 +10721,15 @@ function renderLoadSheet() {
         const isAsmWip   = !isDone && !isAsmDone && !isQcReturn && isAssemblyInProgressForRep(item.rep7);
         const asmTag     = isAsmWip ? ' <span class="ls-asm-wip-tag" title="Assembly in progress">🔨</span>' : '';
         const cls        = `ls-item-rep${expCls}${stripeCls}${isChanged?' ls-changed':''}`;
-        return `<div class="${cls}"${isChanged?` style="${delayStyle}"`:''}>
+        // Hover tooltip — explains the colour state
+        let tip = '';
+        if (isDone)            tip = 'QC complete — ready for delivery';
+        else if (isQcReturn)   tip = 'Issue found by QC — NCR raised:\n• ' + (qcReturnDescMap.get(item.rep7) || ['NCR raised']).join('\n• ');
+        else if (isAsmDone)    tip = 'Completed by Assembly — awaiting QC check';
+        else if (isAsmWip)     tip = 'Assembly in progress';
+        const tipAttr = tip ? ` title="${escHtml(tip)}"` : '';
+        const styleAttr = isChanged ? ` style="${delayStyle}"` : '';
+        return `<div class="${cls}"${styleAttr}${tipAttr}>
           <div class="ls-rep-num">${item.rep7}${mechTag}${servTag}${asmTag}</div>
           ${extra ? `<div class="ls-rep-desc">${escHtml(extra)}</div>` : ''}
         </div>`;
@@ -13438,6 +13470,24 @@ function buildQCNcrRep7Set() {
     if (r) set.add(r);
   });
   return set;
+}
+
+// Returns Map<rep7, string[]> of short NCR descriptions for any REP with
+// at least one open QC-raised NCR. Used to build hover tooltips on the
+// red-flashing items in the Delivery view.
+function buildQCNcrRep7DescMap() {
+  const map = new Map();
+  CPAR_ITEMS.forEach(item => {
+    if (!isOpenQCNCR(item)) return;
+    const r = extractRep7(item.fields?.PrimaryREP);
+    if (!r) return;
+    const ref  = String(item.fields?.Title || '').trim();
+    const desc = String(item.fields?.Description || '').trim();
+    const line = (ref ? ref + ': ' : '') + (desc.length > 140 ? desc.slice(0,140) + '…' : desc);
+    if (!map.has(r)) map.set(r, []);
+    map.get(r).push(line || ref || 'NCR raised');
+  });
+  return map;
 }
 
 // Returns a Map keyed by `${rep}#${jobNo}` whose value is an array of the
