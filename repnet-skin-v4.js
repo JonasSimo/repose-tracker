@@ -319,16 +319,17 @@
       <line x1="8" y1="16" x2="20" y2="4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
       <line x1="16" y1="16" x2="4" y2="4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
     </symbol>
-    <!-- Sewing — needle with thread weaving through the eye -->
+    <!-- Sewing — needle with prominent oval eye + thread looping through -->
     <symbol id="v4-team-sewing" viewBox="0 0 24 24">
       <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-        <!-- Needle shaft, sharp tip bottom-right, eye end top-left -->
-        <line x1="6" y1="6" x2="20" y2="20" stroke-width="1.8"/>
-        <!-- Slit-shaped eye, oriented along the shaft -->
-        <ellipse cx="5" cy="5" rx="2.3" ry="0.9" stroke-width="1.4" transform="rotate(-45 5 5)"/>
-        <!-- Thread weaving through eye -->
-        <path d="M2 8 Q0 5 3 3 Q6 1 8 3" stroke-width="1.3"/>
-        <path d="M3 9 Q5 7 8 8" stroke-width="1.2" opacity="0.7"/>
+        <!-- Long needle shaft from eye end to sharp tip -->
+        <line x1="12" y1="10.5" x2="13" y2="22" stroke-width="2.2"/>
+        <!-- Big visible eye (oval hole), distinctly bigger than a pin head -->
+        <ellipse cx="11.5" cy="6.5" rx="2.4" ry="3.8" stroke-width="1.7"/>
+        <!-- Thread clearly weaving through the eye, both tails visible -->
+        <path d="M4 4 Q8 5 11.5 6.5 Q15 8 19 6" stroke-width="1.5"/>
+        <!-- Trailing tail end -->
+        <path d="M19 6 Q21 5 19 2.5" stroke-width="1.3" opacity="0.75"/>
       </g>
     </symbol>
     <symbol id="v4-team-upholstery" viewBox="0 0 24 24">
