@@ -7980,6 +7980,12 @@ function toast(msg, type='s') {
 
 let GLUING_QUEUE = {}; // must be declared before init block (TDZ guard)
 
+// CPAR state — must exist before the tablet-team init block below, because
+// renderJobs → buildTeamNcrSummaryBannerHTML reads CPAR_ITEMS. Real population
+// happens later (fetchCPARs); empty array is a safe default for first render.
+var CPAR_ITEMS = [];
+var cparListLoaded = false;
+
 // ─── Init ───
 if (TABLET_TEAM) {
   // Auto-open the locked team and hide the team-select screen
@@ -11071,12 +11077,10 @@ function normaliseTeam(raw) {
   return TEAM_NAME_MAP[(raw||'').toLowerCase().trim()] || (raw||'').trim();
 }
 
-// In-memory store
-// `var` (not `let`) so it's hoisted past the tablet-team init block at line
-// ~7984 — that block calls renderJobs → buildTeamNcrSummaryBannerHTML which
-// reads CPAR_ITEMS, hitting a TDZ ReferenceError under any `?team=...` URL.
-var CPAR_ITEMS = [];
-var cparListLoaded = false;
+// In-memory store. CPAR_ITEMS / cparListLoaded are now initialised at the
+// top of the script (before the tablet-team init block) — the actual array
+// assignment must happen earlier than line ~7984 or renderJobs throws on
+// every ?team=... URL. Just declare the remaining filters here.
 let cparFilterStatus = 'todo';
 let cparFilterTeam = '';
 
