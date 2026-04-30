@@ -2862,6 +2862,12 @@ document.addEventListener('DOMContentLoaded', () => {
 #cpar-print-area .sig .lb { font-size:8px; color:#555; margin-top:2px; text-transform:uppercase; letter-spacing:.05em }
 #cpar-print-area .ft { font-size:8px; color:#777; margin-top:12px; border-top:1px solid #ccc; padding-top:4px; display:flex; justify-content:space-between }
 </style>
+
+<!-- ═══ RepNet Skin v4 — feature-flagged via ?ui=v4 ═══ -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./repnet-skin-v4.css">
 </head>
 <body>
 
@@ -20158,5 +20164,8 @@ async function mtDeleteYearly(id) {
     <button class="qc-sticker-done-btn" id="qc-sticker-done-btn" onclick="closeQCStickerModal()">✓ I've written the ref — Done</button>
   </div>
 </div>
+
+<!-- ═══ RepNet Skin v4 — flag JS (no-op unless ?ui=v4) ═══ -->
+<script src="./repnet-skin-v4.js" defer></script>
 </body>
 </html>
