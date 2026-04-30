@@ -11072,10 +11072,13 @@ function normaliseTeam(raw) {
 }
 
 // In-memory store
-let CPAR_ITEMS = [];
+// `var` (not `let`) so it's hoisted past the tablet-team init block at line
+// ~7984 — that block calls renderJobs → buildTeamNcrSummaryBannerHTML which
+// reads CPAR_ITEMS, hitting a TDZ ReferenceError under any `?team=...` URL.
+var CPAR_ITEMS = [];
+var cparListLoaded = false;
 let cparFilterStatus = 'todo';
 let cparFilterTeam = '';
-let cparListLoaded = false;
 
 // Set of CPAR ids currently mid-PATCH; used to debounce double-clicks across all action handlers.
 const _cparBusy = new Set();
