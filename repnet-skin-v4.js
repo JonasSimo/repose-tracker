@@ -301,12 +301,12 @@
     const sprite = `
 <svg id="v4-sprite-root" width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
+    <!-- Woodmill — circular saw blade (12 teeth + arbor hole) -->
     <symbol id="v4-team-woodmill" viewBox="0 0 24 24">
-      <path d="M6 6 Q3 6 3 10 Q3 14 6 14 L9 14 L9 6 Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
-      <line x1="5" y1="8.5" x2="7" y2="8.5" stroke="currentColor" stroke-width="1.2" opacity="0.6"/>
-      <line x1="5" y1="11.5" x2="7" y2="11.5" stroke="currentColor" stroke-width="1.2" opacity="0.6"/>
-      <path d="M9 8 L21 9.5 L21 11 L9 12 Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
-      <path d="M10 12 L11 14 L12 12 L13 14 L14 12 L15 14 L16 12 L17 14 L18 12 L19 14 L20 12" fill="currentColor"/>
+      <polygon points="12,3 13.81,5.24 16.5,4.21 16.95,7.05 19.79,7.5 18.76,10.19 21,12 18.76,13.81 19.79,16.5 16.95,16.95 16.5,19.79 13.81,18.76 12,21 10.19,18.76 7.5,19.79 7.05,16.95 4.21,16.5 5.24,13.81 3,12 5.24,10.19 4.21,7.5 7.05,7.05 7.5,4.21 10.19,5.24"
+        fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/>
+      <circle cx="12" cy="12" r="2.2" fill="none" stroke="currentColor" stroke-width="1.3"/>
+      <circle cx="12" cy="12" r="0.7" fill="currentColor"/>
     </symbol>
     <symbol id="v4-team-foam" viewBox="0 0 24 24">
       <rect x="3" y="6" width="18" height="12" rx="3" ry="3" fill="none" stroke="currentColor" stroke-width="1.8"/>
@@ -319,10 +319,17 @@
       <line x1="8" y1="16" x2="20" y2="4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
       <line x1="16" y1="16" x2="4" y2="4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
     </symbol>
+    <!-- Sewing — needle with thread weaving through the eye -->
     <symbol id="v4-team-sewing" viewBox="0 0 24 24">
-      <line x1="4" y1="20" x2="19" y2="5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-      <circle cx="4.5" cy="19.5" r="1.6" fill="none" stroke="currentColor" stroke-width="1.4"/>
-      <path d="M19 5 Q15 7 13 11 Q11 15 7 17" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="1.6 1.8" opacity="0.8"/>
+      <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <!-- Needle shaft, sharp tip bottom-right, eye end top-left -->
+        <line x1="6" y1="6" x2="20" y2="20" stroke-width="1.8"/>
+        <!-- Slit-shaped eye, oriented along the shaft -->
+        <ellipse cx="5" cy="5" rx="2.3" ry="0.9" stroke-width="1.4" transform="rotate(-45 5 5)"/>
+        <!-- Thread weaving through eye -->
+        <path d="M2 8 Q0 5 3 3 Q6 1 8 3" stroke-width="1.3"/>
+        <path d="M3 9 Q5 7 8 8" stroke-width="1.2" opacity="0.7"/>
+      </g>
     </symbol>
     <symbol id="v4-team-upholstery" viewBox="0 0 24 24">
       <path d="M5 18 V11 Q5 9 7 9 H17 Q19 9 19 11 V18" fill="none" stroke="currentColor" stroke-width="1.8"/>
