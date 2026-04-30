@@ -3514,7 +3514,9 @@ const SUBS = ['Arms','Backs','Seats'];
 // Only last 2 weeks, current week, and week ahead are shown
 // REP numbers taken directly from WK 10-13 sheets in the workbook
 const EXPRESS_TYPE_MAP = new Map(); // rep7 (7-digit string) → 'EXP' | 'MFT'
-const PROD = {
+// `var` (not `const`) so the v4 skin can read it via window.PROD without
+// touching the host code paths that mutate the object.
+var PROD = {
   'WK 10': { // w/c 02 Mar 2026
     wc: '02/03/2026',
     1: [
@@ -8092,7 +8094,8 @@ let statsTeamFilter = '';      // '' = all teams; team name = filter stats to th
 function gluingKey(wk, prep, rep, sub) { return `${wk}__${prep}__${rep}__${sub || 'all'}`; }
 const GLU_SUB_FULL = { A:'Arms', B:'Backs', S:'Seats' };
 
-let STATS_COMPLETIONS = [];
+// `var` so window.STATS_COMPLETIONS is readable from the v4 skin script.
+var STATS_COMPLETIONS = [];
 let STATS_ALERTS      = [];
 let STATS_SCRAP       = [];
 let STATS_QC          = []; // [{ rep7: '2613044', date: Date, inspector: 'Name', type: 'New Chair'|'Service Chair'|'Accessories' }, ...]
