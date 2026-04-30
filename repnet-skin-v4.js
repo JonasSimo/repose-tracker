@@ -92,14 +92,24 @@
       return;
     }
     const view = detail.dataset.view;
-    const team = window.statsTeamFilter;
-    const period = window.teamTokenPeriod || 'week';
 
     // Only show on team detail view
-    if (view !== 'team' || !team) {
+    if (view !== 'team') {
       removeTeamChart();
       return;
     }
+
+    // Read team from the detail title element. The host renders the team
+    // name as the title text when view==='team'. (Don't rely on
+    // window.statsTeamFilter — it's `let`-declared so not on window.)
+    const titleEl = document.getElementById('stats-detail-title');
+    const team = titleEl ? titleEl.textContent.trim() : '';
+    if (!team) { removeTeamChart(); return; }
+
+    // Period: read from the active period button rendered by the host.
+    // Falls back to 'week' if it can't be determined.
+    let period = readTeamPeriodFromDOM();
+    if (!period) period = 'week';
 
     const body = document.getElementById('stats-detail-body');
     if (!body) return;
@@ -159,6 +169,25 @@
         },
       });
     }
+  }
+
+  // The team-detail period buttons are rendered inline with font-weight:700
+  // when active. They use onclick="teamTokenPeriod='<p>';..." — read the
+  // period from the active button's onclick attr.
+  function readTeamPeriodFromDOM() {
+    const body = document.getElementById('stats-detail-body');
+    if (!body) return '';
+    const buttons = body.querySelectorAll('button[onclick]');
+    for (const b of buttons) {
+      const oc = b.getAttribute('onclick') || '';
+      const m = oc.match(/teamTokenPeriod\s*=\s*['"]([^'"]+)['"]/);
+      if (!m) continue;
+      // Active button uses font-weight 700 (per host inline styling)
+      if ((b.style.fontWeight || '') === '700' || b.classList.contains('active')) {
+        return m[1];
+      }
+    }
+    return '';
   }
 
   function removeTeamChart() {
