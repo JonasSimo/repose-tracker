@@ -11149,7 +11149,6 @@ const CPAR_ADMIN_ERROR_TYPES = [
   'Other admin error',
 ];
 const CPAR_ADMIN_DISPOSITION_SENTINEL = 'Paperwork amendment';
-const CPAR_ADMIN_CONTAINMENT_SENTINEL = 'N/A — admin paperwork fix';
 const CPAR_REVIEW_DECISIONS = ['Approved', 'Escalated', 'Returned'];
 const CPAR_INVESTIGATION_OUTCOMES = ['Human Error', 'Template-Spec Issue'];
 const CPAR_INVESTIGATORS = [
@@ -13079,8 +13078,8 @@ function exportRegisterCSV() {
     return true;
   }).sort((a,b) => parseCPARDate(b.fields.LoggedAt) - parseCPARDate(a.fields.LoggedAt));
 
-  const headers = ['REF','Date Raised','Raised By Team','Source Dept','Category','Job Ref','Model','QTY','Description',
-    'Closed-Out By','Closed-Out At','Disposition','Disposition Notes','Containment','Root Cause','Corrective Action',
+  const headers = ['REF','Close-out Type','Date Raised','Raised By Team','Source Dept','Category','Job Ref','Model','QTY','Description',
+    'Closed-Out By','Closed-Out At','Disposition','Disposition Notes','Containment','Root Cause / Admin Error Type','Corrective Action',
     'Reviewed By','Reviewed At','Review Decision','Investigator','Investigation Outcome','ECR Ref',
     'Closed By','Closed At','Repeat?','Repeat Linked Refs','Eff. Verified By','Eff. Verified At','Eff. Verified?',
     'Recurrence Note','Linked-From Ref','Days Open','Status'];
@@ -13094,8 +13093,9 @@ function exportRegisterCSV() {
     const days = open.getTime()
       ? (closedValid ? workingDaysBetween(open, closeOrNow) : workingDaysBetween(open, new Date()) + ' (open)')
       : '';
+    const closeoutType = f.Disposition === CPAR_ADMIN_DISPOSITION_SENTINEL ? 'Paperwork' : (f.Disposition ? 'Physical' : '');
     return [
-      f.Title, (f.LoggedAt||'').slice(0,16), f.RaisedByTeam, f.SourceDept, f.IssueCategory,
+      f.Title, closeoutType, (f.LoggedAt||'').slice(0,16), f.RaisedByTeam, f.SourceDept, f.IssueCategory,
       (f.PrimaryREP||'')+'/'+(f.PrimaryJobNo||''), f.PrimaryModel, f.QTY||1, f.Description,
       f.ClosedOutBy, f.ClosedOutAt, f.Disposition, f.DispositionNotes, f.Containment, f.CauseCode, f.CorrectiveAction,
       f.ReviewedBy, f.ReviewedAt, f.ReviewDecision, f.InvestigatorAssigned, f.InvestigationOutcome, f.ECRRef,
@@ -15220,7 +15220,7 @@ async function submitCPARCloseout(id, ev) {
       if (!action) { toast('Describe what was amended', 'w'); return; }
       disposition = CPAR_ADMIN_DISPOSITION_SENTINEL;
       dispNotes   = '';
-      containment = CPAR_ADMIN_CONTAINMENT_SENTINEL;
+      containment = ''; // admin paperwork fixes have no real containment — keep SP column empty
       cause       = adminType; // store admin error type in CauseCode for reporting
     } else {
       disposition = root.dataset.disposition || '';
