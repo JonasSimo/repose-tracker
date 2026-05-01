@@ -1449,6 +1449,8 @@ details.tv-ncr-summary[open] > .tv-ncr-summary-hdr .tv-ncr-summary-chev {
 .issues-team-row::-webkit-scrollbar { display:none; }
 .issues-chip { padding:6px 14px; border-radius:20px; border:1.5px solid var(--border2); background:var(--bg3); font-size:12px; font-weight:600; cursor:pointer; color:var(--text2); font-family:inherit; transition:.1s; white-space:nowrap; flex-shrink:0; }
 .issues-chip.active { background:var(--repose-navy); color:#fff; border-color:var(--repose-navy); }
+.issues-chip.issues-chip-dim { opacity:.45; }
+.issues-chip.issues-chip-dim.active { opacity:.7; }
 .issues-chip.amber.active { background:var(--amber); border-color:var(--amber); color:#fff; }
 .issues-chip.red.active { background:var(--red); border-color:var(--red); color:#fff; }
 .issues-chip.green.active { background:var(--green); border-color:var(--green); color:#fff; }
@@ -11190,6 +11192,7 @@ function normaliseTeam(raw) {
 // every ?team=... URL. Just declare the remaining filters here.
 let cparFilterStatus = 'todo';
 let cparFilterTeam = '';
+let cparFilterSearch = '';
 
 // Set of CPAR ids currently mid-PATCH; used to debounce double-clicks across all action handlers.
 const _cparBusy = new Set();
@@ -11960,14 +11963,25 @@ function renderIssuesIntoQuality(host) {
       return st === 'amber' || st === 'red';
     },
   };
-  let filtered = items.filter(filterMap[cparFilterStatus] || filterMap.todo);
+  const searchQ = (cparFilterSearch || '').trim().toLowerCase();
+  // When searching, bypass status filter so users can find any CPAR by REF/REP
+  // regardless of which status chip is currently selected.
+  let filtered = searchQ ? items.slice() : items.filter(filterMap[cparFilterStatus] || filterMap.todo);
   if (cparFilterTeam) {
     const tLc = cparFilterTeam.toLowerCase();
     filtered = filtered.filter(i => (i.fields?.SourceDept || i.fields?.RaisedByTeam || '').toLowerCase().includes(tLc));
   }
+  if (searchQ) {
+    filtered = filtered.filter(i => {
+      const f = i.fields || {};
+      return (f.Title||'').toLowerCase().includes(searchQ)
+          || (f.PrimaryREP||'').toLowerCase().includes(searchQ)
+          || String(f.PrimaryJobNo||'').toLowerCase().includes(searchQ);
+    });
+  }
   filtered.sort((a, b) => parseCPARDate(b.fields?.LoggedAt) - parseCPARDate(a.fields?.LoggedAt));
 
-  const teams = ['', 'Woodmill', 'Cutting', 'Sewing', 'Upholstery', 'Foam', 'Stores', 'Assembly', 'QC', 'Admin'];
+  const teams = ['', 'Woodmill', 'Cutting', 'Sewing', 'Upholstery', 'Foam', 'Stores', 'Assembly', 'QC', 'Admin', 'Development', 'Supplier'];
 
   const TEAM_COLOURS = {
     'Woodmill': '#7c3aed',
@@ -11979,6 +11993,8 @@ function renderIssuesIntoQuality(host) {
     'Assembly': '#059669',
     'QC': '#ea580c',
     'Admin': '#9333ea',
+    'Development': '#14b8a6',
+    'Supplier': '#b45309',
   };
   // Compute open-CPAR count per team (open = not Closed and not Archived and not Awaiting Eff. Check)
   const teamCounts = {};
@@ -12054,13 +12070,21 @@ function renderIssuesIntoQuality(host) {
 
     <!-- Status chips + search -->
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
-      <button class="issues-chip ${cparFilterStatus==='todo'?'active':''}" onclick="setIssueFilter('todo'); renderQualitySubview();">To do</button>
-      <button class="issues-chip ${cparFilterStatus==='progress'?'active':''}" onclick="setIssueFilter('progress'); renderQualitySubview();">In progress</button>
-      <button class="issues-chip ${cparFilterStatus==='closed'?'active':''}" onclick="setIssueFilter('closed'); renderQualitySubview();">Recently closed</button>
-      <button class="issues-chip ${cparFilterStatus==='all'?'active':''}" onclick="setIssueFilter('all'); renderQualitySubview();">All</button>
-      <button class="issues-chip ${cparFilterStatus==='repeat'?'active':''}" onclick="setIssueFilter('repeat'); renderQualitySubview();" style="background:#fff1f1;color:#991b1b;border:1.5px solid #fca5a5">🔴 Repeat</button>
-      <button class="issues-chip ${cparFilterStatus==='overdue'?'active':''}" onclick="setIssueFilter('overdue'); renderQualitySubview();" style="background:#fff8e6;color:#d97706;border:1.5px solid #fde68a">⚠ Overdue</button>
-      <span style="margin-left:auto;color:var(--text3);font-size:12px">${filtered.length} CPAR${filtered.length===1?'':'s'}</span>
+      <button class="issues-chip ${cparFilterStatus==='todo'?'active':''}${searchQ?' issues-chip-dim':''}" onclick="setIssueFilter('todo'); renderQualitySubview();">To do</button>
+      <button class="issues-chip ${cparFilterStatus==='progress'?'active':''}${searchQ?' issues-chip-dim':''}" onclick="setIssueFilter('progress'); renderQualitySubview();">In progress</button>
+      <button class="issues-chip ${cparFilterStatus==='closed'?'active':''}${searchQ?' issues-chip-dim':''}" onclick="setIssueFilter('closed'); renderQualitySubview();">Recently closed</button>
+      <button class="issues-chip ${cparFilterStatus==='all'?'active':''}${searchQ?' issues-chip-dim':''}" onclick="setIssueFilter('all'); renderQualitySubview();">All</button>
+      <button class="issues-chip ${cparFilterStatus==='repeat'?'active':''}${searchQ?' issues-chip-dim':''}" onclick="setIssueFilter('repeat'); renderQualitySubview();" style="background:#fff1f1;color:#991b1b;border:1.5px solid #fca5a5">🔴 Repeat</button>
+      <button class="issues-chip ${cparFilterStatus==='overdue'?'active':''}${searchQ?' issues-chip-dim':''}" onclick="setIssueFilter('overdue'); renderQualitySubview();" style="background:#fff8e6;color:#d97706;border:1.5px solid #fde68a">⚠ Overdue</button>
+      <div style="position:relative;margin-left:auto;display:flex;align-items:center;gap:8px">
+        <span style="position:absolute;left:8px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:12px;pointer-events:none">🔍</span>
+        <input id="cpar-search-input" type="search" value="${escHtml(cparFilterSearch||'')}"
+               placeholder="Search REF / REP / Job…"
+               oninput="cparSearchInput(this.value)"
+               style="padding:6px 10px 6px 26px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:'JetBrains Mono',monospace;width:200px;background:var(--bg)">
+        ${searchQ ? `<button class="issues-chip" onclick="cparClearSearch()" style="padding:5px 9px;font-size:11px">Clear</button>` : ''}
+        <span style="color:var(--text3);font-size:12px">${filtered.length} CPAR${filtered.length===1?'':'s'}</span>
+      </div>
     </div>
 
     <!-- Table view -->
@@ -13609,6 +13633,28 @@ function setIssueFilter(f) {
   cparFilterStatus = f;
   document.querySelectorAll('.issues-chip').forEach(c => c.classList.toggle('active', c.dataset.f === f));
   renderIssuesList();
+}
+
+// Debounced search re-render so typing stays snappy in the Quality tab.
+let _cparSearchTimer = null;
+function cparSearchInput(value) {
+  cparFilterSearch = value;
+  if (_cparSearchTimer) clearTimeout(_cparSearchTimer);
+  _cparSearchTimer = setTimeout(() => {
+    renderQualitySubview();
+    // Re-focus the input after re-render so the user can keep typing.
+    const inp = document.getElementById('cpar-search-input');
+    if (inp) {
+      inp.focus();
+      const len = inp.value.length;
+      try { inp.setSelectionRange(len, len); } catch(e) {}
+    }
+  }, 180);
+}
+function cparClearSearch() {
+  cparFilterSearch = '';
+  if (_cparSearchTimer) { clearTimeout(_cparSearchTimer); _cparSearchTimer = null; }
+  renderQualitySubview();
 }
 
 function setIssueTeam(btn, team) {
