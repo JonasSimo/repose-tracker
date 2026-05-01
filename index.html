@@ -2927,6 +2927,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <button class="nav-item" data-view="stats" onclick="navTo('stats')">Stats</button>
         <button class="nav-item" data-view="issues" id="issues-tab-btn" onclick="navTo('issues')" style="display:none">Internal NCRs</button>
         <button class="nav-item tab-btn" data-view="quality" id="quality-tab-btn" onclick="navTo('quality')">Quality</button>
+        <button class="nav-item" data-view="actions" id="actions-tab-btn" onclick="navTo('actions')">CAPA</button>
         <button class="nav-item" data-view="timing" id="timing-tab-btn" onclick="navTo('timing')" style="display:none">Job Timing</button>
         <button class="nav-item" data-view="maintenance" id="mt-tab-btn" onclick="navTo('maintenance')">Maintenance</button>
         <button class="nav-item" data-view="safety" onclick="navTo('safety')">Near Misses</button>
@@ -3310,6 +3311,13 @@ document.addEventListener('DOMContentLoaded', () => {
   <div id="quality-subview"></div>
 </div>
 
+<!-- ═══════════════════════════════════════════════
+     VIEW: CAPA (Corrective & Preventive Actions — Q / H&S / Env)
+════════════════════════════════════════════════ -->
+<div id="view-actions" class="view" style="overflow:auto;padding:14px">
+  <div id="actions-root"></div>
+</div>
+
 <!-- Initials modal -->
 <div id="modal-cpar-delete" class="modal-overlay" style="display:none" onclick="if(event.target===this)document.getElementById('modal-cpar-delete').style.display='none'">
   <div class="modal-box">
@@ -3319,6 +3327,54 @@ document.addEventListener('DOMContentLoaded', () => {
     <div class="modal-actions" style="margin-top:14px">
       <button class="modal-cancel" onclick="document.getElementById('modal-cpar-delete').style.display='none'">Cancel</button>
       <button class="modal-confirm" id="modal-cpar-delete-btn" style="background:#dc2626" onclick="deleteCPAR()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════ CAPA: New action modal ═════════════ -->
+<div id="modal-capa" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeNewCAPAModal()">
+  <div class="modal-box" style="max-width:560px;width:92%;max-height:92vh;overflow-y:auto">
+    <div class="modal-title" id="modal-capa-title">Raise CAPA action</div>
+    <div class="modal-sub" id="modal-capa-sub" style="margin-top:4px">Will be auto-numbered on save</div>
+
+    <div style="margin-top:14px;display:flex;flex-direction:column;gap:12px;text-align:left">
+
+      <div>
+        <label style="display:block;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">What needs to be done? <span style="color:var(--red)">*</span></label>
+        <textarea id="capa-f-desc" placeholder="Be specific. e.g. Re-train Cutting team on grain-direction marking and update PHCF-CUT-003." style="width:100%;padding:9px;border:1.5px solid var(--border);border-radius:6px;font-family:inherit;font-size:13px;min-height:70px;resize:vertical;box-sizing:border-box"></textarea>
+      </div>
+
+      <div>
+        <label style="display:block;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Area <span style="color:var(--red)">*</span></label>
+        <div id="capa-f-area-pills" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+      </div>
+
+      <div>
+        <label style="display:block;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Source <span style="font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0;font-size:11px">— a CPAR ref like RP-03902, near-miss date, audit name, etc.</span></label>
+        <input id="capa-f-source" type="text" placeholder="RP-03902  ·  Near-miss 24 Apr  ·  Audit Q1 …" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:'JetBrains Mono',monospace;box-sizing:border-box">
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div>
+          <label style="display:block;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Owner <span style="color:var(--red)">*</span></label>
+          <select id="capa-f-owner" onchange="_capaOwnerChanged()" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;background:#fff;box-sizing:border-box"></select>
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Owner team <span style="color:var(--red)">*</span></label>
+          <select id="capa-f-team" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;background:#fff;box-sizing:border-box"></select>
+        </div>
+      </div>
+
+      <div>
+        <label style="display:block;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Due date <span style="color:var(--red)">*</span></label>
+        <input id="capa-f-due" type="date" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;background:#fff">
+      </div>
+
+    </div>
+
+    <div class="modal-actions" style="margin-top:18px">
+      <button class="modal-cancel" onclick="closeNewCAPAModal()">Cancel</button>
+      <button class="modal-confirm" id="capa-submit-btn" onclick="submitCAPA()">Raise action</button>
     </div>
   </div>
 </div>
@@ -3908,7 +3964,7 @@ let ppAutoSyncInterval = null;
 // ═══════════════════════════════════════════════
 // ROUTING
 // ═══════════════════════════════════════════════
-const NAV_LABELS = { 'team-select':'Team View','tracker':'Team View','overview':'Load Plan','loadsheet':'Delivery','production':'Production Plan','stats':'Stats','issues':'Issues','quality':'Quality','safety':'Safety','ordercheck':'Order Check','timing':'Job Timing','complaints':'Complaints','innovation':'Innovation Station','maintenance':'Maintenance' };
+const NAV_LABELS = { 'team-select':'Team View','tracker':'Team View','overview':'Load Plan','loadsheet':'Delivery','production':'Production Plan','stats':'Stats','issues':'Issues','quality':'Quality','actions':'CAPA','safety':'Safety','ordercheck':'Order Check','timing':'Job Timing','complaints':'Complaints','innovation':'Innovation Station','maintenance':'Maintenance' };
 function showView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   const activeView = name === 'tracker' ? 'team-select' : name;
@@ -3936,6 +3992,7 @@ function showView(name) {
   if (name === 'stats')       { openStatsView(); if (!NMS_ITEMS.length) loadNearMisses(); }
   if (name === 'issues')      { openIssuesView(); }
   if (name === 'quality')     { openQualityView(); }
+  if (name === 'actions')     { openActionsView(); }
   if (name === 'safety')      { loadNearMisses(); }
   if (name === 'ordercheck')  { ocOnOpen(); }
   if (name === 'timing')      { tmOnOpen(); }
@@ -7422,7 +7479,7 @@ async function initGraph() {
     graphAccount = accounts[0];
     updateAuthBadge();
     const _deepView = new URLSearchParams(window.location.search).get('view');
-    const _validViews = new Set(['team-select','overview','tracker','loadsheet','production','stats','issues','safety','ordercheck','timing','complaints','maintenance','innovation']);
+    const _validViews = new Set(['team-select','overview','tracker','loadsheet','production','stats','issues','quality','actions','safety','ordercheck','timing','complaints','maintenance','innovation']);
     if (_deepView && _validViews.has(_deepView)) navTo(_deepView);
     // PROD is the team-view critical path — it builds the job grid (renderJobs runs at
     // the end of loadProductionFromSharePoint). Run it alone first so jobs paint asap.
@@ -11898,6 +11955,10 @@ let _effCheckChecked = false;
 function setQualitySubview(v) {
   cparSubview = v;
   document.querySelectorAll('.quality-chip').forEach(c => c.classList.toggle('active', c.dataset.view === v));
+  // PE View shows "+ Spawn CAPA" badges that need CAPA_ITEMS loaded.
+  if (v === 'pe' && !capaListLoaded) {
+    fetchCAPAs().then(() => renderQualitySubview()).catch(() => {});
+  }
   if (v === 'review' && !_effCheckChecked) {
     _effCheckChecked = true;
     autoMoveToEffCheck().then(() => renderQualitySubview()).catch(() => renderQualitySubview());
@@ -12756,10 +12817,49 @@ function renderPECard(item) {
 
         <div id="ecr-prompt-${item.id}"></div>
 
-        <button class="cpar-confirm-close-btn" id="pe-submit-${item.id}" onclick="event.stopPropagation();peSubmitInvestigation('${item.id}')" disabled style="margin-top:12px">Submit investigation → QHSE</button>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap">
+          <button class="cpar-confirm-close-btn" id="pe-submit-${item.id}" onclick="event.stopPropagation();peSubmitInvestigation('${item.id}')" disabled>Submit investigation → QHSE</button>
+          <button class="cpar-confirm-close-btn" onclick="event.stopPropagation();peSpawnCAPAFromCPAR('${item.id}')" style="background:#fff;color:var(--repose-navy);border:1.5px solid var(--repose-navy)">+ Spawn CAPA</button>
+          ${_capaCountForCpar(item.id) > 0 ? `<span style="font-size:11px;color:var(--green);font-weight:700">✓ ${_capaCountForCpar(item.id)} CAPA${_capaCountForCpar(item.id)>1?'s':''} spawned</span>` : ''}
+        </div>
       </div>
     </div>
   </div>`;
+}
+
+// Count CAPAs whose SourceCPARId matches the given CPAR item id.
+function _capaCountForCpar(cparId) {
+  if (!CAPA_ITEMS || !cparId) return 0;
+  return CAPA_ITEMS.filter(c => (c.fields?.SourceCPARId||'') === cparId).length;
+}
+
+// Open the New CAPA modal pre-filled from a CPAR investigation.
+// Pulls the PE's typed investigation notes as the action description starter,
+// links back via SourceCPARId, and guesses owner team from the CPAR SourceDept.
+function peSpawnCAPAFromCPAR(cparId) {
+  const item = CPAR_ITEMS.find(i => i.id === cparId);
+  if (!item) { toast('CPAR not found', 'u'); return; }
+  const f = item.fields || {};
+  const notes = (document.getElementById('pe-notes-' + cparId)?.value || '').trim();
+
+  // Best-effort owner team match: scan SourceDept/RaisedByTeam for a CAPA team keyword.
+  const guessTeam = () => {
+    const src = ((f.SourceDept || f.RaisedByTeam || '') + '').toLowerCase();
+    for (const t of CAPA_OWNER_TEAMS) {
+      if (t === 'Other' || t === 'PE') continue;
+      if (src.includes(t.toLowerCase())) return t;
+    }
+    return '';
+  };
+
+  openNewCAPAModal({
+    desc: notes ? notes.slice(0, 1000) : '',
+    area: 'Quality',
+    source: f.Title || '',
+    sourceCparId: cparId,
+    ownerTeam: guessTeam(),
+    due: '',
+  });
 }
 
 const _peEcrRefCache = new Map(); // CPAR id → last-typed ECR ref, survives card re-renders
@@ -14426,6 +14526,672 @@ async function sendDailyDigest(btn) {
     toast('Could not send digest — check connection', 'u');
   } finally {
     btn.disabled = false; btn.textContent = '✉ Send Digest';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// CAPA — CORRECTIVE & PREVENTIVE ACTIONS LOG
+// ═══════════════════════════════════════════════════════════
+// Unified action register across Quality, H&S, Environment.
+// Spawned manually OR auto-spawned from a CPAR investigation.
+// Two-stage close: Owner marks Done → QHSE Verifies (with effectiveness Y/N).
+
+const SP_CAPA_LIST = 'CAPAActions';
+
+const CAPA_AREAS = ['Quality', 'H&S', 'Environment'];
+const CAPA_AREA_COLOURS = {
+  'Quality':     { fg:'#14a1e9', bg:'#e6f5fd' },
+  'H&S':         { fg:'#dc2626', bg:'#fff1f1' },
+  'Environment': { fg:'#059669', bg:'#ecfdf5' },
+};
+
+const CAPA_OWNER_TEAMS = [
+  'Woodmill','Cutting','Sewing','Upholstery','Foam','Stores',
+  'Assembly','QC','Admin','PE','Other'
+];
+
+const CAPA_STATUS = {
+  OPEN:     'Open',
+  PROGRESS: 'In Progress',
+  VERIFY:   'Awaiting Verify',
+  CLOSED:   'Closed',
+};
+
+const CAPA_EFFECTIVENESS = { PENDING:'Pending', YES:'Yes', NO:'No' };
+
+let CAPA_ITEMS = [];
+let capaListLoaded = false;
+
+// Filter state — mirrors the Quality tab pattern.
+let capaFilterArea   = '';     // '' | 'Quality' | 'H&S' | 'Environment'
+let capaFilterStatus = 'open'; // 'open' | 'closed' | 'all'
+let capaFilterSearch = '';
+
+async function fetchCAPAs() {
+  try {
+    const siteId = await getSpSiteId();
+    const listId = await getListIdByName(SP_CAPA_LIST);
+    const items = await graphGetAll(
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999`
+    );
+    // Preserve any locally-unshifted CAPAs not yet visible to the SP indexer
+    // (same eventual-consistency guard as fetchCPARs).
+    const fetchedIds = new Set(items.map(i => i.id));
+    const localOnly  = CAPA_ITEMS.filter(i => i && i.id && !fetchedIds.has(i.id));
+    CAPA_ITEMS = [...localOnly, ...items]
+      .sort((a,b) => parseCPARDate(b.fields?.RaisedAt) - parseCPARDate(a.fields?.RaisedAt));
+    capaListLoaded = true;
+    if (document.getElementById('view-actions')?.classList.contains('active')) renderActionsView();
+  } catch(e) {
+    console.warn('fetchCAPAs:', e.message);
+    capaListLoaded = true; // mark loaded so empty state shows instead of permanent spinner
+    if (document.getElementById('view-actions')?.classList.contains('active')) renderActionsView();
+  }
+}
+
+// Auto-numbering: CAPA-YY-NNN. Sequence persists in localStorage as a floor;
+// each save scans existing Titles for the year to find the true max.
+async function getNextCAPARef(siteId, listId) {
+  const yy = new Date().getFullYear() % 100;
+  const prefix = `CAPA-${String(yy).padStart(2,'0')}-`;
+  const stored = parseInt(localStorage.getItem(`capa_max_ref_${yy}`) || '0', 10);
+  try {
+    const items = await graphGetAll(
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields($select=Title)&$top=999`
+    );
+    let maxNum = stored;
+    for (const item of items) {
+      const m = (item.fields?.Title||'').match(new RegExp(`^CAPA-${yy}-(\\d{3,})$`));
+      if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
+    }
+    const next = maxNum + 1;
+    localStorage.setItem(`capa_max_ref_${yy}`, String(next));
+    return `${prefix}${String(next).padStart(3,'0')}`;
+  } catch(e) {
+    const next = stored + 1;
+    localStorage.setItem(`capa_max_ref_${yy}`, String(next));
+    return `${prefix}${String(next).padStart(3,'0')}`;
+  }
+}
+
+function appendCAPAHistory(existing, entry) {
+  let arr = [];
+  try { arr = existing ? JSON.parse(existing) : []; } catch(e) { arr = []; }
+  arr.push({ ...entry, at: new Date().toISOString() });
+  return JSON.stringify(arr);
+}
+
+// View entry point — called from showView('actions').
+function openActionsView() {
+  if (!capaListLoaded) {
+    const host = document.getElementById('actions-root');
+    if (host) host.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text3)">Loading CAPAs…</div>';
+    fetchCAPAs();
+  } else {
+    renderActionsView();
+  }
+}
+
+// Logged-in user email (lowercase) for ownership checks.
+function _capaCurrentUser() {
+  return (msalInstance.getAllAccounts()[0]?.username || '').toLowerCase().trim();
+}
+
+// True if current user can verify (close out) a CAPA — same set as CPAR QHSE reviewers.
+function _capaCanVerify() {
+  const me = _capaCurrentUser();
+  if (!me) return false;
+  return CPAR_QHSE_REVIEWERS.map(e => e.toLowerCase()).includes(me);
+}
+
+// True if current user is the owner of this CAPA item.
+function _capaIsOwner(item) {
+  const me = _capaCurrentUser();
+  if (!me) return false;
+  return ((item.fields?.OwnerEmail||'').toLowerCase().trim()) === me;
+}
+
+// Days between two dates ignoring time.
+function _capaDayDiff(a, b) {
+  const A = new Date(a); A.setHours(0,0,0,0);
+  const B = new Date(b); B.setHours(0,0,0,0);
+  return Math.round((A.getTime() - B.getTime()) / 86400000);
+}
+
+function _capaDueClass(dueIso, status) {
+  if (status === CAPA_STATUS.CLOSED) return 'green';
+  if (!dueIso) return '';
+  const diff = _capaDayDiff(dueIso, new Date());
+  if (diff < 0) return 'red';
+  if (diff <= 3) return 'amber';
+  return 'green';
+}
+
+function _capaIsOverdue(item) {
+  const f = item.fields || {};
+  if (f.Status === CAPA_STATUS.CLOSED) return false;
+  if (!f.DueDate) return false;
+  return _capaDayDiff(f.DueDate, new Date()) < 0;
+}
+
+function _capaIsClosedRecent(item, days = 30) {
+  const f = item.fields || {};
+  if (f.Status !== CAPA_STATUS.CLOSED) return false;
+  const at = parseCPARDate(f.VerifiedAt || f.DoneAt);
+  if (!at.getTime()) return false;
+  return (Date.now() - at.getTime()) <= days * 86400000;
+}
+
+// Main render — single function builds tiles, filter row, table, expand row.
+function renderActionsView() {
+  const host = document.getElementById('actions-root');
+  if (!host) return;
+
+  const items = CAPA_ITEMS || [];
+  const openCount    = items.filter(i => i.fields?.Status !== CAPA_STATUS.CLOSED).length;
+  const overdueCount = items.filter(_capaIsOverdue).length;
+  const closedCount  = items.filter(_capaIsClosedRecent).length;
+
+  // Per-area open counts for chip badges.
+  const areaCount = { 'Quality':0, 'H&S':0, 'Environment':0 };
+  for (const i of items) {
+    if (i.fields?.Status === CAPA_STATUS.CLOSED) continue;
+    const a = i.fields?.Area;
+    if (a in areaCount) areaCount[a]++;
+  }
+
+  // Apply filters.
+  let filtered = items.slice();
+  if (capaFilterStatus === 'open')   filtered = filtered.filter(i => i.fields?.Status !== CAPA_STATUS.CLOSED);
+  if (capaFilterStatus === 'closed') filtered = filtered.filter(i => i.fields?.Status === CAPA_STATUS.CLOSED);
+  if (capaFilterArea)                filtered = filtered.filter(i => i.fields?.Area === capaFilterArea);
+  const searchQ = (capaFilterSearch || '').trim().toLowerCase();
+  if (searchQ) {
+    filtered = filtered.filter(i => {
+      const f = i.fields || {};
+      return (f.Title||'').toLowerCase().includes(searchQ)
+          || (f.Description||'').toLowerCase().includes(searchQ)
+          || (f.Source||'').toLowerCase().includes(searchQ)
+          || (f.OwnerName||'').toLowerCase().includes(searchQ)
+          || (f.OwnerEmail||'').toLowerCase().includes(searchQ)
+          || (f.OwnerTeam||'').toLowerCase().includes(searchQ);
+    });
+  }
+  filtered.sort((a,b) => parseCPARDate(b.fields?.RaisedAt) - parseCPARDate(a.fields?.RaisedAt));
+
+  const tileBtn = (key, num, lbl, icon, cls) => `
+    <div class="mt-tile ${cls} ${capaFilterStatus===key ? 'mt-tile-active' : ''}" onclick="capaSetStatusFilter('${key}')" style="cursor:pointer">
+      <div class="mt-icon">${icon}</div>
+      <div><div class="mt-num">${num}</div><div class="mt-lbl">${lbl}</div></div>
+      <div class="mt-bar"></div>
+    </div>`;
+
+  const areaChip = (a) => {
+    const isAll = a === '';
+    const lbl = isAll ? 'All areas' : a;
+    const count = isAll ? openCount : (areaCount[a] || 0);
+    const c = isAll ? '#0e023a' : (CAPA_AREA_COLOURS[a]?.fg || '#0e023a');
+    const active = capaFilterArea === a;
+    return `<button class="issues-team-chip ${active?'active':''}" onclick="capaSetAreaFilter('${a.replace(/'/g,"\\'")}')" style="--cdot:${c}">
+      ${isAll ? '' : `<span class="dot" style="background:${c}"></span>`}
+      ${escHtml(lbl)}
+      <span style="margin-left:5px;background:rgba(0,0,0,.08);padding:1px 6px;border-radius:8px;font-size:10px;font-weight:700">${count}</span>
+    </button>`;
+  };
+
+  host.innerHTML = `
+    <!-- Stat tiles -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">
+      ${tileBtn('open',   openCount,    'Open',           '📋', 'pass')}
+      ${tileBtn('open',   overdueCount, 'Overdue',        '⚠',  'fail')}
+      ${tileBtn('closed', closedCount,  'Closed (30d)',   '✓',  'pass')}
+    </div>
+
+    <!-- Area chips -->
+    <div style="display:flex;gap:6px;flex-wrap:wrap;padding:10px 0;border-bottom:1px dashed var(--border);margin-bottom:10px">
+      ${areaChip('')}
+      ${areaChip('Quality')}
+      ${areaChip('H&S')}
+      ${areaChip('Environment')}
+    </div>
+
+    <!-- Status chips + new + search -->
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+      <button class="issues-chip ${capaFilterStatus==='open'?'active':''}"   onclick="capaSetStatusFilter('open')">Open</button>
+      <button class="issues-chip ${capaFilterStatus==='closed'?'active':''}" onclick="capaSetStatusFilter('closed')">Closed</button>
+      <button class="issues-chip ${capaFilterStatus==='all'?'active':''}"    onclick="capaSetStatusFilter('all')">All</button>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+        <span style="position:relative;display:inline-flex;align-items:center">
+          <span style="position:absolute;left:8px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:12px;pointer-events:none">🔍</span>
+          <input id="capa-search-input" type="search" value="${escHtml(capaFilterSearch||'')}"
+                 placeholder="Search REF / owner / team…"
+                 oninput="capaSearchInput(this.value)"
+                 onsearch="capaSearchInput(this.value)"
+                 onchange="capaSearchInput(this.value)"
+                 style="padding:6px 10px 6px 26px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:'JetBrains Mono',monospace;width:220px;background:var(--bg)">
+        </span>
+        <button class="cpar-confirm-close-btn" style="padding:6px 14px;font-size:12px" onclick="openNewCAPAModal()">+ New CAPA</button>
+        <span style="color:var(--text3);font-size:12px">${filtered.length} CAPA${filtered.length===1?'':'s'}</span>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <table class="mt-table">
+      <thead><tr>
+        <th style="width:110px">REF</th>
+        <th style="width:60px">Area</th>
+        <th>Action</th>
+        <th style="width:140px">Source</th>
+        <th style="width:140px">Owner</th>
+        <th style="width:90px">Due</th>
+        <th style="width:130px">Status</th>
+        <th style="width:30px"></th>
+      </tr></thead>
+      <tbody id="capa-tbody">
+        ${filtered.length ? filtered.map(i => _capaRowHtml(i)).join('') : '<tr><td colspan="8" style="padding:32px;text-align:center;color:var(--text3)">No CAPAs match current filter. Click <strong>+ New CAPA</strong> to raise one.</td></tr>'}
+      </tbody>
+    </table>
+  `;
+}
+
+function _capaRowHtml(item) {
+  const f = item.fields || {};
+  const overdue = _capaIsOverdue(item);
+  const dueCls  = _capaDueClass(f.DueDate, f.Status);
+  const stCls = ({
+    'Open':'open', 'In Progress':'amber', 'Awaiting Verify':'review', 'Closed':'closed'
+  })[f.Status] || 'open';
+  const stLbl = overdue && f.Status !== CAPA_STATUS.CLOSED ? 'Overdue' : (f.Status || 'Open');
+  const stShownCls = (overdue && f.Status !== CAPA_STATUS.CLOSED) ? 'red' : stCls;
+  const areaC = CAPA_AREA_COLOURS[f.Area] || { fg:'#0e023a', bg:'#eef2f5' };
+
+  // Source: clickable if SourceCPARId is present (jumps to Quality + searches the CPAR).
+  let sourceHtml;
+  if (f.SourceCPARId && f.Source) {
+    sourceHtml = `<a href="javascript:void(0)" onclick="event.stopPropagation();capaJumpToSource('${escHtml(f.Source).replace(/'/g,"\\'")}')" style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:var(--blue);text-decoration:underline">${escHtml(f.Source)}</a>`;
+  } else if (f.Source) {
+    sourceHtml = `<span style="font-size:11px;color:var(--text3);font-style:italic">${escHtml(f.Source)}</span>`;
+  } else {
+    sourceHtml = `<span style="color:var(--text3);font-size:11px">—</span>`;
+  }
+
+  return `
+    <tr style="cursor:pointer" onclick="capaToggleRow('${item.id}')">
+      <td style="font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--repose-navy)">${escHtml(f.Title||'?')}</td>
+      <td><span style="display:inline-block;padding:2px 7px;border-radius:8px;font-size:9px;font-weight:800;letter-spacing:.05em;background:${areaC.bg};color:${areaC.fg}">${escHtml(f.Area==='H&S'?'H&S':(f.Area||'').slice(0,3).toUpperCase())}</span></td>
+      <td>${escHtml(f.Description||'')}</td>
+      <td>${sourceHtml}</td>
+      <td><span style="font-size:12px">${escHtml(f.OwnerName||'?')}</span><div style="font-size:10px;color:var(--text3)">${escHtml(f.OwnerTeam||'')}</div></td>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600${dueCls?';color:var(--'+(dueCls==='red'?'red':dueCls==='amber'?'amber':'green')+')':''}">${escHtml((f.DueDate||'').slice(0,10))}${overdue?' ⚠':''}</td>
+      <td><span class="cpar-status-badge ${stShownCls}">${escHtml(stLbl)}</span></td>
+      <td style="color:var(--text3);font-size:14px">▾</td>
+    </tr>
+    <tr id="capa-detail-${item.id}" style="display:none"><td colspan="8" style="padding:0;background:var(--bg3)"><div id="capa-card-${item.id}" style="padding:14px"></div></td></tr>
+  `;
+}
+
+function capaToggleRow(id) {
+  const row = document.getElementById('capa-detail-'+id);
+  const card = document.getElementById('capa-card-'+id);
+  if (!row || !card) return;
+  if (row.style.display === 'none') {
+    const item = CAPA_ITEMS.find(i => i.id === id);
+    if (item) card.innerHTML = _capaCardHtml(item);
+    row.style.display = '';
+  } else {
+    row.style.display = 'none';
+    card.innerHTML = '';
+  }
+}
+
+function _capaCardHtml(item) {
+  const f = item.fields || {};
+  const isOwner = _capaIsOwner(item);
+  const canVerify = _capaCanVerify();
+  let history = [];
+  try { history = f.History ? JSON.parse(f.History) : []; } catch(e) { history = []; }
+
+  // Action buttons by lifecycle stage:
+  let actionsHtml = '';
+  if (f.Status === CAPA_STATUS.OPEN || f.Status === CAPA_STATUS.PROGRESS) {
+    if (isOwner || canVerify) {
+      actionsHtml += `<button class="cpar-confirm-close-btn" onclick="capaMarkDone('${item.id}')">✓ Mark done</button>`;
+    } else {
+      actionsHtml += `<span style="font-size:11px;color:var(--text3);font-style:italic">Only the owner (${escHtml(f.OwnerName||'')}) or QHSE can mark this done.</span>`;
+    }
+  } else if (f.Status === CAPA_STATUS.VERIFY) {
+    if (canVerify) {
+      actionsHtml += `
+        <div style="background:#fff;border:1.5px solid var(--green);border-radius:10px;padding:12px 14px;margin-top:6px">
+          <div style="font-size:13px;font-weight:700;color:var(--green);margin-bottom:6px">✓ Verify completion</div>
+          <div style="font-size:12px;color:var(--text2);margin-bottom:8px">Did this action prevent the issue from recurring?</div>
+          <div style="display:flex;gap:8px">
+            <button class="cpar-confirm-close-btn" onclick="capaVerify('${item.id}','Yes')" style="background:var(--green);color:#fff;border-color:var(--green)">Yes — effective · Close</button>
+            <button class="cpar-confirm-close-btn" onclick="capaVerify('${item.id}','No')" style="background:#fff;color:var(--red);border-color:var(--red)">No — needs follow-up</button>
+          </div>
+        </div>`;
+    } else {
+      actionsHtml += `<span style="font-size:11px;color:var(--text3);font-style:italic">Marked done by ${escHtml(f.DoneBy||'')} on ${escHtml((f.DoneAt||'').slice(0,10))}. Awaiting QHSE verification.</span>`;
+    }
+  } else if (f.Status === CAPA_STATUS.CLOSED) {
+    const effLbl = f.EffectivenessYN === 'Yes' ? '✓ Effective' : f.EffectivenessYN === 'No' ? '✗ Not effective — follow-up needed' : '— Pending check';
+    const effColor = f.EffectivenessYN === 'Yes' ? 'var(--green)' : f.EffectivenessYN === 'No' ? 'var(--red)' : 'var(--text3)';
+    actionsHtml += `<span style="font-size:12px;color:${effColor};font-weight:700">${effLbl}</span>`;
+  }
+
+  return `
+    <div class="cpar-card status-${f.Status===CAPA_STATUS.CLOSED?'closed':'open'}">
+      <div class="cpar-card-header">
+        <span class="cpar-ref">${escHtml(f.Title||'')}</span>
+        <span class="cpar-status-badge ${f.Status===CAPA_STATUS.CLOSED?'closed':'open'}">${escHtml(f.Status||'Open')}</span>
+        <span style="margin-left:auto;font-size:11px;color:var(--text3)">${escHtml(f.Area||'')}</span>
+      </div>
+      <div class="cpar-card-body">
+        <div style="display:grid;grid-template-columns:130px 1fr;gap:6px 14px;font-size:13px;margin-bottom:10px">
+          <div style="font-weight:700;color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:.05em">Description</div>
+          <div>${escHtml(f.Description||'')}</div>
+          <div style="font-weight:700;color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:.05em">Source</div>
+          <div>${escHtml(f.Source||'—')}</div>
+          <div style="font-weight:700;color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:.05em">Owner</div>
+          <div>${escHtml(f.OwnerName||'')} · <span style="color:var(--text3)">${escHtml(f.OwnerTeam||'')}</span> · <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3)">${escHtml(f.OwnerEmail||'')}</span></div>
+          <div style="font-weight:700;color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:.05em">Due</div>
+          <div>${escHtml((f.DueDate||'').slice(0,10))}</div>
+          <div style="font-weight:700;color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:.05em">Raised</div>
+          <div>${escHtml((f.RaisedBy||'').split('@')[0])} · ${escHtml((f.RaisedAt||'').slice(0,16).replace('T',' '))}</div>
+          ${f.DoneBy ? `<div style="font-weight:700;color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:.05em">Done</div><div>${escHtml((f.DoneBy||'').split('@')[0])} · ${escHtml((f.DoneAt||'').slice(0,16).replace('T',' '))}</div>` : ''}
+          ${f.VerifiedBy ? `<div style="font-weight:700;color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:.05em">Verified</div><div>${escHtml((f.VerifiedBy||'').split('@')[0])} · ${escHtml((f.VerifiedAt||'').slice(0,16).replace('T',' '))}</div>` : ''}
+        </div>
+        ${history.length ? `<details style="margin-top:6px"><summary style="font-size:11px;color:var(--text3);cursor:pointer">Audit trail (${history.length})</summary>
+          <div style="margin-top:6px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text3);line-height:1.6">
+            ${history.map(h => `${escHtml((h.at||'').slice(0,16).replace('T',' '))} · ${escHtml((h.by||'').split('@')[0])} · ${escHtml(h.ev||'')}`).join('<br>')}
+          </div>
+        </details>` : ''}
+        <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;align-items:center">${actionsHtml}</div>
+      </div>
+    </div>
+  `;
+}
+
+// ── Filter handlers ──
+function capaSetAreaFilter(area)   { capaFilterArea = area; renderActionsView(); }
+function capaSetStatusFilter(s)    { capaFilterStatus = s; renderActionsView(); }
+
+let _capaSearchTimer = null;
+function capaSearchInput(value) {
+  const v = value == null ? '' : String(value);
+  capaFilterSearch = v;
+  if (_capaSearchTimer) { clearTimeout(_capaSearchTimer); _capaSearchTimer = null; }
+  if (!v.trim()) { renderActionsView(); return; }
+  _capaSearchTimer = setTimeout(() => {
+    renderActionsView();
+    const inp = document.getElementById('capa-search-input');
+    if (inp) {
+      inp.focus();
+      const len = inp.value.length;
+      try { inp.setSelectionRange(len, len); } catch(e) {}
+    }
+  }, 180);
+}
+
+// Jump from a CAPA's Source link to the parent CPAR in the Quality tab.
+function capaJumpToSource(cparRef) {
+  navTo('quality');
+  setTimeout(() => {
+    if (typeof setQualitySubview === 'function') setQualitySubview('issues');
+    cparFilterSearch = cparRef || '';
+    if (typeof renderQualitySubview === 'function') renderQualitySubview();
+  }, 50);
+}
+
+// ── People list for Owner picker ──
+// Built once from existing constants so we don't duplicate the email roster.
+function _capaPeopleList() {
+  const map = new Map(); // email-lc → { email, name }
+  const niceName = email => {
+    const local = (email||'').split('@')[0];
+    return local.split(/[._-]/).filter(Boolean).map(p => p[0].toUpperCase()+p.slice(1)).join(' ');
+  };
+  const add = (email, name) => {
+    const k = (email||'').toLowerCase().trim();
+    if (!k) return;
+    if (!map.has(k)) map.set(k, { email: k, name: name || niceName(email) });
+  };
+  // CPAR investigators come with proper names
+  for (const x of (CPAR_INVESTIGATORS || [])) add(x.email, x.name);
+  // QHSE reviewers
+  for (const e of (CPAR_QHSE_REVIEWERS || [])) add(e);
+  // Team manager rosters
+  for (const t of Object.keys(TEAM_MANAGERS || {})) {
+    for (const e of (TEAM_MANAGERS[t] || [])) add(e);
+  }
+  return Array.from(map.values()).sort((a,b) => a.name.localeCompare(b.name));
+}
+
+// ── New CAPA modal: open / close / pre-fill ──
+let capaFormState = {
+  desc: '', area: 'Quality', source: '', sourceCparId: '',
+  ownerEmail: '', ownerName: '', ownerTeam: '', due: '',
+};
+
+function openNewCAPAModal(prefill) {
+  // prefill: { desc, area, source, sourceCparId, ownerTeam, due } — all optional
+  const p = prefill || {};
+  capaFormState = {
+    desc: p.desc || '',
+    area: p.area || 'Quality',
+    source: p.source || '',
+    sourceCparId: p.sourceCparId || '',
+    ownerEmail: p.ownerEmail || '',
+    ownerName: p.ownerName || '',
+    ownerTeam: p.ownerTeam || '',
+    due: p.due || _capaDefaultDueIso(),
+  };
+
+  // Title hint
+  document.getElementById('modal-capa-title').textContent =
+    p.sourceCparId ? `Spawn CAPA from ${p.source || 'CPAR'}` : 'Raise CAPA action';
+  document.getElementById('modal-capa-sub').textContent =
+    p.sourceCparId ? `New CAPA will be linked to ${p.source}` : 'Will be auto-numbered on save';
+
+  // Description / source / due
+  document.getElementById('capa-f-desc').value = capaFormState.desc;
+  document.getElementById('capa-f-source').value = capaFormState.source;
+  document.getElementById('capa-f-due').value   = capaFormState.due;
+
+  // Area pills
+  const areaWrap = document.getElementById('capa-f-area-pills');
+  areaWrap.innerHTML = CAPA_AREAS.map(a => {
+    const c = CAPA_AREA_COLOURS[a] || { fg:'#0e023a', bg:'#eef2f5' };
+    const active = a === capaFormState.area;
+    return `<button type="button" onclick="capaFormState.area='${a.replace(/'/g,"\\'")}';openNewCAPAModal_repaint()" style="padding:6px 12px;border:1.5px solid ${active?c.fg:'var(--border)'};border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;background:${active?c.bg:'#fff'};color:${active?c.fg:'var(--text2)'};font-family:inherit">${escHtml(a)}</button>`;
+  }).join('');
+
+  // Owner select
+  const ownerSel = document.getElementById('capa-f-owner');
+  const people = _capaPeopleList();
+  ownerSel.innerHTML = `<option value="">— Select owner —</option>` +
+    people.map(p2 => `<option value="${escHtml(p2.email)}" ${p2.email===capaFormState.ownerEmail?'selected':''}>${escHtml(p2.name)} · ${escHtml(p2.email.split('@')[0])}</option>`).join('');
+
+  // Team select
+  const teamSel = document.getElementById('capa-f-team');
+  teamSel.innerHTML = `<option value="">— Select team —</option>` +
+    CAPA_OWNER_TEAMS.map(t => `<option value="${escHtml(t)}" ${t===capaFormState.ownerTeam?'selected':''}>${escHtml(t)}</option>`).join('');
+
+  document.getElementById('modal-capa').style.display = 'flex';
+  setTimeout(() => document.getElementById('capa-f-desc').focus(), 50);
+}
+
+// Repaint just the area pills after a click — keeps current input values.
+function openNewCAPAModal_repaint() {
+  capaFormState.desc       = document.getElementById('capa-f-desc').value;
+  capaFormState.source     = document.getElementById('capa-f-source').value;
+  capaFormState.due        = document.getElementById('capa-f-due').value;
+  capaFormState.ownerEmail = document.getElementById('capa-f-owner').value;
+  capaFormState.ownerTeam  = document.getElementById('capa-f-team').value;
+  openNewCAPAModal({
+    desc: capaFormState.desc, area: capaFormState.area, source: capaFormState.source,
+    sourceCparId: capaFormState.sourceCparId,
+    ownerEmail: capaFormState.ownerEmail, ownerTeam: capaFormState.ownerTeam,
+    due: capaFormState.due,
+  });
+}
+
+// When owner is picked, look up name from people list so we save both email + name.
+function _capaOwnerChanged() {
+  const sel = document.getElementById('capa-f-owner');
+  const email = sel.value;
+  const people = _capaPeopleList();
+  const p = people.find(x => x.email === email);
+  capaFormState.ownerEmail = email;
+  capaFormState.ownerName  = p ? p.name : '';
+}
+
+function closeNewCAPAModal() {
+  document.getElementById('modal-capa').style.display = 'none';
+}
+
+function _capaDefaultDueIso() {
+  // Default due date = today + 14 days
+  const d = new Date(); d.setDate(d.getDate() + 14);
+  return d.toISOString().slice(0,10);
+}
+
+async function submitCAPA() {
+  // Read latest values from form
+  const desc   = (document.getElementById('capa-f-desc').value||'').trim();
+  const source = (document.getElementById('capa-f-source').value||'').trim();
+  const due    = document.getElementById('capa-f-due').value;
+  const ownerEmail = document.getElementById('capa-f-owner').value;
+  const ownerTeam  = document.getElementById('capa-f-team').value;
+  const area = capaFormState.area;
+  const sourceCparId = capaFormState.sourceCparId || '';
+
+  // Owner name from people list
+  const people = _capaPeopleList();
+  const ownerName = (people.find(p => p.email === ownerEmail) || {}).name || '';
+
+  if (!desc) { toast('Describe what needs to be done', 'u'); return; }
+  if (!area) { toast('Pick an area', 'u'); return; }
+  if (!ownerEmail || !ownerName) { toast('Pick an owner', 'u'); return; }
+  if (!ownerTeam) { toast('Pick the owner team', 'u'); return; }
+  if (!due) { toast('Set a due date', 'u'); return; }
+
+  const btn = document.getElementById('capa-submit-btn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+
+  const me = _capaCurrentUser();
+  const now = new Date().toISOString();
+
+  try {
+    const siteId = await getSpSiteId();
+    const listId = await getListIdByName(SP_CAPA_LIST);
+    const ref = await getNextCAPARef(siteId, listId);
+
+    const newFields = {
+      Title:           ref,
+      Area:            area,
+      Description:     desc,
+      Source:          source,
+      SourceCPARId:    sourceCparId,
+      OwnerEmail:      ownerEmail,
+      OwnerName:       ownerName,
+      OwnerTeam:       ownerTeam,
+      DueDate:         due,
+      Status:          CAPA_STATUS.OPEN,
+      EffectivenessYN: CAPA_EFFECTIVENESS.PENDING,
+      RaisedBy:        me,
+      RaisedAt:        now,
+      History:         appendCAPAHistory('', { by: me, ev: 'raised' }),
+    };
+
+    const created = await graphPost(
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`,
+      { fields: newFields }
+    );
+
+    toast(`${ref} raised`, 's');
+    CAPA_ITEMS.unshift({ id: created.id, fields: { ...newFields } });
+    closeNewCAPAModal();
+    if (document.getElementById('view-actions')?.classList.contains('active')) renderActionsView();
+
+  } catch(e) {
+    console.warn('submitCAPA:', e.message);
+    const msg = (e.message||'').includes('itemNotFound')
+      ? 'CAPAActions list not found in SharePoint — see CAPA_SETUP.md'
+      : 'Could not save — '+e.message;
+    toast(msg, 'u');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Raise action';
+  }
+}
+
+// ── Lifecycle: Mark Done (owner) → Awaiting Verify ──
+async function capaMarkDone(id) {
+  const item = CAPA_ITEMS.find(i => i.id === id);
+  if (!item) return;
+  if (!_capaIsOwner(item) && !_capaCanVerify()) {
+    toast('Only the owner or QHSE can mark this done', 'u');
+    return;
+  }
+  const me = _capaCurrentUser();
+  const now = new Date().toISOString();
+  const newHistory = appendCAPAHistory(item.fields?.History || '', { by: me, ev: 'marked-done' });
+  const patch = {
+    Status:  CAPA_STATUS.VERIFY,
+    DoneBy:  me,
+    DoneAt:  now,
+    History: newHistory,
+  };
+  try {
+    const siteId = await getSpSiteId();
+    const listId = await getListIdByName(SP_CAPA_LIST);
+    await graphPatch(
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}/fields`,
+      patch
+    );
+    Object.assign(item.fields, patch);
+    toast('Marked done — awaiting QHSE verification', 's');
+    renderActionsView();
+    // Re-open the card so the user sees the updated state.
+    setTimeout(() => capaToggleRow(id), 30);
+  } catch(e) {
+    console.warn('capaMarkDone:', e.message);
+    toast('Could not save — '+e.message, 'u');
+  }
+}
+
+// ── Lifecycle: Verify (QHSE) with effectiveness Yes/No ──
+// Yes → Closed + Effective. No → stays Closed but flagged ineffective; spawning a follow-up
+// is left as a manual click on the user's part for v1 (a future hook can auto-spawn).
+async function capaVerify(id, effectiveness) {
+  if (!_capaCanVerify()) { toast('Only QHSE can verify', 'u'); return; }
+  if (!['Yes','No'].includes(effectiveness)) return;
+  const item = CAPA_ITEMS.find(i => i.id === id);
+  if (!item) return;
+  const me = _capaCurrentUser();
+  const now = new Date().toISOString();
+  const newHistory = appendCAPAHistory(item.fields?.History || '', { by: me, ev: `verified-${effectiveness.toLowerCase()}` });
+  const patch = {
+    Status:          CAPA_STATUS.CLOSED,
+    EffectivenessYN: effectiveness,
+    VerifiedBy:      me,
+    VerifiedAt:      now,
+    History:         newHistory,
+  };
+  try {
+    const siteId = await getSpSiteId();
+    const listId = await getListIdByName(SP_CAPA_LIST);
+    await graphPatch(
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}/fields`,
+      patch
+    );
+    Object.assign(item.fields, patch);
+    toast(effectiveness === 'Yes' ? 'Closed · effective' : 'Closed · flagged ineffective', 's');
+    renderActionsView();
+    setTimeout(() => capaToggleRow(id), 30);
+  } catch(e) {
+    console.warn('capaVerify:', e.message);
+    toast('Could not save — '+e.message, 'u');
   }
 }
 
