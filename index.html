@@ -11136,6 +11136,20 @@ const CPAR_CAUSE_CODES = [
 
 // ── ISO 9001 redesign — new constants ─────────────────────
 const CPAR_DISPOSITIONS = ['Reworked', 'Scrapped', 'Use-as-is', 'Returned to supplier', 'Other'];
+// Admin / paperwork-amendment close-out: replaces Disposition picker when SourceDept='Admin'
+// or when user toggles to "Paperwork amendment" mode. Stored in CauseCode column so existing
+// Pareto/cause charts pick them up automatically.
+const CPAR_ADMIN_ERROR_TYPES = [
+  'Incorrect on production plan',
+  'Missing from production plan',
+  'Wrong mech / spec on plan',
+  'Wrong fabric / leather on plan',
+  'Duplicated REP',
+  'Price list error',
+  'Other admin error',
+];
+const CPAR_ADMIN_DISPOSITION_SENTINEL = 'Paperwork amendment';
+const CPAR_ADMIN_CONTAINMENT_SENTINEL = 'N/A — admin paperwork fix';
 const CPAR_REVIEW_DECISIONS = ['Approved', 'Escalated', 'Returned'];
 const CPAR_INVESTIGATION_OUTCOMES = ['Human Error', 'Template-Spec Issue'];
 const CPAR_INVESTIGATORS = [
@@ -12081,6 +12095,8 @@ function renderIssuesIntoQuality(host) {
         <input id="cpar-search-input" type="search" value="${escHtml(cparFilterSearch||'')}"
                placeholder="Search REF / REP / Job…"
                oninput="cparSearchInput(this.value)"
+               onsearch="cparSearchInput(this.value)"
+               onchange="cparSearchInput(this.value)"
                style="padding:6px 10px 6px 26px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:'JetBrains Mono',monospace;width:200px;background:var(--bg)">
         ${searchQ ? `<button class="issues-chip" onclick="cparClearSearch()" style="padding:5px 9px;font-size:11px">Clear</button>` : ''}
         <span style="color:var(--text3);font-size:12px">${filtered.length} CPAR${filtered.length===1?'':'s'}</span>
@@ -13638,8 +13654,12 @@ function setIssueFilter(f) {
 // Debounced search re-render so typing stays snappy in the Quality tab.
 let _cparSearchTimer = null;
 function cparSearchInput(value) {
-  cparFilterSearch = value;
-  if (_cparSearchTimer) clearTimeout(_cparSearchTimer);
+  const v = value == null ? '' : String(value);
+  cparFilterSearch = v;
+  if (_cparSearchTimer) { clearTimeout(_cparSearchTimer); _cparSearchTimer = null; }
+  // Clearing the search → render immediately so the un-filtered list snaps back.
+  // Native browser ✕ clear button on <input type=search> can also call this with ''.
+  if (!v.trim()) { renderQualitySubview(); return; }
   _cparSearchTimer = setTimeout(() => {
     renderQualitySubview();
     // Re-focus the input after re-render so the user can keep typing.
@@ -13869,10 +13889,16 @@ function renderCPARCard(item) {
     </div>
     ${isClosed ? `
     <div class="cpar-closed-detail">
-      ${f.Disposition ? `<div><strong>Disposition:</strong> ${escHtml(f.Disposition)}${f.DispositionNotes ? ' — '+escHtml(f.DispositionNotes) : ''}</div>` : ''}
-      ${f.Containment ? `<div><strong>Containment:</strong> ${escHtml(f.Containment)}</div>` : ''}
-      ${f.CauseCode ? `<div><strong>Cause:</strong> ${escHtml(f.CauseCode)}</div>` : ''}
-      ${f.CorrectiveAction ? `<div><strong>Action:</strong> ${escHtml(f.CorrectiveAction)}</div>` : ''}
+      ${f.Disposition === CPAR_ADMIN_DISPOSITION_SENTINEL ? `
+        <div><strong>Type:</strong> Paperwork amendment</div>
+        ${f.CauseCode ? `<div><strong>Admin error:</strong> ${escHtml(f.CauseCode)}</div>` : ''}
+        ${f.CorrectiveAction ? `<div><strong>Amended:</strong> ${escHtml(f.CorrectiveAction)}</div>` : ''}
+      ` : `
+        ${f.Disposition ? `<div><strong>Disposition:</strong> ${escHtml(f.Disposition)}${f.DispositionNotes ? ' — '+escHtml(f.DispositionNotes) : ''}</div>` : ''}
+        ${f.Containment ? `<div><strong>Containment:</strong> ${escHtml(f.Containment)}</div>` : ''}
+        ${f.CauseCode ? `<div><strong>Cause:</strong> ${escHtml(f.CauseCode)}</div>` : ''}
+        ${f.CorrectiveAction ? `<div><strong>Action:</strong> ${escHtml(f.CorrectiveAction)}</div>` : ''}
+      `}
       ${f.ECRRef ? `<div><strong>Linked ECR:</strong> <span style="font-family:'JetBrains Mono',monospace;color:var(--amber);font-weight:700">${escHtml(f.ECRRef)}</span></div>` : ''}
       <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:10px;font-size:11px;color:var(--text3)">
         ${f.ClosedOutBy ? `<span>Closed-out: ${escHtml(f.ClosedOutBy.split('@')[0])} · ${escHtml((f.ClosedOutAt||'').slice(0,16))}</span>` : ''}
@@ -13888,28 +13914,52 @@ function renderCPARCard(item) {
     </div>` : `
     <button class="cpar-closeout-btn" id="cpar-co-btn-${item.id}" onclick="event.stopPropagation();toggleCPARCloseout('${item.id}', event)">Close Out Issue ▼</button>
     ${(graphAccount?.username||'').toLowerCase() === 'jonas.simonaitis@reposefurniture.co.uk' ? `<button class="qbtn escalate" onclick="event.stopPropagation();qhseEscalateOpen('${item.id}')" style="margin:6px 12px 0;font-size:11px;padding:5px 10px" title="Skip area-manager closeout and route directly to PE investigation (Jonas only)">→ Skip closeout — Escalate to PE</button>` : ''}
-    <div class="cpar-closeout-panel" id="cpar-co-${item.id}">
+    ${(() => {
+      const defaultMode = (normaliseTeam(f.SourceDept||'') === 'Admin') ? 'admin' : 'physical';
+      const mode = _getCparDraft(item.id, 'mode', defaultMode);
+      const adminType = _getCparDraft(item.id, 'adminErrorType', f.Disposition === CPAR_ADMIN_DISPOSITION_SENTINEL ? (f.CauseCode || '') : '');
+      return `
+    <div class="cpar-closeout-panel" id="cpar-co-${item.id}" data-mode="${escHtml(mode)}">
       ${f.HasPhoto ? `<div class="cpar-photo-wrap" id="cpar-photo-wrap-${item.id}"><div class="cpar-photo-loading">Loading photo…</div></div>` : ''}
 
-      <div class="cpar-cause-label">Disposition <span style="color:var(--red)">*</span></div>
-      <div class="cpar-cause-grid" style="grid-template-columns:repeat(2,1fr)">
-        ${CPAR_DISPOSITIONS.map(d=>`<button class="cpar-cause-option ${_getCparDraft(item.id,'disposition', f.Disposition || '')===d?'selected':''}" data-disp="${escHtml(d)}" onclick="selectCPARDisposition('${item.id}',this)">${escHtml(d)}</button>`).join('')}
-      </div>
-      <textarea class="cpar-action-input" id="cpar-disp-notes-${item.id}" maxlength="2000" placeholder="Disposition notes (required if Other)…" style="min-height:48px;display:${_getCparDraft(item.id,'disposition', f.Disposition || '')==='Other'?'block':'none'}">${escHtml(_getCparDraft(item.id, 'dispNotes', f.DispositionNotes || ''))}</textarea>
-
-      <div class="cpar-cause-label" style="margin-top:10px" id="cpar-containment-label-${item.id}">${_getCparDraft(item.id,'disposition', f.Disposition || '')==='Use-as-is' ? 'Containment <span style="color:var(--text3)">(optional)</span>' : 'Containment — what stopped this batch progressing? <span style="color:var(--red)">*</span>'}</div>
-      <textarea class="cpar-action-input" id="cpar-containment-${item.id}" maxlength="2000" placeholder="${_getCparDraft(item.id,'disposition', f.Disposition || '')==='Use-as-is' ? 'Containment (optional for Use-as-is)' : 'e.g. Job quarantined, adjacent jobs inspected — none affected'}">${escHtml(_getCparDraft(item.id, 'containment', f.Containment || ''))}</textarea>
-
-      <div class="cpar-cause-label" style="margin-top:10px">Root Cause <span style="color:var(--red)">*</span></div>
-      <div class="cpar-cause-grid">
-        ${CPAR_CAUSE_CODES.map(c=>`<button class="cpar-cause-option ${_getCparDraft(item.id,'cause', f.CauseCode || '')===c?'selected':''}" data-cause="${escHtml(c)}" onclick="selectCPARCause('${item.id}',this)">${escHtml(c)}</button>`).join('')}
+      <div class="cpar-cause-label" style="margin-bottom:6px">Type of fix</div>
+      <div class="cpar-cause-grid" style="grid-template-columns:repeat(2,1fr);margin-bottom:12px">
+        <button class="cpar-cause-option ${mode==='physical'?'selected':''}" data-mode="physical" onclick="setCPARCloseoutMode('${item.id}','physical',this)">Physical fix</button>
+        <button class="cpar-cause-option ${mode==='admin'?'selected':''}" data-mode="admin" onclick="setCPARCloseoutMode('${item.id}','admin',this)">Paperwork amendment</button>
       </div>
 
-      <div class="cpar-cause-label" style="margin-top:10px">Corrective Action Taken <span style="color:var(--red)">*</span></div>
-      <textarea class="cpar-action-input" id="cpar-action-${item.id}" maxlength="10000" placeholder="Describe what was done to resolve this…">${escHtml(_getCparDraft(item.id, 'action', f.CorrectiveAction || ''))}</textarea>
+      <div class="cpar-mode-physical" style="display:${mode==='physical'?'block':'none'}">
+        <div class="cpar-cause-label">Disposition <span style="color:var(--red)">*</span></div>
+        <div class="cpar-cause-grid" style="grid-template-columns:repeat(2,1fr)">
+          ${CPAR_DISPOSITIONS.map(d=>`<button class="cpar-cause-option ${_getCparDraft(item.id,'disposition', f.Disposition || '')===d?'selected':''}" data-disp="${escHtml(d)}" onclick="selectCPARDisposition('${item.id}',this)">${escHtml(d)}</button>`).join('')}
+        </div>
+        <textarea class="cpar-action-input" id="cpar-disp-notes-${item.id}" maxlength="2000" placeholder="Disposition notes (required if Other)…" style="min-height:48px;display:${_getCparDraft(item.id,'disposition', f.Disposition || '')==='Other'?'block':'none'}">${escHtml(_getCparDraft(item.id, 'dispNotes', f.DispositionNotes || ''))}</textarea>
+
+        <div class="cpar-cause-label" style="margin-top:10px" id="cpar-containment-label-${item.id}">${_getCparDraft(item.id,'disposition', f.Disposition || '')==='Use-as-is' ? 'Containment <span style="color:var(--text3)">(optional)</span>' : 'Containment — what stopped this batch progressing? <span style="color:var(--red)">*</span>'}</div>
+        <textarea class="cpar-action-input" id="cpar-containment-${item.id}" maxlength="2000" placeholder="${_getCparDraft(item.id,'disposition', f.Disposition || '')==='Use-as-is' ? 'Containment (optional for Use-as-is)' : 'e.g. Job quarantined, adjacent jobs inspected — none affected'}">${escHtml(_getCparDraft(item.id, 'containment', f.Containment || ''))}</textarea>
+
+        <div class="cpar-cause-label" style="margin-top:10px">Root Cause <span style="color:var(--red)">*</span></div>
+        <div class="cpar-cause-grid">
+          ${CPAR_CAUSE_CODES.map(c=>`<button class="cpar-cause-option ${_getCparDraft(item.id,'cause', f.CauseCode || '')===c?'selected':''}" data-cause="${escHtml(c)}" onclick="selectCPARCause('${item.id}',this)">${escHtml(c)}</button>`).join('')}
+        </div>
+
+        <div class="cpar-cause-label" style="margin-top:10px">Corrective Action Taken <span style="color:var(--red)">*</span></div>
+        <textarea class="cpar-action-input" id="cpar-action-${item.id}" maxlength="10000" placeholder="Describe what was done to resolve this…">${escHtml(_getCparDraft(item.id, 'action', f.CorrectiveAction || ''))}</textarea>
+      </div>
+
+      <div class="cpar-mode-admin" style="display:${mode==='admin'?'block':'none'}">
+        <div class="cpar-cause-label">Admin error type <span style="color:var(--red)">*</span></div>
+        <div class="cpar-cause-grid" style="grid-template-columns:repeat(2,1fr)">
+          ${CPAR_ADMIN_ERROR_TYPES.map(t=>`<button class="cpar-cause-option ${adminType===t?'selected':''}" data-admintype="${escHtml(t)}" onclick="selectCPARAdminErrorType('${item.id}',this)">${escHtml(t)}</button>`).join('')}
+        </div>
+
+        <div class="cpar-cause-label" style="margin-top:10px">What was amended &amp; why it happened <span style="color:var(--red)">*</span></div>
+        <textarea class="cpar-action-input" id="cpar-admin-action-${item.id}" maxlength="10000" placeholder="e.g. PE flagged wrong mech code (HFT3 instead of HFT4) — production plan amended, REP re-issued to Assembly. Cause: copy-paste from previous spec.">${escHtml(_getCparDraft(item.id, 'action', f.CorrectiveAction || ''))}</textarea>
+      </div>
 
       <button class="cpar-confirm-close-btn" id="cpar-close-${item.id}" onclick="event.stopPropagation();submitCPARCloseout('${item.id}', event)" disabled>Submit close-out → QHSE Review</button>
-    </div>`}
+    </div>`;
+    })()}`}
   </div>`;
 }
 
@@ -13982,11 +14032,16 @@ function toggleCPARCloseout(id, ev) {
     if (typeof loadCPARPhoto === 'function') loadCPARPhoto(id);
     // Wire textarea oninputs scoped to this card only
     if (card) {
-      const fieldMap = { action:'action', containment:'containment', 'disp-notes':'dispNotes' };
-      ['action', 'containment', 'disp-notes'].forEach(suffix => {
+      const fieldMap = { action:'action', containment:'containment', 'disp-notes':'dispNotes', 'admin-action':'action' };
+      ['action', 'containment', 'disp-notes', 'admin-action'].forEach(suffix => {
         const el = card.querySelector(`#cpar-${suffix}-${id}`) || card.querySelector(`[id="cpar-${suffix}-${id}"]`);
         if (el) el.oninput = () => {
           _saveCparDraft(id, fieldMap[suffix], el.value);
+          // Mirror text between physical and admin actionboxes so toggle preserves typed content
+          if (suffix === 'action' || suffix === 'admin-action') {
+            const other = card.querySelector(`#cpar-${suffix === 'action' ? 'admin-action' : 'action'}-${id}`);
+            if (other && other.value !== el.value) other.value = el.value;
+          }
           refreshCPARSubmitState(id, ev);
         };
       });
@@ -13997,8 +14052,10 @@ function toggleCPARCloseout(id, ev) {
         const f = item?.fields || {};
         const cachedDisp = _getCparDraft(id, 'disposition', f.Disposition || '');
         const cachedCause = _getCparDraft(id, 'cause', f.CauseCode || '');
+        const cachedAdminType = _getCparDraft(id, 'adminErrorType', '');
         if (cachedDisp) closeoutPanel.dataset.disposition = cachedDisp;
         if (cachedCause) closeoutPanel.dataset.cause = cachedCause;
+        if (cachedAdminType) closeoutPanel.dataset.adminErrorType = cachedAdminType;
         // Refresh submit state to reflect cached values
         refreshCPARSubmitState(id, ev);
       }
@@ -14051,10 +14108,16 @@ function showCPARSummaryModal(item) {
       <strong>${escHtml(f.SourceDept || '?')}</strong> → ${escHtml(f.IssueCategory || '—')}
     </div>
     ${f.Description ? `<div style="font-size:13px;margin-bottom:10px;background:var(--bg3);padding:10px;border-radius:6px"><strong>Concern:</strong> ${escHtml(f.Description)}</div>` : ''}
-    ${f.Disposition ? `<div style="font-size:12px;margin-bottom:4px"><strong>Disposition:</strong> ${escHtml(f.Disposition)}${f.DispositionNotes ? ' — '+escHtml(f.DispositionNotes) : ''}</div>` : ''}
-    ${f.Containment ? `<div style="font-size:12px;margin-bottom:4px"><strong>Containment:</strong> ${escHtml(f.Containment)}</div>` : ''}
-    ${f.CauseCode ? `<div style="font-size:12px;margin-bottom:4px"><strong>Cause:</strong> ${escHtml(f.CauseCode)}</div>` : ''}
-    ${f.CorrectiveAction ? `<div style="font-size:12px;margin-bottom:4px"><strong>Action:</strong> <span style="white-space:pre-wrap">${escHtml(f.CorrectiveAction)}</span></div>` : ''}
+    ${f.Disposition === CPAR_ADMIN_DISPOSITION_SENTINEL ? `
+      <div style="font-size:12px;margin-bottom:4px"><strong>Type:</strong> Paperwork amendment</div>
+      ${f.CauseCode ? `<div style="font-size:12px;margin-bottom:4px"><strong>Admin error:</strong> ${escHtml(f.CauseCode)}</div>` : ''}
+      ${f.CorrectiveAction ? `<div style="font-size:12px;margin-bottom:4px"><strong>Amended:</strong> <span style="white-space:pre-wrap">${escHtml(f.CorrectiveAction)}</span></div>` : ''}
+    ` : `
+      ${f.Disposition ? `<div style="font-size:12px;margin-bottom:4px"><strong>Disposition:</strong> ${escHtml(f.Disposition)}${f.DispositionNotes ? ' — '+escHtml(f.DispositionNotes) : ''}</div>` : ''}
+      ${f.Containment ? `<div style="font-size:12px;margin-bottom:4px"><strong>Containment:</strong> ${escHtml(f.Containment)}</div>` : ''}
+      ${f.CauseCode ? `<div style="font-size:12px;margin-bottom:4px"><strong>Cause:</strong> ${escHtml(f.CauseCode)}</div>` : ''}
+      ${f.CorrectiveAction ? `<div style="font-size:12px;margin-bottom:4px"><strong>Action:</strong> <span style="white-space:pre-wrap">${escHtml(f.CorrectiveAction)}</span></div>` : ''}
+    `}
     ${f.ECRRef ? `<div style="font-size:12px;margin-bottom:4px"><strong>Linked ECR:</strong> <span style="font-family:'JetBrains Mono',monospace;color:var(--amber);font-weight:700">${escHtml(f.ECRRef)}</span></div>` : ''}
     ${meta.length ? `<div style="font-size:11px;color:var(--text3);margin-top:8px;display:flex;flex-wrap:wrap;gap:10px">${meta.join(' · ')}</div>` : ''}
     ${(f.ClosedOutBy || f.ClosedBy || f.InvestigatedBy) ? `
@@ -14086,11 +14149,15 @@ document.addEventListener('keydown', (e) => {
 function populateCPARPrint(item) {
   const f = item.fields || {};
   const ref = f.Title || '?';
+  const isAdmin = f.Disposition === CPAR_ADMIN_DISPOSITION_SENTINEL;
   const dispChecks = CPAR_DISPOSITIONS.map(d =>
     `<div class="c"><span class="ck${f.Disposition===d?' t':''}">${f.Disposition===d?'✓':''}</span>${escHtml(d)}</div>`
   ).join('');
   const causeChecks = CPAR_CAUSE_CODES.map(c =>
     `<div class="c"><span class="ck${f.CauseCode===c?' t':''}">${f.CauseCode===c?'✓':''}</span>${escHtml(c)}</div>`
+  ).join('');
+  const adminTypeChecks = CPAR_ADMIN_ERROR_TYPES.map(t =>
+    `<div class="c"><span class="ck${f.CauseCode===t?' t':''}">${f.CauseCode===t?'✓':''}</span>${escHtml(t)}</div>`
   ).join('');
   const dt = (s) => (s||'').slice(0,16).replace('T',' ');
   document.getElementById('cpar-print-area').innerHTML = `
@@ -14098,7 +14165,7 @@ function populateCPARPrint(item) {
       <div><div class="lg">Repose Furniture</div><div class="lgs">Quality Management System</div></div>
       <div class="meta"><div><strong>Doc:</strong> ${PHCF_DOC.id}</div><div><strong>Issue:</strong> ${PHCF_DOC.issue} · ${PHCF_DOC.date}</div><div><strong>Page:</strong> 1 of 1</div></div>
     </div>
-    <div class="title">Internal Non-Conformance Report</div>
+    <div class="title">Internal Non-Conformance Report${isAdmin ? ' — Paperwork Amendment' : ''}</div>
     <table>
       <tr><td class="lab">REF</td><td colspan="3" style="font-family:'JetBrains Mono',monospace;font-weight:700;color:#1e3a5f">${escHtml(ref)}</td></tr>
       <tr><td class="lab">Date Raised</td><td>${escHtml(dt(f.LoggedAt))}</td><td class="lab">Raised by</td><td>${escHtml((f.ClosedOutBy||f.RaisedByTeam||'').split('@')[0])}</td></tr>
@@ -14108,6 +14175,12 @@ function populateCPARPrint(item) {
     </table>
     <h4>Concern / Issue / Fault</h4>
     <table class="full"><tr><td>${escHtml(f.Description||'')}</td></tr></table>
+    ${isAdmin ? `
+    <h4>Admin Error Type</h4>
+    <div class="grid3">${adminTypeChecks}</div>
+    <h4>What was amended &amp; why it happened</h4>
+    <table class="full"><tr><td>${escHtml(f.CorrectiveAction||'')}</td></tr></table>
+    ` : `
     <h4>Containment Action</h4>
     <table class="full"><tr><td>${escHtml(f.Containment||'(none recorded)')}</td></tr></table>
     <h4>Disposition</h4>
@@ -14116,6 +14189,7 @@ function populateCPARPrint(item) {
     <div class="grid3">${causeChecks}</div>
     <h4>Investigation Findings &amp; Corrective Action</h4>
     <table class="full"><tr><td>${escHtml(f.CorrectiveAction||'')}</td></tr></table>
+    `}
     <h4>Linked ECR</h4>
     <table class="full"><tr><td style="font-family:'JetBrains Mono',monospace">${escHtml(f.ECRRef||'— N/A —')}</td></tr></table>
     <h4>Sign-Off</h4>
@@ -15069,6 +15143,35 @@ function selectCPARCause(id, btn) {
   refreshCPARSubmitState(id, btn);
 }
 
+function setCPARCloseoutMode(id, mode, btn) {
+  const card = btn.closest('.cpar-card');
+  const root = card ? card.querySelector('.cpar-closeout-panel') : document.getElementById('cpar-co-'+id);
+  if (!root) return;
+  root.dataset.mode = mode;
+  _saveCparDraft(id, 'mode', mode);
+  // Toggle button highlight
+  const toggleGrid = btn.parentElement;
+  toggleGrid.querySelectorAll('.cpar-cause-option').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  // Show/hide form sections
+  const physical = root.querySelector('.cpar-mode-physical');
+  const admin = root.querySelector('.cpar-mode-admin');
+  if (physical) physical.style.display = (mode === 'physical') ? 'block' : 'none';
+  if (admin)    admin.style.display    = (mode === 'admin')    ? 'block' : 'none';
+  refreshCPARSubmitState(id, btn);
+}
+
+function selectCPARAdminErrorType(id, btn) {
+  const grid = btn.parentElement;
+  grid.querySelectorAll('.cpar-cause-option').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  const card = btn.closest('.cpar-card');
+  const root = card ? card.querySelector('.cpar-closeout-panel') : document.getElementById('cpar-co-'+id);
+  if (root) root.dataset.adminErrorType = btn.dataset.admintype;
+  _saveCparDraft(id, 'adminErrorType', btn.dataset.admintype);
+  refreshCPARSubmitState(id, btn);
+}
+
 function refreshCPARSubmitState(id, ctx) {
   // ctx may be an Event, an element, or undefined; we resolve the card from any of them
   const startEl = (ctx && (ctx.currentTarget || ctx.target || ctx)) || null;
@@ -15076,16 +15179,22 @@ function refreshCPARSubmitState(id, ctx) {
   const q = sel => card ? card.querySelector(sel) : document.querySelector(sel);
   const root  = q('.cpar-closeout-panel');
   if (!root) return;
-  const disp  = root.dataset.disposition || '';
-  const cause = root.dataset.cause || '';
-  const action     = (q('#cpar-action-'+id)?.value || '').trim();
-  const cont       = (q('#cpar-containment-'+id)?.value || '').trim();
-  const dispNotes  = (q('#cpar-disp-notes-'+id)?.value || '').trim();
-
-  let ok = !!disp && !!cause && !!action;
-  if (disp === 'Other' && !dispNotes) ok = false;
-  if (disp && disp !== 'Use-as-is' && !cont) ok = false;
-
+  const mode = root.dataset.mode || 'physical';
+  let ok = false;
+  if (mode === 'admin') {
+    const adminType = root.dataset.adminErrorType || '';
+    const action = ((q('#cpar-admin-action-'+id)?.value) || (q('#cpar-action-'+id)?.value) || '').trim();
+    ok = !!adminType && !!action;
+  } else {
+    const disp  = root.dataset.disposition || '';
+    const cause = root.dataset.cause || '';
+    const action     = (q('#cpar-action-'+id)?.value || '').trim();
+    const cont       = (q('#cpar-containment-'+id)?.value || '').trim();
+    const dispNotes  = (q('#cpar-disp-notes-'+id)?.value || '').trim();
+    ok = !!disp && !!cause && !!action;
+    if (disp === 'Other' && !dispNotes) ok = false;
+    if (disp && disp !== 'Use-as-is' && !cont) ok = false;
+  }
   const closeBtn = q('#cpar-close-'+id);
   if (closeBtn) closeBtn.disabled = !ok;
 }
@@ -15101,17 +15210,30 @@ async function submitCPARCloseout(id, ev) {
     const q = sel => card ? card.querySelector(sel) : document.querySelector(sel);
     const root = q('.cpar-closeout-panel');
     if (!root) { toast('Could not find closeout form', 'u'); return; }
-    const disposition = root.dataset.disposition || '';
-    const cause = root.dataset.cause || '';
-    const action      = (q('#cpar-action-'+id)?.value || '').trim();
-    const containment = (q('#cpar-containment-'+id)?.value || '').trim();
-    const dispNotes   = (q('#cpar-disp-notes-'+id)?.value || '').trim();
+    const mode = root.dataset.mode || 'physical';
 
-    if (!disposition) { toast('Pick a disposition', 'w'); return; }
-    if (!cause) { toast('Pick a root cause', 'w'); return; }
-    if (!action) { toast('Enter the corrective action', 'w'); return; }
-    if (disposition === 'Other' && !dispNotes) { toast('Disposition notes required for "Other"', 'w'); return; }
-    if (disposition !== 'Use-as-is' && !containment) { toast('Containment required (unless Use-as-is)', 'w'); return; }
+    let disposition, dispNotes, containment, cause, action;
+    if (mode === 'admin') {
+      const adminType = root.dataset.adminErrorType || '';
+      action = ((q('#cpar-admin-action-'+id)?.value) || (q('#cpar-action-'+id)?.value) || '').trim();
+      if (!adminType) { toast('Pick the admin error type', 'w'); return; }
+      if (!action) { toast('Describe what was amended', 'w'); return; }
+      disposition = CPAR_ADMIN_DISPOSITION_SENTINEL;
+      dispNotes   = '';
+      containment = CPAR_ADMIN_CONTAINMENT_SENTINEL;
+      cause       = adminType; // store admin error type in CauseCode for reporting
+    } else {
+      disposition = root.dataset.disposition || '';
+      cause       = root.dataset.cause || '';
+      action      = (q('#cpar-action-'+id)?.value || '').trim();
+      containment = (q('#cpar-containment-'+id)?.value || '').trim();
+      dispNotes   = (q('#cpar-disp-notes-'+id)?.value || '').trim();
+      if (!disposition) { toast('Pick a disposition', 'w'); return; }
+      if (!cause) { toast('Pick a root cause', 'w'); return; }
+      if (!action) { toast('Enter the corrective action', 'w'); return; }
+      if (disposition === 'Other' && !dispNotes) { toast('Disposition notes required for "Other"', 'w'); return; }
+      if (disposition !== 'Use-as-is' && !containment) { toast('Containment required (unless Use-as-is)', 'w'); return; }
+    }
     const me = msalInstance.getAllAccounts()[0]?.username || '?';
     if (!me || me === '?') { toast('Sign-in expired — refresh and try again', 'u'); return; }
 
@@ -15120,8 +15242,8 @@ async function submitCPARCloseout(id, ev) {
 
     const now = new Date().toISOString();
     const newHistory = appendCPARHistory(item.fields?.History || '', {
-      by: me, ev:'closed-out',
-      fields:{ disposition, cause, hasContainment: !!containment, dispNotes: !!dispNotes }
+      by: me, ev: mode === 'admin' ? 'closed-out-admin' : 'closed-out',
+      fields:{ mode, disposition, cause, hasContainment: !!containment, dispNotes: !!dispNotes }
     });
     const merged = { Title: item.fields.Title, PrimaryModel: item.fields.PrimaryModel, CauseCode: cause };
     const { isRepeat, linkedRefs } = detectRepeat(merged, CPAR_ITEMS);
