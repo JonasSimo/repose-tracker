@@ -30,7 +30,7 @@
     { h: 'Quality / QHSE' },
     { v: 'stats',        g: 'STATS', l: 'Stats' },
     { v: 'quality',      g: '✓',     l: 'Quality' },
-    { v: 'actions',      g: 'CAPA',  l: 'CAPA' },
+    { v: 'actions',      g: '⊕',     l: 'CAPA' },
     { v: 'safety',       g: '⚠',     l: 'Near Misses' },
     { v: 'complaints',   g: '✉',     l: 'Complaints' },
     { h: 'Operations' },
