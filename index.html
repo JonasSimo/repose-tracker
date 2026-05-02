@@ -11955,8 +11955,8 @@ let _effCheckChecked = false;
 function setQualitySubview(v) {
   cparSubview = v;
   document.querySelectorAll('.quality-chip').forEach(c => c.classList.toggle('active', c.dataset.view === v));
-  // PE View shows "+ Spawn CAPA" badges that need CAPA_ITEMS loaded.
-  if (v === 'pe' && !capaListLoaded) {
+  // PE View and QHSE Review both show "+ Spawn CAPA" + spawn-count badges.
+  if ((v === 'pe' || v === 'review') && !capaListLoaded) {
     fetchCAPAs().then(() => renderQualitySubview()).catch(() => {});
   }
   if (v === 'review' && !_effCheckChecked) {
@@ -12327,7 +12327,7 @@ function renderQHSEReviewCard(item) {
       ${f.CauseCode ? `<div style="font-size:11px;color:var(--text2)"><strong>Cause:</strong> ${escHtml(f.CauseCode)}</div>` : ''}
       ${f.CorrectiveAction ? `<div style="font-size:11px;color:var(--text2);margin-top:3px"><strong>Action:</strong> ${escHtml(f.CorrectiveAction)}</div>` : ''}
       ${f.ClosedOutBy ? `<div style="font-size:11px;color:var(--text3);margin-top:3px">Closed-out by ${escHtml(f.ClosedOutBy.split('@')[0])} · ${escHtml((f.ClosedOutAt||'').slice(0,16))}</div>` : ''}
-      <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+      <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;align-items:center">
         ${f.Status === CPAR_STATUS.AWAITING_EFF_CHECK ? `
           <button class="qbtn approve" onclick="effVerify('${item.id}', true)">✓ Still effective — Archive</button>
           <button class="qbtn return"  onclick="effVerifyOpen('${item.id}')">✗ Recurred — re-open</button>
@@ -12335,10 +12335,47 @@ function renderQHSEReviewCard(item) {
           <button class="qbtn approve"  onclick="qhseApprove('${item.id}')">✓ Approve &amp; Close</button>
           <button class="qbtn escalate" onclick="qhseEscalateOpen('${item.id}')">→ Escalate to PE</button>
           <button class="qbtn return"   onclick="qhseReturnOpen('${item.id}')">↩ Return to Sender</button>
+          <button class="cpar-confirm-close-btn" onclick="event.stopPropagation();qhseSpawnCAPAFromCPAR('${item.id}')" style="background:#fff;color:var(--repose-navy);border:1.5px solid var(--repose-navy);padding:6px 12px;font-size:12px">+ Spawn CAPA</button>
+          ${_capaCountForCpar(item.id) > 0 ? `<span style="font-size:11px;color:var(--green);font-weight:700">✓ ${_capaCountForCpar(item.id)} CAPA${_capaCountForCpar(item.id)>1?'s':''} spawned</span>` : ''}
         `}
       </div>
     </div>
   </div>`;
+}
+
+// QHSE spawns a CAPA from a CPAR they're reviewing. Pulls description from
+// the saved investigation fields (PE has already filed findings by this stage)
+// and links back via SourceCPARId. Same flow as peSpawnCAPAFromCPAR but reads
+// saved data instead of the live PE-notes textarea.
+function qhseSpawnCAPAFromCPAR(cparId) {
+  if (!cparIsQHSE) { toast('Only QHSE can spawn CAPAs from review', 'u'); return; }
+  const item = CPAR_ITEMS.find(i => i.id === cparId);
+  if (!item) { toast('CPAR not found', 'u'); return; }
+  const f = item.fields || {};
+  // Build a sensible action-description starter from saved CPAR fields.
+  const starter = [
+    f.CorrectiveAction ? `PE findings: ${f.CorrectiveAction}` : '',
+    f.CauseCode ? `Cause: ${f.CauseCode}` : '',
+    f.Description ? `Original issue: ${f.Description}` : '',
+  ].filter(Boolean).join('\n\n');
+
+  const guessTeam = () => {
+    const src = ((f.SourceDept || f.RaisedByTeam || '') + '').toLowerCase();
+    for (const t of CAPA_OWNER_TEAMS) {
+      if (t === 'Other' || t === 'PE') continue;
+      if (src.includes(t.toLowerCase())) return t;
+    }
+    return '';
+  };
+
+  openNewCAPAModal({
+    desc: starter.slice(0, 1500),
+    area: 'Quality',
+    source: f.Title || '',
+    sourceCparId: cparId,
+    ownerTeam: guessTeam(),
+    due: '',
+  });
 }
 
 async function qhseApprove(id) {
