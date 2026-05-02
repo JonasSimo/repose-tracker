@@ -31,7 +31,8 @@ Add each column with the exact **internal name** shown — the code references t
 | Owner team | Choice (Woodmill, Cutting, Sewing, Upholstery, Foam, Stores, Assembly, QC, Admin, PE, Other) | Yes | `OwnerTeam` |
 | Due date | Date (no time) | Yes | `DueDate` |
 | Status | Choice (Open, In Progress, Awaiting Verify, Closed) | Yes — default `Open` | `Status` |
-| Effectiveness | Choice (Pending, Yes, No) | Yes — default `Pending` | `EffectivenessYN` |
+| Actions taken | Multiple lines of text (plain) | No | `Actionstaken` |
+| Effectiveness | Choice (Pending, Yes, No) | Yes — default `Pending` | `Effectiveness` |
 | Raised by | Single line text | Yes | `RaisedBy` |
 | Raised at | Date and time | Yes | `RaisedAt` |
 | Done by | Single line text | No | `DoneBy` |

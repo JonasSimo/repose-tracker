@@ -14560,6 +14560,7 @@ const _CAPA_SP_TO_JS = {
   Doneat:        'DoneAt',
   Verifiedby:    'VerifiedBy',
   Verifiedat:    'VerifiedAt',
+  Actionstaken:  'ActionsTaken',
 };
 const _CAPA_JS_TO_SP = Object.fromEntries(
   Object.entries(_CAPA_SP_TO_JS).map(([sp, js]) => [js, sp])
@@ -14903,18 +14904,39 @@ function _capaCardHtml(item) {
   let history = [];
   try { history = f.History ? JSON.parse(f.History) : []; } catch(e) { history = []; }
 
-  // Action buttons by lifecycle stage:
+  // Lifecycle UI:
+  //   Open / In Progress  →  owner-stage textarea + Mark complete (req. text)
+  //   Awaiting Verify     →  read-only "Actions taken" + QHSE verify Yes/No
+  //   Closed              →  read-only "Actions taken" + effectiveness badge
   let actionsHtml = '';
+  const actionsTaken = f.ActionsTaken || '';
+
   if (f.Status === CAPA_STATUS.OPEN || f.Status === CAPA_STATUS.PROGRESS) {
     if (isOwner || canVerify) {
-      actionsHtml += `<button class="cpar-confirm-close-btn" onclick="capaMarkDone('${item.id}')">✓ Mark done</button>`;
+      actionsHtml += `
+        <div style="margin-top:6px">
+          <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">
+            Actions taken <span style="color:var(--red)">*</span>
+            <span style="font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0;font-size:11px">— what did you do? This is what QHSE will verify.</span>
+          </div>
+          <textarea id="capa-actions-${item.id}" placeholder="e.g. Re-trained 4 cutting operators on grain-direction marking, updated PHCF-CUT-003 with sign-off step, photo of new SOP filed under PHCF/2026-Q2."
+            oninput="document.getElementById('capa-done-btn-${item.id}').disabled = !this.value.trim()"
+            style="width:100%;padding:9px;border:1.5px solid var(--border);border-radius:6px;font-family:inherit;font-size:13px;min-height:90px;resize:vertical;box-sizing:border-box">${escHtml(actionsTaken)}</textarea>
+          <button id="capa-done-btn-${item.id}" class="cpar-confirm-close-btn" onclick="capaMarkDone('${item.id}')" disabled style="margin-top:8px">✓ Mark complete</button>
+        </div>`;
     } else {
-      actionsHtml += `<span style="font-size:11px;color:var(--text3);font-style:italic">Only the owner (${escHtml(f.OwnerName||'')}) or QHSE can mark this done.</span>`;
+      actionsHtml += `<span style="font-size:11px;color:var(--text3);font-style:italic">Only the owner (${escHtml(f.OwnerName||'')}) or QHSE can mark this complete.</span>`;
     }
   } else if (f.Status === CAPA_STATUS.VERIFY) {
+    actionsHtml += `
+      <div style="background:#fff;border:1.5px solid var(--border);border-radius:10px;padding:12px 14px;margin-top:6px">
+        <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Actions taken</div>
+        <div style="font-size:13px;line-height:1.55;white-space:pre-wrap">${escHtml(actionsTaken || '— (none recorded)')}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:6px">Marked complete by ${escHtml((f.DoneBy||'').split('@')[0])} · ${escHtml((f.DoneAt||'').slice(0,16).replace('T',' '))}</div>
+      </div>`;
     if (canVerify) {
       actionsHtml += `
-        <div style="background:#fff;border:1.5px solid var(--green);border-radius:10px;padding:12px 14px;margin-top:6px">
+        <div style="background:#fff;border:1.5px solid var(--green);border-radius:10px;padding:12px 14px;margin-top:8px">
           <div style="font-size:13px;font-weight:700;color:var(--green);margin-bottom:6px">✓ Verify completion</div>
           <div style="font-size:12px;color:var(--text2);margin-bottom:8px">Did this action prevent the issue from recurring?</div>
           <div style="display:flex;gap:8px">
@@ -14923,12 +14945,17 @@ function _capaCardHtml(item) {
           </div>
         </div>`;
     } else {
-      actionsHtml += `<span style="font-size:11px;color:var(--text3);font-style:italic">Marked done by ${escHtml(f.DoneBy||'')} on ${escHtml((f.DoneAt||'').slice(0,10))}. Awaiting QHSE verification.</span>`;
+      actionsHtml += `<span style="font-size:11px;color:var(--text3);font-style:italic;margin-top:8px;display:inline-block">Awaiting QHSE verification.</span>`;
     }
   } else if (f.Status === CAPA_STATUS.CLOSED) {
+    actionsHtml += `
+      <div style="background:#fff;border:1.5px solid var(--border);border-radius:10px;padding:12px 14px;margin-top:6px">
+        <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Actions taken</div>
+        <div style="font-size:13px;line-height:1.55;white-space:pre-wrap">${escHtml(actionsTaken || '— (none recorded)')}</div>
+      </div>`;
     const effLbl = f.EffectivenessYN === 'Yes' ? '✓ Effective' : f.EffectivenessYN === 'No' ? '✗ Not effective — follow-up needed' : '— Pending check';
     const effColor = f.EffectivenessYN === 'Yes' ? 'var(--green)' : f.EffectivenessYN === 'No' ? 'var(--red)' : 'var(--text3)';
-    actionsHtml += `<span style="font-size:12px;color:${effColor};font-weight:700">${effLbl}</span>`;
+    actionsHtml += `<div style="margin-top:8px"><span style="font-size:12px;color:${effColor};font-weight:700">${effLbl}</span></div>`;
   }
 
   return `
@@ -15178,22 +15205,30 @@ async function submitCAPA() {
   }
 }
 
-// ── Lifecycle: Mark Done (owner) → Awaiting Verify ──
+// ── Lifecycle: Mark Complete (owner) → Awaiting Verify ──
 async function capaMarkDone(id) {
   const item = CAPA_ITEMS.find(i => i.id === id);
   if (!item) return;
   if (!_capaIsOwner(item) && !_capaCanVerify()) {
-    toast('Only the owner or QHSE can mark this done', 'u');
+    toast('Only the owner or QHSE can mark this complete', 'u');
+    return;
+  }
+  const taArea = document.getElementById('capa-actions-' + id);
+  const actionsTaken = (taArea?.value || '').trim();
+  if (!actionsTaken) {
+    toast('Describe what you did before marking complete', 'u');
+    taArea?.focus();
     return;
   }
   const me = _capaCurrentUser();
   const now = new Date().toISOString();
-  const newHistory = appendCAPAHistory(item.fields?.History || '', { by: me, ev: 'marked-done' });
+  const newHistory = appendCAPAHistory(item.fields?.History || '', { by: me, ev: 'marked-complete' });
   const patch = {
-    Status:  CAPA_STATUS.VERIFY,
-    DoneBy:  me,
-    DoneAt:  now,
-    History: newHistory,
+    Status:       CAPA_STATUS.VERIFY,
+    DoneBy:       me,
+    DoneAt:       now,
+    ActionsTaken: actionsTaken,
+    History:      newHistory,
   };
   try {
     const siteId = await getCapaSiteId();
