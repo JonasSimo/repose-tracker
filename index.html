@@ -14544,6 +14544,42 @@ const SP_CAPA_LIST = 'CAPAActions';
 // calls aren't required — same pattern as Near Misses and Complaints.
 const CAPA_SITE_PATH = '/sites/ReposeFurniture-Quality';
 
+// SP internal column names diverge from the JS-side names. When a
+// display name had a space ("Owner email"), SP normalised it to one
+// word with the second word lowercased ("Owneremail"). Translate at
+// the wire boundary so the in-memory shape stays readable.
+const _CAPA_SP_TO_JS = {
+  Owneremail:    'OwnerEmail',
+  Ownername:     'OwnerName',
+  Ownerteam:     'OwnerTeam',
+  Duedate:       'DueDate',
+  Effectiveness: 'EffectivenessYN',
+  Raisedby:      'RaisedBy',
+  Raisedat:      'RaisedAt',
+  Doneby:        'DoneBy',
+  Doneat:        'DoneAt',
+  Verifiedby:    'VerifiedBy',
+  Verifiedat:    'VerifiedAt',
+};
+const _CAPA_JS_TO_SP = Object.fromEntries(
+  Object.entries(_CAPA_SP_TO_JS).map(([sp, js]) => [js, sp])
+);
+function _capaFieldsFromSP(spFields) {
+  if (!spFields) return spFields;
+  const out = { ...spFields };
+  for (const [sp, js] of Object.entries(_CAPA_SP_TO_JS)) {
+    if (sp in out) out[js] = out[sp];
+  }
+  return out;
+}
+function _capaFieldsToSP(jsFields) {
+  const out = {};
+  for (const [k, v] of Object.entries(jsFields || {})) {
+    out[_CAPA_JS_TO_SP[k] || k] = v;
+  }
+  return out;
+}
+
 async function getCapaSiteId() {
   if (_idCache.capaSiteId) return _idCache.capaSiteId;
   const res = await graphGet(`https://graph.microsoft.com/v1.0/sites/${SP_HOST}:${CAPA_SITE_PATH}`);
@@ -14584,9 +14620,12 @@ async function fetchCAPAs() {
   try {
     const siteId = await getCapaSiteId();
     const listId = await getListIdByNameOnSite(siteId, SP_CAPA_LIST);
-    const items = await graphGetAll(
+    const rawItems = await graphGetAll(
       `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999`
     );
+    // Translate SP column names → JS-side names at the wire boundary so
+    // the rest of the code can use the readable shape.
+    const items = rawItems.map(i => ({ ...i, fields: _capaFieldsFromSP(i.fields) }));
     // Preserve any locally-unshifted CAPAs not yet visible to the SP indexer
     // (same eventual-consistency guard as fetchCPARs).
     const fetchedIds = new Set(items.map(i => i.id));
@@ -15119,10 +15158,11 @@ async function submitCAPA() {
 
     const created = await graphPost(
       `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`,
-      { fields: newFields }
+      { fields: _capaFieldsToSP(newFields) }
     );
 
     toast(`${ref} raised`, 's');
+    // Local copy stays in JS-shape so the rest of the UI keeps working.
     CAPA_ITEMS.unshift({ id: created.id, fields: { ...newFields } });
     closeNewCAPAModal();
     if (document.getElementById('view-actions')?.classList.contains('active')) renderActionsView();
@@ -15160,7 +15200,7 @@ async function capaMarkDone(id) {
     const listId = await getListIdByNameOnSite(siteId, SP_CAPA_LIST);
     await graphPatch(
       `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}/fields`,
-      patch
+      _capaFieldsToSP(patch)
     );
     Object.assign(item.fields, patch);
     toast('Marked done — awaiting QHSE verification', 's');
@@ -15196,7 +15236,7 @@ async function capaVerify(id, effectiveness) {
     const listId = await getListIdByNameOnSite(siteId, SP_CAPA_LIST);
     await graphPatch(
       `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}/fields`,
-      patch
+      _capaFieldsToSP(patch)
     );
     Object.assign(item.fields, patch);
     toast(effectiveness === 'Yes' ? 'Closed · effective' : 'Closed · flagged ineffective', 's');
