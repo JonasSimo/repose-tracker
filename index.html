@@ -12874,6 +12874,12 @@ function _capaCountForCpar(cparId) {
 // Pulls the PE's typed investigation notes as the action description starter,
 // links back via SourceCPARId, and guesses owner team from the CPAR SourceDept.
 function peSpawnCAPAFromCPAR(cparId) {
+  // Match qhseSpawnCAPAFromCPAR's role gating — the button only renders in PE
+  // view, but every other action handler in this file checks the role too.
+  if (!cparIsPE && !cparIsOverseer && !cparIsQHSE) {
+    toast('Only PE / overseer / QHSE can spawn CAPAs', 'u');
+    return;
+  }
   const item = CPAR_ITEMS.find(i => i.id === cparId);
   if (!item) { toast('CPAR not found', 'u'); return; }
   const f = item.fields || {};
@@ -14651,7 +14657,7 @@ let capaListLoaded = false;
 
 // Filter state — mirrors the Quality tab pattern.
 let capaFilterArea   = '';     // '' | 'Quality' | 'H&S' | 'Environment'
-let capaFilterStatus = 'open'; // 'open' | 'closed' | 'all'
+let capaFilterStatus = 'open'; // 'open' | 'overdue' | 'closed' | 'closed_recent' | 'all'
 let capaFilterSearch = '';
 
 async function fetchCAPAs() {
@@ -14675,6 +14681,11 @@ async function fetchCAPAs() {
   } catch(e) {
     console.warn('fetchCAPAs:', e.message);
     capaListLoaded = true; // mark loaded so empty state shows instead of permanent spinner
+    // Surface to user — silent failure made transient outages look like an empty list.
+    const msg = (e.message||'').includes('itemNotFound')
+      ? 'CAPAActions list not found in SharePoint — see CAPA_SETUP.md'
+      : 'Could not load CAPAs — '+e.message;
+    if (typeof toast === 'function') toast(msg, 'u');
     if (document.getElementById('view-actions')?.classList.contains('active')) renderActionsView();
   }
 }
@@ -14707,6 +14718,11 @@ async function getNextCAPARef(siteId, listId) {
 function appendCAPAHistory(existing, entry) {
   let arr = [];
   try { arr = existing ? JSON.parse(existing) : []; } catch(e) { arr = []; }
+  // The History column has on rare occasions held non-array JSON (manual SP
+  // edit, schema drift). Without this, arr.push throws here — and because
+  // capaMarkDone/capaVerify call this *outside* their try block, the action
+  // dies silently with a console TypeError.
+  if (!Array.isArray(arr)) arr = [];
   arr.push({ ...entry, at: new Date().toISOString() });
   return JSON.stringify(arr);
 }
@@ -14750,6 +14766,8 @@ function _capaDayDiff(a, b) {
 
 function _capaDueClass(dueIso, status) {
   if (status === CAPA_STATUS.CLOSED) return 'green';
+  // Owner has handed off to QHSE — due date no longer applies to them.
+  if (status === CAPA_STATUS.VERIFY) return '';
   if (!dueIso) return '';
   const diff = _capaDayDiff(dueIso, new Date());
   if (diff < 0) return 'red';
@@ -14760,6 +14778,8 @@ function _capaDueClass(dueIso, status) {
 function _capaIsOverdue(item) {
   const f = item.fields || {};
   if (f.Status === CAPA_STATUS.CLOSED) return false;
+  // Owner has submitted; awaiting QHSE — not the owner's overdue any more.
+  if (f.Status === CAPA_STATUS.VERIFY) return false;
   if (!f.DueDate) return false;
   return _capaDayDiff(f.DueDate, new Date()) < 0;
 }
@@ -14792,9 +14812,11 @@ function renderActionsView() {
 
   // Apply filters.
   let filtered = items.slice();
-  if (capaFilterStatus === 'open')   filtered = filtered.filter(i => i.fields?.Status !== CAPA_STATUS.CLOSED);
-  if (capaFilterStatus === 'closed') filtered = filtered.filter(i => i.fields?.Status === CAPA_STATUS.CLOSED);
-  if (capaFilterArea)                filtered = filtered.filter(i => i.fields?.Area === capaFilterArea);
+  if (capaFilterStatus === 'open')          filtered = filtered.filter(i => i.fields?.Status !== CAPA_STATUS.CLOSED);
+  if (capaFilterStatus === 'overdue')       filtered = filtered.filter(_capaIsOverdue);
+  if (capaFilterStatus === 'closed')        filtered = filtered.filter(i => i.fields?.Status === CAPA_STATUS.CLOSED);
+  if (capaFilterStatus === 'closed_recent') filtered = filtered.filter(_capaIsClosedRecent);
+  if (capaFilterArea)                       filtered = filtered.filter(i => i.fields?.Area === capaFilterArea);
   const searchQ = (capaFilterSearch || '').trim().toLowerCase();
   if (searchQ) {
     filtered = filtered.filter(i => {
@@ -14832,9 +14854,9 @@ function renderActionsView() {
   host.innerHTML = `
     <!-- Stat tiles -->
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">
-      ${tileBtn('open',   openCount,    'Open',           '📋', 'pass')}
-      ${tileBtn('open',   overdueCount, 'Overdue',        '⚠',  'fail')}
-      ${tileBtn('closed', closedCount,  'Closed (30d)',   '✓',  'pass')}
+      ${tileBtn('open',           openCount,    'Open',         '📋', 'pass')}
+      ${tileBtn('overdue',        overdueCount, 'Overdue',      '⚠',  'fail')}
+      ${tileBtn('closed_recent',  closedCount,  'Closed (30d)', '✓',  'pass')}
     </div>
 
     <!-- Area chips -->
@@ -14896,9 +14918,13 @@ function _capaRowHtml(item) {
   const areaC = CAPA_AREA_COLOURS[f.Area] || { fg:'#0e023a', bg:'#eef2f5' };
 
   // Source: clickable if SourceCPARId is present (jumps to Quality + searches the CPAR).
+  // Build the JS string literal with JSON.stringify so apostrophes/quotes in
+  // user-entered Source text don't break the onclick handler — then escHtml
+  // wraps it for the attribute-value context.
   let sourceHtml;
   if (f.SourceCPARId && f.Source) {
-    sourceHtml = `<a href="javascript:void(0)" onclick="event.stopPropagation();capaJumpToSource('${escHtml(f.Source).replace(/'/g,"\\'")}')" style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:var(--blue);text-decoration:underline">${escHtml(f.Source)}</a>`;
+    const srcJsArg = escHtml(JSON.stringify(f.Source));
+    sourceHtml = `<a href="javascript:void(0)" onclick="event.stopPropagation();capaJumpToSource(${srcJsArg})" style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:var(--blue);text-decoration:underline">${escHtml(f.Source)}</a>`;
   } else if (f.Source) {
     sourceHtml = `<span style="font-size:11px;color:var(--text3);font-style:italic">${escHtml(f.Source)}</span>`;
   } else {
@@ -14940,6 +14966,7 @@ function _capaCardHtml(item) {
   const canVerify = _capaCanVerify();
   let history = [];
   try { history = f.History ? JSON.parse(f.History) : []; } catch(e) { history = []; }
+  if (!Array.isArray(history)) history = [];
 
   // Lifecycle UI:
   //   Open / In Progress  →  owner-stage textarea + Mark complete (req. text)
@@ -15037,23 +15064,29 @@ function capaSearchInput(value) {
   const v = value == null ? '' : String(value);
   capaFilterSearch = v;
   if (_capaSearchTimer) { clearTimeout(_capaSearchTimer); _capaSearchTimer = null; }
-  if (!v.trim()) { renderActionsView(); return; }
+  const restoreFocus = () => {
+    const inp = document.getElementById('capa-search-input');
+    if (!inp) return;
+    inp.focus();
+    const len = inp.value.length;
+    try { inp.setSelectionRange(len, len); } catch(e) {}
+  };
+  if (!v.trim()) { renderActionsView(); restoreFocus(); return; }
   _capaSearchTimer = setTimeout(() => {
     renderActionsView();
-    const inp = document.getElementById('capa-search-input');
-    if (inp) {
-      inp.focus();
-      const len = inp.value.length;
-      try { inp.setSelectionRange(len, len); } catch(e) {}
-    }
+    restoreFocus();
   }, 180);
 }
 
 // Jump from a CAPA's Source link to the parent CPAR in the Quality tab.
+// Quality defaults to status='todo' + a team filter — both can hide the
+// searched CPAR. Reset them so the explicit click always lands on the row.
 function capaJumpToSource(cparRef) {
   navTo('quality');
   setTimeout(() => {
     if (typeof setQualitySubview === 'function') setQualitySubview('issues');
+    if (typeof cparFilterStatus !== 'undefined') cparFilterStatus = 'all';
+    if (typeof cparFilterTeam   !== 'undefined') cparFilterTeam   = '';
     cparFilterSearch = cparRef || '';
     if (typeof renderQualitySubview === 'function') renderQualitySubview();
   }, 50);
@@ -15115,12 +15148,7 @@ function openNewCAPAModal(prefill) {
   document.getElementById('capa-f-due').value   = capaFormState.due;
 
   // Area pills
-  const areaWrap = document.getElementById('capa-f-area-pills');
-  areaWrap.innerHTML = CAPA_AREAS.map(a => {
-    const c = CAPA_AREA_COLOURS[a] || { fg:'#0e023a', bg:'#eef2f5' };
-    const active = a === capaFormState.area;
-    return `<button type="button" onclick="capaFormState.area='${a.replace(/'/g,"\\'")}';openNewCAPAModal_repaint()" style="padding:6px 12px;border:1.5px solid ${active?c.fg:'var(--border)'};border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;background:${active?c.bg:'#fff'};color:${active?c.fg:'var(--text2)'};font-family:inherit">${escHtml(a)}</button>`;
-  }).join('');
+  _capaRepaintAreaPills();
 
   // Owner select
   const ownerSel = document.getElementById('capa-f-owner');
@@ -15137,19 +15165,16 @@ function openNewCAPAModal(prefill) {
   setTimeout(() => document.getElementById('capa-f-desc').focus(), 50);
 }
 
-// Repaint just the area pills after a click — keeps current input values.
-function openNewCAPAModal_repaint() {
-  capaFormState.desc       = document.getElementById('capa-f-desc').value;
-  capaFormState.source     = document.getElementById('capa-f-source').value;
-  capaFormState.due        = document.getElementById('capa-f-due').value;
-  capaFormState.ownerEmail = document.getElementById('capa-f-owner').value;
-  capaFormState.ownerTeam  = document.getElementById('capa-f-team').value;
-  openNewCAPAModal({
-    desc: capaFormState.desc, area: capaFormState.area, source: capaFormState.source,
-    sourceCparId: capaFormState.sourceCparId,
-    ownerEmail: capaFormState.ownerEmail, ownerTeam: capaFormState.ownerTeam,
-    due: capaFormState.due,
-  });
+// Repaint only the area pills. Avoids touching the textareas so the user's
+// cursor/typing in the Description field is preserved when they click a pill.
+function _capaRepaintAreaPills() {
+  const areaWrap = document.getElementById('capa-f-area-pills');
+  if (!areaWrap) return;
+  areaWrap.innerHTML = CAPA_AREAS.map(a => {
+    const c = CAPA_AREA_COLOURS[a] || { fg:'#0e023a', bg:'#eef2f5' };
+    const active = a === capaFormState.area;
+    return `<button type="button" onclick="capaFormState.area='${a.replace(/'/g,"\\'")}';_capaRepaintAreaPills()" style="padding:6px 12px;border:1.5px solid ${active?c.fg:'var(--border)'};border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;background:${active?c.bg:'#fff'};color:${active?c.fg:'var(--text2)'};font-family:inherit">${escHtml(a)}</button>`;
+  }).join('');
 }
 
 // When owner is picked, look up name from people list so we save both email + name.
@@ -15173,6 +15198,11 @@ function _capaDefaultDueIso() {
 }
 
 async function submitCAPA() {
+  // Re-entrancy guard. Two click events can both queue before the first
+  // reaches `btn.disabled = true; await ...` — without this, both would
+  // POST and create duplicate CAPAs with consecutive refs.
+  if (submitCAPA._busy) return;
+
   // Read latest values from form
   const desc   = (document.getElementById('capa-f-desc').value||'').trim();
   const source = (document.getElementById('capa-f-source').value||'').trim();
@@ -15192,10 +15222,13 @@ async function submitCAPA() {
   if (!ownerTeam) { toast('Pick the owner team', 'u'); return; }
   if (!due) { toast('Set a due date', 'u'); return; }
 
+  const me = _capaCurrentUser();
+  if (!me) { toast('Sign-in expired — refresh', 'u'); return; }
+
+  submitCAPA._busy = true;
   const btn = document.getElementById('capa-submit-btn');
   btn.disabled = true; btn.textContent = 'Saving…';
 
-  const me = _capaCurrentUser();
   const now = new Date().toISOString();
 
   try {
@@ -15229,7 +15262,11 @@ async function submitCAPA() {
     // Local copy stays in JS-shape so the rest of the UI keeps working.
     CAPA_ITEMS.unshift({ id: created.id, fields: { ...newFields } });
     closeNewCAPAModal();
+    // Refresh whichever view the user is on. Spawning from a CPAR card leaves
+    // the user on Quality, so the "✓ N CAPAs spawned" badge needs updating too.
     if (document.getElementById('view-actions')?.classList.contains('active')) renderActionsView();
+    if (document.getElementById('view-quality')?.classList.contains('active')
+        && typeof renderQualitySubview === 'function') renderQualitySubview();
 
   } catch(e) {
     console.warn('submitCAPA:', e.message);
@@ -15238,12 +15275,14 @@ async function submitCAPA() {
       : 'Could not save — '+e.message;
     toast(msg, 'u');
   } finally {
+    submitCAPA._busy = false;
     btn.disabled = false; btn.textContent = 'Raise action';
   }
 }
 
 // ── Lifecycle: Mark Complete (owner) → Awaiting Verify ──
 async function capaMarkDone(id) {
+  if (_isBusy(id)) return; // ignore double-click — would otherwise double-PATCH and duplicate history
   const item = CAPA_ITEMS.find(i => i.id === id);
   if (!item) return;
   if (!_capaIsOwner(item) && !_capaCanVerify()) {
@@ -15258,6 +15297,8 @@ async function capaMarkDone(id) {
     return;
   }
   const me = _capaCurrentUser();
+  if (!me) { toast('Sign-in expired — refresh', 'u'); return; }
+  _setBusy(id);
   const now = new Date().toISOString();
   const newHistory = appendCAPAHistory(item.fields?.History || '', { by: me, ev: 'marked-complete' });
   const patch = {
@@ -15282,6 +15323,8 @@ async function capaMarkDone(id) {
   } catch(e) {
     console.warn('capaMarkDone:', e.message);
     toast('Could not save — '+e.message, 'u');
+  } finally {
+    _clearBusy(id);
   }
 }
 
@@ -15289,11 +15332,14 @@ async function capaMarkDone(id) {
 // Yes → Closed + Effective. No → stays Closed but flagged ineffective; spawning a follow-up
 // is left as a manual click on the user's part for v1 (a future hook can auto-spawn).
 async function capaVerify(id, effectiveness) {
+  if (_isBusy(id)) return; // ignore double-click — could otherwise record verified-yes then verified-no
   if (!_capaCanVerify()) { toast('Only QHSE can verify', 'u'); return; }
   if (!['Yes','No'].includes(effectiveness)) return;
   const item = CAPA_ITEMS.find(i => i.id === id);
   if (!item) return;
   const me = _capaCurrentUser();
+  if (!me) { toast('Sign-in expired — refresh', 'u'); return; }
+  _setBusy(id);
   const now = new Date().toISOString();
   const newHistory = appendCAPAHistory(item.fields?.History || '', { by: me, ev: `verified-${effectiveness.toLowerCase()}` });
   const patch = {
@@ -15317,6 +15363,8 @@ async function capaVerify(id, effectiveness) {
   } catch(e) {
     console.warn('capaVerify:', e.message);
     toast('Could not save — '+e.message, 'u');
+  } finally {
+    _clearBusy(id);
   }
 }
 
