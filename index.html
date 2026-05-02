@@ -14538,6 +14538,19 @@ async function sendDailyDigest(btn) {
 
 const SP_CAPA_LIST = 'CAPAActions';
 
+// CAPA lives on the QHSE-managed Quality site, NOT the Planning site
+// where CPARLog sits. CAPA→CPAR linkage is in-app only (we store the
+// CPAR's SharePoint id and use it for navigation), so cross-site Graph
+// calls aren't required — same pattern as Near Misses and Complaints.
+const CAPA_SITE_PATH = '/sites/ReposeFurniture-Quality';
+
+async function getCapaSiteId() {
+  if (_idCache.capaSiteId) return _idCache.capaSiteId;
+  const res = await graphGet(`https://graph.microsoft.com/v1.0/sites/${SP_HOST}:${CAPA_SITE_PATH}`);
+  _idCache.capaSiteId = res.id; _saveIdCache();
+  return _idCache.capaSiteId;
+}
+
 const CAPA_AREAS = ['Quality', 'H&S', 'Environment'];
 const CAPA_AREA_COLOURS = {
   'Quality':     { fg:'#14a1e9', bg:'#e6f5fd' },
@@ -14569,8 +14582,8 @@ let capaFilterSearch = '';
 
 async function fetchCAPAs() {
   try {
-    const siteId = await getSpSiteId();
-    const listId = await getListIdByName(SP_CAPA_LIST);
+    const siteId = await getCapaSiteId();
+    const listId = await getListIdByNameOnSite(siteId, SP_CAPA_LIST);
     const items = await graphGetAll(
       `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999`
     );
@@ -15083,8 +15096,8 @@ async function submitCAPA() {
   const now = new Date().toISOString();
 
   try {
-    const siteId = await getSpSiteId();
-    const listId = await getListIdByName(SP_CAPA_LIST);
+    const siteId = await getCapaSiteId();
+    const listId = await getListIdByNameOnSite(siteId, SP_CAPA_LIST);
     const ref = await getNextCAPARef(siteId, listId);
 
     const newFields = {
@@ -15143,8 +15156,8 @@ async function capaMarkDone(id) {
     History: newHistory,
   };
   try {
-    const siteId = await getSpSiteId();
-    const listId = await getListIdByName(SP_CAPA_LIST);
+    const siteId = await getCapaSiteId();
+    const listId = await getListIdByNameOnSite(siteId, SP_CAPA_LIST);
     await graphPatch(
       `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}/fields`,
       patch
@@ -15179,8 +15192,8 @@ async function capaVerify(id, effectiveness) {
     History:         newHistory,
   };
   try {
-    const siteId = await getSpSiteId();
-    const listId = await getListIdByName(SP_CAPA_LIST);
+    const siteId = await getCapaSiteId();
+    const listId = await getListIdByNameOnSite(siteId, SP_CAPA_LIST);
     await graphPatch(
       `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}/fields`,
       patch

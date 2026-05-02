@@ -1,15 +1,17 @@
 # CAPA Log — SharePoint setup
 
-One-off setup before the Actions tab can save anything. ~10 minutes.
+One-off setup before the CAPA tab can save anything. ~10 minutes.
 
 ---
 
 ## 1 · Create the SharePoint list
 
-In the same SharePoint site that already hosts `CPARLog`:
+**Site:** `https://reposefurniturelimited.sharepoint.com/sites/ReposeFurniture-Quality`
 
 **List name:** `CAPAActions`
 **List type:** Custom list (start blank)
+
+> Site path is hardcoded in `CAPA_SITE_PATH` (index.html). Different from `CPARLog` which lives on the Planning site — same pattern as Near Misses (Safety site) and Complaints (Service site).
 
 ---
 
