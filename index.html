@@ -4004,7 +4004,7 @@ function showView(name) {
   if (name === 'stats')       { openStatsView(); if (!NMS_ITEMS.length) loadNearMisses(); }
   if (name === 'issues')      { openIssuesView(); }
   if (name === 'quality')     { openQualityView(); }
-  if (name === 'documents') openDocumentsView();
+  if (name === 'documents')   { openDocumentsView(); }
   if (name === 'actions')     { openActionsView(); }
   if (name === 'safety')      { loadNearMisses(); }
   if (name === 'ordercheck')  { ocOnOpen(); }
@@ -5826,19 +5826,6 @@ function renderOverviewTeam(teamName) {
 const SP_HOST      = 'reposefurniturelimited.sharepoint.com';
 const SP_SITE_PATH = '/sites/ReposeFurniture-PlanningRepose';
 
-const QMS_SITE_PATH = '/sites/ReposeFurniture-Quality';
-const QMS_DOC_LIB_NAME = 'QMS-Documents';
-const QMS_REGISTER_LIST = 'MasterDocumentRegister';
-const QMS_REVISIONS_LIST = 'DocumentRevisions';
-
-let _qmsSiteIdCache = null;
-async function getQmsSiteId() {
-  if (_qmsSiteIdCache) return _qmsSiteIdCache;
-  const res = await graphGet(`https://graph.microsoft.com/v1.0/sites/${SP_HOST}:${QMS_SITE_PATH}`);
-  _qmsSiteIdCache = res.id;
-  return _qmsSiteIdCache;
-}
-
 // NMS (Near Miss) — Health & Safety site
 const NMS_SITE_PATH = '/sites/ReposeFurniture-HealthandSafety';
 const NMS_LIST_ID   = '8481E1E4-8C93-4CCD-A38A-9736011EFEAB';
@@ -5914,6 +5901,19 @@ async function getNmsSiteId() {
   const res = await graphGet(`https://graph.microsoft.com/v1.0/sites/${SP_HOST}:${NMS_SITE_PATH}`);
   _idCache.nmsSiteId = res.id; _saveIdCache();
   return _idCache.nmsSiteId;
+}
+
+// QMS (Quality Management System) — Document Control
+const QMS_SITE_PATH = '/sites/ReposeFurniture-Quality';
+const QMS_DOC_LIB_NAME = 'QMS-Documents';
+const QMS_REGISTER_LIST = 'MasterDocumentRegister';
+const QMS_REVISIONS_LIST = 'DocumentRevisions';
+
+async function getQmsSiteId() {
+  if (_idCache.qmsSiteId) return _idCache.qmsSiteId;
+  const res = await graphGet(`https://graph.microsoft.com/v1.0/sites/${SP_HOST}:${QMS_SITE_PATH}`);
+  _idCache.qmsSiteId = res.id; _saveIdCache();
+  return _idCache.qmsSiteId;
 }
 
 // Complaints — Service site
