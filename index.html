@@ -4034,9 +4034,10 @@ async function openDocumentsView() {
 }
 
 async function renderDocumentsRegister() {
-  // Filled in Task 4
+  const docs = await fetchAllDocs();
+  console.log('[docs] fetched', docs.length, 'documents', docs);
   const content = document.getElementById('docs-content');
-  content.innerHTML = '<p>Documents view — under construction.</p>';
+  content.innerHTML = `<pre style="padding:24px;font-family:'JetBrains Mono',ui-monospace,monospace">Fetched ${docs.length} documents.\nSee console for details.\n\n(Task 4 will replace this with the real register UI.)</pre>`;
 }
 
 function toggleNavMenu() {
@@ -5971,6 +5972,139 @@ async function getListIdByNameOnSite(siteId, name) {
   _idCache.lists[cacheKey] = res.id; _saveIdCache();
   return res.id;
 }
+
+// ── Document Control: SharePoint helpers ──────────────────────────
+async function fetchAllDocs() {
+  const siteId = await getQmsSiteId();
+  const listId = await getListIdByNameOnSite(siteId, QMS_REGISTER_LIST);
+  const url = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999`;
+  const items = await graphGetAll(url);
+  return items.map(_mapDocItem);
+}
+
+async function fetchDocByNumber(docNumber) {
+  const siteId = await getQmsSiteId();
+  const listId = await getListIdByNameOnSite(siteId, QMS_REGISTER_LIST);
+  const filter = encodeURIComponent(`fields/DocNumber eq '${docNumber}'`);
+  const url = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$filter=${filter}&$top=2`;
+  const res = await graphGet(url);
+  if (!res.value || res.value.length === 0) return null;
+  return _mapDocItem(res.value[0]);
+}
+
+async function fetchRevisionsForDoc(docNumber) {
+  const siteId = await getQmsSiteId();
+  const listId = await getListIdByNameOnSite(siteId, QMS_REVISIONS_LIST);
+  const filter = encodeURIComponent(`fields/DocNumber eq '${docNumber}'`);
+  const url = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$filter=${filter}&$orderby=fields/Revision desc&$top=999`;
+  const items = await graphGetAll(url);
+  return items.map(_mapRevItem);
+}
+
+async function createDoc(payload) {
+  const siteId = await getQmsSiteId();
+  const listId = await getListIdByNameOnSite(siteId, QMS_REGISTER_LIST);
+  const token = await getGraphToken();
+  const res = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields: payload })
+  });
+  if (!res.ok) throw new Error(`createDoc failed: ${res.status} ${await res.text()}`);
+  return _mapDocItem(await res.json());
+}
+
+async function updateDoc(itemId, fields, etag) {
+  const siteId = await getQmsSiteId();
+  const listId = await getListIdByNameOnSite(siteId, QMS_REGISTER_LIST);
+  const token = await getGraphToken();
+  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+  if (etag) headers['If-Match'] = etag;
+  const res = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${itemId}/fields`, {
+    method: 'PATCH',
+    headers,
+    body: JSON.stringify(fields)
+  });
+  if (res.status === 412) throw new Error('Document was modified by someone else — please reload.');
+  if (!res.ok) throw new Error(`updateDoc failed: ${res.status} ${await res.text()}`);
+  return await res.json();
+}
+
+async function createRevision(payload) {
+  const siteId = await getQmsSiteId();
+  const listId = await getListIdByNameOnSite(siteId, QMS_REVISIONS_LIST);
+  const token = await getGraphToken();
+  const res = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields: payload })
+  });
+  if (!res.ok) throw new Error(`createRevision failed: ${res.status} ${await res.text()}`);
+  return _mapRevItem(await res.json());
+}
+
+async function uploadDocFile(category, fileName, fileBlob) {
+  // category = 'HS' | 'Quality' | 'Group'
+  const siteId = await getQmsSiteId();
+  const driveResp = await graphGet(`https://graph.microsoft.com/v1.0/sites/${siteId}/drive`);
+  const driveId = driveResp.id;
+  const path = `${category}/${fileName}`;
+  const token = await getGraphToken();
+  const res = await fetch(
+    `https://graph.microsoft.com/v1.0/drives/${driveId}/root:/${encodeURIComponent(path)}:/content`,
+    { method: 'PUT', headers: { Authorization: `Bearer ${token}` }, body: fileBlob }
+  );
+  if (!res.ok) throw new Error(`uploadDocFile failed: ${res.status} ${await res.text()}`);
+  const item = await res.json();
+  return { id: item.id, webUrl: item.webUrl, downloadUrl: item['@microsoft.graph.downloadUrl'] };
+}
+
+// ── Mappers — flatten the SharePoint $expand=fields shape ──────────
+function _mapDocItem(item) {
+  const f = item.fields || {};
+  return {
+    id: item.id,
+    etag: item['@odata.etag'] || (item.fields && item.fields['@odata.etag']) || null,
+    docNumber: f.DocNumber || '',
+    title: f.Title || '',
+    category: f.Category || '',
+    level: f.Level || '',
+    departments: Array.isArray(f.Departments) ? f.Departments : (f.Departments ? [f.Departments] : []),
+    status: f.Status || 'Draft',
+    currentRevision: Number(f.CurrentRevision || 1),
+    issueDate: f.IssueDate || null,
+    lastRevisedDate: f.LastRevisedDate || null,
+    reviewCycleMonths: Number(f.ReviewCycleMonths || 12),
+    nextReviewDate: f.NextReviewDate || null,
+    ownerEmail: (f.Owner && f.Owner.Email) || f.OwnerLookupId || '',
+    approverEmails: Array.isArray(f.Approvers) ? f.Approvers.map(a => a.Email).filter(Boolean) : [],
+    fileLink: (f.FileLink && f.FileLink.Url) || f.FileLink || '',
+    references: (f.References || '').split(',').map(s => s.trim()).filter(Boolean),
+    supersededBy: f.SupersededBy || '',
+    linkedMaintenanceTemplate: f.LinkedMaintenanceTemplate || '',
+    linkedRecordsListName: f.LinkedRecordsListName || '',
+    description: f.Description || ''
+  };
+}
+
+function _mapRevItem(item) {
+  const f = item.fields || {};
+  return {
+    id: item.id,
+    docNumber: f.DocNumber || '',
+    revision: Number(f.Revision || 0),
+    issueDate: f.IssueDate || null,
+    approvedByEmails: Array.isArray(f.ApprovedBy) ? f.ApprovedBy.map(a => a.Email).filter(Boolean) : [],
+    approvalTimestamps: f.ApprovalTimestamps ? _safeJson(f.ApprovalTimestamps, []) : [],
+    reasonForRevision: f.ReasonForRevision || '',
+    triggeredBy: f.TriggeredBy || '',
+    fileVersionId: f.FileVersionId || '',
+    fileLink: (f.FileLink && f.FileLink.Url) || f.FileLink || '',
+    changedFromRev: f.ChangedFromRev != null ? Number(f.ChangedFromRev) : null
+  };
+}
+
+function _safeJson(s, fallback) { try { return JSON.parse(s); } catch { return fallback; } }
 
 // ═══════════════════════════════════════════════
 // SPEC CHANGE DETECTION & ALERTS
