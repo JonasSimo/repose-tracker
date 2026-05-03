@@ -4596,8 +4596,7 @@ async function _saveRevision(doc, overlay) {
     LastRevisedDate: todayIso,
     NextReviewDate: nextIso,
     ReviewCycleMonths: cycle,
-    'FileLink@odata.type': 'SP.FieldUrlValue',
-    FileLink: { Url: uploaded.webUrl, Description: safeName },
+    FileLink: uploaded.webUrl,
     Description: reason
   };
   if (approversRaw) registerPatch.Approvers = approversRaw;
@@ -4637,6 +4636,8 @@ async function _saveRevision(doc, overlay) {
     IssueDate: new Date().toISOString(),
     ReasonForRevision: reason,
     TriggeredBy: trigKind ? (trigRef ? `${trigKind}:${trigRef}` : trigKind) : '',
+    FileLink: uploaded.webUrl,
+    FileVersionId: uploaded.id,
     ChangedFromRev: doc.currentRevision
   });
 }
@@ -4817,8 +4818,7 @@ async function _saveNewDocument(overlay) {
     ReviewCycleMonths: cycle,
     NextReviewDate: nextIso,
     Owner: owner,
-    'FileLink@odata.type': 'SP.FieldUrlValue',
-    FileLink: { Url: uploaded.webUrl, Description: safeName },
+    FileLink: uploaded.webUrl,
     Description: description
   };
   // Departments column is single-select Choice in SharePoint (confirmed via
@@ -4883,7 +4883,9 @@ async function _saveNewDocument(overlay) {
       Revision: 1,
       IssueDate: new Date().toISOString(),
       ReasonForRevision: description,
-      TriggeredBy: 'Initial issue'
+      TriggeredBy: 'Initial issue',
+      FileLink: uploaded.webUrl,
+      FileVersionId: uploaded.id
     });
   } catch (revErr) {
     throw new Error(`Document was created but revision history failed: ${revErr.message}. Please add Rev 1 manually in SharePoint.`);
