@@ -1071,7 +1071,7 @@ async function _saveNewDocument(overlay) {
     ReviewCycleMonths: cycle,
     NextReviewDate: next.toISOString().slice(0,10),
     Owner: owner,
-    FileLink: uploaded.webUrl,
+    FileLink: { Url: uploaded.webUrl, Description: safeName },
     Description: description
   };
   if (depts.length) {
@@ -1090,7 +1090,7 @@ async function _saveNewDocument(overlay) {
       IssueDate: new Date().toISOString(),
       ReasonForRevision: description,
       TriggeredBy: 'Initial issue',
-      FileLink: uploaded.webUrl,
+      FileLink: { Url: uploaded.webUrl, Description: safeName },
       FileVersionId: uploaded.id
     });
   } catch (revErr) {
@@ -1258,7 +1258,7 @@ async function _saveRevision(doc, overlay) {
     NextReviewDate: next.toISOString().slice(0,10),
     ReviewCycleMonths: cycle,
     Approvers: approversRaw ? approversRaw.split(',').map(s => s.trim()).filter(Boolean) : null,
-    FileLink: uploaded.webUrl,
+    FileLink: { Url: uploaded.webUrl, Description: safeName },
     Description: reason
   });
 
@@ -1269,7 +1269,7 @@ async function _saveRevision(doc, overlay) {
     IssueDate: today.toISOString(),
     ReasonForRevision: reason,
     TriggeredBy: trigKind ? (trigRef ? `${trigKind}:${trigRef}` : trigKind) : '',
-    FileLink: uploaded.webUrl,
+    FileLink: { Url: uploaded.webUrl, Description: safeName },
     FileVersionId: uploaded.id,
     ChangedFromRev: doc.currentRevision
   });

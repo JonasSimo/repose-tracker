@@ -4561,9 +4561,6 @@ async function _saveNewDocument(overlay) {
   const todayIso = `${today.toISOString().slice(0,10)}T00:00:00.000Z`;
   const nextIso = `${next.toISOString().slice(0,10)}T00:00:00.000Z`;
 
-  const minimalDebug = new URLSearchParams(location.search).get('docs-debug') === 'minimal';
-  if (minimalDebug) console.warn('[docs] MINIMAL DEBUG MODE: payload stripped to required fields only');
-
   // Create register row (Status starts Published — Phase 1 single-step solo approve flow per spec, plus matches Task-7 multi-approver flow)
   const fields = {
     DocNumber: docNumber,
@@ -4577,33 +4574,29 @@ async function _saveNewDocument(overlay) {
     ReviewCycleMonths: cycle,
     NextReviewDate: nextIso,
     Owner: owner,
-    FileLink: uploaded.webUrl,
+    FileLink: { Url: uploaded.webUrl, Description: safeName },
     Description: description
   };
-  if (depts.length) fields.Departments = depts;
+  if (depts.length) {
+    fields['Departments@odata.type'] = 'Collection(Edm.String)';
+    fields.Departments = depts;
+  }
   if (approversRaw) fields.Approvers = approversRaw;
   if (refs) fields.References = refs;
-  const minimalFields = {
-    DocNumber: docNumber,
-    Title: title,
-    Status: 'Draft',
-    CurrentRevision: 1
-  };
-  const created = await createDoc(minimalDebug ? minimalFields : fields);
+  const created = await createDoc(fields);
 
-  // Create the Rev-1 row in DocumentRevisions
-  // FileLink/FileVersionId temporarily omitted while diagnosing 500. The file
-  // path is already captured on the MasterDocumentRegister row, so the
-  // revision audit trail is still complete (Title, Revision, IssueDate,
-  // ReasonForRevision, TriggeredBy). Re-add FileLink with correct Hyperlink
-  // shape once the 500 root cause is confirmed.
+  // Create the Rev-1 row in DocumentRevisions. Note Title (not DocNumber) on
+  // this list — the column was renamed via the SharePoint UI, so the display
+  // name is DocNumber but the internal name remains Title.
   try {
     await createRevision({
       Title: docNumber,
       Revision: 1,
       IssueDate: new Date().toISOString(),
       ReasonForRevision: description,
-      TriggeredBy: 'Initial issue'
+      TriggeredBy: 'Initial issue',
+      FileLink: { Url: uploaded.webUrl, Description: safeName },
+      FileVersionId: uploaded.id
     });
   } catch (revErr) {
     throw new Error(`Document was created but revision history failed: ${revErr.message}. Please add Rev 1 manually in SharePoint.`);
@@ -6584,59 +6577,12 @@ async function createDoc(payload) {
   const siteId = await getQmsSiteId();
   const listId = await getListIdByNameOnSite(siteId, QMS_REGISTER_LIST);
   const token = await getGraphToken();
-  const url = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`;
-  const body = JSON.stringify({ fields: payload });
-
-  // -- TEMPORARY DIAGNOSTIC LOGGING - remove after debug --
-  console.group('[docs] createDoc DEBUG');
-  console.log('URL:', url);
-  console.log('Payload (parsed):', payload);
-  console.log('Body (string):', body);
-  // Also fetch and print the actual list column schema so we can see internal names
-  try {
-    const schemaRes = await _graphFetchWithRetry(
-      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/columns`,
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-    if (schemaRes.ok) {
-      const cols = (await schemaRes.json()).value || [];
-      // Show only the columns that match field names actually in our payload, plus all required columns
-      const payloadKeys = Object.keys(payload);
-      const relevant = cols.filter(c => payloadKeys.includes(c.name) || c.required);
-      console.log('Relevant column metadata:');
-      relevant.forEach(c => {
-        const typeKey = c.text ? 'text'
-          : c.choice ? 'choice'
-          : c.dateTime ? 'dateTime'
-          : c.number ? 'number'
-          : c.boolean ? 'boolean'
-          : c.hyperlinkOrPicture ? 'hyperlinkOrPicture'
-          : c.personOrGroup ? 'personOrGroup'
-          : c.lookup ? 'lookup'
-          : c.calculated ? 'calculated'
-          : 'unknown';
-        const detail = c[typeKey] || {};
-        console.log(`  ${c.displayName.padEnd(28)} | name=${c.name.padEnd(22)} | type=${typeKey.padEnd(18)} | required=${c.required ? 'YES' : 'no '} | ${JSON.stringify(detail)}`);
-      });
-      // Also show payload keys that don't have a matching column (potential typos)
-      const orphanKeys = payloadKeys.filter(k => !cols.find(c => c.name === k) && !k.includes('@'));
-      if (orphanKeys.length) console.warn('Payload keys NOT in column schema:', orphanKeys);
-    }
-  } catch (e) { console.warn('Schema fetch failed (non-blocking):', e.message); }
-  console.groupEnd();
-  // -- END TEMPORARY LOGGING --
-
-  const res = await _graphFetchWithRetry(url, {
+  const res = await _graphFetchWithRetry(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body
+    body: JSON.stringify({ fields: payload })
   });
-  if (!res.ok) {
-    const responseText = await res.text();
-    console.error('[docs] createDoc FAILED — status:', res.status);
-    console.error('[docs] createDoc response body:', responseText);
-    throw new Error(`createDoc failed: ${res.status} ${responseText}`);
-  }
+  if (!res.ok) throw new Error(`createDoc failed: ${res.status} ${await res.text()}`);
   return _mapDocItem(await res.json());
 }
 
@@ -6663,38 +6609,12 @@ async function createRevision(payload) {
   const siteId = await getQmsSiteId();
   const listId = await getListIdByNameOnSite(siteId, QMS_REVISIONS_LIST);
   const token = await getGraphToken();
-  const url = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`;
-  const body = JSON.stringify({ fields: payload });
-
-  // ── TEMPORARY DIAGNOSTIC LOGGING — remove after debug ──
-  console.group('[docs] createRevision DEBUG');
-  console.log('URL:', url);
-  console.log('Payload (parsed):', payload);
-  console.log('Body (string):', body);
-  try {
-    const schemaRes = await _graphFetchWithRetry(
-      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/columns?$select=name,displayName,columnGroup`,
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-    if (schemaRes.ok) {
-      const cols = (await schemaRes.json()).value || [];
-      console.log('DocumentRevisions column internal names:', cols.map(c => `${c.displayName} -> ${c.name}`));
-    }
-  } catch (e) { console.warn('Schema fetch failed (non-blocking):', e.message); }
-  console.groupEnd();
-  // ── END TEMPORARY LOGGING ──
-
-  const res = await _graphFetchWithRetry(url, {
+  const res = await _graphFetchWithRetry(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body
+    body: JSON.stringify({ fields: payload })
   });
-  if (!res.ok) {
-    const responseText = await res.text();
-    console.error('[docs] createRevision FAILED — status:', res.status);
-    console.error('[docs] createRevision response body:', responseText);
-    throw new Error(`createRevision failed: ${res.status} ${responseText}`);
-  }
+  if (!res.ok) throw new Error(`createRevision failed: ${res.status} ${await res.text()}`);
   return _mapRevItem(await res.json());
 }
 
