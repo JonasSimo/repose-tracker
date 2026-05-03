@@ -3038,6 +3038,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <button class="nav-item" data-view="safety" onclick="navTo('safety')">Near Misses</button>
         <button class="nav-item" data-view="complaints" onclick="navTo('complaints')">Complaints</button>
         <button class="nav-item" data-view="documents" id="docs-tab-btn" onclick="navTo('documents')" style="display:none">Documents</button>
+        <button class="nav-item" data-view="doc-approvals" id="doc-approvals-tab-btn" onclick="navTo('doc-approvals')" style="display:none">Doc Approvals</button>
         <button class="nav-item" id="ivn-tab-btn" data-view="innovation" onclick="navTo('innovation')" style="display:none">Innovation</button>
         <!-- Order Check — work in progress, hidden until ready -->
         <!-- <button class="nav-item" data-view="ordercheck" onclick="navTo('ordercheck')">Order Check</button> -->
@@ -3670,6 +3671,14 @@ document.addEventListener('DOMContentLoaded', () => {
   </div>
 </div>
 
+<div class="view" id="view-doc-approvals" data-view="doc-approvals">
+  <div class="docs-shell">
+    <div class="docs-loading" id="docs-approvals-loading">Loading approvals…</div>
+    <div class="docs-error" id="docs-approvals-error" style="display:none"></div>
+    <div class="docs-content" id="docs-approvals-content" style="display:none"></div>
+  </div>
+</div>
+
 <!-- Assign investigator modal -->
 <div id="cp-assign-modal" class="cp-modal-overlay" style="display:none" onclick="if(event.target===this)cpCloseAssignModal()">
   <div class="cp-modal-box">
@@ -4081,7 +4090,7 @@ let ppAutoSyncInterval = null;
 // ═══════════════════════════════════════════════
 // ROUTING
 // ═══════════════════════════════════════════════
-const NAV_LABELS = { 'team-select':'Team View','tracker':'Team View','overview':'Load Plan','loadsheet':'Delivery','production':'Production Plan','stats':'Stats','issues':'Issues','quality':'Quality','actions':'CAPA','safety':'Safety','ordercheck':'Order Check','timing':'Job Timing','complaints':'Complaints','innovation':'Innovation Station','maintenance':'Maintenance','documents':'Documents' };
+const NAV_LABELS = { 'team-select':'Team View','tracker':'Team View','overview':'Load Plan','loadsheet':'Delivery','production':'Production Plan','stats':'Stats','issues':'Issues','quality':'Quality','actions':'CAPA','safety':'Safety','ordercheck':'Order Check','timing':'Job Timing','complaints':'Complaints','innovation':'Innovation Station','maintenance':'Maintenance','documents':'Documents', 'doc-approvals':'Doc Approvals' };
 function showView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   const activeView = name === 'tracker' ? 'team-select' : name;
@@ -4110,6 +4119,7 @@ function showView(name) {
   if (name === 'issues')      { openIssuesView(); }
   if (name === 'quality')     { openQualityView(); }
   if (name === 'documents')   { openDocumentsView(); }
+  if (name === 'doc-approvals') openDocApprovalsView();
   if (name === 'actions')     { openActionsView(); }
   if (name === 'safety')      { loadNearMisses(); }
   if (name === 'ordercheck')  { ocOnOpen(); }
@@ -4137,6 +4147,110 @@ async function openDocumentsView() {
     console.error('[docs] open failed', e);
   }
 }
+
+async function openDocApprovalsView() {
+  const loading = document.getElementById('docs-approvals-loading');
+  const errEl   = document.getElementById('docs-approvals-error');
+  const content = document.getElementById('docs-approvals-content');
+  loading.style.display = 'block';
+  errEl.style.display = 'none';
+  content.style.display = 'none';
+  try {
+    await renderDocApprovals();
+    loading.style.display = 'none';
+    content.style.display = 'block';
+  } catch (e) {
+    loading.style.display = 'none';
+    errEl.style.display = 'block';
+    errEl.textContent = `Failed to load approvals: ${e.message}`;
+    console.error('[docs] approvals open failed', e);
+  }
+}
+
+async function renderDocApprovals() {
+  const content = document.getElementById('docs-approvals-content');
+  // Reuse _docsState.all if recent — saves a round-trip when QHSE flips between Documents and Approvals
+  if (!_docsState.all || _docsState.all.length === 0) _docsState.all = await fetchAllDocs();
+  const myQueue = _docsState.all.filter(_isMyTurnToApprove);
+
+  content.innerHTML = `
+    <div class="docs-head">
+      <div>
+        <h1>Document <em>Approvals</em></h1>
+        <div class="sub">${myQueue.length} document${myQueue.length === 1 ? '' : 's'} awaiting your approval</div>
+      </div>
+    </div>
+
+    ${myQueue.length === 0 ? `
+      <div class="docs-empty" style="padding:64px 24px;text-align:center">
+        <div style="font-size:48px;margin-bottom:12px">✓</div>
+        <div style="font-size:15px;color:var(--text);font-weight:600;margin-bottom:6px">All caught up.</div>
+        <div style="font-size:13px;color:var(--text2)">When QHSE submits a document with you listed as an approver, it'll appear here.</div>
+      </div>
+    ` : `
+      <div class="docs-table-wrap">
+        <table class="docs-table">
+          <thead>
+            <tr>
+              <th style="width:128px">Doc No.</th>
+              <th>Title · Category · Level</th>
+              <th style="width:60px">Rev</th>
+              <th style="width:160px">Submitted</th>
+              <th style="width:120px">Approvers</th>
+              <th style="width:240px">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${myQueue.map(_approvalRowHtml).join('')}
+          </tbody>
+        </table>
+      </div>
+    `}
+  `;
+
+  // Wire row + button handlers
+  content.querySelectorAll('tbody tr').forEach(tr => {
+    tr.querySelector('.docs-approve-btn')?.addEventListener('click', e => {
+      e.stopPropagation();
+      _approveDoc(tr.dataset.docnumber);
+    });
+    tr.querySelector('.docs-reject-btn')?.addEventListener('click', e => {
+      e.stopPropagation();
+      _rejectDoc(tr.dataset.docnumber);
+    });
+    tr.querySelector('.docs-view-btn')?.addEventListener('click', e => {
+      e.stopPropagation();
+      openDocumentDetail(tr.dataset.docnumber);
+    });
+  });
+}
+
+function _approvalRowHtml(d) {
+  const submitted = d.approvalState && d.approvalState.submittedAt
+    ? new Date(d.approvalState.submittedAt).toLocaleDateString('en-GB')
+    : '—';
+  const submittedBy = (d.approvalState && d.approvalState.submittedBy) || '—';
+  const approverCount = (d.approverEmails || []).length;
+  const approvedCount = ((d.approvalState && d.approvalState.approved) || []).length;
+  return `
+    <tr data-docnumber="${_escape(d.docNumber)}" style="cursor:default">
+      <td><span class="docs-num">${_escape(d.docNumber)}</span></td>
+      <td>${_escape(d.title)}<div class="doctype">${_escape(d.category)} · ${_escape(d.level)}</div></td>
+      <td><span class="docs-rev">Rev ${d.currentRevision}</span></td>
+      <td>${submitted}<div class="doctype">${_escape(submittedBy)}</div></td>
+      <td>${approvedCount} of ${approverCount}</td>
+      <td>
+        <button class="docs-btn docs-btn-sec docs-view-btn" style="padding:6px 10px;font-size:11.5px">👁 View</button>
+        <button class="docs-btn docs-btn-pri docs-approve-btn" style="padding:6px 10px;font-size:11.5px;background:var(--green)">✓ Approve</button>
+        <button class="docs-btn docs-btn-sec docs-reject-btn" style="padding:6px 10px;font-size:11.5px;border-color:var(--red);color:var(--red)">✗ Reject</button>
+      </td>
+    </tr>
+  `;
+}
+
+// Stubs — implemented in Task 5
+async function _approveDoc(docNumber) { console.log('[docs] approve', docNumber); }
+async function _rejectDoc(docNumber) { console.log('[docs] reject', docNumber); }
 
 // statuses is preloaded so Obsolete starts hidden; once the user clicks any
 // checkbox, the "empty Set = show all" rule applies (matches other filters).
@@ -8810,6 +8924,10 @@ function updateAuthBadge() {
     if (ivnBtn) ivnBtn.style.display = ivnIsFullAccess ? '' : 'none';
     const ivnScoreBtn = document.getElementById('ivn-score-btn');
     if (ivnScoreBtn) ivnScoreBtn.style.display = ivnIsFullAccess ? '' : 'none';
+    // Doc Approvals: visible to anyone who has pending items in the queue.
+    // Cheap check — fetch is async; we just unhide and let the empty state handle it for users with nothing pending.
+    const docApprovalsBtn = document.getElementById('doc-approvals-tab-btn');
+    if (docApprovalsBtn) docApprovalsBtn.style.display = '';
     renderTeamSidebar();
   } else {
     badge.innerHTML = `<span class="auth-dot off"></span><span class="auth-name">Sign in</span>`;
