@@ -4362,7 +4362,7 @@ async function _rejectDoc(docNumber, drawerOverlay) {
 
 // statuses is preloaded so Obsolete starts hidden; once the user clicks any
 // checkbox, the "empty Set = show all" rule applies (matches other filters).
-let _docsState = { all: [], filters: { q: '', categories: new Set(), levels: new Set(), depts: new Set(), statuses: new Set(['Published','In Approval','In Review','Draft']), pendingMyApproval: false } };
+let _docsState = { all: [], filters: { q: '', categories: new Set(), levels: new Set(), depts: new Set(), statuses: new Set(['Published','In Approval','In Review','Draft']), pendingMyApproval: false, dueWithin30: false } };
 
 async function renderDocumentsRegister() {
   const content = document.getElementById('docs-content');
@@ -4406,6 +4406,19 @@ function _renderDocsShell(root) {
       <div class="docs-kpi purple" data-kpi="pending" style="cursor:pointer"><div class="docs-kpi-icn">✓</div><div><div class="docs-kpi-num">${counts.pending}</div><div class="docs-kpi-lbl">Pending approval</div></div></div>
       <div class="docs-kpi fail" data-kpi="obsolete" style="cursor:pointer"><div class="docs-kpi-icn">⌀</div><div><div class="docs-kpi-num">${counts.obsolete}</div><div class="docs-kpi-lbl">Obsolete</div></div></div>
     </div>
+
+    ${_docsState.filters.pendingMyApproval ? `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;padding:10px 14px;background:var(--bbg);border:1px solid var(--bborder);border-radius:999px;font-size:13px;color:var(--repose-blue);width:fit-content">
+        <b>Filtered to your queue</b>
+        <button id="docs-clear-pending-filter" style="background:transparent;border:none;color:var(--repose-blue);cursor:pointer;font-weight:700;font-size:14px;padding:0 0 0 8px">× Clear</button>
+      </div>
+    ` : ''}
+    ${_docsState.filters.dueWithin30 ? `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;padding:10px 14px;background:var(--abg);border:1px solid var(--aborder);border-radius:999px;font-size:13px;color:var(--amber);width:fit-content">
+        <b>Filtered: due for review within 30 days</b>
+        <button id="docs-clear-due-filter" style="background:transparent;border:none;color:var(--amber);cursor:pointer;font-weight:700;font-size:14px;padding:0 0 0 8px">× Clear</button>
+      </div>
+    ` : ''}
 
     <div class="docs-main">
       <aside class="docs-side">
@@ -4499,6 +4512,11 @@ function _docsRowMatchesFilters(d) {
   // filter set by the ribbon click. When active, only show docs where
   // current user is a required approver and hasn't yet acted.
   if (f.pendingMyApproval && !_isMyTurnToApprove(d)) return false;
+  if (f.dueWithin30) {
+    if (!d.nextReviewDate) return false;
+    const days = (new Date(d.nextReviewDate) - new Date()) / 86400000;
+    if (days < 0 || days > 30) return false;
+  }
   if (f.q && !(`${d.docNumber} ${d.title}`.toLowerCase().includes(f.q.toLowerCase()))) return false;
   if (f.statuses.size > 0 && !f.statuses.has(d.status)) return false;
   if (f.categories.size > 0 && !f.categories.has(d.category)) return false;
@@ -4523,7 +4541,7 @@ function _docsCounts(docs) {
     if (d.status === 'Obsolete') counts.obsolete++;
     if (d.status === 'Published' && d.nextReviewDate) {
       const days = Math.round((new Date(d.nextReviewDate) - today) / 86400000);
-      if (days <= 30) counts.dueReview++;
+      if (days >= 0 && days <= 30) counts.dueReview++;
     }
   }
   return counts;
@@ -4531,7 +4549,37 @@ function _docsCounts(docs) {
 
 function _bindDocsFilters() {
   const root = document.getElementById('docs-content');
-  root.querySelector('#docs-search').addEventListener('input', e => { _docsState.filters.q = e.target.value; _renderDocsTable(); });
+  root.querySelector('#docs-search').addEventListener('input', e => {
+    _docsState.filters.q = e.target.value;
+    // Typing in search clears one-shot KPI/ribbon narrowing so the user
+    // doesn't get an empty table when they start typing while filtered.
+    const hadOneShot = _docsState.filters.pendingMyApproval || _docsState.filters.dueWithin30;
+    _docsState.filters.pendingMyApproval = false;
+    _docsState.filters.dueWithin30 = false;
+    if (hadOneShot) {
+      // Avoid full shell re-render to keep focus in the search input;
+      // the chip element is removed manually instead.
+      const pendingChip = root.querySelector('#docs-clear-pending-filter');
+      if (pendingChip) pendingChip.parentElement.remove();
+      const dueChip = root.querySelector('#docs-clear-due-filter');
+      if (dueChip) dueChip.parentElement.remove();
+    }
+    _renderDocsTable();
+  });
+  const clearPending = root.querySelector('#docs-clear-pending-filter');
+  if (clearPending) clearPending.addEventListener('click', () => {
+    _docsState.filters.pendingMyApproval = false;
+    _renderDocsShell(document.getElementById('docs-content'));
+    _renderDocsTable();
+    _bindDocsFilters();
+  });
+  const clearDue = root.querySelector('#docs-clear-due-filter');
+  if (clearDue) clearDue.addEventListener('click', () => {
+    _docsState.filters.dueWithin30 = false;
+    _renderDocsShell(document.getElementById('docs-content'));
+    _renderDocsTable();
+    _bindDocsFilters();
+  });
   root.querySelectorAll('input[data-fcat]').forEach(el => el.addEventListener('change', () => _toggleSetFilter('categories', 'fcat')));
   root.querySelectorAll('input[data-flvl]').forEach(el => el.addEventListener('change', () => _toggleSetFilter('levels', 'flvl')));
   root.querySelectorAll('input[data-fdpt]').forEach(el => el.addEventListener('change', () => _toggleSetFilter('depts', 'fdpt')));
@@ -4558,22 +4606,41 @@ function _docsKpiQuickFilter(kind) {
   // Each KPI tile narrows the table to a single status (or status set) so
   // the user can click straight from a count to the matching rows. Re-renders
   // the entire shell so the sidebar checkboxes reflect the new filter state.
+  // Reset one-shot flags first so they don't leak across KPI clicks.
+  _docsState.filters.pendingMyApproval = false;
+  _docsState.filters.dueWithin30 = false;
+
   const map = {
     active:   new Set(['Published']),
     pending:  new Set(['In Approval']),
     obsolete: new Set(['Obsolete']),
-    due:      new Set(['Published'])  // dueReview overlay handled by table-side date math; just ensure Published is shown
+    due:      new Set(['Published'])  // dueReview overlay handled by dueWithin30 flag below
   };
   _docsState.filters.statuses = map[kind] || _docsState.filters.statuses;
+  if (kind === 'due') _docsState.filters.dueWithin30 = true;
+
   _renderDocsShell(document.getElementById('docs-content'));
   _renderDocsTable();
   _bindDocsFilters();
 }
 
 function _toggleSetFilter(stateKey, attr) {
+  // Sidebar checkbox toggle clears the one-shot KPI/ribbon flags so the
+  // user gets the filter behaviour they just clicked, not the stale ribbon
+  // narrowing. If a chip was visible we must re-render the shell so it
+  // disappears; otherwise just re-render the table to avoid flicker.
+  const hadOneShot = _docsState.filters.pendingMyApproval || _docsState.filters.dueWithin30;
+  _docsState.filters.pendingMyApproval = false;
+  _docsState.filters.dueWithin30 = false;
   const set = _docsState.filters[stateKey] = new Set();
   document.querySelectorAll(`input[data-${attr}]:checked`).forEach(el => set.add(el.dataset[attr]));
-  _renderDocsTable();
+  if (hadOneShot) {
+    _renderDocsShell(document.getElementById('docs-content'));
+    _renderDocsTable();
+    _bindDocsFilters();
+  } else {
+    _renderDocsTable();
+  }
 }
 
 function _escape(s) { return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -4623,7 +4690,7 @@ async function openDocumentDetail(docNumber) {
         <div class="docs-card">
           <h3>Document metadata</h3>
           <dl class="docs-meta">
-            <div><dt>Status</dt><dd>${_escape(doc.status)} (Rev ${doc.currentRevision})${doc.status === 'In Approval' ? ` · <span style="color:var(--amber)">${((doc.approvalState && doc.approvalState.approved) || []).length} of ${(doc.approverEmails || []).length} approved</span>` : ''}</dd></div>
+            <div><dt>Status</dt><dd>${_escape(doc.status)} (Rev ${doc.currentRevision})${(doc.status === 'In Approval' && (doc.approverEmails || []).length > 0) ? ` · <span style="color:var(--amber)">${((doc.approvalState && doc.approvalState.approved) || []).length} of ${(doc.approverEmails || []).length} approved</span>` : ''}</dd></div>
             <div><dt>Owner</dt><dd>${_escape(doc.ownerEmail || '—')}</dd></div>
             <div><dt>Approvers</dt><dd>${(doc.approverEmails||[]).map(_escape).join(', ') || '—'}</dd></div>
             <div><dt>Departments</dt><dd>${(doc.departments||[]).map(_escape).join(', ') || '—'}</dd></div>
@@ -5134,7 +5201,6 @@ async function _saveRevision(doc, overlay) {
     NextReviewDate: nextIso,
     ReviewCycleMonths: cycle,
     FileLink: uploaded.webUrl,
-    Description: reason,
     ApprovalState: JSON.stringify(isMultiApprover ? {
       approved: [],
       rejected: [],
@@ -5142,7 +5208,10 @@ async function _saveRevision(doc, overlay) {
       submittedBy: me
     } : _emptyApprovalState())
   };
-  if (approversRaw) registerPatch.Approvers = approversRaw;
+  // I15: always write Approvers so blanking the field actually clears them.
+  // I4/I13: register's Description column holds 'what is this doc for', not
+  // the per-revision reason — the reason lives in DocumentRevisions.ReasonForRevision below.
+  registerPatch.Approvers = approversRaw;
 
   // Bulk + per-field fallback handled by helper.
   await _patchDocWithFallback(doc.id, registerPatch, 'revise');
@@ -5246,7 +5315,7 @@ function openNewDocumentModal() {
         </div>
 
         <div class="docs-field">
-          <label>Source file (PDF or DOCX) *</label>
+          <label>Source file (PDF, DOCX, or XLSX) *</label>
           <input id="f-file" type="file" accept=".pdf,.docx,.xlsx" style="display:none">
           <div class="docs-upload" id="f-upload-zone">📎 Click to choose a file</div>
         </div>
@@ -5362,7 +5431,6 @@ async function _saveNewDocument(overlay) {
     Level: level,
     Status: isMultiApprover ? 'In Approval' : 'Published',
     IssueDate: todayIso,
-    LastRevisedDate: todayIso,
     ReviewCycleMonths: cycle,
     NextReviewDate: nextIso,
     Owner: owner,
