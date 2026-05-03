@@ -4407,8 +4407,69 @@ function _referencedByHtml(docNumber) {
   return incoming.map(d => `<div class="docs-xref-item" data-jump="${_escape(d.docNumber)}">${_escape(d.docNumber)} — ${_escape(d.title)} →</div>`).join('');
 }
 
-// Stub; replaced in Task 8
-async function markDocumentObsolete(doc) { alert(`Mark ${doc.docNumber} obsolete — implemented in Task 8`); }
+async function markDocumentObsolete(doc) {
+  // Build a simple modal inline (no need for the bigger modal harness)
+  const overlay = document.createElement('div');
+  overlay.className = 'docs-modal-bg';
+  overlay.innerHTML = `
+    <div class="docs-modal">
+      <div class="docs-modal-head">
+        <h2>Mark obsolete — ${_escape(doc.docNumber)}</h2>
+        <button class="docs-btn docs-btn-sec" id="docs-modal-close">×</button>
+      </div>
+      <div class="docs-modal-body">
+        <p style="margin-top:0;color:var(--text2);font-size:13px">This will move the document to Obsolete status. It will be hidden from staff/manager views but kept in the register and the document library for audit. There is no undo from RepNet — only by editing the SharePoint List directly.</p>
+
+        <div class="docs-field">
+          <label>Replaced by *</label>
+          <input id="o-supby" placeholder="REPO-Q020, or https://… / RepNet feature URL">
+        </div>
+
+        <div class="docs-field">
+          <label>Reason *</label>
+          <textarea id="o-reason" placeholder="Why is this being retired?"></textarea>
+        </div>
+      </div>
+      <div class="docs-modal-foot">
+        <button class="docs-btn docs-btn-sec" id="docs-modal-cancel">Cancel</button>
+        <button class="docs-btn docs-btn-pri" id="docs-modal-save" style="background:var(--red)">Mark obsolete</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const close = () => overlay.remove();
+  overlay.querySelector('#docs-modal-close').addEventListener('click', close);
+  overlay.querySelector('#docs-modal-cancel').addEventListener('click', close);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+
+  overlay.querySelector('#docs-modal-save').addEventListener('click', async () => {
+    const supby = overlay.querySelector('#o-supby').value.trim();
+    const reason = overlay.querySelector('#o-reason').value.trim();
+    if (!supby || !reason) { alert('Replaced by and Reason are both required.'); return; }
+    const btn = overlay.querySelector('#docs-modal-save');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      await updateDoc(doc.id, { Status: 'Obsolete', SupersededBy: supby, Description: `OBSOLETE: ${reason}` });
+      // Audit row in DocumentRevisions. Title (not DocNumber) per Task 6
+      // smoke-test learning. No FileLink/FileVersionId for the same reason.
+      await createRevision({
+        Title: doc.docNumber,
+        Revision: doc.currentRevision,
+        IssueDate: new Date().toISOString(),
+        ReasonForRevision: `Marked Obsolete. Replaced by: ${supby}. Reason: ${reason}`,
+        TriggeredBy: 'Obsolete',
+        ChangedFromRev: doc.currentRevision
+      });
+      close();
+      document.querySelectorAll('.docs-drawer-bg').forEach(el => el.remove());
+      await renderDocumentsRegister();
+    } catch (e) {
+      alert(`Failed: ${e.message}`);
+      btn.disabled = false; btn.textContent = 'Mark obsolete';
+    }
+  });
+}
 
 function openReviseDocumentModal(doc) {
   const overlay = document.createElement('div');
