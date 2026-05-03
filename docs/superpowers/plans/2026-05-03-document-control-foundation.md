@@ -1028,7 +1028,9 @@ async function _saveNewDocument(overlay) {
   const depts = Array.from(overlay.querySelectorAll('#f-depts input:checked')).map(i => i.value);
 
   if (!docNumber || !title || !owner || !description) throw new Error('Doc Number, Title, Owner and Description are required.');
+  if (!Number.isFinite(cycle) || cycle < 1 || cycle > 60) throw new Error('Review cycle must be a whole number between 1 and 60 months.');
   if (!file) throw new Error('A source file is required.');
+  if (file.size > 4 * 1024 * 1024) throw new Error(`File is ${(file.size/1024/1024).toFixed(1)} MB; the upload limit is 4 MB. Please compress or split the file.`);
 
   // Validate uniqueness
   const existing = await fetchDocByNumber(docNumber);
@@ -1058,21 +1060,25 @@ async function _saveNewDocument(overlay) {
     NextReviewDate: next.toISOString().slice(0,10),
     Owner: owner,
     Approvers: approversRaw ? approversRaw.split(',').map(s => s.trim()).filter(Boolean) : null,
-    FileLink: uploaded.webUrl,
+    FileLink: { Url: uploaded.webUrl, Description: safeName },
     References: refs,
     Description: description
   });
 
   // Create the Rev-1 row in DocumentRevisions
-  await createRevision({
-    DocNumber: docNumber,
-    Revision: 1,
-    IssueDate: new Date().toISOString(),
-    ReasonForRevision: description,
-    TriggeredBy: 'Initial issue',
-    FileLink: uploaded.webUrl,
-    FileVersionId: uploaded.id
-  });
+  try {
+    await createRevision({
+      DocNumber: docNumber,
+      Revision: 1,
+      IssueDate: new Date().toISOString(),
+      ReasonForRevision: description,
+      TriggeredBy: 'Initial issue',
+      FileLink: { Url: uploaded.webUrl, Description: safeName },
+      FileVersionId: uploaded.id
+    });
+  } catch (revErr) {
+    throw new Error(`Document was created but revision history failed: ${revErr.message}. Please add Rev 1 manually in SharePoint.`);
+  }
 
   return created;
 }
