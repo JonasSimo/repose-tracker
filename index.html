@@ -4138,7 +4138,7 @@ async function openDocumentsView() {
   }
 }
 
-async function _approveDoc(docNumber) {
+async function _approveDoc(docNumber, drawerOverlay) {
   const cachedDoc = _docsState.all.find(d => d.docNumber === docNumber);
   if (!cachedDoc) return;
   // Refetch fresh to avoid concurrent-approval race conditions and stale reads.
@@ -4152,7 +4152,32 @@ async function _approveDoc(docNumber) {
     alert('This document is no longer awaiting your approval. It may have been approved by someone else, rejected, or removed from your approver list. Refresh the page.');
     return;
   }
-  if (!confirm(`Approve ${doc.docNumber} Rev ${doc.currentRevision}?\n\n${doc.title}`)) return;
+
+  // Inline confirmation modal (replaces native confirm). Drawer stays open
+  // behind the modal so the user retains context — only closes after the
+  // approval actually commits to SharePoint.
+  const confirmed = await new Promise(resolve => {
+    const cm = document.createElement('div');
+    cm.className = 'docs-modal-bg';
+    cm.innerHTML = `
+      <div class="docs-modal" style="max-width:480px">
+        <div class="docs-modal-head"><h2 style="color:var(--green)">✓ Confirm approval</h2></div>
+        <div class="docs-modal-body">
+          <p style="font-size:14px;margin:0 0 8px"><b>${_escape(doc.docNumber)}</b> Rev ${doc.currentRevision}</p>
+          <p style="font-size:13px;color:var(--text2);margin:0">${_escape(doc.title)}</p>
+        </div>
+        <div class="docs-modal-foot">
+          <button class="docs-btn docs-btn-sec" id="docs-confirm-cancel">Cancel</button>
+          <button class="docs-btn docs-btn-pri" id="docs-confirm-ok" style="background:var(--green)">✓ Approve</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(cm);
+    cm.querySelector('#docs-confirm-cancel').addEventListener('click', () => { cm.remove(); resolve(false); });
+    cm.querySelector('#docs-confirm-ok').addEventListener('click', () => { cm.remove(); resolve(true); });
+    cm.addEventListener('click', e => { if (e.target === cm) { cm.remove(); resolve(false); } });
+  });
+  if (!confirmed) return; // user cancelled — drawer stays open
 
   const me = graphAccount.username.toLowerCase();
   const newState = {
@@ -4178,9 +4203,10 @@ async function _approveDoc(docNumber) {
   } catch (patchErr) {
     if (patchErr.message && patchErr.message.includes('modified by someone else')) {
       alert('This document was modified by someone else (likely another approver acting at the same time). Refresh the page and try again.');
-      return;
+      return; // drawer stays open so the user can refresh / retry
     }
-    throw patchErr;
+    alert(`Approval failed: ${patchErr.message}`);
+    return; // drawer stays open
   }
 
   // Audit row
@@ -4196,7 +4222,7 @@ async function _approveDoc(docNumber) {
   });
 
   if (willPublish) {
-    const docUrl = `${location.origin}${location.pathname}?ui=v4#documents`;
+    const docUrl = `${location.origin}${location.pathname}?ui=v4#doc:${encodeURIComponent(doc.docNumber)}`;
     await _sendDocsEmail({
       to: doc.approvalState.submittedBy,
       subject: `RepNet · ${doc.docNumber} Rev ${doc.currentRevision} approved & published`,
@@ -4209,6 +4235,8 @@ async function _approveDoc(docNumber) {
     });
   }
 
+  // Close the drawer NOW — action committed successfully
+  if (drawerOverlay) drawerOverlay.remove();
   alert(willPublish ? `${doc.docNumber} approved and published.` : `${doc.docNumber} approval recorded.`);
 
   // Refresh
@@ -4222,7 +4250,7 @@ async function _approveDoc(docNumber) {
     _bindDocsFilters();
   }
 }
-async function _rejectDoc(docNumber) {
+async function _rejectDoc(docNumber, drawerOverlay) {
   const cachedDoc = _docsState.all.find(d => d.docNumber === docNumber);
   if (!cachedDoc) return;
   // Refetch fresh — same rationale as _approveDoc (avoid stale read +
@@ -4233,8 +4261,42 @@ async function _rejectDoc(docNumber) {
     alert('This document is no longer awaiting your approval. It may have been approved by someone else, rejected, or removed from your approver list. Refresh the page.');
     return;
   }
-  const reason = prompt(`Reject ${doc.docNumber} Rev ${doc.currentRevision} — reason for rejection (auditor reads this):`);
-  if (!reason || !reason.trim()) return; // user cancelled or left blank
+
+  // Inline reason-prompt modal (replaces native prompt). Uses a textarea so
+  // multi-sentence rejection reasons are practical. Drawer stays open behind
+  // the modal — only closes after the rejection commits.
+  const reason = await new Promise(resolve => {
+    const rm = document.createElement('div');
+    rm.className = 'docs-modal-bg';
+    rm.innerHTML = `
+      <div class="docs-modal" style="max-width:520px">
+        <div class="docs-modal-head"><h2 style="color:var(--red)">✗ Reject revision</h2></div>
+        <div class="docs-modal-body">
+          <p style="font-size:14px;margin:0 0 8px"><b>${_escape(doc.docNumber)}</b> Rev ${doc.currentRevision} — ${_escape(doc.title)}</p>
+          <p style="font-size:13px;color:var(--text2);margin:0 0 14px">Rejecting sends the doc back to Draft. The submitter (${_escape(doc.approvalState.submittedBy || '—')}) will receive an email with your reason. The doc must be revised and resubmitted.</p>
+          <div class="docs-field">
+            <label>Reason for rejection * (auditor reads this)</label>
+            <textarea id="docs-reject-reason" placeholder="Be specific — e.g. 'Section 3.2 still references the old machine number; needs update before re-approval.'" style="min-height:100px"></textarea>
+          </div>
+        </div>
+        <div class="docs-modal-foot">
+          <button class="docs-btn docs-btn-sec" id="docs-reject-cancel">Cancel</button>
+          <button class="docs-btn docs-btn-pri" id="docs-reject-ok" style="background:var(--red)">✗ Reject</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(rm);
+    const close = (val) => { rm.remove(); resolve(val); };
+    rm.querySelector('#docs-reject-cancel').addEventListener('click', () => close(null));
+    rm.querySelector('#docs-reject-ok').addEventListener('click', () => {
+      const r = rm.querySelector('#docs-reject-reason').value.trim();
+      if (!r) { alert('Please enter a reason for the rejection.'); return; }
+      close(r);
+    });
+    rm.addEventListener('click', e => { if (e.target === rm) close(null); });
+    setTimeout(() => rm.querySelector('#docs-reject-reason').focus(), 50);
+  });
+  if (!reason) return; // user cancelled — drawer stays open
 
   const me = graphAccount.username.toLowerCase();
   const newState = {
@@ -4255,21 +4317,22 @@ async function _rejectDoc(docNumber) {
   } catch (patchErr) {
     if (patchErr.message && patchErr.message.includes('modified by someone else')) {
       alert('This document was modified by someone else (likely another approver acting at the same time). Refresh the page and try again.');
-      return;
+      return; // drawer stays open
     }
-    throw patchErr;
+    alert(`Rejection failed: ${patchErr.message}`);
+    return; // drawer stays open
   }
 
   await createRevision({
     Title: doc.docNumber,
     Revision: doc.currentRevision,
     IssueDate: _isoNoMs(),
-    ReasonForRevision: `Rejected by ${me}: ${reason.trim()}. Status reverted to Draft pending QHSE revision.`,
+    ReasonForRevision: `Rejected by ${me}: ${reason}. Status reverted to Draft pending QHSE revision.`,
     TriggeredBy: 'Approval-rejected',
     ChangedFromRev: doc.currentRevision
   });
 
-  const docUrl = `${location.origin}${location.pathname}?ui=v4#documents`;
+  const docUrl = `${location.origin}${location.pathname}?ui=v4#doc:${encodeURIComponent(doc.docNumber)}`;
   await _sendDocsEmail({
     to: doc.approvalState.submittedBy,
     subject: `RepNet · ${doc.docNumber} Rev ${doc.currentRevision} REJECTED — back to Draft`,
@@ -4277,12 +4340,13 @@ async function _rejectDoc(docNumber) {
       <h2 style="font-family:'Bricolage Grotesque',Manrope,sans-serif;font-weight:700;font-size:20px;color:#dc2626;margin:0 0 14px">Rejected ✗</h2>
       <p style="font-size:14px;line-height:1.55"><b>${_escape(me)}</b> rejected your revision of <b>${_escape(doc.docNumber)} — ${_escape(doc.title)}</b>. The status has reverted to Draft so you can revise.</p>
       <table style="width:100%;font-size:13px;border-collapse:collapse;margin:18px 0">
-        <tr><td style="padding:6px 12px;background:#fef2f2;border:1px solid #fca5a5;width:140px"><b>Reason</b></td><td style="padding:6px 12px;border:1px solid #fca5a5">${_escape(reason.trim())}</td></tr>
+        <tr><td style="padding:6px 12px;background:#fef2f2;border:1px solid #fca5a5;width:140px"><b>Reason</b></td><td style="padding:6px 12px;border:1px solid #fca5a5">${_escape(reason)}</td></tr>
       </table>
       <p style="font-size:14px"><a href="${docUrl}" style="display:inline-block;background:#14a1e9;color:#fff;text-decoration:none;padding:10px 20px;border-radius:999px;font-weight:600;font-size:13px">↗ Open in RepNet</a></p>
     `)
   });
 
+  if (drawerOverlay) drawerOverlay.remove();
   alert(`${doc.docNumber} rejected. The doc is now in Draft status; QHSE will see it back in their revision queue.`);
 
   _docsState.all = await fetchAllDocs();
@@ -4514,6 +4578,24 @@ function _toggleSetFilter(stateKey, attr) {
 
 function _escape(s) { return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
+// Document Control deep-link handler — supports email links like
+// '?ui=v4#documents' and '?ui=v4#doc:REPO-Q027' (open drawer for a specific doc).
+function _handleDocsDeepLink() {
+  const hash = (location.hash || '').replace(/^#/, '');
+  if (!hash) return;
+  if (hash === 'documents') {
+    if (typeof navTo === 'function') navTo('documents');
+    else if (typeof showView === 'function') showView('documents');
+  } else if (hash.startsWith('doc:')) {
+    const docNumber = decodeURIComponent(hash.slice(4));
+    if (typeof navTo === 'function') navTo('documents');
+    // Open drawer once the register has loaded
+    setTimeout(() => {
+      if (typeof openDocumentDetail === 'function') openDocumentDetail(docNumber);
+    }, 800);
+  }
+}
+
 async function openDocumentDetail(docNumber) {
   const doc = _docsState.all.find(d => d.docNumber === docNumber);
   if (!doc) return;
@@ -4608,9 +4690,9 @@ async function openDocumentDetail(docNumber) {
   const editMetaBtn = overlay.querySelector('#docs-edit-meta-btn');
   if (editMetaBtn) editMetaBtn.addEventListener('click', () => openEditMetadataModal(doc));
   const drawerApproveBtn = overlay.querySelector('#docs-drawer-approve-btn');
-  if (drawerApproveBtn) drawerApproveBtn.addEventListener('click', () => { overlay.remove(); _approveDoc(doc.docNumber); });
+  if (drawerApproveBtn) drawerApproveBtn.addEventListener('click', () => _approveDoc(doc.docNumber, overlay));
   const drawerRejectBtn = overlay.querySelector('#docs-drawer-reject-btn');
-  if (drawerRejectBtn) drawerRejectBtn.addEventListener('click', () => { overlay.remove(); _rejectDoc(doc.docNumber); });
+  if (drawerRejectBtn) drawerRejectBtn.addEventListener('click', () => _rejectDoc(doc.docNumber, overlay));
   overlay.querySelectorAll('[data-jump]').forEach(el => el.addEventListener('click', () => {
     const target = el.dataset.jump;
     overlay.remove();
@@ -5025,7 +5107,7 @@ async function _saveRevision(doc, overlay) {
 
   const newRev = doc.currentRevision + 1;
   const folder = ({'H&S':'HS','Quality':'Quality','Group':'Group'})[doc.category];
-  const safeName = `${doc.docNumber} - ${doc.title} - Rev${newRev}${_extOf(file.name)}`;
+  const safeName = `${doc.docNumber} - ${_sanitiseFileName(doc.title)} - Rev${newRev}${_extOf(file.name)}`;
   const uploaded = await uploadDocFile(folder, safeName, file);
 
   const today = new Date();
@@ -5081,7 +5163,7 @@ async function _saveRevision(doc, overlay) {
 
   // Email each external approver — fire-and-forget; doesn't block the user
   if (isMultiApprover) {
-    const docUrl = `${location.origin}${location.pathname}?ui=v4#documents`;
+    const docUrl = `${location.origin}${location.pathname}?ui=v4#doc:${encodeURIComponent(doc.docNumber)}`;
     const subject = `RepNet · Approval requested for ${doc.docNumber} Rev ${newRev}`;
     const html = _docsEmailShell(`
       <h2 style="font-family:'Bricolage Grotesque',Manrope,sans-serif;font-weight:700;font-size:20px;color:#0e023a;margin:0 0 14px">Approval requested</h2>
@@ -5243,7 +5325,7 @@ async function _saveNewDocument(overlay) {
   if (existing) throw new Error(`Doc ${docNumber} already exists in the register.`);
 
   // Upload file
-  const safeName = `${docNumber} - ${title} - Rev1${_extOf(file.name)}`;
+  const safeName = `${docNumber} - ${_sanitiseFileName(title)} - Rev1${_extOf(file.name)}`;
   const folder = ({'H&S':'HS','Quality':'Quality','Group':'Group'})[category];
   const uploaded = await uploadDocFile(folder, safeName, file);
 
@@ -5326,6 +5408,17 @@ async function _saveNewDocument(overlay) {
 }
 
 function _extOf(name) { const i = name.lastIndexOf('.'); return i >= 0 ? name.slice(i) : ''; }
+
+// SharePoint Online rejects file names containing these chars: ~ " # % & * : < > ? / \ { | }
+// We replace each with a hyphen, collapse consecutive hyphens and runs of whitespace.
+// Applied to the user-entered title before it's interpolated into the upload safeName.
+function _sanitiseFileName(s) {
+  return String(s || '')
+    .replace(/[~"#%&*:<>?\/\\{|}]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
 // SharePoint Date columns reject the millisecond component on writes when
 // "Include time = No" is set. Always use this helper (never raw .toISOString()).
@@ -9163,6 +9256,12 @@ async function initGraph() {
     setTimeout(() => { if (graphAccount) startQCAutoSync(); }, 15000);
     if (!_refreshInterval)     _refreshInterval     = setInterval(refreshCompletions, 60 * 1000);
     if (!_fullRefreshInterval) _fullRefreshInterval = setInterval(fullRefresh, 10 * 60 * 1000);
+    // Document Control deep-link: route email '?ui=v4#doc:REPO-Q027' / '#documents'
+    // links AFTER the user has been signed in and parked on their initial view.
+    try { _handleDocsDeepLink(); } catch (e) { console.warn('docs deep-link:', e); }
+    window.addEventListener('hashchange', () => {
+      try { _handleDocsDeepLink(); } catch (e) { console.warn('docs deep-link:', e); }
+    });
   }
 }
 
