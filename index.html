@@ -4300,9 +4300,18 @@ async function _approveDoc(docNumber) {
     ChangedFromRev: doc.currentRevision
   });
 
-  // Notify submitter — Task 7 wires this in. For now, console-log.
   if (willPublish) {
-    console.log('[docs] should email submitter that publication is confirmed');
+    const docUrl = `${location.origin}${location.pathname}?ui=v4#documents`;
+    await _sendDocsEmail({
+      to: doc.approvalState.submittedBy,
+      subject: `RepNet · ${doc.docNumber} Rev ${doc.currentRevision} approved & published`,
+      htmlBody: _docsEmailShell(`
+        <h2 style="font-family:'Bricolage Grotesque',Manrope,sans-serif;font-weight:700;font-size:20px;color:#0e023a;margin:0 0 14px">Published ✓</h2>
+        <p style="font-size:14px;line-height:1.55">Your revision of <b>${_escape(doc.docNumber)} — ${_escape(doc.title)}</b> received all required approvals and is now published.</p>
+        <p style="font-size:13px"><b>Approved by:</b><br>${(doc.approverEmails||[]).map(_escape).join('<br>')}</p>
+        <p style="font-size:14px"><a href="${docUrl}" style="display:inline-block;background:#14a1e9;color:#fff;text-decoration:none;padding:10px 20px;border-radius:999px;font-weight:600;font-size:13px">↗ Open in RepNet</a></p>
+      `)
+    });
   }
 
   alert(willPublish ? `${doc.docNumber} approved and published.` : `${doc.docNumber} approval recorded.`);
@@ -4354,8 +4363,19 @@ async function _rejectDoc(docNumber) {
     ChangedFromRev: doc.currentRevision
   });
 
-  // Notify submitter — Task 7 wires this in
-  console.log('[docs] should email submitter of rejection');
+  const docUrl = `${location.origin}${location.pathname}?ui=v4#documents`;
+  await _sendDocsEmail({
+    to: doc.approvalState.submittedBy,
+    subject: `RepNet · ${doc.docNumber} Rev ${doc.currentRevision} REJECTED — back to Draft`,
+    htmlBody: _docsEmailShell(`
+      <h2 style="font-family:'Bricolage Grotesque',Manrope,sans-serif;font-weight:700;font-size:20px;color:#dc2626;margin:0 0 14px">Rejected ✗</h2>
+      <p style="font-size:14px;line-height:1.55"><b>${_escape(me)}</b> rejected your revision of <b>${_escape(doc.docNumber)} — ${_escape(doc.title)}</b>. The status has reverted to Draft so you can revise.</p>
+      <table style="width:100%;font-size:13px;border-collapse:collapse;margin:18px 0">
+        <tr><td style="padding:6px 12px;background:#fef2f2;border:1px solid #fca5a5;width:140px"><b>Reason</b></td><td style="padding:6px 12px;border:1px solid #fca5a5">${_escape(reason.trim())}</td></tr>
+      </table>
+      <p style="font-size:14px"><a href="${docUrl}" style="display:inline-block;background:#14a1e9;color:#fff;text-decoration:none;padding:10px 20px;border-radius:999px;font-weight:600;font-size:13px">↗ Open in RepNet</a></p>
+    `)
+  });
 
   alert(`${doc.docNumber} rejected. The doc is now in Draft status; QHSE will see it back in their revision queue.`);
 
@@ -5112,6 +5132,24 @@ async function _saveRevision(doc, overlay) {
     FileVersionId: uploaded.id,
     ChangedFromRev: doc.currentRevision
   });
+
+  // Email each external approver — fire-and-forget; doesn't block the user
+  if (isMultiApprover) {
+    const docUrl = `${location.origin}${location.pathname}?ui=v4#documents`;
+    const subject = `RepNet · Approval requested for ${doc.docNumber} Rev ${newRev}`;
+    const html = _docsEmailShell(`
+      <h2 style="font-family:'Bricolage Grotesque',Manrope,sans-serif;font-weight:700;font-size:20px;color:#0e023a;margin:0 0 14px">Approval requested</h2>
+      <p style="font-size:14px;line-height:1.55"><b>${_escape(me)}</b> has submitted a new revision of <b>${_escape(doc.docNumber)} — ${_escape(doc.title)}</b> for your approval.</p>
+      <table style="width:100%;font-size:13px;border-collapse:collapse;margin:18px 0">
+        <tr><td style="padding:6px 12px;background:#f8fafb;border:1px solid #e1e6eb;width:140px"><b>Document</b></td><td style="padding:6px 12px;border:1px solid #e1e6eb">${_escape(doc.docNumber)} — ${_escape(doc.title)}</td></tr>
+        <tr><td style="padding:6px 12px;background:#f8fafb;border:1px solid #e1e6eb"><b>Revision</b></td><td style="padding:6px 12px;border:1px solid #e1e6eb">Rev ${newRev} (was Rev ${doc.currentRevision})</td></tr>
+        <tr><td style="padding:6px 12px;background:#f8fafb;border:1px solid #e1e6eb"><b>Reason</b></td><td style="padding:6px 12px;border:1px solid #e1e6eb">${_escape(reason)}</td></tr>
+      </table>
+      <p style="font-size:14px"><a href="${docUrl}" style="display:inline-block;background:#14a1e9;color:#fff;text-decoration:none;padding:10px 20px;border-radius:999px;font-weight:600;font-size:13px">↗ Open Doc Approvals in RepNet</a></p>
+      <p style="font-size:12px;color:#706f6f;line-height:1.5">You're seeing this because you're listed as an approver for this document. Open RepNet → Doc Approvals to review and click ✓ Approve or ✗ Reject.</p>
+    `);
+    await _sendDocsEmail({ to: externalApprovers, subject, htmlBody: html });
+  }
 }
 // Stub; implemented in Task 6
 function openNewDocumentModal() {
