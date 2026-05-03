@@ -4642,16 +4642,18 @@ async function _saveNewDocument(overlay) {
   // Create the Rev-1 row in DocumentRevisions. Note Title (not DocNumber) on
   // this list — the column was renamed via the SharePoint UI, so the display
   // name is DocNumber but the internal name remains Title.
+  // FileLink/FileVersionId omitted: the Hyperlink column 400s on Graph PATCH
+  // even with the SP.FieldUrlValue OData hint (tenant-specific quirk —
+  // confirmed during smoke test 2026-05-03). The file is uploaded to
+  // /QMS-Documents/{cat}/ and the register row records the doc; the revision
+  // row's audit role (who/when/why) is preserved without the link.
   try {
     await createRevision({
       Title: docNumber,
       Revision: 1,
       IssueDate: new Date().toISOString(),
       ReasonForRevision: description,
-      TriggeredBy: 'Initial issue',
-      'FileLink@odata.type': 'SP.FieldUrlValue',
-      FileLink: { Url: uploaded.webUrl, Description: safeName },
-      FileVersionId: uploaded.id
+      TriggeredBy: 'Initial issue'
     });
   } catch (revErr) {
     throw new Error(`Document was created but revision history failed: ${revErr.message}. Please add Rev 1 manually in SharePoint.`);
