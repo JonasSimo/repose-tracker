@@ -2914,6 +2914,30 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .docs-empty { padding: 36px; text-align: center; color: var(--text2); }
 .docs-error { padding: 24px; background: var(--rbg); border: 1px solid var(--rborder); color: var(--red); border-radius: 12px; }
 .docs-loading { padding: 36px; text-align: center; color: var(--text2); }
+.docs-drawer-bg { position: fixed; inset: 0; background: rgba(14,2,58,.4); z-index: 1500; display: flex; justify-content: flex-end; }
+.docs-drawer { width: 760px; max-width: 100%; height: 100%; background: var(--bg); overflow-y: auto; box-shadow: -10px 0 40px rgba(14,2,58,.25); }
+.docs-drawer-head { padding: 18px 24px; background: var(--repose-navy); color: #fff; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 1; }
+.docs-drawer-head .crumb { font-family: var(--mono); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; opacity: .6; margin-bottom: 4px; }
+.docs-drawer-head h2 { font-family: var(--display); font-weight: 800; font-size: 22px; margin: 0; letter-spacing: -.01em; }
+.docs-drawer-head .x { width: 32px; height: 32px; border-radius: 999px; background: rgba(255,255,255,.1); border: none; color: #fff; cursor: pointer; font-size: 18px; }
+.docs-drawer-body { padding: 22px 24px; }
+.docs-card { background: #fff; border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px; margin-bottom: 14px; }
+.docs-card h3 { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--text2); font-weight: 800; margin: 0 0 10px; }
+.docs-meta { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px 18px; font-size: 13px; }
+.docs-meta dt { font-family: var(--mono); font-size: 10px; letter-spacing: .04em; text-transform: uppercase; color: var(--text2); margin-bottom: 2px; }
+.docs-meta dd { margin: 0; color: var(--text); font-weight: 600; }
+.docs-tl { padding: 10px 0; border-bottom: 1px dashed var(--border); display: flex; gap: 12px; }
+.docs-tl:last-child { border-bottom: none; }
+.docs-tl-pill { font-family: var(--mono); font-size: 10px; font-weight: 800; padding: 4px 9px; border-radius: 999px; background: var(--bbg); color: var(--repose-blue); height: fit-content; }
+.docs-tl-body { flex: 1; }
+.docs-tl-top { display: flex; justify-content: space-between; font-size: 12.5px; font-weight: 600; margin-bottom: 3px; }
+.docs-tl-when { font-family: var(--mono); color: var(--text2); font-weight: 500; }
+.docs-tl-note { font-size: 12px; color: var(--text2); }
+.docs-actions-row { display: flex; gap: 10px; margin-top: 16px; }
+.docs-xref { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.docs-xref h4 { font-family: var(--mono); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--text2); font-weight: 800; margin: 0 0 8px; }
+.docs-xref-item { padding: 7px 10px; background: var(--bg3); border: 1px solid var(--border); border-radius: 999px; font-size: 12px; margin-bottom: 4px; cursor: pointer; }
+.docs-xref-item:hover { border-color: var(--repose-blue); background: #fff; }
 </style>
 <script src="/msal-browser.min.js" defer></script>
 <script src="/chart.umd.min.js"></script>
@@ -4266,8 +4290,105 @@ function _toggleSetFilter(stateKey, attr) {
 
 function _escape(s) { return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
-// Stub; implemented in Task 5
-function openDocumentDetail(docNumber) { console.log('[docs] detail for', docNumber); }
+async function openDocumentDetail(docNumber) {
+  const doc = _docsState.all.find(d => d.docNumber === docNumber);
+  if (!doc) return;
+  const overlay = document.createElement('div');
+  overlay.className = 'docs-drawer-bg';
+  overlay.innerHTML = `
+    <div class="docs-drawer" id="docs-drawer">
+      <div class="docs-drawer-head">
+        <div>
+          <div class="crumb">${_escape(doc.category)} · ${_escape(doc.level)}</div>
+          <h2>${_escape(doc.docNumber)} — ${_escape(doc.title)}</h2>
+        </div>
+        <button class="x" id="docs-drawer-close">×</button>
+      </div>
+      <div class="docs-drawer-body">
+        <div class="docs-card">
+          <h3>Document metadata</h3>
+          <dl class="docs-meta">
+            <div><dt>Status</dt><dd>${_escape(doc.status)} (Rev ${doc.currentRevision})</dd></div>
+            <div><dt>Owner</dt><dd>${_escape(doc.ownerEmail || '—')}</dd></div>
+            <div><dt>Approvers</dt><dd>${(doc.approverEmails||[]).map(_escape).join(', ') || '—'}</dd></div>
+            <div><dt>Departments</dt><dd>${(doc.departments||[]).map(_escape).join(', ') || '—'}</dd></div>
+            <div><dt>Issue date</dt><dd>${doc.issueDate ? doc.issueDate.slice(0,10) : '—'}</dd></div>
+            <div><dt>Last revised</dt><dd>${doc.lastRevisedDate ? doc.lastRevisedDate.slice(0,10) : '—'}</dd></div>
+            <div><dt>Review cycle</dt><dd>${doc.reviewCycleMonths} months</dd></div>
+            <div><dt>Next review</dt><dd>${doc.nextReviewDate ? doc.nextReviewDate.slice(0,10) : '—'}</dd></div>
+          </dl>
+          <div class="docs-actions-row">
+            ${doc.fileLink ? `<a class="docs-btn docs-btn-sec" href="${_escape(doc.fileLink)}" target="_blank">↗ Open current file</a>` : ''}
+            ${doc.status !== 'Obsolete' ? `<button class="docs-btn docs-btn-pri" id="docs-revise-btn">＋ New revision</button>` : ''}
+            ${doc.status !== 'Obsolete' ? `<button class="docs-btn docs-btn-sec" id="docs-obsolete-btn">⌀ Mark obsolete</button>` : ''}
+          </div>
+        </div>
+
+        <div class="docs-card">
+          <h3>Cross-references · impact analysis</h3>
+          <div class="docs-xref">
+            <div>
+              <h4>This doc references</h4>
+              <div id="docs-refs-out">${(doc.references||[]).map(r => `<div class="docs-xref-item" data-jump="${_escape(r)}">${_escape(r)} →</div>`).join('') || '<em style="color:var(--text3)">none</em>'}</div>
+            </div>
+            <div>
+              <h4>Referenced by</h4>
+              <div id="docs-refs-in">${_referencedByHtml(doc.docNumber)}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="docs-card" id="docs-rev-card">
+          <h3>Revision history</h3>
+          <div id="docs-rev-list">Loading…</div>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  overlay.querySelector('#docs-drawer-close').addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  const reviseBtn = overlay.querySelector('#docs-revise-btn');
+  if (reviseBtn) reviseBtn.addEventListener('click', () => openReviseDocumentModal(doc));
+  const obsoleteBtn = overlay.querySelector('#docs-obsolete-btn');
+  if (obsoleteBtn) obsoleteBtn.addEventListener('click', () => markDocumentObsolete(doc));
+  overlay.querySelectorAll('[data-jump]').forEach(el => el.addEventListener('click', () => {
+    const target = el.dataset.jump;
+    overlay.remove();
+    openDocumentDetail(target);
+  }));
+
+  // Async: load revisions
+  fetchRevisionsForDoc(docNumber).then(revs => {
+    const list = overlay.querySelector('#docs-rev-list');
+    if (revs.length === 0) { list.innerHTML = '<em style="color:var(--text3)">No revision history yet.</em>'; return; }
+    list.innerHTML = revs.map(r => `
+      <div class="docs-tl">
+        <div class="docs-tl-pill">Rev ${r.revision}</div>
+        <div class="docs-tl-body">
+          <div class="docs-tl-top">
+            <span>${_escape(r.reasonForRevision || 'Initial issue')}${r.triggeredBy ? ` · <em style="color:#7c3aed">${_escape(r.triggeredBy)}</em>` : ''}</span>
+            <span class="docs-tl-when">${r.issueDate ? r.issueDate.slice(0,10) : '—'}</span>
+          </div>
+          <div class="docs-tl-note">Approved by: ${(r.approvedByEmails||[]).map(_escape).join(', ') || '—'}${r.fileLink ? ` · <a href="${_escape(r.fileLink)}" target="_blank">↓ PDF</a>` : ''}</div>
+        </div>
+      </div>
+    `).join('');
+  }).catch(err => {
+    overlay.querySelector('#docs-rev-list').innerHTML = `<div class="docs-error">Failed to load revisions: ${_escape(err.message)}</div>`;
+  });
+}
+
+function _referencedByHtml(docNumber) {
+  const incoming = _docsState.all.filter(d => (d.references || []).includes(docNumber));
+  if (incoming.length === 0) return '<em style="color:var(--text3)">none</em>';
+  return incoming.map(d => `<div class="docs-xref-item" data-jump="${_escape(d.docNumber)}">${_escape(d.docNumber)} — ${_escape(d.title)} →</div>`).join('');
+}
+
+// Stubs; replaced in Task 7 and Task 8
+function openReviseDocumentModal(doc) { alert(`Revise ${doc.docNumber} — implemented in Task 7`); }
+async function markDocumentObsolete(doc) { alert(`Mark ${doc.docNumber} obsolete — implemented in Task 8`); }
 // Stub; implemented in Task 6
 function openNewDocumentModal() { console.log('[docs] new doc modal — not yet implemented'); }
 
