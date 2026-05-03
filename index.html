@@ -2938,6 +2938,24 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .docs-xref h4 { font-family: var(--mono); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--text2); font-weight: 800; margin: 0 0 8px; }
 .docs-xref-item { padding: 7px 10px; background: var(--bg3); border: 1px solid var(--border); border-radius: 999px; font-size: 12px; margin-bottom: 4px; cursor: pointer; }
 .docs-xref-item:hover { border-color: var(--repose-blue); background: #fff; }
+.docs-modal-bg { position: fixed; inset: 0; background: rgba(14,2,58,.5); z-index: 1600; display: flex; align-items: center; justify-content: center; }
+.docs-modal { background: #fff; width: 100%; max-width: 680px; max-height: 90vh; overflow-y: auto; border-radius: 14px; box-shadow: 0 30px 80px rgba(14,2,58,.3); }
+.docs-modal-head { padding: 18px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.docs-modal-head h2 { font-family: var(--display); font-weight: 800; font-size: 18px; color: var(--repose-navy); margin: 0; }
+.docs-modal-body { padding: 22px 24px; }
+.docs-modal-foot { padding: 14px 24px; border-top: 1px solid var(--border); background: var(--bg3); display: flex; gap: 8px; justify-content: flex-end; }
+.docs-field { margin-bottom: 14px; }
+.docs-field label { display: block; font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--text2); font-weight: 700; margin-bottom: 6px; }
+.docs-field input, .docs-field select, .docs-field textarea { width: 100%; padding: 10px 12px; font-family: inherit; font-size: 13.5px; border: 1.5px solid var(--border); border-radius: 8px; }
+.docs-field textarea { resize: vertical; min-height: 60px; }
+.docs-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.docs-upload { border: 2px dashed var(--border2); border-radius: 10px; padding: 22px; text-align: center; color: var(--text2); cursor: pointer; }
+.docs-upload.has-file { border-style: solid; border-color: var(--green); background: var(--gbg); color: var(--green); text-align: left; }
+.docs-upload b { color: var(--repose-navy); display: block; }
+.docs-checkbox-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.docs-checkbox-row label { display: inline-flex; gap: 6px; align-items: center; font-size: 12px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 999px; cursor: pointer; }
+.docs-checkbox-row label input { accent-color: var(--repose-blue); }
+.docs-checkbox-row label.on { background: var(--bbg); border-color: var(--bborder); color: var(--repose-blue); }
 </style>
 <script src="/msal-browser.min.js" defer></script>
 <script src="/chart.umd.min.js"></script>
@@ -4393,7 +4411,187 @@ function _referencedByHtml(docNumber) {
 function openReviseDocumentModal(doc) { alert(`Revise ${doc.docNumber} — implemented in Task 7`); }
 async function markDocumentObsolete(doc) { alert(`Mark ${doc.docNumber} obsolete — implemented in Task 8`); }
 // Stub; implemented in Task 6
-function openNewDocumentModal() { console.log('[docs] new doc modal — not yet implemented'); }
+function openNewDocumentModal() {
+  const overlay = document.createElement('div');
+  overlay.className = 'docs-modal-bg';
+  overlay.innerHTML = `
+    <div class="docs-modal">
+      <div class="docs-modal-head">
+        <h2>New document</h2>
+        <button class="docs-btn docs-btn-sec" id="docs-modal-close">×</button>
+      </div>
+      <div class="docs-modal-body">
+        <div class="docs-field-row">
+          <div class="docs-field">
+            <label>Document Number *</label>
+            <input id="f-docnum" placeholder="REPO-Q027">
+          </div>
+          <div class="docs-field">
+            <label>Title *</label>
+            <input id="f-title" placeholder="">
+          </div>
+        </div>
+
+        <div class="docs-field-row">
+          <div class="docs-field">
+            <label>Category *</label>
+            <select id="f-cat"><option>H&amp;S</option><option>Quality</option><option>Group</option></select>
+          </div>
+          <div class="docs-field">
+            <label>Level *</label>
+            <select id="f-lvl"><option>Form</option><option>Work Instruction</option><option>Procedure</option><option>Policy</option></select>
+          </div>
+        </div>
+
+        <div class="docs-field">
+          <label>Departments (pick all that apply)</label>
+          <div class="docs-checkbox-row" id="f-depts">
+            ${['Cutting','Sewing','Upholstery','Woodmill','Foam','Assembly','QC','Maintenance','All / Site-wide'].map(d => `<label><input type="checkbox" value="${d}"> ${d}</label>`).join('')}
+          </div>
+        </div>
+
+        <div class="docs-field-row">
+          <div class="docs-field">
+            <label>Review cycle (months) *</label>
+            <input id="f-cycle" type="number" min="1" max="60" value="12">
+          </div>
+          <div class="docs-field">
+            <label>Owner email *</label>
+            <input id="f-owner" type="email" value="jonas.simonaitis@reposefurniture.co.uk">
+          </div>
+        </div>
+
+        <div class="docs-field">
+          <label>Additional approver emails (comma-separated, blank = QHSE solo approval)</label>
+          <input id="f-approvers" placeholder="manager@reposefurniture.co.uk">
+        </div>
+
+        <div class="docs-field">
+          <label>References — comma-separated DocNumbers (optional)</label>
+          <input id="f-refs" placeholder="REPO-Q008, REPO-HS022">
+        </div>
+
+        <div class="docs-field">
+          <label>Description / Reason for revision *</label>
+          <textarea id="f-desc" placeholder="New document — initial issue."></textarea>
+        </div>
+
+        <div class="docs-field">
+          <label>Source file (PDF or DOCX) *</label>
+          <input id="f-file" type="file" accept=".pdf,.docx,.xlsx" style="display:none">
+          <div class="docs-upload" id="f-upload-zone">📎 Click to choose a file</div>
+        </div>
+      </div>
+
+      <div class="docs-modal-foot">
+        <button class="docs-btn docs-btn-sec" id="docs-modal-cancel">Cancel</button>
+        <button class="docs-btn docs-btn-pri" id="docs-modal-save">Save &amp; publish</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  // File-picker UX
+  const fileInput = overlay.querySelector('#f-file');
+  const zone = overlay.querySelector('#f-upload-zone');
+  zone.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) {
+      zone.classList.add('has-file');
+      zone.innerHTML = `<b>${_escape(fileInput.files[0].name)}</b> · ${Math.round(fileInput.files[0].size/1024)} KB`;
+    }
+  });
+
+  // Department chip toggling
+  overlay.querySelectorAll('#f-depts label').forEach(lab => {
+    lab.querySelector('input').addEventListener('change', e => lab.classList.toggle('on', e.target.checked));
+  });
+
+  // Close
+  const close = () => overlay.remove();
+  overlay.querySelector('#docs-modal-close').addEventListener('click', close);
+  overlay.querySelector('#docs-modal-cancel').addEventListener('click', close);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+
+  // Save
+  overlay.querySelector('#docs-modal-save').addEventListener('click', async () => {
+    const btn = overlay.querySelector('#docs-modal-save');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      await _saveNewDocument(overlay);
+      close();
+      await renderDocumentsRegister();
+    } catch (e) {
+      alert(`Save failed: ${e.message}`);
+      btn.disabled = false; btn.textContent = 'Save & publish';
+    }
+  });
+}
+
+async function _saveNewDocument(overlay) {
+  const docNumber = overlay.querySelector('#f-docnum').value.trim().toUpperCase();
+  const title = overlay.querySelector('#f-title').value.trim();
+  const category = overlay.querySelector('#f-cat').value;
+  const level = overlay.querySelector('#f-lvl').value;
+  const cycle = parseInt(overlay.querySelector('#f-cycle').value, 10);
+  const owner = overlay.querySelector('#f-owner').value.trim();
+  const approversRaw = overlay.querySelector('#f-approvers').value.trim();
+  const refs = overlay.querySelector('#f-refs').value.trim();
+  const description = overlay.querySelector('#f-desc').value.trim();
+  const file = overlay.querySelector('#f-file').files[0];
+  const depts = Array.from(overlay.querySelectorAll('#f-depts input:checked')).map(i => i.value);
+
+  if (!docNumber || !title || !owner || !description) throw new Error('Doc Number, Title, Owner and Description are required.');
+  if (!file) throw new Error('A source file is required.');
+
+  // Validate uniqueness
+  const existing = await fetchDocByNumber(docNumber);
+  if (existing) throw new Error(`Doc ${docNumber} already exists in the register.`);
+
+  // Upload file
+  const safeName = `${docNumber} - ${title} - Rev1${_extOf(file.name)}`;
+  const folder = ({'H&S':'HS','Quality':'Quality','Group':'Group'})[category];
+  const uploaded = await uploadDocFile(folder, safeName, file);
+
+  // Calculate next review date
+  const today = new Date();
+  const next = new Date(today); next.setMonth(next.getMonth() + cycle);
+
+  // Create register row (Status starts Published — Phase 1 single-step solo approve flow per spec, plus matches Task-7 multi-approver flow)
+  const created = await createDoc({
+    DocNumber: docNumber,
+    Title: title,
+    Category: category,
+    Level: level,
+    Departments: depts.length ? depts : null,
+    Status: 'Published',
+    CurrentRevision: 1,
+    IssueDate: today.toISOString().slice(0,10),
+    LastRevisedDate: today.toISOString().slice(0,10),
+    ReviewCycleMonths: cycle,
+    NextReviewDate: next.toISOString().slice(0,10),
+    Owner: owner,
+    Approvers: approversRaw ? approversRaw.split(',').map(s => s.trim()).filter(Boolean) : null,
+    FileLink: uploaded.webUrl,
+    References: refs,
+    Description: description
+  });
+
+  // Create the Rev-1 row in DocumentRevisions
+  await createRevision({
+    DocNumber: docNumber,
+    Revision: 1,
+    IssueDate: new Date().toISOString(),
+    ReasonForRevision: description,
+    TriggeredBy: 'Initial issue',
+    FileLink: uploaded.webUrl,
+    FileVersionId: uploaded.id
+  });
+
+  return created;
+}
+
+function _extOf(name) { const i = name.lastIndexOf('.'); return i >= 0 ? name.slice(i) : ''; }
 
 function toggleNavMenu() {
   document.getElementById('nav-menu').classList.toggle('open');
