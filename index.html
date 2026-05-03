@@ -4165,10 +4165,10 @@ function _renderDocsShell(root) {
     </div>
 
     <div class="docs-kpis">
-      <div class="docs-kpi"><div class="docs-kpi-icn">📄</div><div><div class="docs-kpi-num">${counts.active}</div><div class="docs-kpi-lbl">Active</div></div></div>
-      <div class="docs-kpi warn"><div class="docs-kpi-icn">⏰</div><div><div class="docs-kpi-num">${counts.dueReview}</div><div class="docs-kpi-lbl">Due for review · 30 days</div></div></div>
-      <div class="docs-kpi purple"><div class="docs-kpi-icn">✓</div><div><div class="docs-kpi-num">${counts.pending}</div><div class="docs-kpi-lbl">Pending approval</div></div></div>
-      <div class="docs-kpi fail"><div class="docs-kpi-icn">⌀</div><div><div class="docs-kpi-num">${counts.obsolete}</div><div class="docs-kpi-lbl">Obsolete</div></div></div>
+      <div class="docs-kpi" data-kpi="active" style="cursor:pointer"><div class="docs-kpi-icn">📄</div><div><div class="docs-kpi-num">${counts.active}</div><div class="docs-kpi-lbl">Active</div></div></div>
+      <div class="docs-kpi warn" data-kpi="due" style="cursor:pointer"><div class="docs-kpi-icn">⏰</div><div><div class="docs-kpi-num">${counts.dueReview}</div><div class="docs-kpi-lbl">Due for review · 30 days</div></div></div>
+      <div class="docs-kpi purple" data-kpi="pending" style="cursor:pointer"><div class="docs-kpi-icn">✓</div><div><div class="docs-kpi-num">${counts.pending}</div><div class="docs-kpi-lbl">Pending approval</div></div></div>
+      <div class="docs-kpi fail" data-kpi="obsolete" style="cursor:pointer"><div class="docs-kpi-icn">⌀</div><div><div class="docs-kpi-num">${counts.obsolete}</div><div class="docs-kpi-lbl">Obsolete</div></div></div>
     </div>
 
     <div class="docs-main">
@@ -4298,6 +4298,26 @@ function _bindDocsFilters() {
   root.querySelectorAll('input[data-fst]').forEach(el => el.addEventListener('change', () => _toggleSetFilter('statuses', 'fst')));
   root.querySelector('#docs-new-btn').addEventListener('click', () => openNewDocumentModal());
   root.querySelector('#docs-export-btn').addEventListener('click', () => alert('Excel export ships in the follow-up plan.'));
+  // KPI tile click → quick-filter the table by status
+  root.querySelectorAll('.docs-kpi[data-kpi]').forEach(tile => {
+    tile.addEventListener('click', () => _docsKpiQuickFilter(tile.dataset.kpi));
+  });
+}
+
+function _docsKpiQuickFilter(kind) {
+  // Each KPI tile narrows the table to a single status (or status set) so
+  // the user can click straight from a count to the matching rows. Re-renders
+  // the entire shell so the sidebar checkboxes reflect the new filter state.
+  const map = {
+    active:   new Set(['Published']),
+    pending:  new Set(['In Approval']),
+    obsolete: new Set(['Obsolete']),
+    due:      new Set(['Published'])  // dueReview overlay handled by table-side date math; just ensure Published is shown
+  };
+  _docsState.filters.statuses = map[kind] || _docsState.filters.statuses;
+  _renderDocsShell(document.getElementById('docs-content'));
+  _renderDocsTable();
+  _bindDocsFilters();
 }
 
 function _toggleSetFilter(stateKey, attr) {
@@ -4337,8 +4357,8 @@ async function openDocumentDetail(docNumber) {
           </dl>
           <div class="docs-actions-row">
             ${doc.fileLink ? `<a class="docs-btn docs-btn-sec" href="${_escape(doc.fileLink)}" target="_blank">↗ Open current file</a>` : ''}
-            ${doc.status !== 'Obsolete' ? `<button class="docs-btn docs-btn-pri" id="docs-revise-btn">＋ New revision</button>` : ''}
-            ${doc.status !== 'Obsolete' ? `<button class="docs-btn docs-btn-sec" id="docs-obsolete-btn">⌀ Mark obsolete</button>` : ''}
+            ${(_isDocsAdmin() && doc.status !== 'Obsolete') ? `<button class="docs-btn docs-btn-pri" id="docs-revise-btn">＋ New revision</button>` : ''}
+            ${(_isDocsAdmin() && doc.status !== 'Obsolete') ? `<button class="docs-btn docs-btn-sec" id="docs-obsolete-btn">⌀ Mark obsolete</button>` : ''}
           </div>
         </div>
 
@@ -4356,10 +4376,15 @@ async function openDocumentDetail(docNumber) {
           </div>
         </div>
 
+        ${_isDocsAdmin() ? `
         <div class="docs-card" id="docs-rev-card">
           <h3>Revision history</h3>
           <div id="docs-rev-list">Loading…</div>
-        </div>
+        </div>` : `
+        <div class="docs-card" style="background:var(--bg3)">
+          <h3>Revision history</h3>
+          <div style="font-size:12.5px;color:var(--text2);line-height:1.5">Visible to QHSE only. ISO 9001 cl. 7.5.3.2 — obsolete and superseded versions are kept controlled to prevent unintended use. Contact QHSE if you need a prior revision.</div>
+        </div>`}
       </div>
     </div>
   `;
@@ -4377,8 +4402,9 @@ async function openDocumentDetail(docNumber) {
     openDocumentDetail(target);
   }));
 
-  // Async: load revisions
-  fetchRevisionsForDoc(docNumber).then(revs => {
+  // Async: load revisions — only for QHSE admins. Non-admins see a placeholder
+  // card explaining the cl. 7.5.3.2 rationale and don't waste a Graph call.
+  if (_isDocsAdmin()) fetchRevisionsForDoc(docNumber).then(revs => {
     const list = overlay.querySelector('#docs-rev-list');
     if (!list) return; // drawer was closed mid-fetch
     if (revs.length === 0) { list.innerHTML = '<em style="color:var(--text3)">No revision history yet.</em>'; return; }
@@ -4887,6 +4913,16 @@ function _extOf(name) { const i = name.lastIndexOf('.'); return i >= 0 ? name.sl
 // SharePoint Date columns reject the millisecond component on writes when
 // "Include time = No" is set. Always use this helper (never raw .toISOString()).
 function _isoNoMs(d) { return (d || new Date()).toISOString().slice(0,19) + 'Z'; }
+
+// True when the signed-in user is allowed to manage QMS documents — write,
+// revise, mark obsolete, view revision history. Reuses CPAR_QHSE_REVIEWERS
+// (the same allowlist gating CAPA verify/CPAR delete). Non-admins see only
+// the current published doc; revision history and action buttons are hidden.
+function _isDocsAdmin() {
+  const me = graphAccount && graphAccount.username && graphAccount.username.toLowerCase();
+  if (!me) return false;
+  return CPAR_QHSE_REVIEWERS.map(e => e.toLowerCase()).includes(me);
+}
 
 function toggleNavMenu() {
   document.getElementById('nav-menu').classList.toggle('open');
