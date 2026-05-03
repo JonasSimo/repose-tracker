@@ -4358,6 +4358,7 @@ async function openDocumentDetail(docNumber) {
           <div class="docs-actions-row">
             ${doc.fileLink ? `<a class="docs-btn docs-btn-sec" href="${_escape(doc.fileLink)}" target="_blank">↗ Open current file</a>` : ''}
             ${(_isDocsAdmin() && doc.status !== 'Obsolete') ? `<button class="docs-btn docs-btn-pri" id="docs-revise-btn">＋ New revision</button>` : ''}
+            ${_isDocsManager() ? `<button class="docs-btn docs-btn-sec" id="docs-edit-meta-btn">✎ Edit metadata</button>` : ''}
             ${(_isDocsAdmin() && doc.status !== 'Obsolete') ? `<button class="docs-btn docs-btn-sec" id="docs-obsolete-btn">⌀ Mark obsolete</button>` : ''}
           </div>
         </div>
@@ -4396,6 +4397,8 @@ async function openDocumentDetail(docNumber) {
   if (reviseBtn) reviseBtn.addEventListener('click', () => openReviseDocumentModal(doc));
   const obsoleteBtn = overlay.querySelector('#docs-obsolete-btn');
   if (obsoleteBtn) obsoleteBtn.addEventListener('click', () => markDocumentObsolete(doc));
+  const editMetaBtn = overlay.querySelector('#docs-edit-meta-btn');
+  if (editMetaBtn) editMetaBtn.addEventListener('click', () => openEditMetadataModal(doc));
   overlay.querySelectorAll('[data-jump]').forEach(el => el.addEventListener('click', () => {
     const target = el.dataset.jump;
     overlay.remove();
@@ -4496,6 +4499,189 @@ async function markDocumentObsolete(doc) {
       alert(`Failed: ${e.message}`);
       btn.disabled = false; btn.textContent = 'Mark obsolete';
     }
+  });
+}
+
+// QHSE Manager-only "Edit metadata" — patches register-row metadata without
+// uploading a new file, without bumping CurrentRevision, and without changing
+// Status. Writes a Metadata-only audit row to DocumentRevisions for ISO 9001
+// traceability of the change.
+function openEditMetadataModal(doc) {
+  if (!_isDocsManager()) return; // belt + braces; button shouldn't even be visible
+
+  const overlay = document.createElement('div');
+  overlay.className = 'docs-modal-bg';
+  overlay.innerHTML = `
+    <div class="docs-modal">
+      <div class="docs-modal-head">
+        <h2>Edit metadata — ${_escape(doc.docNumber)}</h2>
+        <button class="docs-btn docs-btn-sec" id="docs-modal-close">×</button>
+      </div>
+      <div class="docs-modal-body">
+        <p style="margin-top:0;color:var(--text2);font-size:13px">QHSE Manager only. Edits the register row directly without bumping the revision number or changing Status. Use <b>+ New revision</b> instead when the document content changes. An audit row will be written to DocumentRevisions.</p>
+
+        <div class="docs-field">
+          <label>Title</label>
+          <input id="m-title" value="${_escape(doc.title)}">
+        </div>
+
+        <div class="docs-field-row">
+          <div class="docs-field">
+            <label>Category</label>
+            <select id="m-cat">
+              ${['H&S','Quality','Group'].map(c => `<option ${doc.category===c?'selected':''}>${c==='H&S'?'H&amp;S':c}</option>`).join('')}
+            </select>
+          </div>
+          <div class="docs-field">
+            <label>Level</label>
+            <select id="m-lvl">
+              ${['Form','Work Instruction','Procedure','Policy'].map(l => `<option ${doc.level===l?'selected':''}>${l}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+
+        <div class="docs-field">
+          <label>Department (single)</label>
+          <div class="docs-checkbox-row" id="m-depts">
+            ${['Cutting','Sewing','Upholstery','Woodmill','Foam','Assembly','QC','Maintenance','All / Site-wide'].map(d => {
+              const checked = (doc.departments||[]).includes(d);
+              return `<label class="${checked?'on':''}"><input type="radio" name="m-dept" value="${d}" ${checked?'checked':''}> ${d}</label>`;
+            }).join('')}
+          </div>
+        </div>
+
+        <div class="docs-field-row">
+          <div class="docs-field">
+            <label>Review cycle (months)</label>
+            <input id="m-cycle" type="number" min="1" max="60" value="${doc.reviewCycleMonths || 12}">
+          </div>
+          <div class="docs-field">
+            <label>Owner email</label>
+            <input id="m-owner" type="email" value="${_escape(doc.ownerEmail || '')}">
+          </div>
+        </div>
+
+        <div class="docs-field">
+          <label>Approvers (comma-separated emails; blank = QHSE solo)</label>
+          <input id="m-approvers" value="${_escape((doc.approverEmails||[]).join(', '))}">
+        </div>
+
+        <div class="docs-field">
+          <label>References (comma-separated DocNumbers)</label>
+          <input id="m-refs" value="${_escape((doc.references||[]).join(', '))}">
+        </div>
+
+        <div class="docs-field">
+          <label>Description</label>
+          <textarea id="m-desc">${_escape(doc.description || '')}</textarea>
+        </div>
+
+        <div class="docs-field">
+          <label>Reason for this metadata edit (audit trail) *</label>
+          <input id="m-reason" placeholder="e.g. Corrected Level after import; clarified Departments">
+        </div>
+      </div>
+      <div class="docs-modal-foot">
+        <button class="docs-btn docs-btn-sec" id="docs-modal-cancel">Cancel</button>
+        <button class="docs-btn docs-btn-pri" id="docs-modal-save">Save changes</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  // Department chip toggling — radio behaviour, mirrors new-doc modal
+  overlay.querySelectorAll('#m-depts label').forEach(lab => {
+    lab.querySelector('input').addEventListener('change', e => {
+      if (e.target.checked) {
+        overlay.querySelectorAll('#m-depts label').forEach(l => l.classList.remove('on'));
+        lab.classList.add('on');
+      }
+    });
+  });
+
+  const close = () => overlay.remove();
+  overlay.querySelector('#docs-modal-close').addEventListener('click', close);
+  overlay.querySelector('#docs-modal-cancel').addEventListener('click', close);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+
+  overlay.querySelector('#docs-modal-save').addEventListener('click', async () => {
+    const btn = overlay.querySelector('#docs-modal-save');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      await _saveMetadata(doc, overlay);
+      close();
+      document.querySelectorAll('.docs-drawer-bg').forEach(el => el.remove());
+      await renderDocumentsRegister();
+    } catch (e) {
+      alert(`Save failed: ${e.message}`);
+      btn.disabled = false; btn.textContent = 'Save changes';
+    }
+  });
+}
+
+async function _saveMetadata(doc, overlay) {
+  const title = overlay.querySelector('#m-title').value.trim();
+  const category = overlay.querySelector('#m-cat').value;
+  const level = overlay.querySelector('#m-lvl').value;
+  const cycle = parseInt(overlay.querySelector('#m-cycle').value, 10);
+  const owner = overlay.querySelector('#m-owner').value.trim();
+  const approversRaw = overlay.querySelector('#m-approvers').value.trim();
+  const refs = overlay.querySelector('#m-refs').value.trim();
+  const description = overlay.querySelector('#m-desc').value.trim();
+  const reason = overlay.querySelector('#m-reason').value.trim();
+  const dept = (overlay.querySelector('#m-depts input:checked') || {}).value || '';
+
+  if (!title) throw new Error('Title is required.');
+  if (!owner) throw new Error('Owner email is required.');
+  if (!Number.isFinite(cycle) || cycle < 1 || cycle > 60) throw new Error('Review cycle must be a whole number between 1 and 60 months.');
+  if (!reason) throw new Error('Reason for the metadata edit is required for the audit trail.');
+
+  // Recompute NextReviewDate when cycle changes — anchor on LastRevisedDate if present, else today
+  const anchor = doc.lastRevisedDate ? new Date(doc.lastRevisedDate) : new Date();
+  const nextReview = new Date(anchor); nextReview.setMonth(nextReview.getMonth() + cycle);
+
+  const patch = {
+    Title: title,
+    Category: category,
+    Level: level,
+    ReviewCycleMonths: cycle,
+    NextReviewDate: _isoNoMs(nextReview),
+    Owner: owner,
+    Description: description
+  };
+  if (dept) patch.Departments = dept;
+  patch.Approvers = approversRaw || '';   // explicit empty string clears the field on the SP side
+  patch.References = refs || '';
+
+  // Same per-field PATCH fallback pattern as the other write flows.
+  try {
+    await updateDoc(doc.id, patch);
+  } catch (patchErr) {
+    console.warn('[docs] edit-metadata bulk PATCH failed, falling back to per-field PATCH', patchErr.message);
+    const failed = [];
+    for (const [k, v] of Object.entries(patch)) {
+      try {
+        await updateDoc(doc.id, { [k]: v });
+        console.log(`[docs] edit-metadata per-field PATCH OK: ${k}`);
+      } catch (oneErr) {
+        failed.push({ field: k, err: oneErr.message });
+        console.error(`[docs] edit-metadata per-field PATCH FAILED: ${k}`, oneErr.message);
+      }
+    }
+    if (failed.length > 0) {
+      const summary = failed.map(f => f.field).join(', ');
+      throw new Error(`Edits saved partially. Fields rejected: ${summary}. Open the row in SharePoint to finish.`);
+    }
+  }
+
+  // Audit row — same Revision number (no bump), TriggeredBy makes it greppable for compliance.
+  await createRevision({
+    Title: doc.docNumber,
+    Revision: doc.currentRevision,
+    IssueDate: _isoNoMs(),
+    ReasonForRevision: `Metadata edit: ${reason}`,
+    TriggeredBy: 'Metadata-edit',
+    ChangedFromRev: doc.currentRevision
   });
 }
 
@@ -4922,6 +5108,18 @@ function _isDocsAdmin() {
   const me = graphAccount && graphAccount.username && graphAccount.username.toLowerCase();
   if (!me) return false;
   return CPAR_QHSE_REVIEWERS.map(e => e.toLowerCase()).includes(me);
+}
+
+// Stricter than _isDocsAdmin: only the QHSE Manager (Jonas) can edit
+// document metadata directly. The "Edit metadata" path bypasses the
+// revision/approval workflow, so it's gated more tightly than the
+// revise/obsolete actions which other QHSE-level reviewers can perform
+// once Phase 2 multi-approver flows are in.
+const QMS_DOC_MANAGERS = ['jonas.simonaitis@reposefurniture.co.uk'];
+function _isDocsManager() {
+  const me = graphAccount && graphAccount.username && graphAccount.username.toLowerCase();
+  if (!me) return false;
+  return QMS_DOC_MANAGERS.map(e => e.toLowerCase()).includes(me);
 }
 
 function toggleNavMenu() {
