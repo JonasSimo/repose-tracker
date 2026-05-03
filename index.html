@@ -4591,7 +4591,7 @@ async function openDocumentDetail(docNumber) {
         <div class="docs-card">
           <h3>Document metadata</h3>
           <dl class="docs-meta">
-            <div><dt>Status</dt><dd>${_escape(doc.status)} (Rev ${doc.currentRevision})</dd></div>
+            <div><dt>Status</dt><dd>${_escape(doc.status)} (Rev ${doc.currentRevision})${doc.status === 'In Approval' ? ` · <span style="color:var(--amber)">${((doc.approvalState && doc.approvalState.approved) || []).length} of ${(doc.approverEmails || []).length} approved</span>` : ''}</dd></div>
             <div><dt>Owner</dt><dd>${_escape(doc.ownerEmail || '—')}</dd></div>
             <div><dt>Approvers</dt><dd>${(doc.approverEmails||[]).map(_escape).join(', ') || '—'}</dd></div>
             <div><dt>Departments</dt><dd>${(doc.departments||[]).map(_escape).join(', ') || '—'}</dd></div>
@@ -4607,6 +4607,18 @@ async function openDocumentDetail(docNumber) {
             ${(_isDocsAdmin() && doc.status !== 'Obsolete') ? `<button class="docs-btn docs-btn-sec" id="docs-obsolete-btn">⌀ Mark obsolete</button>` : ''}
           </div>
         </div>
+
+        ${doc.status === 'In Approval' || _isRejected(doc) ? `
+        <div class="docs-card">
+          <h3>Approval state</h3>
+          <table style="width:100%;font-size:12.5px;border-collapse:collapse">
+            <tr><td style="padding:4px 0;width:120px;color:var(--text2)">Submitted by</td><td>${_escape((doc.approvalState && doc.approvalState.submittedBy) || '—')}</td></tr>
+            <tr><td style="padding:4px 0;color:var(--text2)">Submitted at</td><td>${doc.approvalState && doc.approvalState.submittedAt ? new Date(doc.approvalState.submittedAt).toLocaleString('en-GB') : '—'}</td></tr>
+            <tr><td style="padding:4px 0;color:var(--text2)">Approved by</td><td>${((doc.approvalState && doc.approvalState.approved) || []).map(_escape).join(', ') || '<em style="color:var(--text3)">none yet</em>'}</td></tr>
+            ${_isRejected(doc) ? `<tr><td style="padding:4px 0;color:var(--red)">Rejected by</td><td style="color:var(--red)">${((doc.approvalState && doc.approvalState.rejected) || []).map(_escape).join(', ')}</td></tr>` : ''}
+            <tr><td style="padding:4px 0;color:var(--text2)">Awaiting</td><td>${(doc.approverEmails || []).filter(e => !((doc.approvalState && doc.approvalState.approved) || []).map(x=>x.toLowerCase()).includes(e.toLowerCase())).map(_escape).join(', ') || '<em style="color:var(--green)">all approvals received</em>'}</td></tr>
+          </table>
+        </div>` : ''}
 
         <div class="docs-card">
           <h3>Cross-references · impact analysis</h3>
