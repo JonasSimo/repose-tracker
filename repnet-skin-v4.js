@@ -34,7 +34,6 @@
     { v: 'safety',       g: '⚠',     l: 'Near Misses' },
     { v: 'complaints',   g: '✉',     l: 'Complaints' },
     { v: 'documents',    g: '📄',    l: 'Documents' },
-    { v: 'doc-approvals', g: '🗳',   l: 'Doc Approvals' },
     { h: 'Operations' },
     { v: 'maintenance',  g: '⚒',     l: 'Maintenance' },
     { v: 'timing',       g: '⏱',     l: 'Job Timing' },
