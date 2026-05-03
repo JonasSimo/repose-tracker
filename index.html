@@ -6595,12 +6595,32 @@ async function createDoc(payload) {
   // Also fetch and print the actual list column schema so we can see internal names
   try {
     const schemaRes = await _graphFetchWithRetry(
-      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/columns?$select=name,displayName,columnGroup`,
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/columns`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
     if (schemaRes.ok) {
       const cols = (await schemaRes.json()).value || [];
-      console.log('List column internal names:', cols.map(c => `${c.displayName} -> ${c.name}`));
+      // Show only the columns that match field names actually in our payload, plus all required columns
+      const payloadKeys = Object.keys(payload);
+      const relevant = cols.filter(c => payloadKeys.includes(c.name) || c.required);
+      console.log('Relevant column metadata:');
+      relevant.forEach(c => {
+        const typeKey = c.text ? 'text'
+          : c.choice ? 'choice'
+          : c.dateTime ? 'dateTime'
+          : c.number ? 'number'
+          : c.boolean ? 'boolean'
+          : c.hyperlinkOrPicture ? 'hyperlinkOrPicture'
+          : c.personOrGroup ? 'personOrGroup'
+          : c.lookup ? 'lookup'
+          : c.calculated ? 'calculated'
+          : 'unknown';
+        const detail = c[typeKey] || {};
+        console.log(`  ${c.displayName.padEnd(28)} | name=${c.name.padEnd(22)} | type=${typeKey.padEnd(18)} | required=${c.required ? 'YES' : 'no '} | ${JSON.stringify(detail)}`);
+      });
+      // Also show payload keys that don't have a matching column (potential typos)
+      const orphanKeys = payloadKeys.filter(k => !cols.find(c => c.name === k) && !k.includes('@'));
+      if (orphanKeys.length) console.warn('Payload keys NOT in column schema:', orphanKeys);
     }
   } catch (e) { console.warn('Schema fetch failed (non-blocking):', e.message); }
   console.groupEnd();
