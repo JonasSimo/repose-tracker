@@ -63,14 +63,16 @@ Add columns (Settings → List settings → Create column):
 | `LastRevisedDate` | Date | No | |
 | `ReviewCycleMonths` | Number (integer) | Yes | Default: `12` |
 | `NextReviewDate` | Date | No | Set by code, not by user |
-| `Owner` | Person or Group | Yes | Single person |
-| `Approvers` | Person or Group | No | Multi-person |
+| `Owner` | Single line of text | Yes | Email of the document owner (e.g. `jonas.simonaitis@reposefurniture.co.uk`) |
+| `Approvers` | Single line of text | No | Comma-separated emails (e.g. `manager@…, qa@…`); blank means QHSE solo approval |
 | `FileLink` | Hyperlink | No | URL to the published PDF in `QMS-Documents` |
 | `References` | Single line of text | No | Comma-separated DocNumbers (e.g. `REPO-HS022,PHCF-29`) — kept as text in v1 to avoid lookup-list circular-reference complexity |
 | `SupersededBy` | Single line of text | No | Either a DocNumber or a free-text URL/feature reference |
 | `LinkedMaintenanceTemplate` | Single line of text | No | Maintenance-tab template ID, optional |
 | `LinkedRecordsListName` | Single line of text | No | Name of SharePoint list where filled records live |
 | `Description` | Multiple lines of text | No | Plain text (not enhanced rich text) |
+
+**Note (Phase 1 column-shape decision):** `Owner` and `Approvers` are stored as plain-text email fields rather than SharePoint Person columns. This matches the existing CAPA module's pattern, avoids the email→LookupId resolution dance Graph requires for Person-column writes, and keeps full audit value via the recorded email strings. If the QMS later needs Outlook-hover-card UX on the SharePoint list view, switch to Person columns and add an `_emailToLookupId` resolver — both Owner and Approvers writes will need the `OwnerLookupId` / `ApproversLookupId` shape at that point.
 
 Settings → Versioning settings → **Create a version each time you edit an item in this list: Yes**, **Keep the following number of versions: 50**.
 
@@ -363,8 +365,8 @@ function _mapDocItem(item) {
     lastRevisedDate: f.LastRevisedDate || null,
     reviewCycleMonths: Number(f.ReviewCycleMonths || 12),
     nextReviewDate: f.NextReviewDate || null,
-    ownerEmail: (f.Owner && f.Owner.Email) || f.OwnerLookupId || '',
-    approverEmails: Array.isArray(f.Approvers) ? f.Approvers.map(a => a.Email).filter(Boolean) : [],
+    ownerEmail: f.Owner || '',
+    approverEmails: (f.Approvers || '').split(',').map(s => s.trim()).filter(Boolean),
     fileLink: (f.FileLink && f.FileLink.Url) || f.FileLink || '',
     references: (f.References || '').split(',').map(s => s.trim()).filter(Boolean),
     supersededBy: f.SupersededBy || '',
@@ -1059,7 +1061,7 @@ async function _saveNewDocument(overlay) {
     ReviewCycleMonths: cycle,
     NextReviewDate: next.toISOString().slice(0,10),
     Owner: owner,
-    Approvers: approversRaw ? approversRaw.split(',').map(s => s.trim()).filter(Boolean) : null,
+    Approvers: approversRaw || null,
     FileLink: { Url: uploaded.webUrl, Description: safeName },
     References: refs,
     Description: description
