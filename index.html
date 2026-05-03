@@ -4741,7 +4741,7 @@ function openReviseDocumentModal(doc) {
       </div>
       <div class="docs-modal-foot">
         <button class="docs-btn docs-btn-sec" id="docs-modal-cancel">Cancel</button>
-        <button class="docs-btn docs-btn-pri" id="docs-modal-save">Approve &amp; publish</button>
+        <button class="docs-btn docs-btn-pri" id="docs-modal-save" data-approvers-empty="">Approve &amp; publish</button>
       </div>
     </div>
   `;
@@ -4757,6 +4757,27 @@ function openReviseDocumentModal(doc) {
       zone.innerHTML = `<b>${_escape(fileInput.files[0].name)}</b> · ${Math.round(fileInput.files[0].size/1024)} KB`;
     }
   });
+
+  // Toggle save-button label based on whether external approvers are listed.
+  // Plan 2A Task 3: distinguishes the solo-QHSE 'publish now' path from the
+  // multi-approver 'submit for approval' path so the user knows which lifecycle
+  // their click triggers.
+  const approversInput = overlay.querySelector('#r-approvers');
+  const saveBtn = overlay.querySelector('#docs-modal-save');
+  function _updateSaveLabel() {
+    const others = approversInput.value
+      .split(',').map(s => s.trim()).filter(Boolean)
+      .filter(e => e.toLowerCase() !== (graphAccount && graphAccount.username || '').toLowerCase());
+    if (others.length === 0) {
+      saveBtn.textContent = 'Approve & publish';
+      saveBtn.dataset.approversEmpty = 'true';
+    } else {
+      saveBtn.textContent = `Submit for approval (${others.length} approver${others.length === 1 ? '' : 's'})`;
+      saveBtn.dataset.approversEmpty = '';
+    }
+  }
+  approversInput.addEventListener('input', _updateSaveLabel);
+  _updateSaveLabel();
 
   const close = () => overlay.remove();
   overlay.querySelector('#docs-modal-close').addEventListener('click', close);
@@ -4805,14 +4826,29 @@ async function _saveRevision(doc, overlay) {
   // Update the register row. Bulk PATCH on this tenant occasionally 400s with
   // no actionable error; per-field fallback identifies the offending field for
   // a usable error message and lets the rest succeed.
+  // Fork: solo-QHSE save publishes immediately; multi-approver save enters
+  // 'In Approval' status and emails each approver. The approver list excludes
+  // the current user (QHSE submitting their own revision doesn't self-approve).
+  const me = (graphAccount && graphAccount.username || '').toLowerCase();
+  const externalApprovers = approversRaw
+    .split(',').map(s => s.trim()).filter(Boolean)
+    .filter(e => e.toLowerCase() !== me);
+  const isMultiApprover = externalApprovers.length > 0;
+
   const registerPatch = {
     CurrentRevision: newRev,
-    Status: 'Published',
+    Status: isMultiApprover ? 'In Approval' : 'Published',
     LastRevisedDate: todayIso,
     NextReviewDate: nextIso,
     ReviewCycleMonths: cycle,
     FileLink: uploaded.webUrl,
-    Description: reason
+    Description: reason,
+    ApprovalState: JSON.stringify(isMultiApprover ? {
+      approved: [],
+      rejected: [],
+      submittedAt: todayIso,
+      submittedBy: me
+    } : _emptyApprovalState())
   };
   if (approversRaw) registerPatch.Approvers = approversRaw;
 
@@ -4846,7 +4882,7 @@ async function _saveRevision(doc, overlay) {
     Revision: newRev,
     IssueDate: _isoNoMs(),
     ReasonForRevision: reason,
-    TriggeredBy: trigKind ? (trigRef ? `${trigKind}:${trigRef}` : trigKind) : '',
+    TriggeredBy: trigKind ? (trigRef ? `${trigKind}:${trigRef}` : trigKind) : (isMultiApprover ? 'Submitted-for-approval' : 'Published-solo'),
     FileLink: uploaded.webUrl,
     FileVersionId: uploaded.id,
     ChangedFromRev: doc.currentRevision
@@ -5024,17 +5060,29 @@ async function _saveNewDocument(overlay) {
   // PATCH errors are more specific than bundled POST errors, and even
   // partial failures leave the row queryable so QHSE can finish in
   // SharePoint UI if anything is rejected.
+  const me = (graphAccount && graphAccount.username || '').toLowerCase();
+  const externalApprovers = approversRaw
+    .split(',').map(s => s.trim()).filter(Boolean)
+    .filter(e => e.toLowerCase() !== me);
+  const isMultiApprover = externalApprovers.length > 0;
+
   const optionalFields = {
     Category: category,
     Level: level,
-    Status: 'Published',
+    Status: isMultiApprover ? 'In Approval' : 'Published',
     IssueDate: todayIso,
     LastRevisedDate: todayIso,
     ReviewCycleMonths: cycle,
     NextReviewDate: nextIso,
     Owner: owner,
     FileLink: uploaded.webUrl,
-    Description: description
+    Description: description,
+    ApprovalState: JSON.stringify(isMultiApprover ? {
+      approved: [],
+      rejected: [],
+      submittedAt: todayIso,
+      submittedBy: me
+    } : _emptyApprovalState())
   };
   // Departments column is single-select Choice in SharePoint (confirmed via
   // manual UI save inspection — stored value was a plain string "Cutting", not
