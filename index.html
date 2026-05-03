@@ -4558,6 +4558,11 @@ async function _saveNewDocument(overlay) {
   // Calculate next review date
   const today = new Date();
   const next = new Date(today); next.setMonth(next.getMonth() + cycle);
+  const todayIso = `${today.toISOString().slice(0,10)}T00:00:00.000Z`;
+  const nextIso = `${next.toISOString().slice(0,10)}T00:00:00.000Z`;
+
+  const minimalDebug = new URLSearchParams(location.search).get('docs-debug') === 'minimal';
+  if (minimalDebug) console.warn('[docs] MINIMAL DEBUG MODE: payload stripped to required fields only');
 
   // Create register row (Status starts Published — Phase 1 single-step solo approve flow per spec, plus matches Task-7 multi-approver flow)
   const fields = {
@@ -4567,21 +4572,24 @@ async function _saveNewDocument(overlay) {
     Level: level,
     Status: 'Published',
     CurrentRevision: 1,
-    IssueDate: today.toISOString().slice(0,10),
-    LastRevisedDate: today.toISOString().slice(0,10),
+    IssueDate: todayIso,
+    LastRevisedDate: todayIso,
     ReviewCycleMonths: cycle,
-    NextReviewDate: next.toISOString().slice(0,10),
+    NextReviewDate: nextIso,
     Owner: owner,
     FileLink: uploaded.webUrl,
     Description: description
   };
-  if (depts.length) {
-    fields['Departments@odata.type'] = 'Collection(Edm.String)';
-    fields.Departments = depts;
-  }
+  if (depts.length) fields.Departments = depts;
   if (approversRaw) fields.Approvers = approversRaw;
   if (refs) fields.References = refs;
-  const created = await createDoc(fields);
+  const minimalFields = {
+    DocNumber: docNumber,
+    Title: title,
+    Status: 'Draft',
+    CurrentRevision: 1
+  };
+  const created = await createDoc(minimalDebug ? minimalFields : fields);
 
   // Create the Rev-1 row in DocumentRevisions
   try {
