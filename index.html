@@ -4587,6 +4587,7 @@ async function _saveNewDocument(overlay) {
     ReviewCycleMonths: cycle,
     NextReviewDate: nextIso,
     Owner: owner,
+    'FileLink@odata.type': 'SP.FieldUrlValue',
     FileLink: { Url: uploaded.webUrl, Description: safeName },
     Description: description
   };
@@ -4623,8 +4624,18 @@ async function _saveNewDocument(overlay) {
       // All per-field PATCHes succeeded — the bulk failure was a transient quirk; carry on.
       console.warn('[docs] per-field PATCH recovered all fields; bulk PATCH is the issue, not any single field.');
     } else {
-      const summary = failed.map(f => `${f.field} (${f.err.split(' ')[0]})`).join(', ');
-      throw new Error(`Document created (Rev pending). ${succeeded.length} fields saved, ${failed.length} rejected: ${summary}. Open the row in SharePoint to finish.`);
+      // FileLink is best-effort: SharePoint Graph's Hyperlink writes are notoriously
+      // finicky and tenant-dependent. If FileLink is the ONLY failure, don't block
+      // the save — the file is still uploaded to /QMS-Documents/{cat}/ and reachable
+      // via SharePoint's library UI. The user can also add the link manually in the
+      // List view if it's important.
+      const onlyFileLink = failed.length === 1 && (failed[0].field === 'FileLink' || failed[0].field === 'FileLink@odata.type');
+      if (onlyFileLink) {
+        console.warn('[docs] FileLink could not be PATCHed via Graph (tenant-specific Hyperlink quirk). File is still in /QMS-Documents/' + folder + '/' + safeName + ' — add the link manually in SharePoint if needed.');
+      } else {
+        const summary = failed.map(f => `${f.field} (${f.err.split(' ')[0]})`).join(', ');
+        throw new Error(`Document created (Rev pending). ${succeeded.length} fields saved, ${failed.length} rejected: ${summary}. Open the row in SharePoint to finish.`);
+      }
     }
   }
 
@@ -4638,6 +4649,7 @@ async function _saveNewDocument(overlay) {
       IssueDate: new Date().toISOString(),
       ReasonForRevision: description,
       TriggeredBy: 'Initial issue',
+      'FileLink@odata.type': 'SP.FieldUrlValue',
       FileLink: { Url: uploaded.webUrl, Description: safeName },
       FileVersionId: uploaded.id
     });
