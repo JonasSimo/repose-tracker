@@ -432,6 +432,8 @@ This is the largest task. Splitting steps fine.
 
 - [ ] **Step 1: Add the CSS for the register view (v4 styling)**
 
+**Pre-requisite:** the `:root` block in the main `<style>` declares `--display`, `--body`, `--mono` variables. Add them if missing — see the Task 4 Review Revisions commit (`refactor(docs): code-quality fixes on Task 4 register view`) for reference. Without these definitions, the unwrapped `var(--display)` / `var(--mono)` selectors below silently fall back to the inherited body font.
+
 Find the end of the v4 stylesheet block in `index.html` (search for `--repose-blue` definitions, then scroll to the closing `</style>` for the main app). Add this block before the closing `</style>`:
 
 ```css
@@ -533,7 +535,7 @@ function _renderDocsShell(root) {
     <div class="docs-main">
       <aside class="docs-side">
         <h4>Search</h4>
-        <input type="search" id="docs-search" placeholder="REPO-Q…" value="${_docsState.filters.q}">
+        <input type="search" id="docs-search" placeholder="REPO-Q…" value="${_escape(_docsState.filters.q)}">
 
         <h4>Category</h4>
         ${['H&S','Quality','Group'].map(c => `<label><input type="checkbox" data-fcat="${c}" ${_docsState.filters.categories.size===0||_docsState.filters.categories.has(c)?'checked':''}> ${c} <span class="cnt">${counts.byCat[c]||0}</span></label>`).join('')}
@@ -593,7 +595,7 @@ function _docsRowHtml(d) {
   const lvlLabel = d.level === 'Work Instruction' ? 'WI' : (d.level || 'Form');
   const due = _docsDueLabel(d.nextReviewDate);
   const statusClass = ({'Published':'pub','Draft':'draft','In Review':'review','In Approval':'appr','Obsolete':'obs'})[d.status] || 'draft';
-  const depts = (d.departments || []).map(dp => `<span class="docs-dept ${dp==='All / Site-wide'?'all':''}">${dp}</span>`).join('');
+  const depts = (d.departments || []).map(dp => `<span class="docs-dept ${dp==='All / Site-wide'?'all':''}">${_escape(dp)}</span>`).join('');
   return `
     <tr data-docnumber="${_escape(d.docNumber)}">
       <td><span class="docs-num">${_escape(d.docNumber)}</span></td>

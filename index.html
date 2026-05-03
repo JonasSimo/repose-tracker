@@ -133,6 +133,11 @@ if ('serviceWorker' in navigator) {
 
   /* Nav */
   --nav-bg:  #0e023a;         /* Repose Navy */
+
+  /* Font stacks (Document Control v4 + future portaled UI) */
+  --display: "Bricolage Grotesque", system-ui, sans-serif;
+  --body:    "Manrope", system-ui, sans-serif;
+  --mono:    "JetBrains Mono", ui-monospace, monospace;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -4091,6 +4096,8 @@ async function openDocumentsView() {
   }
 }
 
+// statuses is preloaded so Obsolete starts hidden; once the user clicks any
+// checkbox, the "empty Set = show all" rule applies (matches other filters).
 let _docsState = { all: [], filters: { q: '', categories: new Set(), levels: new Set(), depts: new Set(), statuses: new Set(['Published','In Approval','In Review','Draft']) } };
 
 async function renderDocumentsRegister() {
@@ -4125,7 +4132,7 @@ function _renderDocsShell(root) {
     <div class="docs-main">
       <aside class="docs-side">
         <h4>Search</h4>
-        <input type="search" id="docs-search" placeholder="REPO-Q…" value="${_docsState.filters.q}">
+        <input type="search" id="docs-search" placeholder="REPO-Q…" value="${_escape(_docsState.filters.q)}">
 
         <h4>Category</h4>
         ${['H&S','Quality','Group'].map(c => `<label><input type="checkbox" data-fcat="${c}" ${_docsState.filters.categories.size===0||_docsState.filters.categories.has(c)?'checked':''}> ${c} <span class="cnt">${counts.byCat[c]||0}</span></label>`).join('')}
@@ -4185,7 +4192,7 @@ function _docsRowHtml(d) {
   const lvlLabel = d.level === 'Work Instruction' ? 'WI' : (d.level || 'Form');
   const due = _docsDueLabel(d.nextReviewDate);
   const statusClass = ({'Published':'pub','Draft':'draft','In Review':'review','In Approval':'appr','Obsolete':'obs'})[d.status] || 'draft';
-  const depts = (d.departments || []).map(dp => `<span class="docs-dept ${dp==='All / Site-wide'?'all':''}">${dp}</span>`).join('');
+  const depts = (d.departments || []).map(dp => `<span class="docs-dept ${dp==='All / Site-wide'?'all':''}">${_escape(dp)}</span>`).join('');
   return `
     <tr data-docnumber="${_escape(d.docNumber)}">
       <td><span class="docs-num">${_escape(d.docNumber)}</span></td>
