@@ -812,6 +812,7 @@ async function openDocumentDetail(docNumber) {
   // Async: load revisions
   fetchRevisionsForDoc(docNumber).then(revs => {
     const list = overlay.querySelector('#docs-rev-list');
+    if (!list) return; // drawer was closed mid-fetch
     if (revs.length === 0) { list.innerHTML = '<em style="color:var(--text3)">No revision history yet.</em>'; return; }
     list.innerHTML = revs.map(r => `
       <div class="docs-tl">
@@ -826,7 +827,9 @@ async function openDocumentDetail(docNumber) {
       </div>
     `).join('');
   }).catch(err => {
-    overlay.querySelector('#docs-rev-list').innerHTML = `<div class="docs-error">Failed to load revisions: ${_escape(err.message)}</div>`;
+    const list = overlay.querySelector('#docs-rev-list');
+    if (!list) return;
+    list.innerHTML = `<div class="docs-error">Failed to load revisions: ${_escape(err.message)}</div>`;
   });
 }
 
