@@ -2851,6 +2851,64 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 
   * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
 }
+
+/* ── Document Control · v4 ──────────────────────────────────── */
+.docs-shell { padding: 24px 28px; max-width: 1480px; margin: 0 auto; font-family: var(--body, "Manrope", system-ui, sans-serif); }
+.docs-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; padding-bottom: 18px; border-bottom: 1px solid var(--border); margin-bottom: 22px; }
+.docs-head h1 { font-family: var(--display, "Bricolage Grotesque", system-ui, sans-serif); font-weight: 800; font-size: 38px; letter-spacing: -.025em; color: var(--repose-navy); margin: 0; line-height: 1.05; }
+.docs-head h1 em { font-style: italic; color: var(--repose-blue); font-weight: 600; }
+.docs-head .sub { font-family: var(--mono, "JetBrains Mono", ui-monospace, monospace); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--text2); margin-top: 6px; }
+.docs-head .actions { display: flex; gap: 8px; }
+.docs-btn { font-family: var(--body); font-size: 13px; font-weight: 700; padding: 10px 18px; border-radius: 999px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+.docs-btn-pri { background: var(--repose-blue); color: #fff; }
+.docs-btn-sec { background: #fff; color: var(--repose-navy); border: 1.5px solid var(--border2); }
+
+.docs-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 22px; }
+.docs-kpi { background: #fff; border: 1px solid var(--border); border-radius: 16px; padding: 18px 20px; display: flex; gap: 14px; align-items: center; }
+.docs-kpi-icn { width: 42px; height: 42px; border-radius: 999px; background: var(--bbg); color: var(--repose-blue); display: flex; align-items: center; justify-content: center; font-size: 18px; }
+.docs-kpi.warn .docs-kpi-icn { background: var(--abg); color: var(--amber); }
+.docs-kpi.fail .docs-kpi-icn { background: var(--rbg); color: var(--red); }
+.docs-kpi.purple .docs-kpi-icn { background: #ede9fe; color: #7c3aed; }
+.docs-kpi-num { font-family: var(--display); font-size: 26px; font-weight: 800; color: var(--repose-navy); line-height: 1; letter-spacing: -.01em; }
+.docs-kpi-lbl { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--text2); margin-top: 5px; }
+
+.docs-main { display: grid; grid-template-columns: 240px 1fr; gap: 18px; align-items: start; }
+.docs-side { background: #fff; border: 1px solid var(--border); border-radius: 16px; padding: 18px; position: sticky; top: 20px; }
+.docs-side h4 { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--text2); margin: 0 0 10px; font-weight: 700; }
+.docs-side h4:not(:first-child) { margin-top: 18px; }
+.docs-side input[type=search] { width: 100%; padding: 9px 12px; font-family: inherit; font-size: 13px; border: 1.5px solid var(--border2); border-radius: 999px; background: var(--bg3); margin-bottom: 12px; }
+.docs-side label { display: flex; gap: 8px; align-items: center; font-size: 13px; padding: 4px 0; cursor: pointer; }
+.docs-side label .cnt { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--text3); }
+
+.docs-table-wrap { background: #fff; border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
+.docs-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.docs-table thead th { background: var(--bg3); padding: 11px 14px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--text2); font-weight: 700; text-align: left; border-bottom: 1px solid var(--border); }
+.docs-table tbody td { padding: 13px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.docs-table tbody tr { cursor: pointer; }
+.docs-table tbody tr:hover { background: var(--bg3); }
+.docs-table tbody tr.expanded { background: var(--bbg); }
+.docs-num { font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--repose-navy); }
+.docs-lvl { display: inline-block; font-size: 9.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; margin-right: 6px; vertical-align: middle; }
+.docs-lvl.policy { background: #fef3c7; color: #92400e; }
+.docs-lvl.proc { background: #dbeafe; color: #1e40af; }
+.docs-lvl.wi { background: #e0e7ff; color: #4338ca; }
+.docs-lvl.form { background: #f1f5f9; color: #475569; }
+.docs-dept { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 999px; background: var(--bbg); color: var(--repose-blue); margin-right: 4px; margin-top: 4px; }
+.docs-dept.all { background: #ede9fe; color: #7c3aed; }
+.docs-rev { font-family: var(--mono); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--bg3); color: var(--repose-navy); }
+.docs-badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+.docs-badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.docs-badge.pub { background: var(--gbg); color: var(--green); }
+.docs-badge.draft { background: var(--bg3); color: var(--text2); }
+.docs-badge.review { background: var(--abg); color: var(--amber); }
+.docs-badge.appr { background: var(--bbg); color: var(--repose-blue); }
+.docs-badge.obs { background: var(--rbg); color: var(--red); }
+.docs-due.warn { color: var(--amber); font-weight: 700; }
+.docs-due.over { color: var(--red); font-weight: 800; }
+
+.docs-empty { padding: 36px; text-align: center; color: var(--text2); }
+.docs-error { padding: 24px; background: var(--rbg); border: 1px solid var(--rborder); color: var(--red); border-radius: 12px; }
+.docs-loading { padding: 36px; text-align: center; color: var(--text2); }
 </style>
 <script src="/msal-browser.min.js" defer></script>
 <script src="/chart.umd.min.js"></script>
@@ -4033,12 +4091,178 @@ async function openDocumentsView() {
   }
 }
 
+let _docsState = { all: [], filters: { q: '', categories: new Set(), levels: new Set(), depts: new Set(), statuses: new Set(['Published','In Approval','In Review','Draft']) } };
+
 async function renderDocumentsRegister() {
-  const docs = await fetchAllDocs();
-  console.log('[docs] fetched', docs.length, 'documents', docs);
   const content = document.getElementById('docs-content');
-  content.innerHTML = `<pre style="padding:24px;font-family:'JetBrains Mono',ui-monospace,monospace">Fetched ${docs.length} documents.\nSee console for details.\n\n(Task 4 will replace this with the real register UI.)</pre>`;
+  _docsState.all = await fetchAllDocs();
+  _renderDocsShell(content);
+  _renderDocsTable();
+  _bindDocsFilters();
 }
+
+function _renderDocsShell(root) {
+  const counts = _docsCounts(_docsState.all);
+  root.innerHTML = `
+    <div class="docs-head">
+      <div>
+        <h1>Document <em>Control</em></h1>
+        <div class="sub">${_docsState.all.length} controlled documents · QMS register</div>
+      </div>
+      <div class="actions">
+        <button class="docs-btn docs-btn-sec" id="docs-export-btn">⬇ Export to Excel</button>
+        <button class="docs-btn docs-btn-pri" id="docs-new-btn">＋ New document</button>
+      </div>
+    </div>
+
+    <div class="docs-kpis">
+      <div class="docs-kpi"><div class="docs-kpi-icn">📄</div><div><div class="docs-kpi-num">${counts.active}</div><div class="docs-kpi-lbl">Active</div></div></div>
+      <div class="docs-kpi warn"><div class="docs-kpi-icn">⏰</div><div><div class="docs-kpi-num">${counts.dueReview}</div><div class="docs-kpi-lbl">Due for review · 30 days</div></div></div>
+      <div class="docs-kpi purple"><div class="docs-kpi-icn">✓</div><div><div class="docs-kpi-num">${counts.pending}</div><div class="docs-kpi-lbl">Pending approval</div></div></div>
+      <div class="docs-kpi fail"><div class="docs-kpi-icn">⌀</div><div><div class="docs-kpi-num">${counts.obsolete}</div><div class="docs-kpi-lbl">Obsolete</div></div></div>
+    </div>
+
+    <div class="docs-main">
+      <aside class="docs-side">
+        <h4>Search</h4>
+        <input type="search" id="docs-search" placeholder="REPO-Q…" value="${_docsState.filters.q}">
+
+        <h4>Category</h4>
+        ${['H&S','Quality','Group'].map(c => `<label><input type="checkbox" data-fcat="${c}" ${_docsState.filters.categories.size===0||_docsState.filters.categories.has(c)?'checked':''}> ${c} <span class="cnt">${counts.byCat[c]||0}</span></label>`).join('')}
+
+        <h4>Level</h4>
+        ${[['Policy','policy'],['Procedure','proc'],['Work Instruction','wi'],['Form','form']].map(([l,k]) => `<label><input type="checkbox" data-flvl="${l}" ${_docsState.filters.levels.size===0||_docsState.filters.levels.has(l)?'checked':''}> <span class="docs-lvl ${k}">${l.replace('Work Instruction','Work Instr.')}</span> <span class="cnt">${counts.byLvl[l]||0}</span></label>`).join('')}
+
+        <h4>Department</h4>
+        ${['Cutting','Sewing','Upholstery','Woodmill','Foam','Assembly','QC','Maintenance','All / Site-wide'].map(d => `<label><input type="checkbox" data-fdpt="${d}" ${_docsState.filters.depts.size===0||_docsState.filters.depts.has(d)?'checked':''}> ${d} <span class="cnt">${counts.byDept[d]||0}</span></label>`).join('')}
+
+        <h4>Status</h4>
+        ${['Published','In Approval','In Review','Draft','Obsolete'].map(s => `<label><input type="checkbox" data-fst="${s}" ${_docsState.filters.statuses.has(s)?'checked':''}> ${s} <span class="cnt">${counts.byStatus[s]||0}</span></label>`).join('')}
+      </aside>
+
+      <div class="docs-table-wrap" id="docs-table-wrap">
+        <!-- table injected by _renderDocsTable -->
+      </div>
+    </div>
+  `;
+}
+
+function _renderDocsTable() {
+  const wrap = document.getElementById('docs-table-wrap');
+  const filtered = _docsState.all.filter(_docsRowMatchesFilters);
+  filtered.sort((a,b) => a.docNumber.localeCompare(b.docNumber, 'en', { numeric: true }));
+
+  if (filtered.length === 0) {
+    wrap.innerHTML = '<div class="docs-empty">No documents match your filters.</div>';
+    return;
+  }
+
+  wrap.innerHTML = `
+    <table class="docs-table">
+      <thead>
+        <tr>
+          <th style="width:128px">Doc No.</th>
+          <th>Title · Department</th>
+          <th style="width:60px">Cat.</th>
+          <th style="width:62px">Rev</th>
+          <th style="width:108px">Status</th>
+          <th style="width:122px">Next review</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${filtered.map(_docsRowHtml).join('')}
+      </tbody>
+    </table>
+  `;
+
+  wrap.querySelectorAll('tbody tr').forEach(tr => {
+    tr.addEventListener('click', () => openDocumentDetail(tr.dataset.docnumber));
+  });
+}
+
+function _docsRowHtml(d) {
+  const lvlClass = ({'Policy':'policy','Procedure':'proc','Work Instruction':'wi','Form':'form'})[d.level] || 'form';
+  const lvlLabel = d.level === 'Work Instruction' ? 'WI' : (d.level || 'Form');
+  const due = _docsDueLabel(d.nextReviewDate);
+  const statusClass = ({'Published':'pub','Draft':'draft','In Review':'review','In Approval':'appr','Obsolete':'obs'})[d.status] || 'draft';
+  const depts = (d.departments || []).map(dp => `<span class="docs-dept ${dp==='All / Site-wide'?'all':''}">${dp}</span>`).join('');
+  return `
+    <tr data-docnumber="${_escape(d.docNumber)}">
+      <td><span class="docs-num">${_escape(d.docNumber)}</span></td>
+      <td><span class="docs-lvl ${lvlClass}">${lvlLabel}</span>${_escape(d.title)}<div>${depts}</div></td>
+      <td>${_escape(d.category)}</td>
+      <td><span class="docs-rev">Rev ${d.currentRevision}</span></td>
+      <td><span class="docs-badge ${statusClass}">${_escape(d.status)}</span></td>
+      <td><span class="docs-due ${due.cls}">${due.text}</span></td>
+    </tr>
+  `;
+}
+
+function _docsDueLabel(iso) {
+  if (!iso) return { cls: '', text: '—' };
+  const today = new Date();
+  const d = new Date(iso);
+  const days = Math.round((d - today) / 86400000);
+  if (days < 0) return { cls: 'over', text: `${iso.slice(0,10)} · overdue` };
+  if (days <= 30) return { cls: 'warn', text: `${iso.slice(0,10)} · ${days} days` };
+  return { cls: '', text: iso.slice(0,10) };
+}
+
+function _docsRowMatchesFilters(d) {
+  const f = _docsState.filters;
+  if (f.q && !(`${d.docNumber} ${d.title}`.toLowerCase().includes(f.q.toLowerCase()))) return false;
+  if (f.statuses.size > 0 && !f.statuses.has(d.status)) return false;
+  if (f.categories.size > 0 && !f.categories.has(d.category)) return false;
+  if (f.levels.size > 0 && !f.levels.has(d.level)) return false;
+  if (f.depts.size > 0) {
+    const overlap = (d.departments || []).some(dp => f.depts.has(dp));
+    if (!overlap) return false;
+  }
+  return true;
+}
+
+function _docsCounts(docs) {
+  const today = new Date();
+  const counts = { active: 0, dueReview: 0, pending: 0, obsolete: 0, byCat: {}, byLvl: {}, byDept: {}, byStatus: {} };
+  for (const d of docs) {
+    counts.byCat[d.category] = (counts.byCat[d.category] || 0) + 1;
+    counts.byLvl[d.level] = (counts.byLvl[d.level] || 0) + 1;
+    counts.byStatus[d.status] = (counts.byStatus[d.status] || 0) + 1;
+    for (const dp of (d.departments || [])) counts.byDept[dp] = (counts.byDept[dp] || 0) + 1;
+    if (d.status === 'Published') counts.active++;
+    if (d.status === 'In Approval') counts.pending++;
+    if (d.status === 'Obsolete') counts.obsolete++;
+    if (d.status === 'Published' && d.nextReviewDate) {
+      const days = Math.round((new Date(d.nextReviewDate) - today) / 86400000);
+      if (days <= 30) counts.dueReview++;
+    }
+  }
+  return counts;
+}
+
+function _bindDocsFilters() {
+  const root = document.getElementById('docs-content');
+  root.querySelector('#docs-search').addEventListener('input', e => { _docsState.filters.q = e.target.value; _renderDocsTable(); });
+  root.querySelectorAll('input[data-fcat]').forEach(el => el.addEventListener('change', () => _toggleSetFilter('categories', 'fcat')));
+  root.querySelectorAll('input[data-flvl]').forEach(el => el.addEventListener('change', () => _toggleSetFilter('levels', 'flvl')));
+  root.querySelectorAll('input[data-fdpt]').forEach(el => el.addEventListener('change', () => _toggleSetFilter('depts', 'fdpt')));
+  root.querySelectorAll('input[data-fst]').forEach(el => el.addEventListener('change', () => _toggleSetFilter('statuses', 'fst')));
+  root.querySelector('#docs-new-btn').addEventListener('click', () => openNewDocumentModal());
+  root.querySelector('#docs-export-btn').addEventListener('click', () => alert('Excel export ships in the follow-up plan.'));
+}
+
+function _toggleSetFilter(stateKey, attr) {
+  const set = _docsState.filters[stateKey] = new Set();
+  document.querySelectorAll(`input[data-${attr}]:checked`).forEach(el => set.add(el.dataset[attr]));
+  _renderDocsTable();
+}
+
+function _escape(s) { return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// Stub; implemented in Task 5
+function openDocumentDetail(docNumber) { console.log('[docs] detail for', docNumber); }
+// Stub; implemented in Task 6
+function openNewDocumentModal() { console.log('[docs] new doc modal — not yet implemented'); }
 
 function toggleNavMenu() {
   document.getElementById('nav-menu').classList.toggle('open');
