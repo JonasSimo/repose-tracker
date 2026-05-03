@@ -4587,13 +4587,14 @@ async function _saveNewDocument(overlay) {
     ReviewCycleMonths: cycle,
     NextReviewDate: nextDate,
     Owner: owner,
-    FileLink: uploaded.webUrl,
+    FileLink: { Url: uploaded.webUrl, Description: safeName },
     Description: description
   };
-  if (depts.length) {
-    optionalFields['Departments@odata.type'] = 'Collection(Edm.String)';
-    optionalFields.Departments = depts;
-  }
+  // Departments column is single-select Choice in SharePoint (confirmed via
+  // manual UI save inspection — stored value was a plain string "Cutting", not
+  // an array). Phase 1 persists only the first selected department; the modal
+  // still lets QHSE tick multiple, but only depts[0] is saved.
+  if (depts.length) optionalFields.Departments = depts[0];
   if (approversRaw) optionalFields.Approvers = approversRaw;
   if (refs) optionalFields.References = refs;
 
@@ -4614,7 +4615,7 @@ async function _saveNewDocument(overlay) {
       IssueDate: new Date().toISOString(),
       ReasonForRevision: description,
       TriggeredBy: 'Initial issue',
-      FileLink: uploaded.webUrl,
+      FileLink: { Url: uploaded.webUrl, Description: safeName },
       FileVersionId: uploaded.id
     });
   } catch (revErr) {
