@@ -1048,12 +1048,11 @@ async function _saveNewDocument(overlay) {
   const next = new Date(today); next.setMonth(next.getMonth() + cycle);
 
   // Create register row (Status starts Published — Phase 1 single-step solo approve flow per spec, plus matches Task-7 multi-approver flow)
-  const created = await createDoc({
+  const fields = {
     DocNumber: docNumber,
     Title: title,
     Category: category,
     Level: level,
-    Departments: depts.length ? depts : null,
     Status: 'Published',
     CurrentRevision: 1,
     IssueDate: today.toISOString().slice(0,10),
@@ -1061,11 +1060,16 @@ async function _saveNewDocument(overlay) {
     ReviewCycleMonths: cycle,
     NextReviewDate: next.toISOString().slice(0,10),
     Owner: owner,
-    Approvers: approversRaw || null,
     FileLink: { Url: uploaded.webUrl, Description: safeName },
-    References: refs,
     Description: description
-  });
+  };
+  if (depts.length) {
+    fields['Departments@odata.type'] = 'Collection(Edm.String)';
+    fields.Departments = depts;
+  }
+  if (approversRaw) fields.Approvers = approversRaw;
+  if (refs) fields.References = refs;
+  const created = await createDoc(fields);
 
   // Create the Rev-1 row in DocumentRevisions
   try {
