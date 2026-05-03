@@ -4450,7 +4450,7 @@ async function markDocumentObsolete(doc) {
     const btn = overlay.querySelector('#docs-modal-save');
     btn.disabled = true; btn.textContent = 'Saving…';
     try {
-      await updateDoc(doc.id, { Status: 'Obsolete', SupersededBy: supby, Description: `OBSOLETE: ${reason}` });
+      await updateDoc(doc.id, { Status: 'Obsolete', SupersededBy: supby });
       // Audit row in DocumentRevisions. Title (not DocNumber) per the
       // SharePoint internal-name rename quirk. No FileLink/FileVersionId
       // because Mark Obsolete doesn't upload a new file — the audit captures
@@ -4458,7 +4458,7 @@ async function markDocumentObsolete(doc) {
       await createRevision({
         Title: doc.docNumber,
         Revision: doc.currentRevision,
-        IssueDate: new Date().toISOString(),
+        IssueDate: _isoNoMs(),
         ReasonForRevision: `Marked Obsolete. Replaced by: ${supby}. Reason: ${reason}`,
         TriggeredBy: 'Obsolete',
         ChangedFromRev: doc.currentRevision
@@ -4587,11 +4587,12 @@ async function _saveRevision(doc, overlay) {
 
   const today = new Date();
   const next = new Date(today); next.setMonth(next.getMonth() + cycle);
-  const todayIso = today.toISOString().slice(0,19) + 'Z';
-  const nextIso = next.toISOString().slice(0,19) + 'Z';
+  const todayIso = _isoNoMs(today);
+  const nextIso = _isoNoMs(next);
 
-  // Update the register row. Same per-field PATCH fallback pattern as Task 6,
-  // because the same Hyperlink quirk applies and FileLink may reject.
+  // Update the register row. Bulk PATCH on this tenant occasionally 400s with
+  // no actionable error; per-field fallback identifies the offending field for
+  // a usable error message and lets the rest succeed.
   const registerPatch = {
     CurrentRevision: newRev,
     Status: 'Published',
@@ -4631,7 +4632,7 @@ async function _saveRevision(doc, overlay) {
   await createRevision({
     Title: doc.docNumber,
     Revision: newRev,
-    IssueDate: new Date().toISOString(),
+    IssueDate: _isoNoMs(),
     ReasonForRevision: reason,
     TriggeredBy: trigKind ? (trigRef ? `${trigKind}:${trigRef}` : trigKind) : '',
     FileLink: uploaded.webUrl,
@@ -4673,9 +4674,9 @@ function openNewDocumentModal() {
         </div>
 
         <div class="docs-field">
-          <label>Departments (pick all that apply)</label>
+          <label>Department (pick one — multi-select arrives in Phase 2)</label>
           <div class="docs-checkbox-row" id="f-depts">
-            ${['Cutting','Sewing','Upholstery','Woodmill','Foam','Assembly','QC','Maintenance','All / Site-wide'].map(d => `<label><input type="checkbox" value="${d}"> ${d}</label>`).join('')}
+            ${['Cutting','Sewing','Upholstery','Woodmill','Foam','Assembly','QC','Maintenance','All / Site-wide'].map(d => `<label><input type="radio" name="f-dept" value="${d}"> ${d}</label>`).join('')}
           </div>
         </div>
 
@@ -4686,7 +4687,7 @@ function openNewDocumentModal() {
           </div>
           <div class="docs-field">
             <label>Owner email *</label>
-            <input id="f-owner" type="email" value="jonas.simonaitis@reposefurniture.co.uk">
+            <input id="f-owner" type="email" value="${_escape((graphAccount && graphAccount.username) || 'jonas.simonaitis@reposefurniture.co.uk')}">
           </div>
         </div>
 
@@ -4731,9 +4732,14 @@ function openNewDocumentModal() {
     }
   });
 
-  // Department chip toggling
+  // Department chip toggling — radio behaviour: only one .on at a time
   overlay.querySelectorAll('#f-depts label').forEach(lab => {
-    lab.querySelector('input').addEventListener('change', e => lab.classList.toggle('on', e.target.checked));
+    lab.querySelector('input').addEventListener('change', e => {
+      if (e.target.checked) {
+        overlay.querySelectorAll('#f-depts label').forEach(l => l.classList.remove('on'));
+        lab.classList.add('on');
+      }
+    });
   });
 
   // Close
@@ -4784,12 +4790,11 @@ async function _saveNewDocument(overlay) {
   const folder = ({'H&S':'HS','Quality':'Quality','Group':'Group'})[category];
   const uploaded = await uploadDocFile(folder, safeName, file);
 
-  // Calculate next review date. SharePoint stored TEST-MAN-1's IssueDate as
-  // "2026-05-03T07:00:00Z" — full ISO without milliseconds. Match that shape.
+  // Calculate next review date. Use the trimmed-ISO helper consistently (see _isoNoMs).
   const today = new Date();
   const next = new Date(today); next.setMonth(next.getMonth() + cycle);
-  const todayIso = today.toISOString().slice(0,19) + 'Z';
-  const nextIso = next.toISOString().slice(0,19) + 'Z';
+  const todayIso = _isoNoMs(today);
+  const nextIso = _isoNoMs(next);
 
   // ── Step 1: POST minimum required fields ─────────────────────────
   // Status starts as 'Draft' here — Phase 1 spec wants it published, but
@@ -4864,7 +4869,7 @@ async function _saveNewDocument(overlay) {
     await createRevision({
       Title: docNumber,
       Revision: 1,
-      IssueDate: new Date().toISOString(),
+      IssueDate: _isoNoMs(),
       ReasonForRevision: description,
       TriggeredBy: 'Initial issue',
       FileLink: uploaded.webUrl,
@@ -4878,6 +4883,10 @@ async function _saveNewDocument(overlay) {
 }
 
 function _extOf(name) { const i = name.lastIndexOf('.'); return i >= 0 ? name.slice(i) : ''; }
+
+// SharePoint Date columns reject the millisecond component on writes when
+// "Include time = No" is set. Always use this helper (never raw .toISOString()).
+function _isoNoMs(d) { return (d || new Date()).toISOString().slice(0,19) + 'Z'; }
 
 function toggleNavMenu() {
   document.getElementById('nav-menu').classList.toggle('open');
