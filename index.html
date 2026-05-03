@@ -4249,8 +4249,119 @@ function _approvalRowHtml(d) {
 }
 
 // Stubs — implemented in Task 5
-async function _approveDoc(docNumber) { console.log('[docs] approve', docNumber); }
-async function _rejectDoc(docNumber) { console.log('[docs] reject', docNumber); }
+async function _approveDoc(docNumber) {
+  const doc = _docsState.all.find(d => d.docNumber === docNumber);
+  if (!doc) return;
+  if (!_isMyTurnToApprove(doc)) {
+    alert('You have already approved or rejected this document, or you are not in its approver list.');
+    return;
+  }
+  if (!confirm(`Approve ${doc.docNumber} Rev ${doc.currentRevision}?\n\n${doc.title}`)) return;
+
+  const me = graphAccount.username.toLowerCase();
+  const newState = {
+    approved: [...(doc.approvalState.approved || []), me],
+    rejected: doc.approvalState.rejected || [],
+    submittedAt: doc.approvalState.submittedAt,
+    submittedBy: doc.approvalState.submittedBy
+  };
+
+  // Determine if this approval completes the workflow
+  const required = (doc.approverEmails || []).map(e => e.toLowerCase());
+  const allApproved = required.every(r => newState.approved.map(e => e.toLowerCase()).includes(r));
+  const willPublish = allApproved && newState.rejected.length === 0;
+
+  const patch = {
+    ApprovalState: JSON.stringify(newState),
+    Status: willPublish ? 'Published' : 'In Approval'
+  };
+  if (willPublish) patch.LastRevisedDate = _isoNoMs();
+
+  try {
+    await updateDoc(doc.id, patch);
+  } catch (patchErr) {
+    // Per-field fallback (same pattern as _saveRevision)
+    console.warn('[docs] approval bulk PATCH failed, per-field fallback', patchErr.message);
+    for (const [k, v] of Object.entries(patch)) {
+      try { await updateDoc(doc.id, { [k]: v }); }
+      catch (oneErr) { throw new Error(`Approval save failed on field ${k}: ${oneErr.message}`); }
+    }
+  }
+
+  // Audit row
+  await createRevision({
+    Title: doc.docNumber,
+    Revision: doc.currentRevision,
+    IssueDate: _isoNoMs(),
+    ReasonForRevision: willPublish
+      ? `Approved by ${me}. All required approvals received → Published.`
+      : `Approved by ${me}. ${required.length - newState.approved.length} approver(s) still pending.`,
+    TriggeredBy: willPublish ? 'Approval-complete' : 'Approval-partial',
+    ChangedFromRev: doc.currentRevision
+  });
+
+  // Notify submitter — Task 7 wires this in. For now, console-log.
+  if (willPublish) {
+    console.log('[docs] should email submitter that publication is confirmed');
+  }
+
+  alert(willPublish ? `${doc.docNumber} approved and published.` : `${doc.docNumber} approval recorded.`);
+
+  // Refresh
+  _docsState.all = await fetchAllDocs();
+  await renderDocApprovals();
+}
+async function _rejectDoc(docNumber) {
+  const doc = _docsState.all.find(d => d.docNumber === docNumber);
+  if (!doc) return;
+  if (!_isMyTurnToApprove(doc)) {
+    alert('You have already approved or rejected this document, or you are not in its approver list.');
+    return;
+  }
+  const reason = prompt(`Reject ${doc.docNumber} Rev ${doc.currentRevision} — reason for rejection (auditor reads this):`);
+  if (!reason || !reason.trim()) return; // user cancelled or left blank
+
+  const me = graphAccount.username.toLowerCase();
+  const newState = {
+    approved: doc.approvalState.approved || [],
+    rejected: [...(doc.approvalState.rejected || []), me],
+    submittedAt: doc.approvalState.submittedAt,
+    submittedBy: doc.approvalState.submittedBy
+  };
+
+  // A single rejection sends the doc back to Draft so QHSE can revise
+  const patch = {
+    ApprovalState: JSON.stringify(newState),
+    Status: 'Draft'
+  };
+
+  try {
+    await updateDoc(doc.id, patch);
+  } catch (patchErr) {
+    console.warn('[docs] reject bulk PATCH failed, per-field fallback', patchErr.message);
+    for (const [k, v] of Object.entries(patch)) {
+      try { await updateDoc(doc.id, { [k]: v }); }
+      catch (oneErr) { throw new Error(`Rejection save failed on field ${k}: ${oneErr.message}`); }
+    }
+  }
+
+  await createRevision({
+    Title: doc.docNumber,
+    Revision: doc.currentRevision,
+    IssueDate: _isoNoMs(),
+    ReasonForRevision: `Rejected by ${me}: ${reason.trim()}. Status reverted to Draft pending QHSE revision.`,
+    TriggeredBy: 'Approval-rejected',
+    ChangedFromRev: doc.currentRevision
+  });
+
+  // Notify submitter — Task 7 wires this in
+  console.log('[docs] should email submitter of rejection');
+
+  alert(`${doc.docNumber} rejected. The doc is now in Draft status; QHSE will see it back in their revision queue.`);
+
+  _docsState.all = await fetchAllDocs();
+  await renderDocApprovals();
+}
 
 // statuses is preloaded so Obsolete starts hidden; once the user clicks any
 // checkbox, the "empty Set = show all" rule applies (matches other filters).
