@@ -1264,7 +1264,7 @@ async function _saveRevision(doc, overlay) {
 
   // Append a row to DocumentRevisions
   await createRevision({
-    DocNumber: doc.docNumber,
+    Title: doc.docNumber,  // DocumentRevisions list internal name is Title (renamed display only)
     Revision: newRev,
     IssueDate: today.toISOString(),
     ReasonForRevision: reason,
@@ -1354,7 +1354,7 @@ async function markDocumentObsolete(doc) {
       await updateDoc(doc.id, { Status: 'Obsolete', SupersededBy: supby, Description: `OBSOLETE: ${reason}` });
       // Audit row in DocumentRevisions
       await createRevision({
-        DocNumber: doc.docNumber,
+        Title: doc.docNumber,  // DocumentRevisions list internal name is Title (renamed display only)
         Revision: doc.currentRevision,
         IssueDate: new Date().toISOString(),
         ReasonForRevision: `Marked Obsolete. Replaced by: ${supby}. Reason: ${reason}`,
@@ -1482,7 +1482,7 @@ async function main() {
     await graphPost(token, `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${regListId}/items`, { fields });
     await graphPost(token, `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${revListId}/items`, {
       fields: {
-        DocNumber: docNumber,
+        Title: docNumber,  // DocumentRevisions list internal name is Title (renamed display only)
         Revision: revNum,
         IssueDate: (revisedDate || issueDate || new Date().toISOString().slice(0,10)) + 'T00:00:00Z',
         ReasonForRevision: description || '(imported from legacy MDL)',
