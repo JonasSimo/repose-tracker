@@ -50,15 +50,30 @@ async function graphGetAll(token, url) {
   return all;
 }
 
-async function uploadFile(token, sitePath, filePath, buffer) {
-  // Resolve site → drive → upload via PUT to the path-relative endpoint.
+async function uploadFile(token, sitePath, libraryOrPath, restPath, buffer) {
+  // Resolve site → drive (specific library by name OR default drive) → upload
+  // via PUT to the path-relative endpoint.
+  //
   // sitePath: '/sites/ReposeFurniture-HealthandSafety'
-  // filePath: relative path inside the default Documents library, with leading '/'
+  // libraryOrPath: either the library display name (e.g. 'QMS-Documents'),
+  //   in which case we look up its drive by name, OR an empty string to use
+  //   the site's default drive (Documents).
+  // restPath: leading '/' + the path relative to the resolved drive root.
   const site = await graphGet(token, `https://graph.microsoft.com/v1.0/sites/${SP_HOST}:${sitePath}`);
-  const drive = await graphGet(token, `https://graph.microsoft.com/v1.0/sites/${site.id}/drive`);
+  let driveId;
+  if (libraryOrPath) {
+    // List the site's drives, find the one whose displayName matches the library name.
+    const drives = await graphGet(token, `https://graph.microsoft.com/v1.0/sites/${site.id}/drives`);
+    const match = (drives.value || []).find(d => d.name === libraryOrPath);
+    if (!match) throw new Error(`Library '${libraryOrPath}' not found on site ${sitePath}. Available: ${(drives.value || []).map(d => d.name).join(', ')}`);
+    driveId = match.id;
+  } else {
+    const drive = await graphGet(token, `https://graph.microsoft.com/v1.0/sites/${site.id}/drive`);
+    driveId = drive.id;
+  }
   // Encode each path segment so spaces become %20 (keep '/' literal as separator)
-  const encoded = filePath.split('/').map(s => encodeURIComponent(s)).join('/');
-  const url = `https://graph.microsoft.com/v1.0/drives/${drive.id}/root:${encoded}:/content`;
+  const encoded = restPath.split('/').map(s => encodeURIComponent(s)).join('/');
+  const url = `https://graph.microsoft.com/v1.0/drives/${driveId}/root:${encoded}:/content`;
   const res = await fetch(url, {
     method: 'PUT',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/octet-stream' },
@@ -66,6 +81,26 @@ async function uploadFile(token, sitePath, filePath, buffer) {
   });
   if (!res.ok) throw new Error(`upload ${res.status}: ${await res.text()}`);
   return await res.json();
+}
+
+// Parse a QMS_LEGACY_MDL_PATH env-var value into {sitePath, libraryName, restPath}.
+// Recognised libraries on the Quality site are matched by name; anything else
+// falls back to the default drive (Documents) of the site.
+function parseLegacyMdlPath(value) {
+  // Match '/sites/<site-name>/<rest>'
+  const m = value.match(/^(\/sites\/[^/]+)\/(.+)$/);
+  if (!m) return null;
+  const sitePath = m[1];
+  const rest = m[2];
+  // The first segment of `rest` may be a library display name. Known libraries:
+  const KNOWN_LIBRARIES = ['QMS-Documents'];
+  const firstSlash = rest.indexOf('/');
+  const firstSeg = firstSlash > 0 ? rest.slice(0, firstSlash) : rest;
+  if (KNOWN_LIBRARIES.includes(firstSeg)) {
+    return { sitePath, libraryName: firstSeg, restPath: '/' + rest.slice(firstSlash + 1) };
+  }
+  // Otherwise treat everything after /sites/{site} as a path inside the default drive
+  return { sitePath, libraryName: '', restPath: '/' + rest };
 }
 
 // ─── XLSX builder ─────────────────────────────────────────────────────────
@@ -170,18 +205,17 @@ module.exports = async function (context, myTimer) {
     return;
   }
 
-  // Parse the legacy path: '/sites/{site-path}/{rest-of-path}'
-  const m = QMS_LEGACY_MDL_PATH.match(/^(\/sites\/[^/]+)(\/.*)$/);
-  if (!m) {
+  // Parse the legacy path: '/sites/{site}/[library/]{rest-of-path}'
+  const parsed = parseLegacyMdlPath(QMS_LEGACY_MDL_PATH);
+  if (!parsed) {
     context.log.error(`[mdl-export] QMS_LEGACY_MDL_PATH must start with '/sites/<site>/...' — got ${QMS_LEGACY_MDL_PATH}`);
     return;
   }
-  const sitePath = m[1];
-  const filePath = m[2];
+  context.log(`[mdl-export] target: site=${parsed.sitePath} library=${parsed.libraryName || '(default Documents)'} path=${parsed.restPath}`);
 
   // Upload via Graph
   try {
-    const result = await uploadFile(token, sitePath, filePath, buffer);
+    const result = await uploadFile(token, parsed.sitePath, parsed.libraryName, parsed.restPath, buffer);
     context.log(`[mdl-export] uploaded to ${result.webUrl}`);
   } catch (e) {
     context.log.error('[mdl-export] upload failed:', e.message);
