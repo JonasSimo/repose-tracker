@@ -4555,35 +4555,54 @@ async function _saveNewDocument(overlay) {
   const folder = ({'H&S':'HS','Quality':'Quality','Group':'Group'})[category];
   const uploaded = await uploadDocFile(folder, safeName, file);
 
-  // Calculate next review date
+  // Calculate next review date. Date columns are configured "Include time: No",
+  // so we send YYYY-MM-DD only — the full ISO with T00:00:00 was rejected.
   const today = new Date();
   const next = new Date(today); next.setMonth(next.getMonth() + cycle);
-  const todayIso = `${today.toISOString().slice(0,10)}T00:00:00.000Z`;
-  const nextIso = `${next.toISOString().slice(0,10)}T00:00:00.000Z`;
+  const todayDate = today.toISOString().slice(0,10);
+  const nextDate = next.toISOString().slice(0,10);
 
-  // Create register row (Status starts Published — Phase 1 single-step solo approve flow per spec, plus matches Task-7 multi-approver flow)
-  const fields = {
+  // ── Step 1: POST minimum required fields ─────────────────────────
+  // Status starts as 'Draft' here — Phase 1 spec wants it published, but
+  // the publish-status flip is done in step 2 PATCH so a PATCH failure
+  // doesn't leave a Published row with missing optional fields.
+  const minimalFields = {
     DocNumber: docNumber,
     Title: title,
+    Status: 'Draft',
+    CurrentRevision: 1
+  };
+  const created = await createDoc(minimalFields);
+
+  // ── Step 2: PATCH the optional fields onto the new row ──────────
+  // PATCH errors are more specific than bundled POST errors, and even
+  // partial failures leave the row queryable so QHSE can finish in
+  // SharePoint UI if anything is rejected.
+  const optionalFields = {
     Category: category,
     Level: level,
     Status: 'Published',
-    CurrentRevision: 1,
-    IssueDate: todayIso,
-    LastRevisedDate: todayIso,
+    IssueDate: todayDate,
+    LastRevisedDate: todayDate,
     ReviewCycleMonths: cycle,
-    NextReviewDate: nextIso,
+    NextReviewDate: nextDate,
     Owner: owner,
     FileLink: { Url: uploaded.webUrl, Description: safeName },
     Description: description
   };
   if (depts.length) {
-    fields['Departments@odata.type'] = 'Collection(Edm.String)';
-    fields.Departments = depts;
+    optionalFields['Departments@odata.type'] = 'Collection(Edm.String)';
+    optionalFields.Departments = depts;
   }
-  if (approversRaw) fields.Approvers = approversRaw;
-  if (refs) fields.References = refs;
-  const created = await createDoc(fields);
+  if (approversRaw) optionalFields.Approvers = approversRaw;
+  if (refs) optionalFields.References = refs;
+
+  try {
+    await updateDoc(created.id, optionalFields);
+  } catch (patchErr) {
+    // The minimal row exists; surface a clear actionable error to the user.
+    throw new Error(`Document row created (Rev pending), but updating optional fields failed: ${patchErr.message}. Open the row in SharePoint to finish populating Category/Level/Departments/dates/etc., then return to RepNet.`);
+  }
 
   // Create the Rev-1 row in DocumentRevisions. Note Title (not DocNumber) on
   // this list — the column was renamed via the SharePoint UI, so the display
