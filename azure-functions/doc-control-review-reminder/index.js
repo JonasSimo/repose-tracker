@@ -120,7 +120,7 @@ module.exports = async function (context, myTimer) {
   try {
     docs = await graphGetAll(
       token,
-      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields(select=DocNumber,Title,Status,Owner,NextReviewDate,CurrentRevision)&$top=999`
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields($select=DocNumber,Title,Status,Owner,NextReviewDate,CurrentRevision)&$top=999`
     );
   } catch (e) {
     context.log.error('[review-reminder] register fetch failed:', e.message);
