@@ -7434,6 +7434,55 @@ async function uploadDocFile(category, fileName, fileBlob) {
   return { id: item.id, webUrl: item.webUrl, downloadUrl: item['@microsoft.graph.downloadUrl'] };
 }
 
+// Send email via Graph /me/sendMail. Uses the signed-in user's mailbox
+// (Mail.Send scope is in the MSAL config). Fire-and-forget — failures are
+// console-logged but don't block the originating user action.
+async function _sendDocsEmail({ to, subject, htmlBody }) {
+  if (!to) return;
+  const recipients = (Array.isArray(to) ? to : [to]).filter(Boolean);
+  if (recipients.length === 0) return;
+  try {
+    const token = await getGraphToken();
+    const res = await _graphFetchWithRetry('https://graph.microsoft.com/v1.0/me/sendMail', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: {
+          subject,
+          body: { contentType: 'HTML', content: htmlBody },
+          toRecipients: recipients.map(addr => ({ emailAddress: { address: addr } }))
+        },
+        saveToSentItems: true
+      })
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      console.warn('[docs] sendMail failed (non-blocking):', res.status, errText);
+    } else {
+      console.log('[docs] sendMail OK to', recipients);
+    }
+  } catch (e) {
+    console.warn('[docs] sendMail exception (non-blocking):', e.message);
+  }
+}
+
+// Build the standard RepNet Doc-Control email shell — header + branded footer.
+// Body is the inner HTML that goes between them.
+function _docsEmailShell(innerHtml) {
+  return `<!doctype html><html><body style="font-family:Manrope,system-ui,sans-serif;color:#0e023a;background:#f4f6f8;padding:0;margin:0">
+<div style="max-width:560px;margin:0 auto;padding:32px 16px">
+  <div style="background:#0e023a;color:#fff;padding:18px 24px;border-radius:14px 14px 0 0">
+    <div style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;opacity:.7;margin-bottom:4px">RepNet · Document Control</div>
+    <div style="font-family:'Bricolage Grotesque',Manrope,sans-serif;font-weight:800;font-size:22px;letter-spacing:-.01em">Repose Production Tracker</div>
+  </div>
+  <div style="background:#fff;padding:28px 24px;border:1px solid #e1e6eb;border-top:none;border-radius:0 0 14px 14px">
+    ${innerHtml}
+  </div>
+  <div style="font-size:11px;color:#a8a8a8;text-align:center;padding:14px 0">This is an automated message from RepNet. Please do not reply to this email.</div>
+</div>
+</body></html>`;
+}
+
 // ── Mappers — flatten the SharePoint $expand=fields shape ──────────
 function _mapDocItem(item) {
   const f = item.fields || {};
