@@ -4587,7 +4587,7 @@ async function _saveNewDocument(overlay) {
     ReviewCycleMonths: cycle,
     NextReviewDate: nextDate,
     Owner: owner,
-    FileLink: { Url: uploaded.webUrl, Description: safeName },
+    FileLink: uploaded.webUrl,
     Description: description
   };
   if (depts.length) {
@@ -4614,7 +4614,7 @@ async function _saveNewDocument(overlay) {
       IssueDate: new Date().toISOString(),
       ReasonForRevision: description,
       TriggeredBy: 'Initial issue',
-      FileLink: { Url: uploaded.webUrl, Description: safeName },
+      FileLink: uploaded.webUrl,
       FileVersionId: uploaded.id
     });
   } catch (revErr) {
