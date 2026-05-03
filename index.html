@@ -4555,12 +4555,12 @@ async function _saveNewDocument(overlay) {
   const folder = ({'H&S':'HS','Quality':'Quality','Group':'Group'})[category];
   const uploaded = await uploadDocFile(folder, safeName, file);
 
-  // Calculate next review date. Date columns are configured "Include time: No",
-  // so we send YYYY-MM-DD only — the full ISO with T00:00:00 was rejected.
+  // Calculate next review date. SharePoint stored TEST-MAN-1's IssueDate as
+  // "2026-05-03T07:00:00Z" — full ISO without milliseconds. Match that shape.
   const today = new Date();
   const next = new Date(today); next.setMonth(next.getMonth() + cycle);
-  const todayDate = today.toISOString().slice(0,10);
-  const nextDate = next.toISOString().slice(0,10);
+  const todayIso = today.toISOString().slice(0,19) + 'Z';
+  const nextIso = next.toISOString().slice(0,19) + 'Z';
 
   // ── Step 1: POST minimum required fields ─────────────────────────
   // Status starts as 'Draft' here — Phase 1 spec wants it published, but
@@ -4582,10 +4582,10 @@ async function _saveNewDocument(overlay) {
     Category: category,
     Level: level,
     Status: 'Published',
-    IssueDate: todayDate,
-    LastRevisedDate: todayDate,
+    IssueDate: todayIso,
+    LastRevisedDate: todayIso,
     ReviewCycleMonths: cycle,
-    NextReviewDate: nextDate,
+    NextReviewDate: nextIso,
     Owner: owner,
     FileLink: { Url: uploaded.webUrl, Description: safeName },
     Description: description
@@ -4601,8 +4601,31 @@ async function _saveNewDocument(overlay) {
   try {
     await updateDoc(created.id, optionalFields);
   } catch (patchErr) {
-    // The minimal row exists; surface a clear actionable error to the user.
-    throw new Error(`Document row created (Rev pending), but updating optional fields failed: ${patchErr.message}. Open the row in SharePoint to finish populating Category/Level/Departments/dates/etc., then return to RepNet.`);
+    // Bulk PATCH failed with generic 400 (Graph doesn't tell us which field).
+    // Fall back to per-field PATCH so we can identify the offender. Each field
+    // is tried individually; we log success/failure per field and at the end
+    // throw a precise error naming the bad field(s). The row still exists with
+    // whatever fields succeeded — QHSE can finish manually for the rest.
+    console.warn('[docs] bulk PATCH failed, falling back to per-field PATCH', patchErr.message);
+    const failed = [];
+    const succeeded = [];
+    for (const [k, v] of Object.entries(optionalFields)) {
+      try {
+        await updateDoc(created.id, { [k]: v });
+        succeeded.push(k);
+        console.log(`[docs] per-field PATCH OK: ${k}`);
+      } catch (oneErr) {
+        failed.push({ field: k, value: v, err: oneErr.message });
+        console.error(`[docs] per-field PATCH FAILED: ${k}`, { value: v, err: oneErr.message });
+      }
+    }
+    if (failed.length === 0) {
+      // All per-field PATCHes succeeded — the bulk failure was a transient quirk; carry on.
+      console.warn('[docs] per-field PATCH recovered all fields; bulk PATCH is the issue, not any single field.');
+    } else {
+      const summary = failed.map(f => `${f.field} (${f.err.split(' ')[0]})`).join(', ');
+      throw new Error(`Document created (Rev pending). ${succeeded.length} fields saved, ${failed.length} rejected: ${summary}. Open the row in SharePoint to finish.`);
+    }
   }
 
   // Create the Rev-1 row in DocumentRevisions. Note Title (not DocNumber) on
