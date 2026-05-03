@@ -4451,8 +4451,10 @@ async function markDocumentObsolete(doc) {
     btn.disabled = true; btn.textContent = 'Saving…';
     try {
       await updateDoc(doc.id, { Status: 'Obsolete', SupersededBy: supby, Description: `OBSOLETE: ${reason}` });
-      // Audit row in DocumentRevisions. Title (not DocNumber) per Task 6
-      // smoke-test learning. No FileLink/FileVersionId for the same reason.
+      // Audit row in DocumentRevisions. Title (not DocNumber) per the
+      // SharePoint internal-name rename quirk. No FileLink/FileVersionId
+      // because Mark Obsolete doesn't upload a new file — the audit captures
+      // who/when/why the doc was retired and what replaced it.
       await createRevision({
         Title: doc.docNumber,
         Revision: doc.currentRevision,
@@ -4604,6 +4606,8 @@ async function _saveRevision(doc, overlay) {
   try {
     await updateDoc(doc.id, registerPatch);
   } catch (patchErr) {
+    // Bulk PATCH 400s are an occasional Graph quirk on this tenant — fall back
+    // to per-field. If anything genuinely fails we surface it to the user.
     console.warn('[docs] revise bulk PATCH failed, falling back to per-field PATCH', patchErr.message);
     const failed = [];
     for (const [k, v] of Object.entries(registerPatch)) {
@@ -4615,21 +4619,15 @@ async function _saveRevision(doc, overlay) {
         console.error(`[docs] revise per-field PATCH FAILED: ${k}`, oneErr.message);
       }
     }
-    const onlyFileLink = failed.length === 1 && (failed[0].field === 'FileLink' || failed[0].field === 'FileLink@odata.type');
-    const onlyHyperlinkPair = failed.length === 2
-      && failed.every(f => f.field === 'FileLink' || f.field === 'FileLink@odata.type');
-    if (!(onlyFileLink || onlyHyperlinkPair) && failed.length > 0) {
+    if (failed.length > 0) {
       const summary = failed.map(f => f.field).join(', ');
       throw new Error(`Revision saved partially. Fields rejected: ${summary}. Open the row in SharePoint to finish.`);
-    }
-    if (failed.length > 0) {
-      console.warn(`[docs] FileLink could not be PATCHed via Graph (Phase 2 issue). File is in /QMS-Documents/${folder}/${safeName}.`);
     }
   }
 
   // Append a row to DocumentRevisions. Title (not DocNumber) per the
-  // SharePoint internal name; FileLink/FileVersionId omitted per Task 6's
-  // smoke-test learnings — Hyperlink writes reject on this list too.
+  // SharePoint internal name (column was renamed display-only; internal
+  // name stays Title for the built-in column).
   await createRevision({
     Title: doc.docNumber,
     Revision: newRev,
@@ -4854,29 +4852,14 @@ async function _saveNewDocument(overlay) {
       // All per-field PATCHes succeeded — the bulk failure was a transient quirk; carry on.
       console.warn('[docs] per-field PATCH recovered all fields; bulk PATCH is the issue, not any single field.');
     } else {
-      // FileLink is best-effort: SharePoint Graph's Hyperlink writes are notoriously
-      // finicky and tenant-dependent. If FileLink is the ONLY failure, don't block
-      // the save — the file is still uploaded to /QMS-Documents/{cat}/ and reachable
-      // via SharePoint's library UI. The user can also add the link manually in the
-      // List view if it's important.
-      const onlyFileLink = failed.length === 1 && (failed[0].field === 'FileLink' || failed[0].field === 'FileLink@odata.type');
-      if (onlyFileLink) {
-        console.warn('[docs] FileLink could not be PATCHed via Graph (tenant-specific Hyperlink quirk). File is still in /QMS-Documents/' + folder + '/' + safeName + ' — add the link manually in SharePoint if needed.');
-      } else {
-        const summary = failed.map(f => `${f.field} (${f.err.split(' ')[0]})`).join(', ');
-        throw new Error(`Document created (Rev pending). ${succeeded.length} fields saved, ${failed.length} rejected: ${summary}. Open the row in SharePoint to finish.`);
-      }
+      const summary = failed.map(f => `${f.field} (${f.err.split(' ')[0]})`).join(', ');
+      throw new Error(`Document created (Rev pending). ${succeeded.length} fields saved, ${failed.length} rejected: ${summary}. Open the row in SharePoint to finish.`);
     }
   }
 
   // Create the Rev-1 row in DocumentRevisions. Note Title (not DocNumber) on
   // this list — the column was renamed via the SharePoint UI, so the display
   // name is DocNumber but the internal name remains Title.
-  // FileLink/FileVersionId omitted: the Hyperlink column 400s on Graph PATCH
-  // even with the SP.FieldUrlValue OData hint (tenant-specific quirk —
-  // confirmed during smoke test 2026-05-03). The file is uploaded to
-  // /QMS-Documents/{cat}/ and the register row records the doc; the revision
-  // row's audit role (who/when/why) is preserved without the link.
   try {
     await createRevision({
       Title: docNumber,
