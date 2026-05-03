@@ -82,7 +82,7 @@ Site contents → New → List → Blank list → Name: `DocumentRevisions`
 
 | Column name | Type | Required |
 |---|---|---|
-| `DocNumber` | Single line of text | Yes (rename built-in `Title` to `DocNumber`) |
+| `DocNumber` | Single line of text | Yes (rename built-in `Title` to `DocNumber` — display name only; internal name stays `Title`. The code targets the internal name `Title` on this list specifically.) |
 | `Revision` | Number (integer) | Yes |
 | `IssueDate` | Date and Time | Yes |
 | `ApprovedBy` | Person or Group (multi) | No |
@@ -283,7 +283,7 @@ async function fetchRevisionsForDoc(docNumber) {
   const siteId = await getQmsSiteId();
   const listId = await getListIdByNameOnSite(siteId, QMS_REVISIONS_LIST);
   const safe = String(docNumber).replace(/'/g, "''");
-  const filter = encodeURIComponent(`fields/DocNumber eq '${safe}'`);
+  const filter = encodeURIComponent(`fields/Title eq '${safe}'`);
   const url = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$filter=${filter}&$orderby=fields/Revision desc&$top=999`;
   const items = await graphGetAll(url);
   return items.map(_mapRevItem);
@@ -391,7 +391,7 @@ function _mapRevItem(item) {
   const f = item.fields || {};
   return {
     id: item.id,
-    docNumber: f.DocNumber || '',
+    docNumber: f.Title || '',  // DocumentRevisions list internal name is Title (renamed display only)
     revision: Number(f.Revision || 0),
     issueDate: f.IssueDate || null,
     approvedByEmails: Array.isArray(f.ApprovedBy) ? f.ApprovedBy.map(a => a.Email).filter(Boolean) : [],
@@ -1085,7 +1085,7 @@ async function _saveNewDocument(overlay) {
   // Create the Rev-1 row in DocumentRevisions
   try {
     await createRevision({
-      DocNumber: docNumber,
+      Title: docNumber,
       Revision: 1,
       IssueDate: new Date().toISOString(),
       ReasonForRevision: description,
