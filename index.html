@@ -4139,10 +4139,17 @@ async function openDocumentsView() {
 }
 
 async function _approveDoc(docNumber) {
-  const doc = _docsState.all.find(d => d.docNumber === docNumber);
-  if (!doc) return;
+  const cachedDoc = _docsState.all.find(d => d.docNumber === docNumber);
+  if (!cachedDoc) return;
+  // Refetch fresh to avoid concurrent-approval race conditions and stale reads.
+  // If two approvers click Approve in parallel, the in-memory _docsState.all
+  // would show approved:[] for both — re-reading from SharePoint (and using
+  // the fresh etag for If-Match) makes one of them get a 412 instead of
+  // silently overwriting the other.
+  const doc = await fetchDocByNumber(docNumber);
+  if (!doc) { alert('This document was deleted from SharePoint. Refresh the page.'); return; }
   if (!_isMyTurnToApprove(doc)) {
-    alert('You have already approved or rejected this document, or you are not in its approver list.');
+    alert('This document is no longer awaiting your approval. It may have been approved by someone else, rejected, or removed from your approver list. Refresh the page.');
     return;
   }
   if (!confirm(`Approve ${doc.docNumber} Rev ${doc.currentRevision}?\n\n${doc.title}`)) return;
@@ -4167,14 +4174,13 @@ async function _approveDoc(docNumber) {
   if (willPublish) patch.LastRevisedDate = _isoNoMs();
 
   try {
-    await updateDoc(doc.id, patch);
+    await _patchDocWithFallback(doc.id, patch, 'approve', doc.etag);
   } catch (patchErr) {
-    // Per-field fallback (same pattern as _saveRevision)
-    console.warn('[docs] approval bulk PATCH failed, per-field fallback', patchErr.message);
-    for (const [k, v] of Object.entries(patch)) {
-      try { await updateDoc(doc.id, { [k]: v }); }
-      catch (oneErr) { throw new Error(`Approval save failed on field ${k}: ${oneErr.message}`); }
+    if (patchErr.message && patchErr.message.includes('modified by someone else')) {
+      alert('This document was modified by someone else (likely another approver acting at the same time). Refresh the page and try again.');
+      return;
     }
+    throw patchErr;
   }
 
   // Audit row
@@ -4217,10 +4223,14 @@ async function _approveDoc(docNumber) {
   }
 }
 async function _rejectDoc(docNumber) {
-  const doc = _docsState.all.find(d => d.docNumber === docNumber);
-  if (!doc) return;
+  const cachedDoc = _docsState.all.find(d => d.docNumber === docNumber);
+  if (!cachedDoc) return;
+  // Refetch fresh — same rationale as _approveDoc (avoid stale read +
+  // concurrent-approval race; etag drives optimistic concurrency).
+  const doc = await fetchDocByNumber(docNumber);
+  if (!doc) { alert('This document was deleted from SharePoint. Refresh the page.'); return; }
   if (!_isMyTurnToApprove(doc)) {
-    alert('You have already approved or rejected this document, or you are not in its approver list.');
+    alert('This document is no longer awaiting your approval. It may have been approved by someone else, rejected, or removed from your approver list. Refresh the page.');
     return;
   }
   const reason = prompt(`Reject ${doc.docNumber} Rev ${doc.currentRevision} — reason for rejection (auditor reads this):`);
@@ -4241,13 +4251,13 @@ async function _rejectDoc(docNumber) {
   };
 
   try {
-    await updateDoc(doc.id, patch);
+    await _patchDocWithFallback(doc.id, patch, 'reject', doc.etag);
   } catch (patchErr) {
-    console.warn('[docs] reject bulk PATCH failed, per-field fallback', patchErr.message);
-    for (const [k, v] of Object.entries(patch)) {
-      try { await updateDoc(doc.id, { [k]: v }); }
-      catch (oneErr) { throw new Error(`Rejection save failed on field ${k}: ${oneErr.message}`); }
+    if (patchErr.message && patchErr.message.includes('modified by someone else')) {
+      alert('This document was modified by someone else (likely another approver acting at the same time). Refresh the page and try again.');
+      return;
     }
+    throw patchErr;
   }
 
   await createRevision({
@@ -4543,7 +4553,8 @@ async function openDocumentDetail(docNumber) {
           <div class="docs-actions-row">
             ${doc.fileLink ? `<a class="docs-btn docs-btn-sec" href="${_escape(doc.fileLink)}" target="_blank">↗ Open current file</a>` : ''}
             ${(_isDocsAdmin() && doc.status !== 'Obsolete') ? `<button class="docs-btn docs-btn-pri" id="docs-revise-btn">＋ New revision</button>` : ''}
-            ${_isDocsManager() ? `<button class="docs-btn docs-btn-sec" id="docs-edit-meta-btn">✎ Edit metadata</button>` : ''}
+            ${(_isDocsManager() && doc.status !== 'In Approval') ? `<button class="docs-btn docs-btn-sec" id="docs-edit-meta-btn">✎ Edit metadata</button>` : ''}
+            ${(_isDocsManager() && doc.status === 'In Approval') ? `<span title="Edit metadata is locked while approvals are in flight. Reject or wait for completion to edit." style="font-size:11px;color:var(--text2);padding:6px 10px">✎ Edit metadata locked (in approval)</span>` : ''}
             ${(_isDocsAdmin() && doc.status !== 'Obsolete') ? `<button class="docs-btn docs-btn-sec" id="docs-obsolete-btn">⌀ Mark obsolete</button>` : ''}
           </div>
         </div>
@@ -4680,7 +4691,15 @@ async function markDocumentObsolete(doc) {
     const btn = overlay.querySelector('#docs-modal-save');
     btn.disabled = true; btn.textContent = 'Saving…';
     try {
-      await updateDoc(doc.id, { Status: 'Obsolete', SupersededBy: supby });
+      // Clear ApprovalState too — obsoleting a doc that was 'In Approval'
+      // would otherwise leave zombie approval data on the row, and any
+      // approver UI that checks _isMyTurnToApprove would still flag it
+      // for a frame after the next refetch.
+      await updateDoc(doc.id, {
+        Status: 'Obsolete',
+        SupersededBy: supby,
+        ApprovalState: JSON.stringify(_emptyApprovalState())
+      });
       // Audit row in DocumentRevisions. Title (not DocNumber) per the
       // SharePoint internal-name rename quirk. No FileLink/FileVersionId
       // because Mark Obsolete doesn't upload a new file — the audit captures
@@ -4709,6 +4728,14 @@ async function markDocumentObsolete(doc) {
 // traceability of the change.
 function openEditMetadataModal(doc) {
   if (!_isDocsManager()) return; // belt + braces; button shouldn't even be visible
+  // Editing metadata while approvers are mid-flight would let the QHSE
+  // Manager change Title/Description/Approvers AFTER approvers had already
+  // been emailed — meaning approvers could end up approving a different
+  // document than they were sent. ISO 9001 traceability gap. Block it.
+  if (doc.status === 'In Approval') {
+    alert('Cannot edit metadata while document is awaiting approval. Reject the pending revision (or wait for it to complete) before editing.');
+    return;
+  }
 
   const overlay = document.createElement('div');
   overlay.className = 'docs-modal-bg';
@@ -4854,26 +4881,8 @@ async function _saveMetadata(doc, overlay) {
   patch.Approvers = approversRaw || '';   // explicit empty string clears the field on the SP side
   patch.References = refs || '';
 
-  // Same per-field PATCH fallback pattern as the other write flows.
-  try {
-    await updateDoc(doc.id, patch);
-  } catch (patchErr) {
-    console.warn('[docs] edit-metadata bulk PATCH failed, falling back to per-field PATCH', patchErr.message);
-    const failed = [];
-    for (const [k, v] of Object.entries(patch)) {
-      try {
-        await updateDoc(doc.id, { [k]: v });
-        console.log(`[docs] edit-metadata per-field PATCH OK: ${k}`);
-      } catch (oneErr) {
-        failed.push({ field: k, err: oneErr.message });
-        console.error(`[docs] edit-metadata per-field PATCH FAILED: ${k}`, oneErr.message);
-      }
-    }
-    if (failed.length > 0) {
-      const summary = failed.map(f => f.field).join(', ');
-      throw new Error(`Edits saved partially. Fields rejected: ${summary}. Open the row in SharePoint to finish.`);
-    }
-  }
+  // Bulk + per-field fallback handled by helper.
+  await _patchDocWithFallback(doc.id, patch, 'edit-meta');
 
   // Audit row — same Revision number (no bump), TriggeredBy makes it greppable for compliance.
   await createRevision({
@@ -5053,27 +5062,8 @@ async function _saveRevision(doc, overlay) {
   };
   if (approversRaw) registerPatch.Approvers = approversRaw;
 
-  try {
-    await updateDoc(doc.id, registerPatch);
-  } catch (patchErr) {
-    // Bulk PATCH 400s are an occasional Graph quirk on this tenant — fall back
-    // to per-field. If anything genuinely fails we surface it to the user.
-    console.warn('[docs] revise bulk PATCH failed, falling back to per-field PATCH', patchErr.message);
-    const failed = [];
-    for (const [k, v] of Object.entries(registerPatch)) {
-      try {
-        await updateDoc(doc.id, { [k]: v });
-        console.log(`[docs] revise per-field PATCH OK: ${k}`);
-      } catch (oneErr) {
-        failed.push({ field: k, err: oneErr.message });
-        console.error(`[docs] revise per-field PATCH FAILED: ${k}`, oneErr.message);
-      }
-    }
-    if (failed.length > 0) {
-      const summary = failed.map(f => f.field).join(', ');
-      throw new Error(`Revision saved partially. Fields rejected: ${summary}. Open the row in SharePoint to finish.`);
-    }
-  }
+  // Bulk + per-field fallback handled by helper.
+  await _patchDocWithFallback(doc.id, registerPatch, 'revise');
 
   // Append a row to DocumentRevisions. Title (not DocNumber) per the
   // SharePoint internal name (column was renamed display-only; internal
@@ -5311,35 +5301,9 @@ async function _saveNewDocument(overlay) {
   if (approversRaw) optionalFields.Approvers = approversRaw;
   if (refs) optionalFields.References = refs;
 
-  try {
-    await updateDoc(created.id, optionalFields);
-  } catch (patchErr) {
-    // Bulk PATCH failed with generic 400 (Graph doesn't tell us which field).
-    // Fall back to per-field PATCH so we can identify the offender. Each field
-    // is tried individually; we log success/failure per field and at the end
-    // throw a precise error naming the bad field(s). The row still exists with
-    // whatever fields succeeded — QHSE can finish manually for the rest.
-    console.warn('[docs] bulk PATCH failed, falling back to per-field PATCH', patchErr.message);
-    const failed = [];
-    const succeeded = [];
-    for (const [k, v] of Object.entries(optionalFields)) {
-      try {
-        await updateDoc(created.id, { [k]: v });
-        succeeded.push(k);
-        console.log(`[docs] per-field PATCH OK: ${k}`);
-      } catch (oneErr) {
-        failed.push({ field: k, value: v, err: oneErr.message });
-        console.error(`[docs] per-field PATCH FAILED: ${k}`, { value: v, err: oneErr.message });
-      }
-    }
-    if (failed.length === 0) {
-      // All per-field PATCHes succeeded — the bulk failure was a transient quirk; carry on.
-      console.warn('[docs] per-field PATCH recovered all fields; bulk PATCH is the issue, not any single field.');
-    } else {
-      const summary = failed.map(f => `${f.field} (${f.err.split(' ')[0]})`).join(', ');
-      throw new Error(`Document created (Rev pending). ${succeeded.length} fields saved, ${failed.length} rejected: ${summary}. Open the row in SharePoint to finish.`);
-    }
-  }
+  // Bulk + per-field fallback handled by helper. Row exists either way
+  // (created in step 1) so QHSE can finish manually if anything is rejected.
+  await _patchDocWithFallback(created.id, optionalFields, 'new');
 
   // Create the Rev-1 row in DocumentRevisions. Note Title (not DocNumber) on
   // this list — the column was renamed via the SharePoint UI, so the display
@@ -5366,6 +5330,38 @@ function _extOf(name) { const i = name.lastIndexOf('.'); return i >= 0 ? name.sl
 // SharePoint Date columns reject the millisecond component on writes when
 // "Include time = No" is set. Always use this helper (never raw .toISOString()).
 function _isoNoMs(d) { return (d || new Date()).toISOString().slice(0,19) + 'Z'; }
+
+// Bulk PATCH a SharePoint List item, falling back to per-field PATCH on
+// 400. Used by every save flow because Graph occasionally 400s a bundled
+// PATCH with no field-level detail. flowName appears in console logs
+// for greppability. etag is optional — when supplied, used as If-Match
+// for optimistic concurrency. A 412 (modified by someone else) is surfaced
+// directly to the caller WITHOUT per-field fallback (the per-field retry
+// would just race the same way).
+async function _patchDocWithFallback(itemId, patch, flowName, etag) {
+  try {
+    return await updateDoc(itemId, patch, etag);
+  } catch (err) {
+    if (err.message && err.message.includes('modified by someone else')) throw err;
+    console.warn(`[docs:${flowName}] bulk PATCH failed, falling back to per-field`, err.message);
+    const failed = [];
+    let succeeded = 0;
+    for (const [k, v] of Object.entries(patch)) {
+      try {
+        await updateDoc(itemId, { [k]: v });
+        console.log(`[docs:${flowName}] per-field PATCH OK: ${k}`);
+        succeeded++;
+      } catch (e) {
+        failed.push({ field: k, err: e.message });
+        console.error(`[docs:${flowName}] per-field PATCH FAILED: ${k}`, e.message);
+      }
+    }
+    if (failed.length > 0) {
+      const summary = failed.map(f => f.field).join(', ');
+      throw new Error(`Saved ${succeeded} field(s); ${failed.length} rejected: ${summary}. Open the row in SharePoint to finish.`);
+    }
+  }
+}
 
 // True when the signed-in user is allowed to manage QMS documents — write,
 // revise, mark obsolete, view revision history. Reuses CPAR_QHSE_REVIEWERS
@@ -7428,15 +7424,40 @@ async function uploadDocFile(category, fileName, fileBlob) {
   return { id: item.id, webUrl: item.webUrl, downloadUrl: item['@microsoft.graph.downloadUrl'] };
 }
 
-// Send email via Graph /me/sendMail. Uses the signed-in user's mailbox
-// (Mail.Send scope is in the MSAL config). Fire-and-forget — failures are
-// console-logged but don't block the originating user action.
+// Module-level guard so the Mail.Send scope-failure alert only fires
+// once per session (otherwise every approval action would re-prompt).
+let _mailScopeWarned = false;
+
+// Send email via Graph /me/sendMail. Uses the signed-in user's mailbox.
+// Mail.Send is NOT in GRAPH_SCOPES (the app-login scope set), so we have
+// to acquire it separately — same pattern as sendDailyDigest. If the user
+// hasn't consented (or admin hasn't), surface a clear alert ONCE so they
+// know approvers won't be auto-notified, then fall through silently for
+// subsequent calls in the same session.
 async function _sendDocsEmail({ to, subject, htmlBody }) {
   if (!to) return;
   const recipients = (Array.isArray(to) ? to : [to]).filter(Boolean);
   if (recipients.length === 0) return;
+  let token;
   try {
-    const token = await getGraphToken();
+    const accounts = msalInstance.getAllAccounts();
+    if (!accounts.length) throw new Error('Not signed in');
+    try {
+      const r = await msalInstance.acquireTokenSilent({ scopes: MAIL_SCOPES, account: accounts[0] });
+      token = r.accessToken;
+    } catch {
+      const r = await msalInstance.acquireTokenPopup({ scopes: MAIL_SCOPES, account: accounts[0] });
+      token = r.accessToken;
+    }
+  } catch (e) {
+    if (!_mailScopeWarned) {
+      _mailScopeWarned = true;
+      alert(`RepNet couldn't send approval emails because the Mail.Send permission isn't granted in your Microsoft account. Approvers will need to be notified manually until this is resolved (sign out + back in, or ask IT to grant the scope).\n\nDetails: ${e.message}`);
+    }
+    console.warn('[docs] Mail token acquisition failed:', e.message);
+    return;
+  }
+  try {
     const res = await _graphFetchWithRetry('https://graph.microsoft.com/v1.0/me/sendMail', {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
