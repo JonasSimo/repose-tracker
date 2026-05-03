@@ -7185,8 +7185,41 @@ function _mapDocItem(item) {
     supersededBy: f.SupersededBy || '',
     linkedMaintenanceTemplate: f.LinkedMaintenanceTemplate || '',
     linkedRecordsListName: f.LinkedRecordsListName || '',
-    description: f.Description || ''
+    description: f.Description || '',
+    approvalState: f.ApprovalState ? _safeJson(f.ApprovalState, _emptyApprovalState()) : _emptyApprovalState(),
   };
+}
+
+function _emptyApprovalState() {
+  return { approved: [], rejected: [], submittedAt: null, submittedBy: null };
+}
+
+// True if every email in the doc's Approvers list appears in approvalState.approved.
+// "Solo QHSE" docs (no Approvers) are always considered fully approved.
+function _isFullyApproved(doc) {
+  const required = (doc.approverEmails || []).map(e => e.toLowerCase());
+  if (required.length === 0) return true;
+  const approved = ((doc.approvalState && doc.approvalState.approved) || []).map(e => e.toLowerCase());
+  return required.every(r => approved.includes(r));
+}
+
+// True if any approver in the doc's Approvers list has rejected the current revision.
+function _isRejected(doc) {
+  const rejected = ((doc.approvalState && doc.approvalState.rejected) || []).map(e => e.toLowerCase());
+  return rejected.length > 0;
+}
+
+// True if the current user is in this doc's Approvers list AND hasn't yet approved or rejected.
+function _isMyTurnToApprove(doc) {
+  if (doc.status !== 'In Approval') return false;
+  const me = graphAccount && graphAccount.username && graphAccount.username.toLowerCase();
+  if (!me) return false;
+  const required = (doc.approverEmails || []).map(e => e.toLowerCase());
+  if (!required.includes(me)) return false;
+  const state = doc.approvalState || _emptyApprovalState();
+  const approved = (state.approved || []).map(e => e.toLowerCase());
+  const rejected = (state.rejected || []).map(e => e.toLowerCase());
+  return !approved.includes(me) && !rejected.includes(me);
 }
 
 function _mapRevItem(item) {
