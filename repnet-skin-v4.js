@@ -33,6 +33,7 @@
     { v: 'actions',      g: '⊕',     l: 'CAPA' },
     { v: 'safety',       g: '⚠',     l: 'Near Misses' },
     { v: 'complaints',   g: '✉',     l: 'Complaints' },
+    { v: 'documents',    g: '📄',    l: 'Documents' },
     { h: 'Operations' },
     { v: 'maintenance',  g: '⚒',     l: 'Maintenance' },
     { v: 'timing',       g: '⏱',     l: 'Job Timing' },
