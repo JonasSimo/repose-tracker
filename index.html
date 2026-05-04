@@ -4053,6 +4053,23 @@ const SUB_SHORT = { 'Arms':'A', 'Backs':'B', 'Seats':'S' };
 // Row 1 = week numbers · Row 6 = delivery dates · Rows 7+ = REP numbers per column
 const OV_LOAD_PLAN_URL   = 'https://reposefurniturelimited.sharepoint.com/:x:/s/ReposeFurniture-PlanningRepose/IQD9dpVpE09LQZxBDPGSZhjTAacK5LMWwZgyKBDfcUOJ2vM?e=8iqRn3';
 const CP_TICKETING_LOG_URL = 'https://reposefurniturelimited.sharepoint.com/:x:/s/ReposeFurniture-Service/IQCQUvM2uD-pQKc9xRkYAfPvAbOaZl0j9liSrWaggTqF60Y?e=6x2dNE';
+
+// ─── Service Dashboard data layer ─────────────────────────────────
+const SERVICE_TICKETING_LOG_URL = CP_TICKETING_LOG_URL; // alias for clarity within Service module
+const SERVICE_TICKET_SHEET = 'TICKET LOG';
+const SERVICE_TICKET_TABLE = 'TicketLog';
+const _SERVICE_CACHE_MS = 300_000; // 5 min in-browser cache
+
+// In-memory state for the Service Dashboard. Refreshed lazily from Excel
+// via Graph; manual refresh button busts the cache.
+let _serviceState = {
+  tickets: [],   // mapped Ticket objects
+  parts: [],     // mapped Parts objects
+  lastFetch: 0,  // ms epoch
+  loading: false,
+  error: null
+};
+
 const COMPLAINTS_MANAGERS  = new Set(['jonas.simonaitis@reposefurniture.co.uk','richard.semmens@reposefurniture.co.uk']);
 
 let cpComplaints    = [];       // joined Excel + SharePoint data, populated by cpLoadData()
@@ -20302,6 +20319,110 @@ async function openServiceDashboard() {
     errEl.textContent = `Failed to open Service Dashboard: ${e.message}`;
     console.error('[svc] open failed', e);
   }
+}
+
+// Read TICKET LOG via Graph Excel REST. Returns an array of Ticket objects.
+// Column indices match the header row at A3 (0-indexed row 2 in usedRange):
+//   0 include in pivot            18 Owner
+//   1 Within / Outside 30 days    19 Proposed Close Date
+//   2 Week                        20 Close Date
+//   3 Fault - sub fault           21 Days to Complete
+//   4 FY                          22 Overdue By
+//   5 Period                      23 Quality Issue
+//   6 Ticket No                   24 Warranty / Chargeable
+//   7 Customer                    25 Fault Code
+//   8 Despatch Date               26 Sub-Fault
+//   9 REP Number                  27 Open / Closed
+//  10 Ref / PO number             28 Invoice No
+//  11 Model                       29 Invoice Date
+//  12 Mech Code                   30 £
+//  13 Description                 31 £ Del
+//  14 Open Date                   32 Chair Returned
+//  15 Returned to Factory         33 Inspected
+//  16 Action                      34 In Production
+//  17 Notes                       35 Return to customer
+async function fetchServiceTickets() {
+  if (!graphAccount) throw new Error('Not signed in.');
+  const encoded = encodeSharingUrl(SERVICE_TICKETING_LOG_URL);
+  const driveItem = await graphGet(`https://graph.microsoft.com/v1.0/shares/${encoded}/driveItem`);
+  const driveId = driveItem.parentReference.driveId;
+  const itemId = driveItem.id;
+  const range = await graphGet(
+    `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/worksheets('${encodeURIComponent(SERVICE_TICKET_SHEET)}')/usedRange?$select=values`
+  );
+  const values = range.values || [];
+  // Stash drive/item IDs for write-back (Tasks 13-14)
+  _serviceState.ticketDriveId = driveId;
+  _serviceState.ticketItemId = itemId;
+
+  const tickets = [];
+  for (let i = 3; i < values.length; i++) { // header is row 3 (index 2); data starts at index 3
+    const row = values[i];
+    const ticketNo = String(row[6] || '').trim();
+    if (!ticketNo) continue; // skip blank rows
+    tickets.push(_mapTicketRow(row));
+  }
+  return tickets;
+}
+
+function _mapTicketRow(row) {
+  return {
+    includeInPivot: String(row[0] || '').trim(),
+    period30: String(row[1] || '').trim(),    // 'Inside 30' | 'Outside 30'
+    week: row[2],
+    faultSubFault: String(row[3] || '').trim(),
+    fy: String(row[4] || '').trim(),
+    period: String(row[5] || '').trim(),
+    ticketNo: String(row[6] || '').trim(),
+    customer: String(row[7] || '').trim(),
+    despatchDate: _parseExcelDate(row[8]),
+    repNo: String(row[9] || '').trim(),
+    poRef: String(row[10] || '').trim(),
+    model: String(row[11] || '').trim(),
+    mechCode: String(row[12] || '').trim(),
+    description: String(row[13] || '').trim(),
+    openDate: _parseExcelDate(row[14]),
+    returnedToFactory: row[15],
+    action: String(row[16] || '').trim(),
+    notes: String(row[17] || '').trim(),
+    owner: String(row[18] || '').trim(),
+    proposedCloseDate: _parseExcelDate(row[19]),
+    closeDate: _parseExcelDate(row[20]),
+    daysToComplete: Number(row[21]) || null,
+    overdueBy: Number(row[22]) || null,
+    qualityIssue: String(row[23] || '').trim(),
+    warrantyChargeable: String(row[24] || '').trim().toUpperCase(), // 'WARRANTY' | 'CHARGEABLE'
+    faultCode: String(row[25] || '').trim(),
+    subFault: String(row[26] || '').trim(),
+    openClosed: String(row[27] || '').trim().toUpperCase(),         // 'OPEN' | 'CLOSED'
+    invoiceNo: String(row[28] || '').trim(),
+    invoiceDate: _parseExcelDate(row[29]),
+    gbp: Number(row[30]) || 0,
+    gbpDel: Number(row[31]) || 0,
+    chairReturned: row[32],
+    inspected: row[33],
+    inProduction: row[34],
+    returnToCustomer: row[35]
+  };
+}
+
+// Excel can return either a serial number (days since 1899-12-30) or a string.
+// Serial number handling matches the existing cpParseDate helper.
+function _parseExcelDate(v) {
+  if (!v && v !== 0) return null;
+  if (typeof v === 'number') {
+    return new Date(Math.round((v - 25569) * 86400 * 1000));
+  }
+  // String — try DD/MM/YYYY first (UK convention), fall back to native Date parse
+  const s = String(v).trim();
+  if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(s)) {
+    const [d, m, y] = s.split('/').map(n => parseInt(n, 10));
+    const fy = y < 100 ? 2000 + y : y;
+    const dt = new Date(fy, m - 1, d);
+    return isNaN(dt) ? null : dt;
+  }
+  const dt = new Date(s);
+  return isNaN(dt) ? null : dt;
 }
 
 // ═══════════════════════════════════════════════
