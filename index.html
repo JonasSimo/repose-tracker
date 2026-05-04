@@ -4058,6 +4058,11 @@ const CP_TICKETING_LOG_URL = 'https://reposefurniturelimited.sharepoint.com/:x:/
 const SERVICE_TICKETING_LOG_URL = CP_TICKETING_LOG_URL; // alias for clarity within Service module
 const SERVICE_TICKET_SHEET = 'TICKET LOG';
 const SERVICE_TICKET_TABLE = 'TicketLog';
+// PARTS TRACKER — confirmed sharing URL on the Service SharePoint site
+// (same site as the Ticketing Log).
+const PARTS_TRACKER_URL = 'https://reposefurniturelimited.sharepoint.com/:x:/s/ReposeFurniture-Service/IQCb6Q6m7hA6S5LcvSWJWbFFAbzvzuai9duzFYgaQNRc24E?e=XMOqRu';
+const PARTS_TRACKER_SHEET = 'Part Tracker';
+const PARTS_TRACKER_TABLE = 'PartTracker';
 const _SERVICE_CACHE_MS = 300_000; // 5 min in-browser cache
 
 // In-memory state for the Service Dashboard. Refreshed lazily from Excel
@@ -20422,6 +20427,67 @@ function _parseExcelDate(v) {
     return isNaN(dt) ? null : dt;
   }
   const dt = new Date(s);
+  return isNaN(dt) ? null : dt;
+}
+
+// Read Part Tracker via Graph Excel REST. Returns an array of Parts objects.
+// Column indices (0-based) for the row-1 header on Part Tracker sheet:
+//   0 Date  1 Customer  2 PO Number  3 Sales Ack No
+//   4 Invoice No  5 Fedex Tracking  6 Delivered  7 Comment
+async function fetchPartTracker() {
+  if (!graphAccount) throw new Error('Not signed in.');
+  const encoded = encodeSharingUrl(PARTS_TRACKER_URL);
+  const driveItem = await graphGet(`https://graph.microsoft.com/v1.0/shares/${encoded}/driveItem`);
+  const driveId = driveItem.parentReference.driveId;
+  const itemId = driveItem.id;
+  const range = await graphGet(
+    `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/worksheets('${encodeURIComponent(PARTS_TRACKER_SHEET)}')/usedRange?$select=values`
+  );
+  const values = range.values || [];
+  _serviceState.partsDriveId = driveId;
+  _serviceState.partsItemId = itemId;
+
+  const parts = [];
+  for (let i = 1; i < values.length; i++) { // skip row 0 (header); data starts row 1
+    const row = values[i];
+    const customer = String(row[1] || '').trim();
+    const tracking = String(row[5] || '').trim();
+    if (!customer && !tracking) continue; // blank line
+    parts.push(_mapPartsRow(row));
+  }
+  return parts;
+}
+
+function _mapPartsRow(row) {
+  // "Delivered" column may be:
+  // - blank (parcel still in transit)
+  // - a string like "13.01.26 @ 13.25" (manually typed timestamp)
+  // - an Excel serial number (rare)
+  const deliveredRaw = row[6];
+  const deliveredText = (deliveredRaw === null || deliveredRaw === undefined) ? '' : String(deliveredRaw).trim();
+  return {
+    date: _parseExcelDate(row[0]),
+    customer: String(row[1] || '').trim(),
+    poNumber: String(row[2] || '').trim(),
+    salesAckNo: String(row[3] || '').trim(),
+    invoiceNo: String(row[4] || '').trim(),
+    fedexTracking: String(row[5] || '').trim(),
+    deliveredText,
+    deliveredDate: _parseDeliveredText(deliveredText),
+    comment: String(row[7] || '').trim(),
+    isDelivered: deliveredText.length > 0
+  };
+}
+
+// "13.01.26 @ 13.25" → Date(2026, 0, 13, 13, 25). Falls back to null on parse failure.
+function _parseDeliveredText(s) {
+  if (!s) return null;
+  // Strip the @-suffix; just need the date portion for the column-format we have
+  const m = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2,4})/);
+  if (!m) return null;
+  const [, d, mo, y] = m;
+  const fy = parseInt(y, 10) < 100 ? 2000 + parseInt(y, 10) : parseInt(y, 10);
+  const dt = new Date(fy, parseInt(mo, 10) - 1, parseInt(d, 10));
   return isNaN(dt) ? null : dt;
 }
 
