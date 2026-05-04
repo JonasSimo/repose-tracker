@@ -1,0 +1,1443 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>RepNet — Service Dashboard · Mockup v0.3</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --repose-blue:#14a1e9;
+    --repose-blue-soft:#e8f6fd;
+    --repose-blue-dark:#0d8ec9;
+    --repose-navy:#0e023a;
+    --repose-grey:#706f6f;
+    --bg:#eef1f5;
+    --bg2:#ffffff;
+    --bg3:#f8fafb;
+    --bbg:#e8f6fd;
+    --bborder:#bae0f5;
+    --border:#e1e6eb;
+    --border2:#c8d0d8;
+    --text:#0e023a;
+    --text2:#706f6f;
+    --text3:#a8a8a8;
+    --pass:#16a34a;
+    --pass-soft:#dcfce7;
+    --pass-bg:#f0fdf4;
+    --fail:#dc2626;
+    --fail-soft:#fee2e2;
+    --warn:#d97706;
+    --warn-soft:#fed7aa;
+    --warn-bg:#fffbeb;
+    --info:#0ea5e9;
+    --info-soft:#e0f2fe;
+    --purple:#7c3aed;
+    --purple-soft:#ede9fe;
+    --purple-bg:#faf5ff;
+    --grey-soft:#f1f5f9;
+    --amber:#d97706;
+    --abg:#fffbeb;
+    --aborder:#fde68a;
+    --rbg:#fef2f2;
+    --rborder:#fca5a5;
+    --green:#16a34a;
+    --gbg:#f0fdf4;
+    --gborder:#bbf7d0;
+    --orange:#ea580c;
+    --orange-soft:#fed7aa;
+    --pink:#db2777;
+    --pink-soft:#fce7f3;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Manrope,system-ui,sans-serif;color:var(--text);background:var(--bg);min-height:100vh;display:flex}
+
+  h1,h2,h3,h4{font-family:'Bricolage Grotesque',Manrope,sans-serif;letter-spacing:-.02em;margin:0}
+
+  /* ── v4 sidebar ── */
+  .side{flex:0 0 64px;width:64px;height:100vh;background:var(--repose-navy);color:#fff;padding:14px 10px;display:flex;flex-direction:column;gap:0;overflow:hidden;position:sticky;top:0;transition:flex-basis .22s,width .22s,padding .22s;white-space:nowrap;z-index:10}
+  .side:hover{flex:0 0 240px;width:240px;padding:18px 14px}
+  .side .brand{padding:4px 0 12px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:6px;display:flex;align-items:center;justify-content:center;min-height:38px}
+  .side:hover .brand{justify-content:flex-start;padding:8px 6px 18px}
+  .side .brand .bm{font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:18px;letter-spacing:-.02em}
+  .side .brand .bm em{color:var(--repose-blue);font-style:normal}
+  .side .brand-icon{font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:20px;color:var(--repose-blue)}
+  .side:hover .brand-icon{display:none}
+  .side:hover .brand .bm{display:inline}
+  .side .bm{display:none}
+  .side .v4-h{height:0;border-top:1px solid rgba(255,255,255,.08);margin:8px 14px 4px;padding:0;overflow:hidden;font-size:0}
+  .side:hover .v4-h{height:auto;padding:14px 6px 6px;margin:0;border-top:none;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.4);font-weight:700}
+  .side .v4-link{display:flex;align-items:center;gap:14px;padding:9px 12px;color:rgba(255,255,255,.65);border-radius:9px;font-size:13.5px;font-weight:600;cursor:pointer;margin:1px 0;text-decoration:none}
+  .side .v4-link:hover{background:rgba(255,255,255,.05);color:#fff}
+  .side .v4-link.on{background:rgba(20,161,233,.18);color:#fff}
+  .side .v4-link .v4-g{width:24px;text-align:center;font-size:15px;flex-shrink:0}
+  .side .v4-link .v4-lbl{display:none}
+  .side:hover .v4-link .v4-lbl{display:inline-block}
+  .side .nav-area{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;padding:4px 0;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.2) transparent}
+  .side .foot{padding-top:10px;border-top:1px solid rgba(255,255,255,.08);font-size:11px;color:rgba(255,255,255,.4)}
+  .side:hover .foot{padding:10px 6px}
+
+  /* ── Main scroll area ── */
+  .main{flex:1;height:100vh;overflow-y:auto;padding:24px 30px 80px;max-width:1760px}
+  @media (max-width:1400px){.main{padding:20px 20px 60px}}
+
+  /* ── Mockup label ribbon ── */
+  .mock-ribbon{display:inline-flex;align-items:center;gap:10px;font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:800;color:var(--purple);padding:7px 14px;background:var(--purple-soft);border:1px solid #ddd6fe;border-radius:999px;margin-bottom:14px}
+  .mock-ribbon .dot{width:6px;height:6px;border-radius:50%;background:var(--purple)}
+
+  /* ── Page head ── */
+  .page-head{background:#fff;border:1px solid var(--border);border-radius:18px;padding:20px 24px;margin-bottom:14px;display:flex;align-items:center;gap:18px}
+  .page-head .crumb{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--text2);font-weight:700;margin-bottom:4px}
+  .page-head h1{font-size:26px;font-weight:800;color:var(--repose-navy)}
+  .page-head h1 em{color:var(--repose-blue);font-style:normal}
+  .page-head .ps{font-size:12.5px;color:var(--text2);margin-top:6px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .page-head .ps .live{display:inline-flex;align-items:center;gap:6px;color:var(--pass);font-weight:700;font-size:12px}
+  .page-head .ps .live .pulse{width:7px;height:7px;border-radius:50%;background:var(--pass);box-shadow:0 0 0 0 rgba(22,163,74,.6);animation:pulse 2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(22,163,74,.5)}70%{box-shadow:0 0 0 8px rgba(22,163,74,0)}100%{box-shadow:0 0 0 0 rgba(22,163,74,0)}}
+  .page-head .right{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+
+  /* ── Buttons ── */
+  .btn{font-family:inherit;font-size:13px;font-weight:600;padding:10px 16px;border-radius:999px;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:7px;transition:all .12s;white-space:nowrap}
+  .btn-pri{background:var(--repose-blue);color:#fff}
+  .btn-pri:hover{background:var(--repose-blue-dark)}
+  .btn-sec{background:#fff;color:var(--repose-navy);border:1.5px solid var(--border2)}
+  .btn-sec:hover{border-color:var(--repose-blue);color:var(--repose-blue)}
+  .btn-ghost{background:transparent;color:var(--text2);padding:9px 14px}
+  .btn-ghost:hover{color:var(--repose-navy);background:var(--grey-soft)}
+
+  /* ── Triple alert banner row ── */
+  .alerts{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px}
+  .alert{border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px;font-size:12.5px;border:1px solid}
+  .alert .ab-icn{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;color:#fff}
+  .alert .ab-mid{flex:1;min-width:0}
+  .alert .ab-mid b{display:block;margin-bottom:2px;font-size:13px}
+  .alert .ab-mid .small{font-size:11.5px;color:var(--text2);font-weight:500}
+  .alert .ab-act{font-weight:700;font-size:11.5px;text-decoration:none;cursor:pointer;white-space:nowrap}
+  .alert.danger{background:linear-gradient(135deg,#fef2f2,#fff7ed);border-color:var(--rborder)}
+  .alert.danger .ab-icn{background:var(--fail)}
+  .alert.danger .ab-act{color:var(--fail)}
+  .alert.warn{background:linear-gradient(135deg,#fffbeb,#fff);border-color:var(--aborder)}
+  .alert.warn .ab-icn{background:var(--amber)}
+  .alert.warn .ab-act{color:var(--amber)}
+  .alert.info{background:linear-gradient(135deg,#e8f6fd,#fff);border-color:var(--bborder)}
+  .alert.info .ab-icn{background:var(--repose-blue)}
+  .alert.info .ab-act{color:var(--repose-blue)}
+
+  /* ── KPI tiles ── */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px}
+  .kpis-2{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+  .kpi{background:#fff;border:1px solid var(--border);border-radius:18px;padding:16px 20px;display:flex;align-items:flex-start;gap:14px;cursor:pointer;transition:all .15s;position:relative;overflow:hidden}
+  .kpi:hover{border-color:var(--repose-blue);box-shadow:0 8px 22px rgba(20,161,233,.10);transform:translateY(-1px)}
+  .kpi.lg{padding:18px 22px;flex-direction:column;align-items:stretch;gap:10px}
+  .kpi-top{display:flex;align-items:center;gap:14px}
+  .kpi-icn{width:44px;height:44px;border-radius:14px;background:var(--repose-blue-soft);color:var(--repose-blue);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+  .kpi.warn .kpi-icn{background:var(--warn-soft);color:var(--warn)}
+  .kpi.fail .kpi-icn{background:var(--fail-soft);color:var(--fail)}
+  .kpi.pass .kpi-icn{background:var(--pass-soft);color:var(--pass)}
+  .kpi.purple .kpi-icn{background:var(--purple-soft);color:var(--purple)}
+  .kpi-mid{flex:1;min-width:0}
+  .kpi-num{font-family:'Bricolage Grotesque',sans-serif;font-size:28px;font-weight:800;color:var(--repose-navy);line-height:1;letter-spacing:-.02em}
+  .kpi-num .unit{font-size:13px;font-weight:600;color:var(--text2);margin-left:4px;letter-spacing:0}
+  .kpi-lbl{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text2);font-weight:700;margin-top:6px}
+  .kpi-mini{padding:13px 16px;border-radius:14px}
+  .kpi-mini .kpi-num{font-size:20px}
+  .kpi-mini .kpi-icn{width:34px;height:34px;font-size:16px;border-radius:10px}
+  .kpi-mini .kpi-lbl{font-size:10px;margin-top:4px}
+
+  .split-bar{display:flex;width:100%;height:6px;border-radius:999px;overflow:hidden;background:var(--grey-soft)}
+  .split-bar .seg{height:100%}
+  .split-legend{display:flex;justify-content:space-between;font-size:11px;font-weight:700;margin-top:7px;color:var(--text)}
+  .split-legend .seg-lbl{display:flex;align-items:center;gap:5px}
+  .split-legend .seg-lbl .sw{width:8px;height:8px;border-radius:2px;display:inline-block}
+  .split-legend .seg-lbl em{font-style:normal;color:var(--text2);font-weight:500;margin-left:3px}
+
+  /* ── Layout grids ── */
+  .grid-2{display:grid;grid-template-columns:1.4fr 1fr;gap:16px;margin-bottom:16px}
+  @media (max-width:1280px){.grid-2{grid-template-columns:1fr}}
+  .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:16px}
+  @media (max-width:1280px){.grid-3{grid-template-columns:1fr}}
+  .grid-12{display:grid;grid-template-columns:1.2fr 0.8fr;gap:16px;margin-bottom:16px}
+
+  /* ── Card / panel ── */
+  .panel{background:#fff;border:1px solid var(--border);border-radius:18px;overflow:hidden}
+  .panel-head{padding:16px 20px 12px;display:flex;align-items:center;gap:14px;border-bottom:1px solid var(--border)}
+  .panel-head h2{font-size:16px;font-weight:700;color:var(--repose-navy);flex:1}
+  .panel-head h2 .sub{display:block;font-family:Manrope,sans-serif;font-size:11.5px;color:var(--text2);font-weight:500;letter-spacing:0;margin-top:3px}
+  .panel-head .right{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+  .panel-body{padding:6px 0}
+  .panel-foot{padding:11px 20px;background:var(--bg3);border-top:1px solid var(--border);text-align:center;font-size:11.5px;color:var(--text2);font-weight:600}
+  .panel-foot a{color:var(--repose-blue);font-weight:700;cursor:pointer}
+
+  /* ── Filter chips ── */
+  .chips{padding:12px 20px 4px;display:flex;flex-wrap:wrap;gap:6px;border-bottom:1px solid var(--border);background:var(--bg3)}
+  .chip{padding:5px 11px;border-radius:999px;border:1px solid var(--border2);background:#fff;font-size:11.5px;font-weight:600;color:var(--text2);cursor:pointer;display:inline-flex;align-items:center;gap:5px;transition:all .12s}
+  .chip:hover{border-color:var(--repose-blue);color:var(--repose-blue)}
+  .chip.on{background:var(--repose-navy);border-color:var(--repose-navy);color:#fff}
+  .chip.warn.on{background:var(--warn);border-color:var(--warn)}
+  .chip.fail.on{background:var(--fail);border-color:var(--fail)}
+  .chip.info.on{background:var(--info);border-color:var(--info)}
+  .chip.purple.on{background:var(--purple);border-color:var(--purple)}
+  .chip .cnt{background:var(--grey-soft);padding:1px 6px;border-radius:999px;font-size:10px;color:var(--text2);font-weight:700}
+  .chip.on .cnt{background:rgba(255,255,255,.18);color:#fff}
+
+  /* ── Table ── */
+  table.t{width:100%;border-collapse:collapse;font-size:13px}
+  table.t th{text-align:left;padding:9px 16px;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text2);background:var(--bg3);font-weight:700;border-bottom:1px solid var(--border)}
+  table.t td{padding:11px 16px;border-bottom:1px solid var(--border);vertical-align:middle}
+  table.t tr:last-child td{border-bottom:none}
+  table.t tr.row{cursor:pointer;transition:background .12s}
+  table.t tr.row:hover{background:var(--bbg)}
+  table.t tr.row.urgent{background:var(--rbg)}
+  table.t tr.row.urgent:hover{background:#fee2e2}
+  table.t tr.row.warn-row{background:var(--abg)}
+  table.t tr.row.warn-row:hover{background:#fef3c7}
+  table.t .id{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--repose-blue);font-weight:700}
+  table.t .ttl{font-weight:700;color:var(--repose-navy);font-size:13px}
+  table.t .meta{font-size:11px;color:var(--text2);margin-top:2px}
+
+  /* ── Status pills ── */
+  .pill{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:999px;font-size:10.5px;font-weight:700;letter-spacing:.04em}
+  .pill.warranty{background:var(--info-soft);color:var(--info);border:1px solid #bae6fd}
+  .pill.chargeable{background:var(--purple-soft);color:var(--purple);border:1px solid #ddd6fe}
+  .pill.in30{background:var(--abg);color:var(--amber);border:1px solid var(--aborder)}
+  .pill.out30{background:var(--grey-soft);color:var(--text2);border:1px solid var(--border2)}
+  .pill.open{background:var(--abg);color:var(--amber);border:1px solid var(--aborder)}
+  .pill.closed{background:var(--pass-soft);color:var(--pass);border:1px solid var(--gborder)}
+  .pill.transit{background:var(--info-soft);color:var(--info);border:1px solid #bae6fd}
+  .pill.delivered{background:var(--pass-soft);color:var(--pass);border:1px solid var(--gborder)}
+  .pill.delayed{background:var(--fail-soft);color:var(--fail);border:1px solid var(--rborder)}
+  .pill.dot::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;display:inline-block}
+  .pill.return{background:#fff7ed;color:var(--orange);border:1px solid var(--orange-soft)}
+  .pill.repeat{background:#fef2f2;color:var(--fail);border:1px solid var(--rborder);font-weight:800}
+  .pill.sla{background:#fef2f2;color:var(--fail);border:1px solid var(--rborder);font-weight:800}
+
+  /* age / days */
+  .age{font-family:'JetBrains Mono',monospace;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:6px;display:inline-block}
+  .age.ok{background:var(--pass-soft);color:var(--pass)}
+  .age.warn{background:var(--warn-soft);color:var(--warn)}
+  .age.bad{background:var(--fail-soft);color:var(--fail)}
+
+  /* chair number badge */
+  .chair-no{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;background:var(--orange);color:#fff;padding:2px 8px;border-radius:6px;display:inline-flex;align-items:center;gap:4px}
+  .chair-no .ico{font-size:9px}
+
+  /* ── Returns Pipeline ── */
+  .returns-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:12px 20px 16px}
+  .return-col{background:var(--bg3);border:1px solid var(--border);border-radius:14px;padding:12px;min-height:260px}
+  .return-col-head{display:flex;align-items:center;gap:10px;margin-bottom:10px;padding-bottom:9px;border-bottom:1.5px solid var(--border)}
+  .return-col-head .ico{width:32px;height:32px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px}
+  .return-col.r1 .return-col-head .ico{background:var(--orange-soft);color:var(--orange)}
+  .return-col.r2 .return-col-head .ico{background:var(--info-soft);color:var(--info)}
+  .return-col.r3 .return-col-head .ico{background:var(--pass-soft);color:var(--pass)}
+  .return-col-head h3{font-size:12.5px;color:var(--repose-navy);flex:1}
+  .return-col-head h3 .sub{display:block;font-family:Manrope,sans-serif;font-weight:500;font-size:10.5px;color:var(--text2);margin-top:1px;letter-spacing:0}
+  .return-col-head .cnt{font-family:'Bricolage Grotesque',sans-serif;font-size:22px;font-weight:800;color:var(--repose-navy);line-height:1}
+  .return-cards{display:flex;flex-direction:column;gap:7px}
+  .rcard{background:#fff;border:1px solid var(--border);border-radius:11px;padding:10px 12px;cursor:pointer;transition:all .12s;position:relative}
+  .rcard:hover{border-color:var(--repose-blue);box-shadow:0 4px 12px rgba(20,161,233,.10)}
+  .rcard .rcard-top{display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap}
+  .rcard .rcard-bot{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--text2)}
+  .rcard .rcard-bot b{color:var(--text);font-weight:700}
+  .rcard .rcard-meta{font-size:10.5px;color:var(--text2);font-weight:500;margin-top:4px}
+
+  /* ── Parts in transit cards ── */
+  .parts-list{padding:11px 20px 16px;display:flex;flex-direction:column;gap:9px}
+  .parcel{display:grid;grid-template-columns:auto 1fr auto;gap:12px;padding:12px;border:1px solid var(--border);border-radius:14px;background:#fff;align-items:center;cursor:pointer;transition:all .12s}
+  .parcel:hover{border-color:var(--repose-blue);box-shadow:0 6px 16px rgba(20,161,233,.08)}
+  .parcel-icn{width:40px;height:40px;border-radius:11px;background:var(--info-soft);color:var(--info);display:flex;align-items:center;justify-content:center;font-size:19px}
+  .parcel.delivered .parcel-icn{background:var(--pass-soft);color:var(--pass)}
+  .parcel.delayed .parcel-icn{background:var(--fail-soft);color:var(--fail)}
+  .parcel-mid{min-width:0}
+  .parcel-mid .top{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+  .parcel-mid .who{font-weight:700;font-size:13px;color:var(--repose-navy)}
+  .parcel-mid .po{font-family:'JetBrains Mono',monospace;color:var(--text2);font-size:11px}
+  .parcel-mid .tn{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text2);margin-top:3px}
+  .parcel-mid .tn b{color:var(--text);font-weight:700}
+  .parcel-mid .progress{height:5px;border-radius:999px;background:var(--grey-soft);margin-top:7px;overflow:hidden}
+  .parcel-mid .progress-fill{height:100%;background:linear-gradient(90deg,var(--info),var(--repose-blue));border-radius:999px}
+  .parcel.delivered .parcel-mid .progress-fill{background:var(--pass)}
+  .parcel.delayed .parcel-mid .progress-fill{background:var(--fail)}
+  .parcel-right{text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:3px}
+  .parcel-right .eta{font-family:'Bricolage Grotesque',sans-serif;font-size:13px;font-weight:700;color:var(--repose-navy)}
+  .parcel-right .eta .lbl{display:block;font-family:Manrope,sans-serif;font-size:9px;font-weight:600;color:var(--text2);letter-spacing:.08em;text-transform:uppercase;margin-bottom:1px}
+
+  /* ── Performance trend ── */
+  .perf-strip{padding:16px 20px}
+  .perf-grid{display:grid;grid-template-columns:repeat(13,1fr);gap:5px;align-items:end;margin-bottom:8px;height:130px}
+  .perf-bar-stack-wrap{position:relative;display:flex;flex-direction:column;justify-content:flex-end;height:100%;cursor:pointer;transition:transform .12s}
+  .perf-bar-stack-wrap:hover{transform:translateY(-2px)}
+  .perf-bar-stack-wrap .val{position:absolute;left:50%;transform:translateX(-50%);font-size:10px;font-weight:700;color:var(--text);white-space:nowrap}
+  .perf-bar-stack{display:flex;flex-direction:column;justify-content:flex-end;height:100%;width:100%}
+  .perf-seg{width:100%}
+  .perf-seg.in30{background:var(--info)}
+  .perf-seg.out30{background:var(--purple)}
+  .perf-bar-stack .perf-seg:first-child{border-radius:5px 5px 0 0}
+  .perf-labels{display:grid;grid-template-columns:repeat(13,1fr);gap:5px;font-size:9.5px;color:var(--text2);text-align:center;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+  .perf-target-line{position:relative;height:1px;border-top:1px dashed var(--warn);margin:0 0 8px}
+  .perf-target-line span{position:absolute;left:0;top:-9px;font-size:9.5px;font-weight:700;background:#fff;color:var(--warn);padding:0 5px}
+  .perf-legend{display:flex;justify-content:flex-end;gap:14px;margin-top:12px;font-size:11px;font-weight:600;color:var(--text)}
+  .perf-legend .l{display:inline-flex;align-items:center;gap:6px}
+  .perf-legend .l .sw{width:11px;height:11px;border-radius:3px;display:inline-block}
+
+  /* ── £ trend variant (line chart) ── */
+  .gbp-chart{padding:16px 20px}
+  .gbp-svg{width:100%;height:160px}
+
+  /* ── Mini chart (top fault) ── */
+  .fault-row{display:flex;align-items:center;gap:14px;padding:10px 20px;border-bottom:1px solid var(--border);transition:background .12s;cursor:pointer}
+  .fault-row:hover{background:var(--bg3)}
+  .fault-row:last-child{border-bottom:none}
+  .fault-row .label{flex:1;font-size:12.5px;font-weight:600;color:var(--text);min-width:0}
+  .fault-row .label .sub{display:block;font-size:10.5px;color:var(--text2);font-weight:500;margin-top:1px}
+  .fault-row .bar{flex:1.2;height:7px;background:var(--grey-soft);border-radius:999px;overflow:hidden;display:flex}
+  .fault-row .bar .seg-w{height:100%;background:linear-gradient(90deg,var(--info),#0ea5e9)}
+  .fault-row .bar .seg-c{height:100%;background:linear-gradient(90deg,var(--purple),#a78bfa)}
+  .fault-row .num{font-family:'Bricolage Grotesque',sans-serif;font-size:17px;font-weight:800;color:var(--repose-navy);min-width:32px;text-align:right}
+
+  /* ── Mech codes table ── */
+  .mech-row{display:grid;grid-template-columns:auto 1fr auto auto;gap:10px;padding:10px 20px;border-bottom:1px solid var(--border);align-items:center;cursor:pointer;transition:background .12s}
+  .mech-row:hover{background:var(--bg3)}
+  .mech-row:last-child{border-bottom:none}
+  .mech-row .mc{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;background:var(--repose-navy);color:#fff;padding:3px 8px;border-radius:6px;min-width:42px;text-align:center}
+  .mech-row .ms-name{font-size:12.5px;font-weight:600;color:var(--text)}
+  .mech-row .ms-name .sub{display:block;font-size:10.5px;color:var(--text2);font-weight:500;margin-top:1px}
+  .mech-row .ms-bar{width:80px;height:5px;background:var(--grey-soft);border-radius:999px;overflow:hidden}
+  .mech-row .ms-bar div{height:100%;background:linear-gradient(90deg,var(--fail),var(--orange))}
+  .mech-row .ms-num{font-family:'Bricolage Grotesque',sans-serif;font-size:17px;font-weight:800;color:var(--repose-navy);min-width:30px;text-align:right}
+
+  /* ── Customer scorecard ── */
+  .cust-row{display:grid;grid-template-columns:auto 1fr auto auto;gap:12px;padding:10px 20px;border-bottom:1px solid var(--border);align-items:center;cursor:pointer;transition:background .12s}
+  .cust-row:hover{background:var(--bg3)}
+  .cust-row:last-child{border-bottom:none}
+  .cust-row .cust-rank{font-family:'Bricolage Grotesque',sans-serif;font-size:14px;font-weight:800;color:var(--text3);width:20px;text-align:center}
+  .cust-row .cust-name{font-weight:700;font-size:12.5px;color:var(--repose-navy)}
+  .cust-row .cust-name .sub{display:block;font-size:10.5px;color:var(--text2);font-weight:500;margin-top:2px}
+  .cust-row .cust-bar{width:90px;height:5px;background:var(--grey-soft);border-radius:999px;overflow:hidden;display:flex}
+  .cust-row .cust-bar .b1{background:var(--info);height:100%}
+  .cust-row .cust-bar .b2{background:var(--purple);height:100%}
+  .cust-row .cust-num{font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:17px;color:var(--repose-navy);min-width:34px;text-align:right}
+
+  /* ── Drawer mockup ── */
+  .drawer-card{background:#fff;border:1px solid var(--border);border-radius:18px;overflow:hidden;display:flex;flex-direction:column}
+  .drawer-card .dr-head{padding:16px 20px;background:linear-gradient(135deg,#fff7ed,#fff);border-bottom:1px solid var(--border)}
+  .drawer-card .dr-head .crumb{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--repose-blue);font-weight:700;letter-spacing:.04em}
+  .drawer-card .dr-head h3{font-size:16px;color:var(--repose-navy);margin-top:4px}
+  .drawer-card .dr-head .badges{display:flex;gap:5px;margin-top:7px;flex-wrap:wrap}
+  .dr-section{padding:13px 20px;border-bottom:1px solid var(--border)}
+  .dr-section:last-child{border-bottom:none}
+  .dr-section h4{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--text2);font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+  .dr-section h4 .h-ico{width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;background:var(--repose-blue-soft);color:var(--repose-blue);border-radius:5px}
+  .dr-meta{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:11.5px}
+  .dr-meta dt{color:var(--text2);font-weight:600}
+  .dr-meta dd{margin:0;font-weight:600;color:var(--text)}
+
+  /* timeline */
+  .tl{display:flex;flex-direction:column;gap:0;position:relative}
+  .tl-step{display:grid;grid-template-columns:28px 1fr;gap:10px;padding:6px 0;position:relative}
+  .tl-step::before{content:'';position:absolute;left:13px;top:28px;bottom:-6px;width:1.5px;background:var(--border)}
+  .tl-step:last-child::before{display:none}
+  .tl-step .tl-dot{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;position:relative;z-index:1}
+  .tl-step.done .tl-dot{background:var(--pass);color:#fff}
+  .tl-step.now .tl-dot{background:var(--repose-blue);color:#fff;box-shadow:0 0 0 3px rgba(20,161,233,.20)}
+  .tl-step.pending .tl-dot{background:var(--grey-soft);color:var(--text3);border:1.5px dashed var(--border2)}
+  .tl-step .tl-body{font-size:12px;padding-top:3px}
+  .tl-step .tl-body b{display:block;color:var(--text);font-weight:700;margin-bottom:1px;font-size:12.5px}
+  .tl-step .tl-body .when{color:var(--text2);font-size:10.5px;font-weight:500}
+  .tl-step.pending .tl-body b{color:var(--text2);font-weight:600}
+  .tl-step .tl-body .src{display:inline-flex;align-items:center;gap:4px;font-size:9.5px;font-weight:700;background:var(--bbg);color:var(--repose-blue);padding:2px 6px;border-radius:999px;margin-top:4px;letter-spacing:.04em;text-transform:uppercase}
+  .tl-step .tl-body .src.maxoptra{background:#fef3c7;color:#a16207}
+  .tl-step .tl-body .src.iauditor{background:var(--gbg);color:var(--green)}
+  .tl-step .tl-body .src.email{background:var(--pink-soft);color:var(--pink)}
+  .tl-step .tl-body .src.repnet{background:var(--purple-soft);color:var(--purple)}
+
+  /* photo gallery */
+  .photo-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:6px}
+  .photo-thumb{aspect-ratio:1;border-radius:8px;background:linear-gradient(135deg,#94a3b8,#64748b);position:relative;overflow:hidden;cursor:pointer;display:flex;align-items:flex-end;justify-content:flex-start;font-size:9.5px;color:#fff;font-weight:700;padding:5px}
+  .photo-thumb.in{background:linear-gradient(135deg,#fb923c,#ea580c)}
+  .photo-thumb.out{background:linear-gradient(135deg,#34d399,#059669)}
+  .photo-thumb .ph-tag{background:rgba(0,0,0,.4);padding:1px 5px;border-radius:4px;backdrop-filter:blur(6px)}
+  .photo-thumb.add{background:var(--bg3);border:1.5px dashed var(--border2);color:var(--text2);justify-content:center;align-items:center;font-size:18px}
+
+  /* build link card */
+  .build-link{padding:10px 12px;background:var(--bbg);border:1px solid var(--bborder);border-radius:10px;display:flex;align-items:center;gap:10px;font-size:11.5px}
+  .build-link .ico{width:30px;height:30px;border-radius:8px;background:var(--repose-blue);color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px}
+  .build-link b{color:var(--repose-navy)}
+  .build-link .arrow{margin-left:auto;color:var(--repose-blue);font-weight:800}
+
+  /* ── Customer drill-down ── */
+  .cdrill-head{padding:16px 20px;background:linear-gradient(135deg,var(--bbg),#fff);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:14px}
+  .cdrill-avatar{width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,var(--repose-blue),#0ea5e9);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Bricolage Grotesque',sans-serif;font-size:18px;font-weight:800}
+  .cdrill-name h3{font-size:18px;color:var(--repose-navy)}
+  .cdrill-name .sub{font-size:11.5px;color:var(--text2);font-weight:500;margin-top:2px}
+  .cdrill-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border-bottom:1px solid var(--border)}
+  .cdrill-stat{padding:11px 14px;text-align:center;border-right:1px solid var(--border)}
+  .cdrill-stat:last-child{border-right:none}
+  .cdrill-stat .v{font-family:'Bricolage Grotesque',sans-serif;font-size:18px;font-weight:800;color:var(--repose-navy);line-height:1}
+  .cdrill-stat .l{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text2);font-weight:700;margin-top:4px}
+  .cdrill-faults{padding:10px 20px;border-bottom:1px solid var(--border)}
+  .cdrill-faults h4{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--text2);font-weight:700;margin-bottom:8px}
+  .cdrill-faults .row{display:flex;align-items:center;gap:10px;margin-bottom:5px;font-size:11.5px}
+  .cdrill-faults .row .nm{flex:1}
+  .cdrill-faults .row .pct{font-family:'Bricolage Grotesque',sans-serif;font-weight:800;color:var(--repose-navy);min-width:40px;text-align:right}
+  .cdrill-repeat{padding:10px 20px;background:var(--rbg);border-bottom:1px solid var(--rborder);font-size:11.5px;color:var(--fail);font-weight:700;display:flex;align-items:center;gap:8px}
+
+  /* ── Schedule (week view) ── */
+  .sched-head{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--text2);font-weight:600}
+  .sched-head b{color:var(--text)}
+  .sched-grid{display:grid;grid-template-columns:60px repeat(5,1fr);border-bottom:1px solid var(--border)}
+  .sched-day-h{padding:10px 8px;text-align:center;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text2);font-weight:700;background:var(--bg3);border-right:1px solid var(--border);border-bottom:1px solid var(--border)}
+  .sched-day-h:last-child{border-right:none}
+  .sched-day-h.today{background:var(--bbg);color:var(--repose-blue)}
+  .sched-tcol{background:var(--bg3);border-right:1px solid var(--border)}
+  .sched-time{height:38px;padding:4px 8px;font-size:10px;color:var(--text3);font-weight:600;text-align:right;border-bottom:1px solid var(--border)}
+  .sched-cell{height:38px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);position:relative}
+  .sched-cell:last-child{border-right:none}
+  .sched-event{position:absolute;left:3px;right:3px;border-radius:6px;padding:4px 7px;font-size:10.5px;color:#fff;font-weight:700;cursor:pointer;overflow:hidden;line-height:1.2}
+  .sched-event.collection{background:var(--orange)}
+  .sched-event.delivery{background:var(--pass)}
+  .sched-event.iauditor{background:var(--purple)}
+  .sched-event.site{background:var(--repose-blue)}
+  .sched-event .ev-sub{display:block;font-size:9.5px;font-weight:500;opacity:.85;margin-top:1px}
+
+  /* ── CAPA bridge panel ── */
+  .capa-row{padding:11px 20px;border-bottom:1px solid var(--border);display:flex;gap:12px;align-items:center}
+  .capa-row:last-child{border-bottom:none}
+  .capa-row .capa-icn{width:36px;height:36px;border-radius:10px;background:var(--purple-soft);color:var(--purple);display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+  .capa-row .capa-mid{flex:1}
+  .capa-row .capa-mid b{color:var(--repose-navy);font-size:12.5px;font-weight:700;display:block;margin-bottom:1px}
+  .capa-row .capa-mid .small{font-size:10.5px;color:var(--text2);font-weight:500}
+  .capa-row .capa-act{font-size:11px;font-weight:700;color:var(--repose-blue);text-decoration:none;cursor:pointer;white-space:nowrap;border:1px solid var(--bborder);background:var(--bbg);padding:6px 11px;border-radius:999px}
+
+  /* ── Public tracking page mockup ── */
+  .track-card{background:#fff;border:1px solid var(--border);border-radius:18px;overflow:hidden;display:flex;flex-direction:column}
+  .track-head{padding:14px 18px;background:var(--repose-navy);color:#fff}
+  .track-head h3{font-size:14px;color:#fff}
+  .track-head .small{color:rgba(255,255,255,.65);font-size:10.5px;margin-top:3px}
+  .track-body{padding:14px 18px}
+  .track-stage{margin-bottom:10px;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg3);display:flex;align-items:center;gap:10px}
+  .track-stage.done{background:var(--gbg);border-color:var(--gborder)}
+  .track-stage.now{background:var(--bbg);border-color:var(--bborder)}
+  .track-stage .ts-icn{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;flex-shrink:0}
+  .track-stage.done .ts-icn{background:var(--pass)}
+  .track-stage.now .ts-icn{background:var(--repose-blue);box-shadow:0 0 0 3px rgba(20,161,233,.2)}
+  .track-stage.pending .ts-icn{background:var(--grey-soft);color:var(--text3);border:1.5px dashed var(--border2)}
+  .track-stage .ts-mid{flex:1}
+  .track-stage .ts-mid b{font-size:11.5px;color:var(--repose-navy);display:block}
+  .track-stage .ts-mid .small{font-size:10px;color:var(--text2);font-weight:500}
+  .track-foot{padding:10px 18px;background:var(--bg3);border-top:1px solid var(--border);font-size:10px;color:var(--text2);text-align:center}
+
+  /* ── Forecast ── */
+  .forecast-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border-bottom:1px solid var(--border)}
+  .forecast-cell{padding:14px 18px;text-align:center;border-right:1px solid var(--border)}
+  .forecast-cell:last-child{border-right:none}
+  .forecast-cell .lbl{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text2);font-weight:700;margin-bottom:5px}
+  .forecast-cell .v{font-family:'Bricolage Grotesque',sans-serif;font-size:24px;font-weight:800;color:var(--repose-navy);line-height:1;letter-spacing:-.02em}
+  .forecast-cell .v .unit{font-size:12px;font-weight:600;color:var(--text2);margin-left:3px}
+  .forecast-cell .delta{font-size:11px;color:var(--text2);font-weight:600;margin-top:5px}
+  .forecast-cell .delta.up{color:var(--fail)}
+  .forecast-cell .delta.down{color:var(--pass)}
+  .forecast-band{padding:14px 20px}
+  .forecast-band-bar{height:14px;border-radius:7px;background:linear-gradient(90deg,var(--pass) 0%,var(--pass) 60%,var(--warn) 60%,var(--warn) 85%,var(--fail) 85%,var(--fail) 100%);position:relative;margin:14px 0 8px}
+  .forecast-band-bar .marker{position:absolute;top:-4px;width:4px;height:22px;background:var(--repose-navy);border-radius:2px}
+  .forecast-band-labels{display:flex;justify-content:space-between;font-size:10.5px;color:var(--text2);font-weight:600}
+
+  /* ── Architecture ── */
+  .arch-card{background:#fff;border:1px solid var(--border);border-radius:18px;padding:22px 24px;margin-top:14px}
+  .arch-card h2{font-size:17px;color:var(--repose-navy);margin-bottom:5px}
+  .arch-card .arch-sub{font-size:12px;color:var(--text2);margin-bottom:16px}
+  .arch-card .arch-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .arch-card .arch-block{padding:14px 16px;border:1px solid var(--border);border-radius:14px;background:var(--bg3)}
+  .arch-card .arch-block h4{font-size:12.5px;color:var(--repose-navy);margin-bottom:5px;display:flex;align-items:center;gap:8px}
+  .arch-card .arch-block h4 .ico{width:22px;height:22px;background:var(--repose-blue);color:#fff;border-radius:6px;font-size:11px;display:flex;align-items:center;justify-content:center;font-weight:800}
+  .arch-card .arch-block.alt h4 .ico{background:var(--orange)}
+  .arch-card .arch-block.alt2 h4 .ico{background:var(--green)}
+  .arch-card .arch-block.alt3 h4 .ico{background:var(--purple)}
+  .arch-card .arch-block.alt4 h4 .ico{background:var(--pink)}
+  .arch-card .arch-block.alt5 h4 .ico{background:var(--info)}
+  .arch-card .arch-block p{font-size:11.5px;color:var(--text);line-height:1.55;margin:0}
+  .arch-card .arch-block code{background:#fff;border:1px solid var(--border);padding:1px 5px;border-radius:5px;font-size:10.5px;color:var(--repose-blue);font-family:'JetBrains Mono',monospace}
+
+  /* misc */
+  .footnote{margin-top:24px;font-size:11px;color:var(--text2);text-align:center}
+  .small{font-size:11px;color:var(--text2);font-weight:500}
+  .badge-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+  .badge{font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:5px;padding:6px 11px;border-radius:999px;border:1px solid}
+  .badge.green{background:var(--gbg);border-color:var(--gborder);color:var(--green)}
+  .badge.blue{background:var(--bbg);border-color:var(--bborder);color:var(--repose-blue)}
+  .badge.orange{background:#fff7ed;border-color:var(--orange-soft);color:var(--orange)}
+  .badge.purple{background:var(--purple-soft);border-color:#ddd6fe;color:var(--purple)}
+</style>
+</head>
+<body>
+
+  <!-- ───── Sidebar (v4) ───── -->
+  <aside class="side">
+    <div class="brand">
+      <span class="brand-icon">R<em>•</em>N</span>
+      <span class="bm">Rep<em>Net</em></span>
+    </div>
+    <div class="nav-area">
+      <div class="v4-h">Production</div>
+      <a class="v4-link"><span class="v4-g">⌂</span><span class="v4-lbl">Home</span></a>
+      <a class="v4-link"><span class="v4-g">▤</span><span class="v4-lbl">Team View</span></a>
+      <a class="v4-link"><span class="v4-g">⊞</span><span class="v4-lbl">Load Plan</span></a>
+      <a class="v4-link"><span class="v4-g">↗</span><span class="v4-lbl">Delivery</span></a>
+      <a class="v4-link"><span class="v4-g">▣</span><span class="v4-lbl">Production Plan</span></a>
+      <div class="v4-h">Quality / QHSE</div>
+      <a class="v4-link"><span class="v4-g">∑</span><span class="v4-lbl">Stats</span></a>
+      <a class="v4-link"><span class="v4-g">✓</span><span class="v4-lbl">Quality</span></a>
+      <a class="v4-link"><span class="v4-g">⊕</span><span class="v4-lbl">CAPA</span></a>
+      <a class="v4-link"><span class="v4-g">⚠</span><span class="v4-lbl">Near Misses</span></a>
+      <a class="v4-link"><span class="v4-g">✉</span><span class="v4-lbl">Complaints</span></a>
+      <a class="v4-link"><span class="v4-g">📄</span><span class="v4-lbl">Documents</span></a>
+      <div class="v4-h">Service</div>
+      <a class="v4-link on"><span class="v4-g">🔧</span><span class="v4-lbl">Service Dashboard</span></a>
+      <div class="v4-h">Operations</div>
+      <a class="v4-link"><span class="v4-g">⚒</span><span class="v4-lbl">Maintenance</span></a>
+      <a class="v4-link"><span class="v4-g">⏱</span><span class="v4-lbl">Job Timing</span></a>
+      <a class="v4-link"><span class="v4-g">✦</span><span class="v4-lbl">Innovation</span></a>
+    </div>
+    <div class="foot">v4.2 · Service prev</div>
+  </aside>
+
+  <!-- ───── Main ───── -->
+  <div class="main">
+
+    <div class="mock-ribbon"><span class="dot"></span> Mockup · Service Dashboard · v0.3 · Full feature set</div>
+
+    <div class="page-head">
+      <div>
+        <div class="crumb">Service Department</div>
+        <h1>Service <em>Dashboard</em></h1>
+        <div class="ps">
+          <span class="live"><span class="pulse"></span>Live · synced 14 sec ago</span>
+          <span>· Sources: <b>Ticketing Log</b> · <b>Parts Tracker</b> · <b>Maxoptra</b> · <b>iAuditor</b> · <b>FedEx</b></span>
+          <span>· Period: <b>Apr 2026</b> MTD</span>
+        </div>
+      </div>
+      <div class="right">
+        <button class="btn btn-ghost">📅 Apr 2026 ▾</button>
+        <button class="btn btn-sec">↻ Refresh</button>
+        <button class="btn btn-sec">＋ Parts Dispatch</button>
+        <button class="btn btn-pri">＋ New Ticket</button>
+      </div>
+    </div>
+
+    <!-- ───── Triple alert banner row (SLA + CAPA + Forecast) ───── -->
+    <div class="alerts">
+      <div class="alert danger">
+        <div class="ab-icn">⏰</div>
+        <div class="ab-mid">
+          <b>SLA breach pre-alert · 5 tickets at 80%+ of close target</b>
+          <span class="small">TICKET1305, TICKET1297 + 3 more · no action logged in 5+ days</span>
+        </div>
+        <a class="ab-act">Review →</a>
+      </div>
+      <div class="alert warn">
+        <div class="ab-icn">⚠</div>
+        <div class="ab-mid">
+          <b>3 chairs back twice or more this quarter</b>
+          <span class="small">REP2284 (3rd return), REP2719 (2nd), REP2816 (2nd) · CAPA suggested</span>
+        </div>
+        <a class="ab-act">Open CAPA →</a>
+      </div>
+      <div class="alert info">
+        <div class="ab-icn">📊</div>
+        <div class="ab-mid">
+          <b>Forecast · May 2026 expected ~32 new tickets</b>
+          <span class="small">Parts spend forecast £5,200 · within historical band</span>
+        </div>
+        <a class="ab-act">View forecast →</a>
+      </div>
+    </div>
+
+    <!-- ───── Top KPI strip (4 primary tiles with split data) ───── -->
+    <div class="kpis">
+
+      <div class="kpi lg warn">
+        <div class="kpi-top">
+          <div class="kpi-icn">🟠</div>
+          <div class="kpi-mid">
+            <div class="kpi-num">19<span class="unit">open</span></div>
+            <div class="kpi-lbl">4 overdue · ▲3 vs last week</div>
+          </div>
+        </div>
+        <div>
+          <div class="split-bar">
+            <div class="seg" style="width:63%;background:var(--amber)"></div>
+            <div class="seg" style="width:37%;background:var(--text2)"></div>
+          </div>
+          <div class="split-legend">
+            <span class="seg-lbl"><span class="sw" style="background:var(--amber)"></span>Inside 30d <em>12</em></span>
+            <span class="seg-lbl"><span class="sw" style="background:var(--text2)"></span>Outside 30d <em>7</em></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="kpi lg pass">
+        <div class="kpi-top">
+          <div class="kpi-icn">⏰</div>
+          <div class="kpi-mid">
+            <div class="kpi-num">9<span class="unit">days</span></div>
+            <div class="kpi-lbl">Avg close · target 14 · ▼1.2</div>
+          </div>
+        </div>
+        <div>
+          <div class="split-bar">
+            <div class="seg" style="width:78%;background:var(--info)"></div>
+            <div class="seg" style="width:22%;background:var(--purple)"></div>
+          </div>
+          <div class="split-legend">
+            <span class="seg-lbl"><span class="sw" style="background:var(--info)"></span>Warranty <em>7d</em></span>
+            <span class="seg-lbl"><span class="sw" style="background:var(--purple)"></span>Chargeable <em>14d</em></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="kpi lg">
+        <div class="kpi-top">
+          <div class="kpi-icn">📦</div>
+          <div class="kpi-mid">
+            <div class="kpi-num">7<span class="unit">parcels</span></div>
+            <div class="kpi-lbl">Live · 2 due today · 1 delayed</div>
+          </div>
+        </div>
+        <div>
+          <div class="split-bar">
+            <div class="seg" style="width:58%;background:var(--info)"></div>
+            <div class="seg" style="width:14%;background:var(--fail)"></div>
+            <div class="seg" style="width:28%;background:var(--pass)"></div>
+          </div>
+          <div class="split-legend">
+            <span class="seg-lbl"><span class="sw" style="background:var(--info)"></span>Transit <em>4</em></span>
+            <span class="seg-lbl"><span class="sw" style="background:var(--fail)"></span>Delayed <em>1</em></span>
+            <span class="seg-lbl"><span class="sw" style="background:var(--pass)"></span>OFD <em>2</em></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="kpi lg pass">
+        <div class="kpi-top">
+          <div class="kpi-icn">📈</div>
+          <div class="kpi-mid">
+            <div class="kpi-num">87<span class="unit">%</span></div>
+            <div class="kpi-lbl">Within target · ▲4% MTD</div>
+          </div>
+        </div>
+        <div>
+          <div class="split-bar">
+            <div class="seg" style="width:91%;background:var(--info)"></div>
+            <div class="seg" style="width:9%;background:var(--purple)"></div>
+          </div>
+          <div class="split-legend">
+            <span class="seg-lbl"><span class="sw" style="background:var(--info)"></span>Warranty <em>91%</em></span>
+            <span class="seg-lbl"><span class="sw" style="background:var(--purple)"></span>Chargeable <em>74%</em></span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ───── Secondary KPI strip ───── -->
+    <div class="kpis-2">
+      <div class="kpi kpi-mini purple">
+        <div class="kpi-icn">🔄</div>
+        <div class="kpi-mid"><div class="kpi-num">10<span class="unit">chairs</span></div><div class="kpi-lbl">In returns pipeline</div></div>
+      </div>
+      <div class="kpi kpi-mini">
+        <div class="kpi-icn">🆕</div>
+        <div class="kpi-mid"><div class="kpi-num">23</div><div class="kpi-lbl">Opened this week</div></div>
+      </div>
+      <div class="kpi kpi-mini pass">
+        <div class="kpi-icn">💰</div>
+        <div class="kpi-mid"><div class="kpi-num">£24,180</div><div class="kpi-lbl">£ chargeable MTD</div></div>
+      </div>
+      <div class="kpi kpi-mini fail">
+        <div class="kpi-icn">🔧</div>
+        <div class="kpi-mid"><div class="kpi-num">MECH</div><div class="kpi-lbl">Top fault category MTD</div></div>
+      </div>
+    </div>
+
+    <!-- ───── Returns Pipeline (kanban) ───── -->
+    <div class="panel" style="margin-bottom:16px">
+      <div class="panel-head">
+        <div><h2>🔄 Returns Pipeline <span class="sub">Chairs flowing back · Maxoptra-synced collection + delivery</span></h2></div>
+        <div class="right">
+          <span class="chip on">All <span class="cnt">10</span></span>
+          <span class="chip">Warranty <span class="cnt">8</span></span>
+          <span class="chip">Chargeable <span class="cnt">2</span></span>
+        </div>
+      </div>
+      <div class="returns-grid">
+        <div class="return-col r1">
+          <div class="return-col-head">
+            <div class="ico">🚚</div>
+            <h3>Awaiting collection<span class="sub">Transport requested · Maxoptra job created</span></h3>
+            <span class="cnt">3</span>
+          </div>
+          <div class="return-cards">
+            <div class="rcard">
+              <div class="rcard-top">
+                <span class="chair-no"><span class="ico">🪑</span>REP2284-R3</span>
+                <span class="pill repeat">3rd</span>
+                <span class="pill warranty">WARR</span>
+              </div>
+              <div class="rcard-meta">CHATSWORTH CLASSIC · Order Processing Error · CASTELAN</div>
+              <div class="rcard-bot"><span>Maxoptra · <b>Job 4781</b></span><span><b>Tomorrow</b> AM</span></div>
+            </div>
+            <div class="rcard">
+              <div class="rcard-top">
+                <span class="chair-no"><span class="ico">🪑</span>REP2719-R2</span>
+                <span class="pill repeat">2nd</span>
+                <span class="pill warranty">WARR</span>
+              </div>
+              <div class="rcard-meta">BERKSHIRE · Foam Collapsing · ABBEY HEALTHCARE</div>
+              <div class="rcard-bot"><span>Maxoptra · <b>Job 4782</b></span><span><b>Wed 7 May</b></span></div>
+            </div>
+            <div class="rcard">
+              <div class="rcard-top">
+                <span class="chair-no"><span class="ico">🪑</span>REP2891-R1</span>
+                <span class="pill chargeable">CHRG</span>
+              </div>
+              <div class="rcard-meta">BERKSHIRE FIXED · Castor damaged · CHARTERHOUSE</div>
+              <div class="rcard-bot"><span>Email → transport@</span><span><b>Pending</b></span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="return-col r2">
+          <div class="return-col-head">
+            <div class="ico">🏭</div>
+            <h3>In factory<span class="sub">Inspected · in production</span></h3>
+            <span class="cnt">5</span>
+          </div>
+          <div class="return-cards">
+            <div class="rcard">
+              <div class="rcard-top">
+                <span class="chair-no"><span class="ico">🪑</span>REP2816-R2</span>
+                <span class="pill repeat">2nd</span>
+                <span class="pill warranty">WARR</span>
+              </div>
+              <div class="rcard-meta">CHATSWORTH · Mech noisy · GROSVENOR</div>
+              <div class="rcard-bot"><span><b>Upholstery</b> · day 2/4</span><span><b>iAuditor ✓</b></span></div>
+            </div>
+            <div class="rcard">
+              <div class="rcard-top">
+                <span class="chair-no"><span class="ico">🪑</span>REP2950-R1</span>
+                <span class="pill warranty">WARR</span>
+              </div>
+              <div class="rcard-meta">BERKSHIRE · Motor replacement · 3R MOBILITY</div>
+              <div class="rcard-bot"><span><b>Assembly</b> · awaiting motor</span><span><b>Parts ETA 06 May</b></span></div>
+            </div>
+            <div class="rcard">
+              <div class="rcard-top">
+                <span class="chair-no"><span class="ico">🪑</span>REP3012-R1</span>
+                <span class="pill warranty">WARR</span>
+              </div>
+              <div class="rcard-meta">CHATSWORTH CLASSIC · Sewing defect · CASTELAN</div>
+              <div class="rcard-bot"><span><b>Sewing</b> · day 1/3</span><span>iAuditor pending</span></div>
+            </div>
+            <div class="rcard">
+              <div class="rcard-top">
+                <span class="chair-no"><span class="ico">🪑</span>REP3045-R1</span>
+                <span class="pill chargeable">CHRG</span>
+              </div>
+              <div class="rcard-meta">BERKSHIRE FIXED · Backrest re-pad · CHARTERHOUSE</div>
+              <div class="rcard-bot"><span><b>QC</b> · final</span><span>Done <b>tomorrow</b></span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="return-col r3">
+          <div class="return-col-head">
+            <div class="ico">📤</div>
+            <h3>Ready to return<span class="sub">Production complete · awaiting dispatch</span></h3>
+            <span class="cnt">2</span>
+          </div>
+          <div class="return-cards">
+            <div class="rcard">
+              <div class="rcard-top">
+                <span class="chair-no"><span class="ico">🪑</span>REP2647-R1</span>
+                <span class="pill warranty">WARR</span>
+              </div>
+              <div class="rcard-meta">BERKSHIRE · Welding repair · ABBEY HEALTHCARE</div>
+              <div class="rcard-bot"><span>Maxoptra · <b>booked</b></span><span><b>Mon 6 May</b></span></div>
+            </div>
+            <div class="rcard">
+              <div class="rcard-top">
+                <span class="chair-no"><span class="ico">🪑</span>REP2835-R1</span>
+                <span class="pill warranty">WARR</span>
+              </div>
+              <div class="rcard-meta">CHATSWORTH · Handset wiring · GROSVENOR</div>
+              <div class="rcard-bot"><span>Awaiting slot</span><span><b>Today</b> · QHSE ✓</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ───── Service Engineer Schedule (week view) ───── -->
+    <div class="panel" style="margin-bottom:16px">
+      <div class="panel-head">
+        <div><h2>📅 Service Engineer Schedule <span class="sub">Maxoptra collections + iAuditor inspections + on-site visits — this week</span></h2></div>
+        <div class="right">
+          <span class="chip on">Week 18 · 04–08 May</span>
+          <span class="chip">Next week →</span>
+          <button class="btn btn-ghost">＋ Schedule visit</button>
+        </div>
+      </div>
+      <div class="sched-head">
+        <span><b>K. Bryce</b> service engineer · 3 collections · 2 site visits · 1 inspection scheduled</span>
+      </div>
+      <div class="sched-grid">
+        <div class="sched-day-h"></div>
+        <div class="sched-day-h">Mon 04</div>
+        <div class="sched-day-h today">Tue 05 · today</div>
+        <div class="sched-day-h">Wed 06</div>
+        <div class="sched-day-h">Thu 07</div>
+        <div class="sched-day-h">Fri 08</div>
+
+        <div class="sched-tcol">
+          <div class="sched-time">08:00</div>
+          <div class="sched-time">09:00</div>
+          <div class="sched-time">10:00</div>
+          <div class="sched-time">11:00</div>
+          <div class="sched-time">12:00</div>
+          <div class="sched-time">13:00</div>
+          <div class="sched-time">14:00</div>
+          <div class="sched-time">15:00</div>
+          <div class="sched-time">16:00</div>
+        </div>
+
+        <!-- Mon -->
+        <div>
+          <div class="sched-cell"></div>
+          <div class="sched-cell"><div class="sched-event delivery" style="top:0;height:60px">📤 Delivery REP2647-R1<span class="ev-sub">Abbey Healthcare</span></div></div>
+          <div class="sched-cell"></div>
+          <div class="sched-cell"></div>
+          <div class="sched-cell"><div class="sched-event site" style="top:0;height:96px">🏠 Site visit · Chatsworth fleet inspection<span class="ev-sub">Castelan HQ — Newcastle</span></div></div>
+          <div class="sched-cell"></div>
+          <div class="sched-cell"></div>
+          <div class="sched-cell"></div>
+          <div class="sched-cell"></div>
+        </div>
+
+        <!-- Tue today -->
+        <div>
+          <div class="sched-cell"></div>
+          <div class="sched-cell"><div class="sched-event collection" style="top:0;height:60px">🚚 Collection REP2891-R1<span class="ev-sub">Charterhouse</span></div></div>
+          <div class="sched-cell"></div>
+          <div class="sched-cell"><div class="sched-event iauditor" style="top:0;height:60px">📝 iAuditor inspection<span class="ev-sub">REP2816-R2 returned chair</span></div></div>
+          <div class="sched-cell"></div>
+          <div class="sched-cell"></div>
+          <div class="sched-cell"></div>
+          <div class="sched-cell"></div>
+          <div class="sched-cell"></div>
+        </div>
+
+        <!-- Wed -->
+        <div>
+          <div class="sched-cell"></div>
+          <div class="sched-cell"></div>
+          <div class="sched-cell"><div class="sched-event collection" style="top:0;height:60px">🚚 Collection REP2719-R2<span class="ev-sub">Abbey Healthcare</span></div></div>
+          <div class="sched-cell"></div>
+          <div class="sched-cell"></div>
+          <div class="sched-cell"><div class="sched-event site" style="top:0;height:96px">🏠 Site visit · Berkshire foam audit<span class="ev-sub">Grosvenor — Manchester</span></div></div>
+          <div class="sched-cell"></div>
+          <div class="sched-cell"></div>
+          <div class="sched-cell"></div>
+        </div>
+
+        <!-- Thu -->
+        <div>
+          <div class="sched-cell"></div>
+          <div class="sched-cell"><div class="sched-event collection" style="top:0;height:60px">🚚 Collection REP2284-R3<span class="ev-sub">Castelan</span></div></div>
+          <div class="sched-cell"></div>
+          <div class="sched-cell"></div>
+          <div class="sched-cell"></div>
+          <div class="sched-cell"></div>
+          <div class="sched-cell"></div>
+          <div class="sched-cell"></div>
+          <div class="sched-cell"></div>
+        </div>
+
+        <!-- Fri -->
+        <div>
+          <div class="sched-cell"></div>
+          <div class="sched-cell"></div>
+          <div class="sched-cell"><div class="sched-event delivery" style="top:0;height:60px">📤 Delivery REP2835-R1<span class="ev-sub">Grosvenor</span></div></div>
+          <div class="sched-cell"></div>
+          <div class="sched-cell"></div>
+          <div class="sched-cell"></div>
+          <div class="sched-cell"></div>
+          <div class="sched-cell"></div>
+          <div class="sched-cell"></div>
+        </div>
+      </div>
+      <div class="panel-foot" style="display:flex;justify-content:center;gap:18px">
+        <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px"><span style="width:11px;height:11px;background:var(--orange);border-radius:3px"></span>Collection</span>
+        <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px"><span style="width:11px;height:11px;background:var(--pass);border-radius:3px"></span>Delivery</span>
+        <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px"><span style="width:11px;height:11px;background:var(--purple);border-radius:3px"></span>iAuditor</span>
+        <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px"><span style="width:11px;height:11px;background:var(--repose-blue);border-radius:3px"></span>Site visit</span>
+      </div>
+    </div>
+
+    <!-- ───── Open Tickets + Parts in Transit ───── -->
+    <div class="grid-2">
+
+      <div class="panel">
+        <div class="panel-head">
+          <div><h2>Open Tickets <span class="sub">19 awaiting action · sorted by SLA risk</span></h2></div>
+          <div class="right">
+            <input type="search" placeholder="🔍 Ticket / customer / REP…" style="padding:6px 11px;border:1px solid var(--border2);border-radius:8px;font-family:inherit;font-size:12px;width:180px">
+          </div>
+        </div>
+
+        <div class="chips">
+          <span class="chip on">All <span class="cnt">19</span></span>
+          <span class="chip fail on">⏰ SLA risk <span class="cnt">5</span></span>
+          <span class="chip warn">⚠ Overdue <span class="cnt">4</span></span>
+          <span class="chip info">In 30d <span class="cnt">12</span></span>
+          <span class="chip">Out 30d <span class="cnt">7</span></span>
+          <span class="chip">Warranty <span class="cnt">14</span></span>
+          <span class="chip purple">Chargeable <span class="cnt">5</span></span>
+          <span class="chip">🔄 Going back <span class="cnt">3</span></span>
+        </div>
+
+        <table class="t">
+          <thead>
+            <tr>
+              <th style="width:90px">Ticket</th>
+              <th>Issue · Customer</th>
+              <th style="width:70px">Type</th>
+              <th style="width:60px">Period</th>
+              <th style="width:88px">SLA / Age</th>
+            </tr>
+          </thead>
+          <tbody>
+
+            <tr class="row urgent">
+              <td><span class="id">TICKET1171</span><div class="meta" style="margin-top:3px"><span class="chair-no"><span class="ico">🪑</span>REP2284-R3</span></div></td>
+              <td>
+                <div class="ttl">Order Processing Error · CHATSWORTH CLASSIC</div>
+                <div class="meta">CASTELAN · ORDERERROR · 3rd return</div>
+              </td>
+              <td><span class="pill warranty">WARR</span></td>
+              <td><span class="pill in30">In 30d</span></td>
+              <td><span class="pill sla">⏰ 114d / OVERDUE</span></td>
+            </tr>
+
+            <tr class="row urgent">
+              <td><span class="id">TICKET1232</span><div class="meta" style="margin-top:3px"><span class="chair-no"><span class="ico">🪑</span>REP2719-R2</span></div></td>
+              <td>
+                <div class="ttl">Arm height incorrect · BERKSHIRE</div>
+                <div class="meta">GROSVENOR · MEASUREMENTISSUES · 2nd return</div>
+              </td>
+              <td><span class="pill warranty">WARR</span></td>
+              <td><span class="pill in30">In 30d</span></td>
+              <td><span class="pill sla">⏰ 71d / OVERDUE</span></td>
+            </tr>
+
+            <tr class="row warn-row">
+              <td><span class="id">TICKET1284</span></td>
+              <td>
+                <div class="ttl">Motor not engaging · BERKSHIRE FIXED</div>
+                <div class="meta">3R MOBILITY · ELECTRICS · MOTOR · awaiting parts</div>
+              </td>
+              <td><span class="pill warranty">WARR</span></td>
+              <td><span class="pill out30">Out 30d</span></td>
+              <td><span class="age warn">28d / 80%</span></td>
+            </tr>
+
+            <tr class="row warn-row">
+              <td><span class="id">TICKET1297</span><div class="meta" style="margin-top:3px"><span class="chair-no"><span class="ico">🪑</span>REP2891-R1</span></div></td>
+              <td>
+                <div class="ttl">Foam collapsing · CHATSWORTH</div>
+                <div class="meta">ABBEY HEALTHCARE · SEAT OPTION · scheduled Wed</div>
+              </td>
+              <td><span class="pill warranty">WARR</span></td>
+              <td><span class="pill in30">In 30d</span></td>
+              <td><span class="age warn">19d / 76%</span></td>
+            </tr>
+
+            <tr class="row">
+              <td><span class="id">TICKET1305</span></td>
+              <td>
+                <div class="ttl">Castor damaged in transit · BERKSHIRE</div>
+                <div class="meta">CHARTERHOUSE · DAMAGE ON DELIVERY</div>
+              </td>
+              <td><span class="pill chargeable">CHRG</span></td>
+              <td><span class="pill in30">In 30d</span></td>
+              <td><span class="age ok">12d</span></td>
+            </tr>
+
+            <tr class="row">
+              <td><span class="id">TICKET1311</span></td>
+              <td>
+                <div class="ttl">Handset replacement · CHATSWORTH CLASSIC</div>
+                <div class="meta">CASTELAN · ELECTRICS · HANDSET</div>
+              </td>
+              <td><span class="pill chargeable">CHRG</span></td>
+              <td><span class="pill out30">Out 30d</span></td>
+              <td><span class="age ok">6d</span></td>
+            </tr>
+
+            <tr class="row">
+              <td><span class="id">TICKET1314</span></td>
+              <td>
+                <div class="ttl">Incorrect cover sent · BERKSHIRE</div>
+                <div class="meta">GROSVENOR · WRONG ITEM · INCORRECT COVER</div>
+              </td>
+              <td><span class="pill warranty">WARR</span></td>
+              <td><span class="pill in30">In 30d</span></td>
+              <td><span class="age ok">2d</span></td>
+            </tr>
+
+          </tbody>
+        </table>
+        <div class="panel-foot">Showing 7 of 19 · <a>View all 19 tickets →</a></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div><h2>Parts in Transit <span class="sub">FedEx live · refresh every 30 min</span></h2></div>
+        </div>
+        <div class="parts-list">
+
+          <div class="parcel delayed">
+            <div class="parcel-icn">🚚</div>
+            <div class="parcel-mid">
+              <div class="top">
+                <span class="who">CASTELAN</span><span class="po">PO 6921251Z/KAA</span><span class="pill delayed dot">DELAYED</span>
+              </div>
+              <div class="tn">FedEx <b>8876 9467 7089</b> · Coventry hub — held</div>
+              <div class="progress"><div class="progress-fill" style="width:65%"></div></div>
+            </div>
+            <div class="parcel-right"><div class="eta"><span class="lbl">ETA</span>05 May</div><span class="small">+1d</span></div>
+          </div>
+
+          <div class="parcel">
+            <div class="parcel-icn">🚚</div>
+            <div class="parcel-mid">
+              <div class="top">
+                <span class="who">CHARTERHOUSE</span><span class="po">PO 6923620C/KAA</span><span class="pill transit dot">IN TRANSIT</span>
+              </div>
+              <div class="tn">FedEx <b>8876 9569 4662</b> · Birmingham — OFD</div>
+              <div class="progress"><div class="progress-fill" style="width:88%"></div></div>
+            </div>
+            <div class="parcel-right"><div class="eta"><span class="lbl">ETA</span>Today</div><span class="small">14:00</span></div>
+          </div>
+
+          <div class="parcel">
+            <div class="parcel-icn">🚚</div>
+            <div class="parcel-mid">
+              <div class="top">
+                <span class="who">GROSVENOR</span><span class="po">PO 6923633G/KAA</span><span class="pill transit dot">IN TRANSIT</span>
+              </div>
+              <div class="tn">FedEx <b>8876 9495 7567</b> · Tamworth — sorted</div>
+              <div class="progress"><div class="progress-fill" style="width:50%"></div></div>
+            </div>
+            <div class="parcel-right"><div class="eta"><span class="lbl">ETA</span>05 May</div><span class="small">on time</span></div>
+          </div>
+
+          <div class="parcel delivered">
+            <div class="parcel-icn">✓</div>
+            <div class="parcel-mid">
+              <div class="top">
+                <span class="who">CASTELAN</span><span class="po">PO 6920702X/KAA</span><span class="pill delivered dot">DELIVERED</span>
+              </div>
+              <div class="tn">FedEx <b>8876 9502 7864</b> · Signed by <b>L. PARKER</b></div>
+              <div class="progress"><div class="progress-fill" style="width:100%"></div></div>
+            </div>
+            <div class="parcel-right"><div class="eta"><span class="lbl">DELIVERED</span>13 Jan</div><span class="small">@ 13:25</span></div>
+          </div>
+
+        </div>
+        <div class="panel-foot">Showing 4 of 7 · <a>View all parcels →</a></div>
+      </div>
+
+    </div>
+
+    <!-- ───── Performance trend (stacked) + £ chargeable trend ───── -->
+    <div class="grid-12">
+
+      <div class="panel">
+        <div class="panel-head">
+          <div><h2>Days to close · 13-month trend <span class="sub">Stacked: Inside vs Outside 30 days</span></h2></div>
+          <div class="right">
+            <span class="chip on">Days to close</span>
+            <span class="chip">% within target</span>
+            <span class="chip">Volume</span>
+          </div>
+        </div>
+        <div class="perf-strip">
+          <div class="perf-target-line"><span>14d target</span></div>
+          <div class="perf-grid">
+            <div class="perf-bar-stack-wrap"><span class="val" style="bottom:54%">12</span><div class="perf-bar-stack"><div class="perf-seg in30" style="height:34%"></div><div class="perf-seg out30" style="height:20%"></div></div></div>
+            <div class="perf-bar-stack-wrap"><span class="val" style="bottom:78%">17</span><div class="perf-bar-stack"><div class="perf-seg in30" style="height:46%"></div><div class="perf-seg out30" style="height:32%"></div></div></div>
+            <div class="perf-bar-stack-wrap"><span class="val" style="bottom:64%">14</span><div class="perf-bar-stack"><div class="perf-seg in30" style="height:38%"></div><div class="perf-seg out30" style="height:26%"></div></div></div>
+            <div class="perf-bar-stack-wrap"><span class="val" style="bottom:50%">11</span><div class="perf-bar-stack"><div class="perf-seg in30" style="height:32%"></div><div class="perf-seg out30" style="height:18%"></div></div></div>
+            <div class="perf-bar-stack-wrap"><span class="val" style="bottom:46%">10</span><div class="perf-bar-stack"><div class="perf-seg in30" style="height:30%"></div><div class="perf-seg out30" style="height:16%"></div></div></div>
+            <div class="perf-bar-stack-wrap"><span class="val" style="bottom:54%">12</span><div class="perf-bar-stack"><div class="perf-seg in30" style="height:35%"></div><div class="perf-seg out30" style="height:19%"></div></div></div>
+            <div class="perf-bar-stack-wrap"><span class="val" style="bottom:60%">13</span><div class="perf-bar-stack"><div class="perf-seg in30" style="height:38%"></div><div class="perf-seg out30" style="height:22%"></div></div></div>
+            <div class="perf-bar-stack-wrap"><span class="val" style="bottom:72%">16</span><div class="perf-bar-stack"><div class="perf-seg in30" style="height:42%"></div><div class="perf-seg out30" style="height:30%"></div></div></div>
+            <div class="perf-bar-stack-wrap"><span class="val" style="bottom:64%">14</span><div class="perf-bar-stack"><div class="perf-seg in30" style="height:40%"></div><div class="perf-seg out30" style="height:24%"></div></div></div>
+            <div class="perf-bar-stack-wrap"><span class="val" style="bottom:50%">11</span><div class="perf-bar-stack"><div class="perf-seg in30" style="height:34%"></div><div class="perf-seg out30" style="height:16%"></div></div></div>
+            <div class="perf-bar-stack-wrap"><span class="val" style="bottom:46%">10</span><div class="perf-bar-stack"><div class="perf-seg in30" style="height:32%"></div><div class="perf-seg out30" style="height:14%"></div></div></div>
+            <div class="perf-bar-stack-wrap"><span class="val" style="bottom:54%">12</span><div class="perf-bar-stack"><div class="perf-seg in30" style="height:36%"></div><div class="perf-seg out30" style="height:18%"></div></div></div>
+            <div class="perf-bar-stack-wrap"><span class="val" style="bottom:42%">9</span><div class="perf-bar-stack"><div class="perf-seg in30" style="height:30%"></div><div class="perf-seg out30" style="height:12%"></div></div></div>
+          </div>
+          <div class="perf-labels">
+            <div>Apr</div><div>May</div><div>Jun</div><div>Jul</div><div>Aug</div><div>Sep</div><div>Oct</div><div>Nov</div><div>Dec</div><div>Jan</div><div>Feb</div><div>Mar</div><div><b style="color:var(--repose-blue)">Apr</b></div>
+          </div>
+          <div class="perf-legend">
+            <span class="l"><span class="sw" style="background:var(--info)"></span>Inside 30d · 7d avg</span>
+            <span class="l"><span class="sw" style="background:var(--purple)"></span>Outside 30d · 14d avg</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- £ chargeable trend (line) -->
+      <div class="panel">
+        <div class="panel-head">
+          <div><h2>£ Chargeable revenue <span class="sub">FY26 · YTD £24,180</span></h2></div>
+        </div>
+        <div class="gbp-chart">
+          <svg class="gbp-svg" viewBox="0 0 360 160" preserveAspectRatio="none">
+            <!-- gridlines -->
+            <line x1="0" y1="40" x2="360" y2="40" stroke="#e1e6eb" stroke-dasharray="2 3"/>
+            <line x1="0" y1="80" x2="360" y2="80" stroke="#e1e6eb" stroke-dasharray="2 3"/>
+            <line x1="0" y1="120" x2="360" y2="120" stroke="#e1e6eb" stroke-dasharray="2 3"/>
+            <!-- area fill -->
+            <path d="M 10,120 L 38,100 L 66,84 L 94,72 L 122,90 L 150,76 L 178,60 L 206,52 L 234,68 L 262,46 L 290,38 L 318,42 L 346,28 L 346,160 L 10,160 Z" fill="rgba(124,58,237,.15)"/>
+            <!-- line -->
+            <polyline points="10,120 38,100 66,84 94,72 122,90 150,76 178,60 206,52 234,68 262,46 290,38 318,42 346,28" fill="none" stroke="#7c3aed" stroke-width="2.5" stroke-linejoin="round"/>
+            <!-- dots -->
+            <circle cx="346" cy="28" r="4" fill="#7c3aed" stroke="#fff" stroke-width="2"/>
+            <text x="346" y="20" font-size="9" fill="#7c3aed" font-weight="700" text-anchor="middle" font-family="Bricolage Grotesque">£24.2k</text>
+          </svg>
+          <div style="display:flex;justify-content:space-between;font-size:9.5px;color:var(--text2);font-weight:600;margin-top:4px;padding:0 4px">
+            <span>Apr</span><span>May</span><span>Jun</span><span>Jul</span><span>Aug</span><span>Sep</span><span>Oct</span><span>Nov</span><span>Dec</span><span>Jan</span><span>Feb</span><span>Mar</span><span style="color:var(--purple);font-weight:800">Apr</span>
+          </div>
+        </div>
+        <div class="panel-foot" style="text-align:left;display:flex;justify-content:space-between;align-items:center;font-size:11.5px">
+          <span>Avg per chargeable ticket: <b style="color:var(--text);font-weight:800">£77</b></span>
+          <span>Highest single ticket: <b style="color:var(--text);font-weight:800">£890</b> · Mar</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ───── Top faults · Mech codes · Customer scorecard ───── -->
+    <div class="grid-3">
+
+      <div class="panel">
+        <div class="panel-head"><div><h2>Top fault categories <span class="sub">MTD · split warranty/chargeable</span></h2></div></div>
+        <div class="fault-row"><div class="label">MECHANISM<span class="sub">Noisy · Welding · Creaking</span></div><div class="bar"><div class="seg-w" style="width:60%"></div><div class="seg-c" style="width:28%"></div></div><div class="num">22</div></div>
+        <div class="fault-row"><div class="label">ELECTRICS<span class="sub">Motor · Handset · Transformer</span></div><div class="bar"><div class="seg-w" style="width:48%"></div><div class="seg-c" style="width:16%"></div></div><div class="num">16</div></div>
+        <div class="fault-row"><div class="label">UPHOLSTERY<span class="sub">Bad fitting · Sewing</span></div><div class="bar"><div class="seg-w" style="width:42%"></div><div class="seg-c" style="width:6%"></div></div><div class="num">12</div></div>
+        <div class="fault-row"><div class="label">DAMAGE ON DELIVERY<span class="sub">Internal · External</span></div><div class="bar"><div class="seg-w" style="width:18%"></div><div class="seg-c" style="width:18%"></div></div><div class="num">9</div></div>
+        <div class="fault-row"><div class="label">ORDER ERROR<span class="sub">Processing · Assessor</span></div><div class="bar"><div class="seg-w" style="width:22%"></div><div class="seg-c" style="width:2%"></div></div><div class="num">6</div></div>
+      </div>
+
+      <!-- Mech code analysis -->
+      <div class="panel">
+        <div class="panel-head"><div><h2>Mechanism Code analysis <span class="sub">FY26 · failures by mech type · top 5</span></h2></div></div>
+        <div class="mech-row"><span class="mc">1203</span><div class="ms-name">Berkshire mech<span class="sub">Noisy · Creaking faults</span></div><div class="ms-bar"><div style="width:88%"></div></div><span class="ms-num">31</span></div>
+        <div class="mech-row"><span class="mc">1211</span><div class="ms-name">Chatsworth mech<span class="sub">Welding · Obstruction</span></div><div class="ms-bar"><div style="width:62%"></div></div><span class="ms-num">22</span></div>
+        <div class="mech-row"><span class="mc">1245</span><div class="ms-name">Devonshire mech<span class="sub">Cable · Motor</span></div><div class="ms-bar"><div style="width:42%"></div></div><span class="ms-num">15</span></div>
+        <div class="mech-row"><span class="mc">1267</span><div class="ms-name">Sherbourne mech<span class="sub">Heat & massage</span></div><div class="ms-bar"><div style="width:30%"></div></div><span class="ms-num">11</span></div>
+        <div class="mech-row"><span class="mc">1289</span><div class="ms-name">Westminster mech<span class="sub">Welding</span></div><div class="ms-bar"><div style="width:22%"></div></div><span class="ms-num">8</span></div>
+        <div class="panel-foot"><a>View full mech code report →</a></div>
+      </div>
+
+      <!-- Customer scorecard -->
+      <div class="panel">
+        <div class="panel-head"><div><h2>Customer scorecard <span class="sub">FY26 · ranked by ticket volume</span></h2></div></div>
+        <div class="cust-row"><div class="cust-rank">1</div><div><div class="cust-name">CASTELAN<span class="sub">73% warr · 18d avg close</span></div></div><div class="cust-bar"><div class="b1" style="width:73%"></div><div class="b2" style="width:27%"></div></div><div class="cust-num">412</div></div>
+        <div class="cust-row"><div class="cust-rank">2</div><div><div class="cust-name">CHARTERHOUSE<span class="sub">81% warr · 9d avg close</span></div></div><div class="cust-bar"><div class="b1" style="width:81%"></div><div class="b2" style="width:19%"></div></div><div class="cust-num">238</div></div>
+        <div class="cust-row"><div class="cust-rank">3</div><div><div class="cust-name">GROSVENOR<span class="sub">66% warr · 11d avg close</span></div></div><div class="cust-bar"><div class="b1" style="width:66%"></div><div class="b2" style="width:34%"></div></div><div class="cust-num">176</div></div>
+        <div class="cust-row"><div class="cust-rank">4</div><div><div class="cust-name">3R MOBILITY<span class="sub">90% warr · 6d avg close</span></div></div><div class="cust-bar"><div class="b1" style="width:90%"></div><div class="b2" style="width:10%"></div></div><div class="cust-num">142</div></div>
+        <div class="cust-row"><div class="cust-rank">5</div><div><div class="cust-name">ABBEY HEALTHCARE<span class="sub">75% warr · 12d avg close</span></div></div><div class="cust-bar"><div class="b1" style="width:75%"></div><div class="b2" style="width:25%"></div></div><div class="cust-num">98</div></div>
+        <div class="panel-foot"><a>View all 47 customers →</a></div>
+      </div>
+
+    </div>
+
+    <!-- ───── Customer drill-down + Ticket drawer + Public tracking ───── -->
+    <div class="grid-3">
+
+      <!-- Customer drill-down preview -->
+      <div class="panel">
+        <div class="cdrill-head">
+          <div class="cdrill-avatar">CA</div>
+          <div class="cdrill-name">
+            <h3>Castelan</h3>
+            <div class="sub">Customer drill-down · click any customer to open</div>
+          </div>
+        </div>
+        <div class="cdrill-stats">
+          <div class="cdrill-stat"><div class="v">412</div><div class="l">Tickets FY26</div></div>
+          <div class="cdrill-stat"><div class="v">73<span style="font-size:13px">%</span></div><div class="l">Warranty</div></div>
+          <div class="cdrill-stat"><div class="v">18<span style="font-size:13px">d</span></div><div class="l">Avg close</div></div>
+        </div>
+        <div class="cdrill-faults">
+          <h4>Top fault patterns</h4>
+          <div class="row"><span class="nm">ORDERERROR · Processing</span><span class="pct">31%</span></div>
+          <div class="row"><span class="nm">UPHOLSTERY · Sewing defect</span><span class="pct">18%</span></div>
+          <div class="row"><span class="nm">MECHANISM · Noisy</span><span class="pct">14%</span></div>
+          <div class="row"><span class="nm">FABRIC · Pile pressure</span><span class="pct">9%</span></div>
+        </div>
+        <div class="cdrill-repeat">
+          ⚠ <span><b>2 chairs returned multiple times</b> — REP2284 (3rd), REP3102 (2nd)</span>
+        </div>
+        <div class="panel-foot" style="text-align:left;font-size:11px;color:var(--text);font-weight:600;display:flex;justify-content:space-between"><span>£ chargeable FY26: <b>£8,420</b></span><a>Open Castelan profile →</a></div>
+      </div>
+
+      <!-- Ticket drawer preview with photos + build link -->
+      <div class="drawer-card">
+        <div class="dr-head">
+          <div class="crumb">TICKET1297 · Chair returning to factory</div>
+          <h3>Foam collapsing · CHATSWORTH</h3>
+          <div class="badges">
+            <span class="chair-no"><span class="ico">🪑</span>REP2891-R1</span>
+            <span class="pill warranty">WARR</span>
+            <span class="pill in30">In 30d</span>
+            <span class="pill return">🔄 Going back</span>
+          </div>
+        </div>
+
+        <div class="dr-section">
+          <h4><span class="h-ico">i</span>Ticket details</h4>
+          <dl class="dr-meta">
+            <dt>Customer</dt><dd>ABBEY HEALTHCARE</dd>
+            <dt>Open</dt><dd>14 Apr · 19d ago · <b style="color:var(--warn)">76% SLA</b></dd>
+            <dt>Owner</dt><dd>K. Bryce</dd>
+          </dl>
+        </div>
+
+        <div class="dr-section">
+          <h4><span class="h-ico">▷</span>Return workflow</h4>
+          <div class="tl">
+            <div class="tl-step done"><div class="tl-dot">✓</div><div class="tl-body"><b>Marked for return + email sent</b><span class="when">15 Apr · jonas.s</span><span class="src email">📧 transport@</span></div></div>
+            <div class="tl-step done"><div class="tl-dot">✓</div><div class="tl-body"><b>Maxoptra job 4782 created</b><span class="when">16 Apr · scheduled Wed 7 May</span><span class="src maxoptra">🚚 Maxoptra</span></div></div>
+            <div class="tl-step now"><div class="tl-dot">●</div><div class="tl-body"><b>Out for collection</b><span class="when">07 May (today) · ETA 11:30</span><span class="src maxoptra">🚚 Live</span></div></div>
+            <div class="tl-step pending"><div class="tl-dot">○</div><div class="tl-body"><b>Service-engineer inspection</b><span class="src iauditor">📝 iAuditor template ready</span></div></div>
+            <div class="tl-step pending"><div class="tl-dot">○</div><div class="tl-body"><b>Production rework + return</b><span class="src repnet">🔧 Auto-routes by chair #</span></div></div>
+          </div>
+        </div>
+
+        <div class="dr-section">
+          <h4><span class="h-ico">📷</span>Inspection photos · 3</h4>
+          <div class="photo-grid">
+            <div class="photo-thumb in"><span class="ph-tag">📷 IN · 14 Apr</span></div>
+            <div class="photo-thumb in"><span class="ph-tag">📷 IN · 14 Apr</span></div>
+            <div class="photo-thumb out"><span class="ph-tag">📷 OUT · pending</span></div>
+            <div class="photo-thumb add">+</div>
+          </div>
+        </div>
+
+        <div class="dr-section">
+          <h4><span class="h-ico">🔗</span>Original build sheet</h4>
+          <div class="build-link">
+            <div class="ico">🪑</div>
+            <div>
+              <b>REP2891 · CHATSWORTH</b>
+              <div style="font-size:10.5px;color:var(--text2)">Built Wk 32 · prep day Tue · Sewing: A. Leone · Upholstery: D. Reilly</div>
+            </div>
+            <span class="arrow">→</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Public tracking page mockup -->
+      <div class="track-card">
+        <div class="track-head">
+          <h3>📦 Track your repair · Repose</h3>
+          <div class="small">Ref: TICKET1297 · No login required</div>
+        </div>
+        <div class="track-body">
+          <div style="font-size:11.5px;color:var(--text2);margin-bottom:10px;padding:8px 10px;background:var(--bg3);border-radius:8px">
+            Hi <b style="color:var(--text)">Abbey Healthcare</b> — your <b>Chatsworth chair</b> repair is in progress. We'll update this page automatically as it moves through our process.
+          </div>
+
+          <div class="track-stage done">
+            <div class="ts-icn">✓</div>
+            <div class="ts-mid"><b>Issue logged with Repose</b><span class="small">14 April 2026</span></div>
+          </div>
+          <div class="track-stage done">
+            <div class="ts-icn">✓</div>
+            <div class="ts-mid"><b>Collection scheduled</b><span class="small">Driver booked for Wed 7 May</span></div>
+          </div>
+          <div class="track-stage now">
+            <div class="ts-icn">●</div>
+            <div class="ts-mid"><b>Driver en route to collect</b><span class="small">Today · ETA 11:30</span></div>
+          </div>
+          <div class="track-stage pending">
+            <div class="ts-icn">○</div>
+            <div class="ts-mid"><b>At Repose factory · in repair</b><span class="small">Estimated 5 working days</span></div>
+          </div>
+          <div class="track-stage pending">
+            <div class="ts-icn">○</div>
+            <div class="ts-mid"><b>Returned to you</b><span class="small">Estimated week of 12 May</span></div>
+          </div>
+        </div>
+        <div class="track-foot">URL: repose.tracking/t/1297-x9k2 · No customer data exposed</div>
+      </div>
+
+    </div>
+
+    <!-- ───── Forecasting + CAPA bridge ───── -->
+    <div class="grid-2" style="grid-template-columns:1fr 1fr">
+
+      <!-- Forecast panel -->
+      <div class="panel">
+        <div class="panel-head"><div><h2>📊 Next-month forecast <span class="sub">Based on 13-month trend · adjusted for May seasonality</span></h2></div></div>
+        <div class="forecast-grid">
+          <div class="forecast-cell">
+            <div class="lbl">Predicted opens</div>
+            <div class="v">~32<span class="unit">tickets</span></div>
+            <div class="delta down">▼ 9% vs Apr</div>
+          </div>
+          <div class="forecast-cell">
+            <div class="lbl">Predicted parts spend</div>
+            <div class="v">£5,200</div>
+            <div class="delta up">▲ 4% vs Apr</div>
+          </div>
+          <div class="forecast-cell">
+            <div class="lbl">Backlog risk band</div>
+            <div class="v">15<span class="unit">open</span></div>
+            <div class="delta">Within historical range</div>
+          </div>
+        </div>
+        <div class="forecast-band">
+          <div style="font-size:11.5px;color:var(--text2);font-weight:600;margin-bottom:4px">Backlog model · current vs healthy / warning / breach band</div>
+          <div class="forecast-band-bar"><div class="marker" style="left:48%"></div></div>
+          <div class="forecast-band-labels"><span>0 open</span><span style="color:var(--pass);font-weight:700">Healthy &lt; 18</span><span style="color:var(--warn);font-weight:700">Warning 18–25</span><span style="color:var(--fail);font-weight:700">Breach &gt; 25</span></div>
+        </div>
+      </div>
+
+      <!-- CAPA auto-bridge panel -->
+      <div class="panel">
+        <div class="panel-head">
+          <div><h2>⊕ CAPA auto-bridge <span class="sub">Repeat-fault patterns suggesting a CAPA opportunity</span></h2></div>
+          <div class="right"><button class="btn btn-ghost">⊕ All CAPAs</button></div>
+        </div>
+        <div class="capa-row">
+          <div class="capa-icn">🔁</div>
+          <div class="capa-mid">
+            <b>SEAT OPTION · Foam collapsing</b>
+            <span class="small">3 occurrences in 30 days · all CHATSWORTH model · likely supplier issue</span>
+          </div>
+          <a class="capa-act">⊕ Raise CAPA</a>
+        </div>
+        <div class="capa-row">
+          <div class="capa-icn">🔁</div>
+          <div class="capa-mid">
+            <b>ORDERERROR · Processing error</b>
+            <span class="small">5 occurrences in 30 days · 4 from CASTELAN · review assessor process</span>
+          </div>
+          <a class="capa-act">⊕ Raise CAPA</a>
+        </div>
+        <div class="capa-row">
+          <div class="capa-icn">🪑</div>
+          <div class="capa-mid">
+            <b>Repeat-return chairs · 3 in quarter</b>
+            <span class="small">REP2284 (3rd), REP2719 (2nd), REP2816 (2nd) · individual root-cause review</span>
+          </div>
+          <a class="capa-act">⊕ Raise CAPA</a>
+        </div>
+        <div class="capa-row">
+          <div class="capa-icn">⚡</div>
+          <div class="capa-mid">
+            <b>Quality SPC limit · Mech 1203</b>
+            <span class="small">Cross-link from Quality module — &gt;5 mechanism faults this week</span>
+          </div>
+          <a class="capa-act">View Quality →</a>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ───── Architecture / how it works ───── -->
+    <div class="arch-card">
+      <h2>How this dashboard fits together</h2>
+      <div class="arch-sub">RepNet is the only write path going forward. Excel files keep their shape and continue driving your pivots. Five external systems plug in as event sources. Six Azure Functions do the heavy lifting in the background.</div>
+
+      <div class="arch-grid">
+        <div class="arch-block">
+          <h4><span class="ico">1</span> Read both Excel files via Graph</h4>
+          <p>RepNet reads <code>REPO-Q006 Ticketing Log V2</code> + <code>PARTS TRACKER</code> at view-open via Microsoft Graph Excel REST. 5-min in-browser cache, manual ↻ refresh. Existing pivots, dashboards, formulas keep working untouched.</p>
+        </div>
+
+        <div class="arch-block">
+          <h4><span class="ico">2</span> Write back on form submit</h4>
+          <p>"+ New Ticket" / "+ Parts Dispatch" / "Mark for return" append rows or PATCH cells via Excel REST API. Zero schema change. Manual edits to Excel still possible as emergency override.</p>
+        </div>
+
+        <div class="arch-block">
+          <h4><span class="ico">3</span> FedEx parts auto-tracking</h4>
+          <p>Azure Function <code>parts-fedex-poll</code> · every 30 min. Reads Part Tracker rows where Delivered is blank → calls FedEx REST → writes back delivery status, signature, ETA.</p>
+        </div>
+
+        <div class="arch-block alt">
+          <h4><span class="ico">4</span> Maxoptra ↔ RepNet bridge</h4>
+          <p>Azure Function <code>maxoptra-sync</code> · every 15 min. Polls Maxoptra Order API for jobs tagged with a RepNet Ticket No → updates ticket Factory Status (Collected → Returned → In Production → Out for delivery → Delivered).</p>
+        </div>
+
+        <div class="arch-block alt2">
+          <h4><span class="ico">5</span> iAuditor inspection capture</h4>
+          <p>Phase 1: engineer exports inspection PDF → uploads on ticket. Phase 2: Azure Function <code>iauditor-pull</code> auto-fetches by template + REP No reference and attaches to the ticket.</p>
+        </div>
+
+        <div class="arch-block alt3">
+          <h4><span class="ico">6</span> Auto-emails via Graph</h4>
+          <p>"Mark for return" → email to <code>transport@reposefurniture.co.uk</code>. Customer notification email when collection booked. Same Graph <code>/me/sendMail</code> pattern used for Document Control.</p>
+        </div>
+
+        <div class="arch-block alt4">
+          <h4><span class="ico">7</span> Weekly digest email · Mondays 06:00</h4>
+          <p>Azure Function <code>service-weekly-digest</code> sends an HTML summary every Monday: last week's opens/closes, top fault, overdue list, repeat returns, parts spend. Recipients: service team + senior managers.</p>
+        </div>
+
+        <div class="arch-block alt5">
+          <h4><span class="ico">8</span> CAPA auto-bridge</h4>
+          <p>When the same fault code repeats N times in 30 days for the same model, RepNet flags a CAPA suggestion. One click opens a pre-filled CAPA form in the existing CAPA module — closes the loop ISO-style.</p>
+        </div>
+
+        <div class="arch-block alt5">
+          <h4><span class="ico">9</span> Quality module cross-link</h4>
+          <p>When mechanism-fault count breaches a Quality SPC limit (e.g. &gt;5 in a week), the Service tab surfaces a link straight to the relevant Quality dashboard chart. Bidirectional — a Quality-flagged trend can drill back to its source tickets.</p>
+        </div>
+
+        <div class="arch-block alt5">
+          <h4><span class="ico">10</span> Customer-facing tracking page</h4>
+          <p>Public read-only URL <code>repose.tracking/t/{token}</code>. No login. Customers see a friendly 5-stage timeline matching their ticket's progress. Reduces "where's my chair?" calls. Token-secured; no internal data exposed.</p>
+        </div>
+
+        <div class="arch-block alt5">
+          <h4><span class="ico">11</span> Forecast & SLA pre-alerts</h4>
+          <p>13-month trend predicts next-month opens + parts spend. SLA pre-alerts fire when a ticket is 80%+ of its proposed-close window with no recent action — surfaced in the alert banner so issues get caught before they breach.</p>
+        </div>
+
+        <div class="arch-block alt5">
+          <h4><span class="ico">12</span> Service engineer schedule</h4>
+          <p>Pulls Maxoptra collection/delivery jobs + iAuditor scheduled audits + manual on-site visits into one calendar. Engineer sees the whole week at a glance; clicking an event opens the linked ticket.</p>
+        </div>
+      </div>
+
+      <div class="badge-row">
+        <div class="badge green">✓ Excel files keep their shape</div>
+        <div class="badge green">✓ No new SharePoint Lists</div>
+        <div class="badge blue">→ 6 Azure Functions (1 already shipped pattern)</div>
+        <div class="badge orange">→ Needs API keys: FedEx · Maxoptra · iAuditor</div>
+        <div class="badge purple">→ Cross-link to existing CAPA + Quality + Mail.Send</div>
+      </div>
+    </div>
+
+    <div class="footnote">RepNet · Service Dashboard mockup v0.3 · All 12 features integrated · Bricolage Grotesque + Manrope · v4 design language · Mock data based on real Apr 2026 ticket and parts samples</div>
+
+  </div>
+
+</body>
+</html>
