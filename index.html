@@ -3079,6 +3079,19 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .svc-age.bad { background: var(--fail-soft); color: var(--fail); }
 .svc-search { padding: 6px 11px; border: 1px solid var(--border2); border-radius: 8px; font-family: inherit; font-size: 12px; width: 200px; }
 .svc-foot { padding: 11px 20px; background: var(--bg3); border-top: 1px solid var(--border); text-align: center; font-size: 11.5px; color: var(--text2); font-weight: 600; }
+.svc-parts-list { padding: 11px 20px 16px; display: flex; flex-direction: column; gap: 9px; }
+.svc-parcel { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 14px; background: #fff; align-items: center; }
+.svc-parcel-icn { width: 40px; height: 40px; border-radius: 11px; background: var(--info-soft); color: var(--info); display: flex; align-items: center; justify-content: center; font-size: 19px; }
+.svc-parcel.delivered .svc-parcel-icn { background: var(--pass-soft); color: var(--pass); }
+.svc-parcel-mid { min-width: 0; }
+.svc-parcel-mid .top { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.svc-parcel-mid .who { font-weight: 700; font-size: 13px; color: var(--repose-navy); }
+.svc-parcel-mid .po { font-family: 'JetBrains Mono', monospace; color: var(--text2); font-size: 11px; }
+.svc-parcel-mid .tn { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text2); margin-top: 3px; }
+.svc-parcel-mid .tn b { color: var(--text); font-weight: 700; }
+.svc-parcel-right { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+.svc-parcel-right .eta { font-family: 'Bricolage Grotesque', sans-serif; font-size: 13px; font-weight: 700; color: var(--repose-navy); }
+.svc-parcel-right .eta .lbl { display: block; font-family: Manrope, sans-serif; font-size: 9px; font-weight: 600; color: var(--text2); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 1px; }
 </style>
 <script src="/msal-browser.min.js" defer></script>
 <script src="/chart.umd.min.js"></script>
@@ -20877,6 +20890,45 @@ async function openServiceTicketDrawer(ticketNo) {
   console.log('[svc] open drawer for', ticketNo);
 }
 
+function _renderServiceParts() {
+  const c = document.getElementById('svc-parts-container');
+  if (!c) return;
+  const inTransit = _serviceState.parts.filter(p => !p.isDelivered).slice(-10).reverse();
+  const delivered = _serviceState.parts.filter(p => p.isDelivered).slice(-3).reverse();
+  c.innerHTML = `
+    <div class="svc-panel">
+      <div class="svc-panel-head">
+        <div><h2>Parts in Transit <span class="sub">${inTransit.length} parcel${inTransit.length === 1 ? '' : 's'} · FedEx tracking integration in Phase D</span></h2></div>
+      </div>
+      <div class="svc-parts-list">
+        ${inTransit.map(_servicePartRowHtml('transit')).join('')}
+        ${delivered.length ? `<div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--text2);font-weight:700;padding:6px 0">Recently delivered</div>` : ''}
+        ${delivered.map(_servicePartRowHtml('delivered')).join('')}
+      </div>
+      ${(inTransit.length === 0 && delivered.length === 0) ? '<div style="padding:32px;text-align:center;color:var(--text2);font-size:12.5px">No parts dispatches recorded.</div>' : ''}
+    </div>
+  `;
+}
+
+function _servicePartRowHtml(state) {
+  return (p) => `
+    <div class="svc-parcel ${state}">
+      <div class="svc-parcel-icn">${state === 'delivered' ? '✓' : '🚚'}</div>
+      <div class="svc-parcel-mid">
+        <div class="top">
+          <span class="who">${_escapeSvc(p.customer)}</span>
+          ${p.poNumber ? `<span class="po">PO ${_escapeSvc(p.poNumber)}</span>` : ''}
+        </div>
+        ${p.fedexTracking ? `<div class="tn">FedEx <b>${_escapeSvc(p.fedexTracking)}</b></div>` : ''}
+        ${p.invoiceNo ? `<div class="tn">Invoice ${_escapeSvc(p.invoiceNo)}</div>` : ''}
+      </div>
+      <div class="svc-parcel-right">
+        ${p.isDelivered ? `<div class="eta"><span class="lbl">Delivered</span>${p.deliveredText}</div>` : `<div class="eta"><span class="lbl">Sent</span>${p.date ? p.date.toLocaleDateString('en-GB') : '—'}</div>`}
+      </div>
+    </div>
+  `;
+}
+
 function _renderServiceShell(content) {
   const last = _serviceState.lastFetch ? new Date(_serviceState.lastFetch) : null;
   content.innerHTML = `
@@ -21005,7 +21057,8 @@ function _renderServiceAll() {
   _renderServiceShell(content);
   _renderServiceAlerts();
   _renderServiceTickets();
-  // Tasks 9-12 add: parts, charts, panels, drawer
+  _renderServiceParts();
+  // Tasks 10-12 add: charts, panels, drawer
 }
 
 function _pct(n, d) { return d > 0 ? Math.round(n / d * 100) : 0; }
