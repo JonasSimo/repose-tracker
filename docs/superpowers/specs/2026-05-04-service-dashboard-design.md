@@ -10,8 +10,8 @@
 
 The Service Department manages two parallel workflows that today live entirely in Excel:
 
-1. **Customer parts dispatch** — `PARTS TRACKER.xlsm` (Health & Safety SharePoint site). Single sheet, ~230 rows. Columns: Date, Customer, PO Number, Sales Ack No, Invoice No, FedEx Tracking, Delivered, Comment. The "Delivered" column is a manually-typed timestamp string (`13.01.26 @ 13.25`) — someone copies it in after checking FedEx.
-2. **Service tickets** — `REPO-Q006 — Repose Ticketing Log V2.xlsx` (Quality SharePoint site). 20-sheet workbook. Master sheet `TICKET LOG` has ~9,988 rows over multiple years, plus 19 pivot/dashboard sheets (Open list, 13-month dashboard, Mechanism Analysis, MTD, Quality Dashboard, etc.). Tickets are either **Warranty** (834 YTD) or **Chargeable** (311 YTD). Master columns include Open Date, Despatch Date, Customer, REP Number, PO ref, Model, Mech Code, Fault Code, Sub-Fault, Warranty/Chargeable, Owner, Action, Proposed Close Date, Close Date, Days to Complete, Overdue By, Invoice details, Factory Status (Returned to Factory / Inspected / In Production / Return to customer).
+1. **Customer parts dispatch** — `PARTS TRACKER.xlsm` (Service SharePoint site, same as Ticketing Log). Single sheet, ~230 rows. Columns: Date, Customer, PO Number, Sales Ack No, Invoice No, FedEx Tracking, Delivered, Comment. The "Delivered" column is a manually-typed timestamp string (`13.01.26 @ 13.25`) — someone copies it in after checking FedEx.
+2. **Service tickets** — `REPO-Q006 — Repose Ticketing Log V2.xlsx` (Service SharePoint site). 20-sheet workbook. Master sheet `TICKET LOG` has ~9,988 rows over multiple years, plus 19 pivot/dashboard sheets (Open list, 13-month dashboard, Mechanism Analysis, MTD, Quality Dashboard, etc.). Tickets are either **Warranty** (834 YTD) or **Chargeable** (311 YTD). Master columns include Open Date, Despatch Date, Customer, REP Number, PO ref, Model, Mech Code, Fault Code, Sub-Fault, Warranty/Chargeable, Owner, Action, Proposed Close Date, Close Date, Days to Complete, Overdue By, Invoice details, Factory Status (Returned to Factory / Inspected / In Production / Return to customer).
 
 This setup has real operational gaps:
 
@@ -132,8 +132,8 @@ The view itself is `id="view-service"` in `index.html`. Hash route `#service` (a
 
 | Source | Read | Write | API |
 |---|---|---|---|
-| `REPO-Q006 Ticketing Log V2.xlsx` (Quality site) — sheet `TICKET LOG` | yes (live, every view-open) | yes (RepNet appends new ticket rows + PATCHes Factory Status / Close Date / etc.) | Graph Excel REST `worksheets('TICKET LOG')/usedRange` + `tables('TicketLog').rows/add` |
-| `PARTS TRACKER.xlsm` (H&S site) — sheet `Part Tracker` | yes (live, every view-open) | yes (RepNet appends new parts rows + FedEx auto-poll updates Delivered cell) | Graph Excel REST same pattern |
+| `REPO-Q006 Ticketing Log V2.xlsx` (Service site) — sheet `TICKET LOG` | yes (live, every view-open) | yes (RepNet appends new ticket rows + PATCHes Factory Status / Close Date / etc.) | Graph Excel REST `worksheets('TICKET LOG')/usedRange` + `tables('TicketLog').rows/add` |
+| `PARTS TRACKER.xlsm` (Service site, same site as Ticketing Log) — sheet `Part Tracker` | yes (live, every view-open) | yes (RepNet appends new parts rows + FedEx auto-poll updates Delivered cell) | Graph Excel REST same pattern |
 | Maxoptra Order API | yes (poll every 15 min) | no in Phase A; Phase B might write `mark for collection` jobs back | REST + API key auth |
 | FedEx REST API | yes (poll every 30 min for in-transit parcels) | no | REST + API key |
 | iAuditor (Safety Culture) | yes (Phase B; Phase A is manual upload) | no | REST + API token |
@@ -358,6 +358,7 @@ Includes:
 - Excel REST write-back for `+ New Ticket` and `+ New Parts Dispatch` forms
 - Top KPI strip (4 primary tiles with In30/Out30 + Warranty/Chargeable splits)
 - Secondary KPI strip (4 mini tiles)
+- **SLA breach pre-alerts banner** + per-ticket chip (catches issues before they breach proposed-close, not just after) — promoted from Phase C to Phase A
 - Open Tickets table with filter chips and search
 - Parts in Transit panel (renders from Excel; no FedEx integration yet)
 - Performance trend bar chart (13-month, stacked)
@@ -367,7 +368,7 @@ Includes:
 - Customer scorecard panel
 - Ticket detail drawer (read-only — no Mark for return yet)
 
-Out of Phase A: returns pipeline kanban, Maxoptra integration, FedEx auto-tracking, transport email, schedule view, customer drill-down, photo attachments, build link, public tracking page, CAPA bridge, forecast, weekly digest, SLA pre-alerts, Quality cross-link.
+Out of Phase A: returns pipeline kanban, Maxoptra integration, FedEx auto-tracking, transport email, schedule view, customer drill-down, photo attachments, build link, public tracking page, CAPA bridge, forecast, weekly digest, Quality cross-link.
 
 ### Phase B — Returns Workflow
 
@@ -380,11 +381,12 @@ Out of Phase A: returns pipeline kanban, Maxoptra integration, FedEx auto-tracki
 
 ### Phase C — Performance Intelligence
 
-- SLA breach pre-alerts banner + per-ticket indicator
 - Forecast panel (next-month opens + parts spend + backlog risk)
 - CAPA auto-bridge panel (4 detection rules + pre-filled CAPA form bridge)
 - Customer drill-down page (`#service/customer/CASTELAN`)
 - Quality module cross-link (SPC limit triggers)
+
+(SLA breach pre-alerts moved to Phase A.)
 
 ### Phase D — External Integrations
 
