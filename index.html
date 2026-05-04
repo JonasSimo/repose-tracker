@@ -20314,15 +20314,20 @@ async function openServiceDashboard() {
   errEl.style.display = 'none';
   content.style.display = 'none';
   try {
-    // Phase A: full render lands in Task 7. For now, just signal that the route works.
-    content.innerHTML = `<div style="padding:48px;text-align:center;color:var(--text2)">Service Dashboard — view route works. Data layer + render coming in next tasks.</div>`;
+    await loadServiceData();
+    // Phase A render lands in Task 7. For now, just show the data load worked.
+    content.innerHTML = `<div style="padding:48px;text-align:center;color:var(--text2)">
+      Loaded <b style="color:var(--text)">${_serviceState.tickets.length}</b> tickets and
+      <b style="color:var(--text)">${_serviceState.parts.length}</b> parts rows.<br>
+      Open: ${_serviceState.tickets.filter(t => t.openClosed === 'OPEN').length} ·
+      In transit: ${_serviceState.parts.filter(p => !p.isDelivered).length}
+    </div>`;
     loading.style.display = 'none';
     content.style.display = 'block';
   } catch (e) {
     loading.style.display = 'none';
     errEl.style.display = 'block';
-    errEl.textContent = `Failed to open Service Dashboard: ${e.message}`;
-    console.error('[svc] open failed', e);
+    errEl.textContent = `Failed to load Service Dashboard: ${e.message}`;
   }
 }
 
@@ -20477,6 +20482,38 @@ function _mapPartsRow(row) {
     comment: String(row[7] || '').trim(),
     isDelivered: deliveredText.length > 0
   };
+}
+
+// Load both Excel files in parallel, with a 5-min in-memory cache.
+// `force=true` busts the cache (manual refresh button).
+async function loadServiceData(force = false) {
+  const now = Date.now();
+  if (!force && (now - _serviceState.lastFetch) < _SERVICE_CACHE_MS && _serviceState.tickets.length > 0) {
+    return _serviceState; // fresh enough
+  }
+  if (_serviceState.loading) {
+    // A second concurrent call piggybacks on the first
+    while (_serviceState.loading) await new Promise(r => setTimeout(r, 100));
+    return _serviceState;
+  }
+  _serviceState.loading = true;
+  _serviceState.error = null;
+  try {
+    const [tickets, parts] = await Promise.all([
+      fetchServiceTickets(),
+      fetchPartTracker()
+    ]);
+    _serviceState.tickets = tickets;
+    _serviceState.parts = parts;
+    _serviceState.lastFetch = now;
+  } catch (e) {
+    _serviceState.error = e.message;
+    console.error('[svc] loadServiceData failed', e);
+    throw e;
+  } finally {
+    _serviceState.loading = false;
+  }
+  return _serviceState;
 }
 
 // "13.01.26 @ 13.25" → Date(2026, 0, 13, 13, 25). Falls back to null on parse failure.
