@@ -2986,6 +2986,50 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .svc-loading { padding: 64px; text-align: center; color: var(--text2); font-size: 14px; }
 .svc-error { padding: 24px; background: var(--rbg); color: var(--red); border-radius: 12px; margin: 24px; font-size: 13px; }
 .svc-content { flex: 1; overflow-y: auto; padding: 24px 28px 64px; max-width: 1640px; }
+
+/* Service Dashboard — page head + KPI tiles */
+.svc-page-head { background: #fff; border: 1px solid var(--border); border-radius: 18px; padding: 22px 26px; margin-bottom: 18px; display: flex; align-items: center; gap: 18px; }
+.svc-page-head .crumb { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--text2); font-weight: 700; margin-bottom: 4px; }
+.svc-page-head h1 { font-size: 28px; font-weight: 800; color: var(--repose-navy); font-family: 'Bricolage Grotesque', Manrope, sans-serif; letter-spacing: -.02em; margin: 0; }
+.svc-page-head h1 em { color: var(--repose-blue); font-style: normal; }
+.svc-page-head .ps { font-size: 13px; color: var(--text2); margin-top: 6px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.svc-page-head .ps .live { display: inline-flex; align-items: center; gap: 6px; color: var(--pass); font-weight: 700; font-size: 12px; }
+.svc-page-head .right { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+
+.svc-btn { font-family: inherit; font-size: 13px; font-weight: 600; padding: 10px 16px; border-radius: 999px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 7px; transition: all .12s; }
+.svc-btn-pri { background: var(--repose-blue); color: #fff; }
+.svc-btn-pri:hover { background: #0d8ec9; }
+.svc-btn-sec { background: #fff; color: var(--repose-navy); border: 1.5px solid var(--border2); }
+.svc-btn-sec:hover { border-color: var(--repose-blue); color: var(--repose-blue); }
+.svc-btn-ghost { background: transparent; color: var(--text2); padding: 9px 14px; }
+
+.svc-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 12px; }
+.svc-kpis-2 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 18px; }
+.svc-kpi { background: #fff; border: 1px solid var(--border); border-radius: 18px; padding: 18px 22px; cursor: pointer; transition: all .15s; position: relative; overflow: hidden; }
+.svc-kpi:hover { border-color: var(--repose-blue); box-shadow: 0 8px 22px rgba(20, 161, 233, .10); transform: translateY(-1px); }
+.svc-kpi.lg { display: flex; flex-direction: column; gap: 10px; }
+.svc-kpi-top { display: flex; align-items: center; gap: 14px; }
+.svc-kpi-icn { width: 44px; height: 44px; border-radius: 14px; background: var(--repose-blue-soft); color: var(--repose-blue); display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+.svc-kpi.warn .svc-kpi-icn { background: var(--warn-soft); color: var(--warn); }
+.svc-kpi.pass .svc-kpi-icn { background: var(--pass-soft); color: var(--pass); }
+.svc-kpi.fail .svc-kpi-icn { background: var(--fail-soft); color: var(--fail); }
+.svc-kpi.purple .svc-kpi-icn { background: var(--purple-soft); color: var(--purple); }
+.svc-kpi-mid { flex: 1; min-width: 0; }
+.svc-kpi-num { font-family: 'Bricolage Grotesque', sans-serif; font-size: 28px; font-weight: 800; color: var(--repose-navy); line-height: 1; letter-spacing: -.02em; }
+.svc-kpi-num .unit { font-size: 13px; font-weight: 600; color: var(--text2); margin-left: 4px; }
+.svc-kpi-lbl { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--text2); font-weight: 700; margin-top: 6px; }
+.svc-kpi-mini { padding: 13px 16px; }
+.svc-kpi-mini .svc-kpi-num { font-size: 20px; }
+.svc-kpi-mini .svc-kpi-icn { width: 34px; height: 34px; font-size: 16px; border-radius: 10px; }
+.svc-kpi-mini .svc-kpi-lbl { font-size: 10px; margin-top: 4px; }
+.svc-kpi-mini { display: flex; align-items: flex-start; gap: 12px; }
+
+.svc-split { display: flex; width: 100%; height: 6px; border-radius: 999px; overflow: hidden; background: var(--grey-soft); }
+.svc-split .seg { height: 100%; }
+.svc-split-legend { display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; margin-top: 7px; }
+.svc-split-legend .seg-lbl { display: flex; align-items: center; gap: 5px; }
+.svc-split-legend .seg-lbl .sw { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+.svc-split-legend em { font-style: normal; color: var(--text2); font-weight: 500; margin-left: 3px; }
 </style>
 <script src="/msal-browser.min.js" defer></script>
 <script src="/chart.umd.min.js"></script>
@@ -20315,13 +20359,7 @@ async function openServiceDashboard() {
   content.style.display = 'none';
   try {
     await loadServiceData();
-    // Phase A render lands in Task 7. For now, just show the data load worked.
-    content.innerHTML = `<div style="padding:48px;text-align:center;color:var(--text2)">
-      Loaded <b style="color:var(--text)">${_serviceState.tickets.length}</b> tickets and
-      <b style="color:var(--text)">${_serviceState.parts.length}</b> parts rows.<br>
-      Open: ${_serviceState.tickets.filter(t => t.openClosed === 'OPEN').length} ·
-      In transit: ${_serviceState.parts.filter(p => !p.isDelivered).length}
-    </div>`;
+    _renderServiceAll();
     loading.style.display = 'none';
     content.style.display = 'block';
   } catch (e) {
@@ -20569,6 +20607,147 @@ function _computeServiceKpis(period = 'mtd') {
     withinTarget, openedThisWeek, closedThisWeek, gbpMtd, topFault,
     closedThisMonthCount: closedThisMonth.length
   };
+}
+
+function _renderServiceShell(content) {
+  const last = _serviceState.lastFetch ? new Date(_serviceState.lastFetch) : null;
+  content.innerHTML = `
+    <div class="svc-page-head">
+      <div>
+        <div class="crumb">Service Department</div>
+        <h1>Service <em>Dashboard</em></h1>
+        <div class="ps">
+          ${last ? `<span class="live">● Synced ${_relativeTime(last)}</span>` : ''}
+          <span>· Sources: <b>Ticketing Log</b> · <b>Parts Tracker</b></span>
+          <span>· Period: <b>${_currentMonthLabel()}</b> MTD</span>
+        </div>
+      </div>
+      <div class="right">
+        <button class="svc-btn svc-btn-sec" id="svc-refresh-btn">↻ Refresh</button>
+        <button class="svc-btn svc-btn-sec" id="svc-new-parts-btn">＋ Parts Dispatch</button>
+        <button class="svc-btn svc-btn-pri" id="svc-new-ticket-btn">＋ New Ticket</button>
+      </div>
+    </div>
+    <div id="svc-alerts-container"></div>
+    <div id="svc-kpi-container"></div>
+    <div id="svc-tickets-container"></div>
+    <div id="svc-parts-container"></div>
+    <div id="svc-charts-container"></div>
+    <div id="svc-panels-container"></div>
+  `;
+  document.getElementById('svc-refresh-btn').addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true; btn.textContent = '↻ Refreshing…';
+    try { await loadServiceData(true); _renderServiceAll(); } finally { btn.disabled = false; btn.textContent = '↻ Refresh'; }
+  });
+  // Tasks 13-14 wire the +Parts and +Ticket buttons
+  _renderServiceKpis();
+}
+
+function _renderServiceKpis() {
+  const k = _computeServiceKpis();
+  const c = document.getElementById('svc-kpi-container');
+  if (!c) return;
+  c.innerHTML = `
+    <div class="svc-kpis">
+      <div class="svc-kpi lg warn">
+        <div class="svc-kpi-top">
+          <div class="svc-kpi-icn">🟠</div>
+          <div class="svc-kpi-mid">
+            <div class="svc-kpi-num">${k.open}<span class="unit">open</span></div>
+            <div class="svc-kpi-lbl">${k.overdue} overdue</div>
+          </div>
+        </div>
+        <div>
+          <div class="svc-split">
+            <div class="seg" style="width:${_pct(k.openIn30, k.open)}%;background:var(--amber)"></div>
+            <div class="seg" style="width:${_pct(k.openOut30, k.open)}%;background:var(--text2)"></div>
+          </div>
+          <div class="svc-split-legend">
+            <span class="seg-lbl"><span class="sw" style="background:var(--amber)"></span>Inside 30d <em>${k.openIn30}</em></span>
+            <span class="seg-lbl"><span class="sw" style="background:var(--text2)"></span>Outside 30d <em>${k.openOut30}</em></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="svc-kpi lg pass">
+        <div class="svc-kpi-top">
+          <div class="svc-kpi-icn">⏰</div>
+          <div class="svc-kpi-mid">
+            <div class="svc-kpi-num">${k.avgDaysClose}<span class="unit">days</span></div>
+            <div class="svc-kpi-lbl">Avg close · target 14d</div>
+          </div>
+        </div>
+        <div>
+          <div class="svc-split">
+            <div class="seg" style="width:${_pct(k.avgWarrantyClose, k.avgWarrantyClose + k.avgChargeableClose)}%;background:var(--info)"></div>
+            <div class="seg" style="width:${_pct(k.avgChargeableClose, k.avgWarrantyClose + k.avgChargeableClose)}%;background:var(--purple)"></div>
+          </div>
+          <div class="svc-split-legend">
+            <span class="seg-lbl"><span class="sw" style="background:var(--info)"></span>Warranty <em>${k.avgWarrantyClose}d</em></span>
+            <span class="seg-lbl"><span class="sw" style="background:var(--purple)"></span>Chargeable <em>${k.avgChargeableClose}d</em></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="svc-kpi lg">
+        <div class="svc-kpi-top">
+          <div class="svc-kpi-icn">📦</div>
+          <div class="svc-kpi-mid">
+            <div class="svc-kpi-num">${k.partsInTransit}<span class="unit">parcels</span></div>
+            <div class="svc-kpi-lbl">In transit · ${k.partsDelivered} delivered total</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="svc-kpi lg pass">
+        <div class="svc-kpi-top">
+          <div class="svc-kpi-icn">📈</div>
+          <div class="svc-kpi-mid">
+            <div class="svc-kpi-num">${k.withinTarget}<span class="unit">%</span></div>
+            <div class="svc-kpi-lbl">Closed within 30-day target</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="svc-kpis-2">
+      <div class="svc-kpi svc-kpi-mini">
+        <div class="svc-kpi-icn">🆕</div>
+        <div class="svc-kpi-mid"><div class="svc-kpi-num">${k.openedThisWeek}</div><div class="svc-kpi-lbl">Opened this week</div></div>
+      </div>
+      <div class="svc-kpi svc-kpi-mini pass">
+        <div class="svc-kpi-icn">✅</div>
+        <div class="svc-kpi-mid"><div class="svc-kpi-num">${k.closedThisWeek}</div><div class="svc-kpi-lbl">Closed this week</div></div>
+      </div>
+      <div class="svc-kpi svc-kpi-mini pass">
+        <div class="svc-kpi-icn">💰</div>
+        <div class="svc-kpi-mid"><div class="svc-kpi-num">£${Math.round(k.gbpMtd).toLocaleString('en-GB')}</div><div class="svc-kpi-lbl">£ chargeable MTD</div></div>
+      </div>
+      <div class="svc-kpi svc-kpi-mini fail">
+        <div class="svc-kpi-icn">🔧</div>
+        <div class="svc-kpi-mid"><div class="svc-kpi-num">${_truncate(k.topFault, 8)}</div><div class="svc-kpi-lbl">Top fault MTD</div></div>
+      </div>
+    </div>
+  `;
+}
+
+function _renderServiceAll() {
+  const content = document.getElementById('svc-content');
+  _renderServiceShell(content);
+  // Tasks 8-12 add: tickets, parts, charts, panels, drawer
+}
+
+function _pct(n, d) { return d > 0 ? Math.round(n / d * 100) : 0; }
+function _truncate(s, n) { return (s || '').length > n ? s.slice(0, n) + '…' : (s || '—'); }
+function _relativeTime(d) {
+  const sec = Math.round((Date.now() - d.getTime()) / 1000);
+  if (sec < 60) return `${sec}s ago`;
+  if (sec < 3600) return `${Math.round(sec / 60)} min ago`;
+  return `${Math.round(sec / 3600)}h ago`;
+}
+function _currentMonthLabel() {
+  return new Date().toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
 }
 
 // "13.01.26 @ 13.25" → Date(2026, 0, 13, 13, 25). Falls back to null on parse failure.
