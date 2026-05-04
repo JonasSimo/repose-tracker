@@ -3092,6 +3092,18 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .svc-parcel-right { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
 .svc-parcel-right .eta { font-family: 'Bricolage Grotesque', sans-serif; font-size: 13px; font-weight: 700; color: var(--repose-navy); }
 .svc-parcel-right .eta .lbl { display: block; font-family: Manrope, sans-serif; font-size: 9px; font-weight: 600; color: var(--text2); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 1px; }
+.svc-grid-12 { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 16px; margin-bottom: 16px; }
+@media (max-width: 1280px) { .svc-grid-12 { grid-template-columns: 1fr; } }
+.svc-perf-strip { padding: 16px 20px; }
+.svc-perf-grid { display: grid; grid-template-columns: repeat(13, 1fr); gap: 5px; align-items: end; height: 130px; position: relative; }
+.svc-perf-bar { background: linear-gradient(180deg, var(--info), var(--repose-blue-dark)); border-radius: 5px 5px 0 0; cursor: pointer; transition: transform .12s; position: relative; }
+.svc-perf-bar:hover { transform: translateY(-2px); }
+.svc-perf-bar .val { position: absolute; top: -16px; left: 50%; transform: translateX(-50%); font-size: 10px; font-weight: 700; color: var(--text); }
+.svc-perf-labels { display: grid; grid-template-columns: repeat(13, 1fr); gap: 5px; font-size: 9.5px; color: var(--text2); text-align: center; font-weight: 600; margin-top: 8px; letter-spacing: .04em; text-transform: uppercase; }
+.svc-perf-target { position: relative; height: 1px; border-top: 1px dashed var(--warn); margin-bottom: 8px; }
+.svc-perf-target span { position: absolute; left: 0; top: -9px; font-size: 9.5px; font-weight: 700; background: #fff; color: var(--warn); padding: 0 5px; }
+.svc-gbp-chart { padding: 16px 20px; }
+.svc-gbp-svg { width: 100%; height: 160px; }
 </style>
 <script src="/msal-browser.min.js" defer></script>
 <script src="/chart.umd.min.js"></script>
@@ -20929,6 +20941,67 @@ function _servicePartRowHtml(state) {
   `;
 }
 
+function _computeMonthlyTrend() {
+  // Last 13 months (current + 12 back), oldest first
+  const months = [];
+  const now = new Date();
+  for (let i = 12; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const next = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+    months.push({ start: d, end: next, label: d.toLocaleDateString('en-GB', { month: 'short' }) });
+  }
+  for (const m of months) {
+    const closed = _serviceState.tickets.filter(t => t.closeDate && t.closeDate >= m.start && t.closeDate < m.end);
+    m.avgDays = closed.length === 0 ? 0 : Math.round(closed.reduce((a, t) => a + (t.daysToComplete || 0), 0) / closed.length);
+    m.gbp = closed.filter(t => t.warrantyChargeable === 'CHARGEABLE').reduce((a, t) => a + (t.gbp || 0) + (t.gbpDel || 0), 0);
+    m.count = closed.length;
+  }
+  return months;
+}
+
+function _renderServiceCharts() {
+  const c = document.getElementById('svc-charts-container');
+  if (!c) return;
+  const months = _computeMonthlyTrend();
+  const maxDays = Math.max(20, ...months.map(m => m.avgDays));
+  const maxGbp = Math.max(1, ...months.map(m => m.gbp));
+  c.innerHTML = `
+    <div class="svc-grid-12">
+      <div class="svc-panel">
+        <div class="svc-panel-head"><div><h2>Days to close · 13-month trend <span class="sub">target 14d · current ${months[12].avgDays}d</span></h2></div></div>
+        <div class="svc-perf-strip">
+          <div class="svc-perf-target"><span>14d target</span></div>
+          <div class="svc-perf-grid">
+            ${months.map(m => `
+              <div class="svc-perf-bar" style="height:${(m.avgDays / maxDays) * 100}%" title="${m.label}: ${m.avgDays}d (${m.count} closed)">
+                <span class="val">${m.avgDays || ''}</span>
+              </div>
+            `).join('')}
+          </div>
+          <div class="svc-perf-labels">
+            ${months.map((m, i) => `<div${i === 12 ? ' style="color:var(--repose-blue);font-weight:800"' : ''}>${m.label}</div>`).join('')}
+          </div>
+        </div>
+      </div>
+
+      <div class="svc-panel">
+        <div class="svc-panel-head"><div><h2>£ Chargeable revenue <span class="sub">FY ${months.reduce((a, m) => a + m.gbp, 0) > 0 ? 'YTD £' + Math.round(months.reduce((a, m) => a + m.gbp, 0) / 1000) + 'k' : '—'}</span></h2></div></div>
+        <div class="svc-gbp-chart">
+          <svg class="svc-gbp-svg" viewBox="0 0 360 160" preserveAspectRatio="none">
+            ${[40, 80, 120].map(y => `<line x1="0" y1="${y}" x2="360" y2="${y}" stroke="#e1e6eb" stroke-dasharray="2 3"/>`).join('')}
+            <polyline points="${months.map((m, i) => `${10 + i * 27},${150 - (m.gbp / maxGbp) * 130}`).join(' ')}" fill="none" stroke="#7c3aed" stroke-width="2.5" stroke-linejoin="round"/>
+            ${months.map((m, i) => `<circle cx="${10 + i * 27}" cy="${150 - (m.gbp / maxGbp) * 130}" r="3" fill="#7c3aed" stroke="#fff" stroke-width="1.5"/>`).join('')}
+          </svg>
+          <div style="display:flex;justify-content:space-between;font-size:9.5px;color:var(--text2);font-weight:600;margin-top:4px">
+            ${months.map((m, i) => `<span${i === 12 ? ' style="color:var(--purple);font-weight:800"' : ''}>${m.label}</span>`).join('')}
+          </div>
+        </div>
+        <div class="svc-foot" style="text-align:left;padding:11px 20px">Latest month: <b style="color:var(--text);font-weight:800">£${Math.round(months[12].gbp).toLocaleString('en-GB')}</b></div>
+      </div>
+    </div>
+  `;
+}
+
 function _renderServiceShell(content) {
   const last = _serviceState.lastFetch ? new Date(_serviceState.lastFetch) : null;
   content.innerHTML = `
@@ -21058,7 +21131,8 @@ function _renderServiceAll() {
   _renderServiceAlerts();
   _renderServiceTickets();
   _renderServiceParts();
-  // Tasks 10-12 add: charts, panels, drawer
+  _renderServiceCharts();
+  // Tasks 11-12 add: panels, drawer
 }
 
 function _pct(n, d) { return d > 0 ? Math.round(n / d * 100) : 0; }
