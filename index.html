@@ -3030,6 +3030,20 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .svc-split-legend .seg-lbl { display: flex; align-items: center; gap: 5px; }
 .svc-split-legend .seg-lbl .sw { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
 .svc-split-legend em { font-style: normal; color: var(--text2); font-weight: 500; margin-left: 3px; }
+
+.svc-alerts { display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 14px; }
+.svc-alert { border-radius: 14px; padding: 13px 16px; display: flex; align-items: center; gap: 12px; font-size: 12.5px; border: 1px solid; }
+.svc-alert .ab-icn { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 17px; flex-shrink: 0; color: #fff; }
+.svc-alert .ab-mid { flex: 1; min-width: 0; }
+.svc-alert .ab-mid b { display: block; margin-bottom: 2px; font-size: 13px; }
+.svc-alert .ab-mid .small { font-size: 11.5px; color: var(--text2); font-weight: 500; }
+.svc-alert .ab-act { font-weight: 700; font-size: 11.5px; cursor: pointer; white-space: nowrap; background: transparent; border: none; padding: 0; font-family: inherit; }
+.svc-alert.danger { background: linear-gradient(135deg, #fef2f2, #fff7ed); border-color: var(--rborder); }
+.svc-alert.danger .ab-icn { background: var(--fail); }
+.svc-alert.danger .ab-act { color: var(--fail); }
+.svc-alert.warn { background: linear-gradient(135deg, #fffbeb, #fff); border-color: var(--aborder); }
+.svc-alert.warn .ab-icn { background: var(--amber); }
+.svc-alert.warn .ab-act { color: var(--amber); }
 </style>
 <script src="/msal-browser.min.js" defer></script>
 <script src="/chart.umd.min.js"></script>
@@ -20609,6 +20623,95 @@ function _computeServiceKpis(period = 'mtd') {
   };
 }
 
+// Service Dashboard filter state. Declared here so SLA banner click handlers
+// can mutate it before Task 8's Open Tickets table arrives.
+let _serviceFilters = { q: '', period: '', wc: '', overdueOnly: false, slaRiskOnly: false };
+
+// Returns array of tickets that are at risk of an SLA breach.
+// Definition: open ticket where the % of its close-window already elapsed
+// is >= the threshold (default 80%) AND it isn't already overdue (overdue
+// gets its own treatment via the row.urgent class). Returns up to limit items.
+function _computeServiceSlaRisk(threshold = 0.80, limit = 10) {
+  const now = new Date();
+  const at = [];
+  for (const t of _serviceState.tickets) {
+    if (t.openClosed !== 'OPEN') continue;
+    if (!t.openDate || !t.proposedCloseDate) continue;
+    if (t.proposedCloseDate <= now) continue; // already overdue — handled separately
+    const total = t.proposedCloseDate.getTime() - t.openDate.getTime();
+    if (total <= 0) continue;
+    const elapsed = now.getTime() - t.openDate.getTime();
+    const pct = elapsed / total;
+    if (pct >= threshold) {
+      at.push({ ticket: t, pct: Math.round(pct * 100) });
+    }
+  }
+  // Highest % first
+  at.sort((a, b) => b.pct - a.pct);
+  return at.slice(0, limit);
+}
+
+// Returns count of open tickets that are already past their proposed-close date.
+function _computeServiceOverdueCount() {
+  const now = new Date();
+  return _serviceState.tickets.filter(t =>
+    t.openClosed === 'OPEN' && t.proposedCloseDate && t.proposedCloseDate < now
+  ).length;
+}
+
+function _renderServiceAlerts() {
+  const c = document.getElementById('svc-alerts-container');
+  if (!c) return;
+  const slaRisk = _computeServiceSlaRisk();
+  const overdue = _computeServiceOverdueCount();
+  const banners = [];
+
+  if (overdue > 0) {
+    banners.push(`
+      <div class="svc-alert danger">
+        <div class="ab-icn">⏰</div>
+        <div class="ab-mid">
+          <b>${overdue} ticket${overdue === 1 ? '' : 's'} already past proposed close</b>
+          <span class="small">Click to filter Open Tickets to overdue only</span>
+        </div>
+        <button class="ab-act" data-svc-act="filter-overdue">Show overdue →</button>
+      </div>
+    `);
+  }
+
+  if (slaRisk.length > 0) {
+    const examples = slaRisk.slice(0, 3).map(x => x.ticket.ticketNo).join(', ');
+    banners.push(`
+      <div class="svc-alert warn">
+        <div class="ab-icn">⚠</div>
+        <div class="ab-mid">
+          <b>SLA pre-alert · ${slaRisk.length} ticket${slaRisk.length === 1 ? '' : 's'} at 80%+ of close window</b>
+          <span class="small">${examples}${slaRisk.length > 3 ? ` + ${slaRisk.length - 3} more` : ''} · catch them before they breach</span>
+        </div>
+        <button class="ab-act" data-svc-act="filter-sla">Review →</button>
+      </div>
+    `);
+  }
+
+  c.innerHTML = banners.length ? `<div class="svc-alerts">${banners.join('')}</div>` : '';
+
+  // Defensive — Task 8 hasn't shipped yet, so _renderServiceTickets may not exist.
+  c.querySelector('[data-svc-act="filter-overdue"]')?.addEventListener('click', () => {
+    _serviceFilters.overdueOnly = true;
+    if (typeof _renderServiceTickets === 'function') {
+      _renderServiceTickets();
+      document.getElementById('svc-tickets-container')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  });
+  c.querySelector('[data-svc-act="filter-sla"]')?.addEventListener('click', () => {
+    _serviceFilters.slaRiskOnly = true;
+    if (typeof _renderServiceTickets === 'function') {
+      _renderServiceTickets();
+      document.getElementById('svc-tickets-container')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  });
+}
+
 function _renderServiceShell(content) {
   const last = _serviceState.lastFetch ? new Date(_serviceState.lastFetch) : null;
   content.innerHTML = `
@@ -20735,6 +20838,7 @@ function _renderServiceKpis() {
 function _renderServiceAll() {
   const content = document.getElementById('svc-content');
   _renderServiceShell(content);
+  _renderServiceAlerts();
   // Tasks 8-12 add: tickets, parts, charts, panels, drawer
 }
 
