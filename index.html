@@ -20840,8 +20840,8 @@ function _renderServiceTickets() {
         <span class="svc-chip ${!_serviceFilters.period && !_serviceFilters.wc && !_serviceFilters.overdueOnly && !_serviceFilters.slaRiskOnly ? 'on' : ''}" data-fclear>All <span class="cnt">${counts.open}</span></span>
         <span class="svc-chip ${_serviceFilters.overdueOnly ? 'on' : ''}" data-foverdue>⚠ Overdue <span class="cnt">${counts.overdue}</span></span>
         <span class="svc-chip ${_serviceFilters.slaRiskOnly ? 'on' : ''}" data-fsla>⏰ SLA risk <span class="cnt">${slaRiskCount}</span></span>
-        <span class="svc-chip ${_serviceFilters.period === 'in30' ? 'on' : ''}" data-fperiod="in30">In 30d <span class="cnt">${counts.in30}</span></span>
-        <span class="svc-chip ${_serviceFilters.period === 'out30' ? 'on' : ''}" data-fperiod="out30">Out 30d <span class="cnt">${counts.out30}</span></span>
+        <span class="svc-chip ${_serviceFilters.period === 'in30' ? 'on' : ''}" data-fperiod="in30">Inside 30 days <span class="cnt">${counts.in30}</span></span>
+        <span class="svc-chip ${_serviceFilters.period === 'out30' ? 'on' : ''}" data-fperiod="out30">Outside 30 days <span class="cnt">${counts.out30}</span></span>
         <span class="svc-chip ${_serviceFilters.wc === 'WARRANTY' ? 'on' : ''}" data-fwc="WARRANTY">Warranty <span class="cnt">${counts.warranty}</span></span>
         <span class="svc-chip ${_serviceFilters.wc === 'CHARGEABLE' ? 'on' : ''}" data-fwc="CHARGEABLE">Chargeable <span class="cnt">${counts.chargeable}</span></span>
       </div>
@@ -20859,8 +20859,14 @@ function _renderServiceTickets() {
           ${tickets.slice(0, 50).map(_serviceTicketRowHtml).join('')}
         </tbody>
       </table>
-      <div class="svc-foot">
-        ${tickets.length > 50 ? `Showing 50 of ${tickets.length} matching · refine filters or search to narrow` : `${tickets.length} ticket${tickets.length === 1 ? '' : 's'}`}
+      <div class="svc-foot" style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap">
+        <span>${tickets.length > 50 ? `Showing 50 of ${tickets.length} matching · refine filters or search to narrow` : `${tickets.length} ticket${tickets.length === 1 ? '' : 's'}`}</span>
+        <span style="display:inline-flex;align-items:center;gap:10px;font-size:11px">
+          <b style="color:var(--text);font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:10px">Age key</b>
+          <span class="svc-age ok">&lt; 14 days</span>
+          <span class="svc-age warn">14–30 days</span>
+          <span class="svc-age bad">&gt; 30 days</span>
+        </span>
       </div>
     </div>
   `;
@@ -20930,8 +20936,8 @@ function _serviceTicketRowHtml(t) {
         <div class="ttl">${_escapeSvc(t.faultCode || t.description.slice(0, 60) || '—')} · ${_escapeSvc(t.model || '—')}</div>
         <div class="meta">${_escapeSvc(t.customer)} · ${_escapeSvc(t.subFault || '')} ${t.repNo ? '· ' + _escapeSvc(t.repNo) : ''}</div>
       </td>
-      <td><span class="svc-pill ${t.warrantyChargeable === 'WARRANTY' ? 'warranty' : 'chargeable'}">${t.warrantyChargeable === 'WARRANTY' ? 'WARR' : 'CHRG'}</span></td>
-      <td><span class="svc-pill ${t.period30.toLowerCase().startsWith('inside 30') ? 'in30' : 'out30'}">${t.period30.toLowerCase().startsWith('inside 30') ? 'In 30d' : 'Out 30d'}</span></td>
+      <td><span class="svc-pill ${t.warrantyChargeable === 'WARRANTY' ? 'warranty' : 'chargeable'}">${t.warrantyChargeable === 'WARRANTY' ? 'Warranty' : 'Chargeable'}</span></td>
+      <td><span class="svc-pill ${t.period30.toLowerCase().startsWith('inside 30') ? 'in30' : 'out30'}">${t.period30.toLowerCase().startsWith('inside 30') ? 'Inside 30 days' : 'Outside 30 days'}</span></td>
       <td><span class="svc-age ${ageCls}">${days}d</span></td>
     </tr>
   `;
@@ -21213,6 +21219,21 @@ function _renderServiceCharts() {
   c.innerHTML = `
     <div class="svc-grid-12">
       <div class="svc-panel">
+        <div class="svc-panel-head"><div><h2>£ Chargeable revenue <span class="sub">FY ${months.reduce((a, m) => a + m.gbp, 0) > 0 ? 'YTD £' + Math.round(months.reduce((a, m) => a + m.gbp, 0) / 1000) + 'k' : '—'}</span></h2></div></div>
+        <div class="svc-gbp-chart">
+          <svg class="svc-gbp-svg" viewBox="0 0 360 160" preserveAspectRatio="none">
+            ${[40, 80, 120].map(y => `<line x1="0" y1="${y}" x2="360" y2="${y}" stroke="#e1e6eb" stroke-dasharray="2 3"/>`).join('')}
+            <polyline points="${months.map((m, i) => `${10 + i * 27},${150 - (m.gbp / maxGbp) * 130}`).join(' ')}" fill="none" stroke="#7c3aed" stroke-width="2.5" stroke-linejoin="round"/>
+            ${months.map((m, i) => `<circle cx="${10 + i * 27}" cy="${150 - (m.gbp / maxGbp) * 130}" r="3" fill="#7c3aed" stroke="#fff" stroke-width="1.5"/>`).join('')}
+          </svg>
+          <div style="display:flex;justify-content:space-between;font-size:9.5px;color:var(--text2);font-weight:600;margin-top:4px">
+            ${months.map((m, i) => `<span${i === 12 ? ' style="color:var(--purple);font-weight:800"' : ''}>${m.label}</span>`).join('')}
+          </div>
+        </div>
+        <div class="svc-foot" style="text-align:left;padding:11px 20px">Latest month: <b style="color:var(--text);font-weight:800">£${Math.round(months[12].gbp).toLocaleString('en-GB')}</b></div>
+      </div>
+
+      <div class="svc-panel">
         <div class="svc-panel-head"><div><h2>Days to close · 13-month trend <span class="sub">target 14d · current ${months[12].avgDays}d</span></h2></div></div>
         <div class="svc-perf-strip">
           <div class="svc-perf-target"><span>14d target</span></div>
@@ -21227,21 +21248,6 @@ function _renderServiceCharts() {
             ${months.map((m, i) => `<div${i === 12 ? ' style="color:var(--repose-blue);font-weight:800"' : ''}>${m.label}</div>`).join('')}
           </div>
         </div>
-      </div>
-
-      <div class="svc-panel">
-        <div class="svc-panel-head"><div><h2>£ Chargeable revenue <span class="sub">FY ${months.reduce((a, m) => a + m.gbp, 0) > 0 ? 'YTD £' + Math.round(months.reduce((a, m) => a + m.gbp, 0) / 1000) + 'k' : '—'}</span></h2></div></div>
-        <div class="svc-gbp-chart">
-          <svg class="svc-gbp-svg" viewBox="0 0 360 160" preserveAspectRatio="none">
-            ${[40, 80, 120].map(y => `<line x1="0" y1="${y}" x2="360" y2="${y}" stroke="#e1e6eb" stroke-dasharray="2 3"/>`).join('')}
-            <polyline points="${months.map((m, i) => `${10 + i * 27},${150 - (m.gbp / maxGbp) * 130}`).join(' ')}" fill="none" stroke="#7c3aed" stroke-width="2.5" stroke-linejoin="round"/>
-            ${months.map((m, i) => `<circle cx="${10 + i * 27}" cy="${150 - (m.gbp / maxGbp) * 130}" r="3" fill="#7c3aed" stroke="#fff" stroke-width="1.5"/>`).join('')}
-          </svg>
-          <div style="display:flex;justify-content:space-between;font-size:9.5px;color:var(--text2);font-weight:600;margin-top:4px">
-            ${months.map((m, i) => `<span${i === 12 ? ' style="color:var(--purple);font-weight:800"' : ''}>${m.label}</span>`).join('')}
-          </div>
-        </div>
-        <div class="svc-foot" style="text-align:left;padding:11px 20px">Latest month: <b style="color:var(--text);font-weight:800">£${Math.round(months[12].gbp).toLocaleString('en-GB')}</b></div>
       </div>
     </div>
   `;
