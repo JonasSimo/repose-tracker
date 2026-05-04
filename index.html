@@ -3104,6 +3104,23 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .svc-perf-target span { position: absolute; left: 0; top: -9px; font-size: 9.5px; font-weight: 700; background: #fff; color: var(--warn); padding: 0 5px; }
 .svc-gbp-chart { padding: 16px 20px; }
 .svc-gbp-svg { width: 100%; height: 160px; }
+.svc-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-bottom: 16px; }
+@media (max-width: 1280px) { .svc-grid-3 { grid-template-columns: 1fr; } }
+.svc-fault-row, .svc-mech-row, .svc-cust-row { padding: 11px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; cursor: pointer; }
+.svc-fault-row:hover, .svc-mech-row:hover, .svc-cust-row:hover { background: var(--bg3); }
+.svc-fault-row:last-child, .svc-mech-row:last-child, .svc-cust-row:last-child { border-bottom: none; }
+.svc-fault-row .label { flex: 1; font-size: 12.5px; font-weight: 600; color: var(--text); }
+.svc-fault-row .label .sub { display: block; font-size: 10.5px; color: var(--text2); font-weight: 500; margin-top: 1px; }
+.svc-fault-row .bar { flex: 1.2; height: 7px; background: var(--grey-soft); border-radius: 999px; overflow: hidden; }
+.svc-fault-row .bar div { height: 100%; background: linear-gradient(90deg, var(--info), var(--repose-blue)); border-radius: 999px; }
+.svc-fault-row .num, .svc-mech-row .num, .svc-cust-row .num { font-family: 'Bricolage Grotesque', sans-serif; font-size: 17px; font-weight: 800; color: var(--repose-navy); min-width: 32px; text-align: right; }
+.svc-mech-row .mc { font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700; background: var(--repose-navy); color: #fff; padding: 3px 8px; border-radius: 6px; min-width: 42px; text-align: center; }
+.svc-mech-row .ms-name { flex: 1; font-size: 12.5px; font-weight: 600; color: var(--text); }
+.svc-mech-row .ms-name .sub { display: block; font-size: 10.5px; color: var(--text2); font-weight: 500; margin-top: 1px; }
+.svc-cust-row { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; }
+.svc-cust-row .rank { font-family: 'Bricolage Grotesque', sans-serif; font-size: 14px; font-weight: 800; color: var(--text3); width: 20px; text-align: center; }
+.svc-cust-row .name { font-weight: 700; font-size: 12.5px; color: var(--repose-navy); }
+.svc-cust-row .name .sub { display: block; font-size: 10.5px; color: var(--text2); font-weight: 500; margin-top: 2px; }
 </style>
 <script src="/msal-browser.min.js" defer></script>
 <script src="/chart.umd.min.js"></script>
@@ -21002,6 +21019,90 @@ function _renderServiceCharts() {
   `;
 }
 
+function _computeTopFaults(limit = 5) {
+  const counts = {};
+  const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
+  for (const t of _serviceState.tickets) {
+    if (!t.openDate || t.openDate < monthStart) continue;
+    const k = t.faultCode || '—';
+    counts[k] = (counts[k] || 0) + 1;
+  }
+  return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, limit);
+}
+
+function _computeTopMechCodes(limit = 5) {
+  const counts = {};
+  const fyStart = new Date(2026, 3, 1); // FY26 starts 1 Apr 2026
+  for (const t of _serviceState.tickets) {
+    if (!t.openDate || t.openDate < fyStart) continue;
+    if (!t.mechCode) continue;
+    const k = t.mechCode;
+    counts[k] = (counts[k] || 0) + 1;
+  }
+  return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, limit);
+}
+
+function _computeTopCustomers(limit = 5) {
+  const stats = {};
+  for (const t of _serviceState.tickets) {
+    const k = (t.customer || '—').toUpperCase().trim();
+    if (!stats[k]) stats[k] = { count: 0, warranty: 0, daysSum: 0, daysN: 0 };
+    stats[k].count++;
+    if (t.warrantyChargeable === 'WARRANTY') stats[k].warranty++;
+    if (t.daysToComplete) { stats[k].daysSum += t.daysToComplete; stats[k].daysN++; }
+  }
+  return Object.entries(stats)
+    .map(([name, s]) => ({ name, count: s.count, warrantyPct: Math.round(s.warranty / s.count * 100), avgDays: s.daysN ? Math.round(s.daysSum / s.daysN) : 0 }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit);
+}
+
+function _renderServicePanels() {
+  const c = document.getElementById('svc-panels-container');
+  if (!c) return;
+  const faults = _computeTopFaults();
+  const mechs = _computeTopMechCodes();
+  const customers = _computeTopCustomers();
+  const maxFault = Math.max(1, ...faults.map(([, n]) => n));
+  const maxMech = Math.max(1, ...mechs.map(([, n]) => n));
+  c.innerHTML = `
+    <div class="svc-grid-3">
+      <div class="svc-panel">
+        <div class="svc-panel-head"><div><h2>Top fault categories <span class="sub">MTD · top ${faults.length}</span></h2></div></div>
+        ${faults.map(([k, n]) => `
+          <div class="svc-fault-row">
+            <div class="label">${_escapeSvc(k)}</div>
+            <div class="bar"><div style="width:${(n / maxFault) * 100}%"></div></div>
+            <div class="num">${n}</div>
+          </div>
+        `).join('') || '<div style="padding:24px;text-align:center;color:var(--text2);font-size:12px">No data this month yet.</div>'}
+      </div>
+
+      <div class="svc-panel">
+        <div class="svc-panel-head"><div><h2>Mech Code analysis <span class="sub">FY26 · top ${mechs.length}</span></h2></div></div>
+        ${mechs.map(([k, n]) => `
+          <div class="svc-mech-row">
+            <span class="mc">${_escapeSvc(k)}</span>
+            <div class="ms-name">Mech ${_escapeSvc(k)}<span class="sub">${n} fault${n === 1 ? '' : 's'} this FY</span></div>
+            <div class="num">${n}</div>
+          </div>
+        `).join('') || '<div style="padding:24px;text-align:center;color:var(--text2);font-size:12px">No mech code data.</div>'}
+      </div>
+
+      <div class="svc-panel">
+        <div class="svc-panel-head"><div><h2>Customer scorecard <span class="sub">By ticket volume</span></h2></div></div>
+        ${customers.map((c, i) => `
+          <div class="svc-cust-row">
+            <div class="rank">${i + 1}</div>
+            <div><div class="name">${_escapeSvc(c.name)}<span class="sub">${c.warrantyPct}% warr · ${c.avgDays}d avg close</span></div></div>
+            <div class="num">${c.count}</div>
+          </div>
+        `).join('') || '<div style="padding:24px;text-align:center;color:var(--text2);font-size:12px">No customer data.</div>'}
+      </div>
+    </div>
+  `;
+}
+
 function _renderServiceShell(content) {
   const last = _serviceState.lastFetch ? new Date(_serviceState.lastFetch) : null;
   content.innerHTML = `
@@ -21132,7 +21233,8 @@ function _renderServiceAll() {
   _renderServiceTickets();
   _renderServiceParts();
   _renderServiceCharts();
-  // Tasks 11-12 add: panels, drawer
+  _renderServicePanels();
+  // Task 12 adds: drawer
 }
 
 function _pct(n, d) { return d > 0 ? Math.round(n / d * 100) : 0; }
