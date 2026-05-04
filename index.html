@@ -3135,6 +3135,18 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .svc-drawer-meta dt { color: var(--text2); font-weight: 600; }
 .svc-drawer-meta dd { margin: 0; font-weight: 600; color: var(--text); }
 .svc-drawer-section p { font-size: 12.5px; line-height: 1.55; color: var(--text); margin: 0; white-space: pre-wrap; }
+.svc-modal-bg { position: fixed; inset: 0; background: rgba(14, 2, 58, 0.55); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 24px; }
+.svc-modal { background: #fff; border-radius: 18px; max-width: 640px; width: 100%; max-height: 90vh; overflow-y: auto; }
+.svc-modal-head { padding: 18px 22px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 14px; }
+.svc-modal-head h2 { font-size: 18px; color: var(--repose-navy); flex: 1; font-family: 'Bricolage Grotesque', Manrope, sans-serif; margin: 0; }
+.svc-modal-head .x { background: transparent; border: none; cursor: pointer; font-size: 22px; color: var(--text2); padding: 0; }
+.svc-modal-body { padding: 16px 22px; }
+.svc-field { margin-bottom: 14px; }
+.svc-field label { display: block; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--text2); font-weight: 700; margin-bottom: 5px; }
+.svc-field input, .svc-field select, .svc-field textarea { width: 100%; padding: 9px 12px; border: 1.5px solid var(--border2); border-radius: 9px; font-family: inherit; font-size: 13px; color: var(--text); background: #fff; }
+.svc-field textarea { min-height: 70px; resize: vertical; }
+.svc-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.svc-modal-foot { padding: 14px 22px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; background: var(--bg3); }
 </style>
 <script src="/msal-browser.min.js" defer></script>
 <script src="/chart.umd.min.js"></script>
@@ -21001,6 +21013,140 @@ async function openServiceTicketDrawer(ticketNo) {
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
 }
 
+function openNewServiceTicketModal() {
+  const customers = [...new Set(_serviceState.tickets.map(t => t.customer).filter(Boolean))].sort();
+  const models = [...new Set(_serviceState.tickets.map(t => t.model).filter(Boolean))].sort();
+  const faults = [...new Set(_serviceState.tickets.map(t => t.faultCode).filter(Boolean))].sort();
+  const owners = ['Repose', 'Customer'];
+
+  const maxNum = _serviceState.tickets
+    .map(t => /^TICKET(\d+)$/i.exec(t.ticketNo))
+    .filter(m => m)
+    .map(m => parseInt(m[1], 10))
+    .reduce((a, b) => Math.max(a, b), 0);
+  const nextTicketNo = `TICKET${maxNum + 1}`;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'svc-modal-bg';
+  overlay.innerHTML = `
+    <div class="svc-modal">
+      <div class="svc-modal-head">
+        <h2>+ New service ticket</h2>
+        <button class="x" id="svc-mod-close">×</button>
+      </div>
+      <div class="svc-modal-body">
+        <div class="svc-field-row">
+          <div class="svc-field"><label>Ticket No (auto)</label><input value="${nextTicketNo}" id="svc-f-ticketno" readonly style="background:var(--bg3)"></div>
+          <div class="svc-field"><label>Open Date</label><input type="date" id="svc-f-opendate" value="${new Date().toISOString().slice(0, 10)}"></div>
+        </div>
+        <div class="svc-field"><label>Customer *</label><input list="svc-cust-list" id="svc-f-customer" placeholder="Castelan / Charterhouse / …">
+          <datalist id="svc-cust-list">${customers.map(c => `<option value="${_escapeSvc(c)}">`).join('')}</datalist>
+        </div>
+        <div class="svc-field-row">
+          <div class="svc-field"><label>REP No</label><input id="svc-f-repno" placeholder="REP2891"></div>
+          <div class="svc-field"><label>PO ref</label><input id="svc-f-poref"></div>
+        </div>
+        <div class="svc-field-row">
+          <div class="svc-field"><label>Model</label><input list="svc-model-list" id="svc-f-model"><datalist id="svc-model-list">${models.map(m => `<option value="${_escapeSvc(m)}">`).join('')}</datalist></div>
+          <div class="svc-field"><label>Mech Code</label><input id="svc-f-mech" placeholder="1203"></div>
+        </div>
+        <div class="svc-field-row">
+          <div class="svc-field"><label>Period *</label><select id="svc-f-period30"><option value="Inside 30">Inside 30 days</option><option value="Outside 30">Outside 30 days</option></select></div>
+          <div class="svc-field"><label>Type *</label><select id="svc-f-wc"><option value="WARRANTY">Warranty</option><option value="CHARGEABLE">Chargeable</option></select></div>
+        </div>
+        <div class="svc-field-row">
+          <div class="svc-field"><label>Fault Code</label><input list="svc-fault-list" id="svc-f-fault"><datalist id="svc-fault-list">${faults.map(f => `<option value="${_escapeSvc(f)}">`).join('')}</datalist></div>
+          <div class="svc-field"><label>Sub-Fault</label><input id="svc-f-subfault"></div>
+        </div>
+        <div class="svc-field"><label>Description *</label><textarea id="svc-f-desc" placeholder="What's the issue, in the customer's words?"></textarea></div>
+        <div class="svc-field-row">
+          <div class="svc-field"><label>Owner</label><select id="svc-f-owner">${owners.map(o => `<option>${o}</option>`).join('')}</select></div>
+          <div class="svc-field"><label>Proposed Close</label><input type="date" id="svc-f-pclose" value="${new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10)}"></div>
+        </div>
+      </div>
+      <div class="svc-modal-foot">
+        <button class="svc-btn svc-btn-sec" id="svc-mod-cancel">Cancel</button>
+        <button class="svc-btn svc-btn-pri" id="svc-mod-save">Create ticket</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const close = () => overlay.remove();
+  overlay.querySelector('#svc-mod-close').addEventListener('click', close);
+  overlay.querySelector('#svc-mod-cancel').addEventListener('click', close);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+
+  overlay.querySelector('#svc-mod-save').addEventListener('click', async () => {
+    const get = id => overlay.querySelector(id).value.trim();
+    const customer = get('#svc-f-customer');
+    const desc = get('#svc-f-desc');
+    if (!customer || !desc) { alert('Customer and Description are required.'); return; }
+    const btn = overlay.querySelector('#svc-mod-save');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const todayIso = get('#svc-f-opendate');
+      const pcloseIso = get('#svc-f-pclose');
+      const ticketNo = get('#svc-f-ticketno');
+      const row = new Array(36).fill(null);
+      row[0] = '';
+      row[1] = get('#svc-f-period30');
+      row[2] = '';
+      row[3] = `${get('#svc-f-fault')} - ${get('#svc-f-subfault')}`.replace(/^ - $/, '');
+      row[4] = '';
+      row[5] = todayIso ? new Date(todayIso).toLocaleDateString('en-GB', { month: 'long' }) : '';
+      row[6] = ticketNo;
+      row[7] = customer;
+      row[8] = '';
+      row[9] = get('#svc-f-repno');
+      row[10] = get('#svc-f-poref');
+      row[11] = get('#svc-f-model');
+      row[12] = get('#svc-f-mech');
+      row[13] = desc;
+      row[14] = todayIso ? _isoToExcelSerial(todayIso) : null;
+      row[15] = '';
+      row[16] = '';
+      row[17] = '';
+      row[18] = get('#svc-f-owner');
+      row[19] = pcloseIso ? _isoToExcelSerial(pcloseIso) : null;
+      row[20] = null;
+      row[21] = null;
+      row[22] = null;
+      row[23] = '';
+      row[24] = get('#svc-f-wc');
+      row[25] = get('#svc-f-fault');
+      row[26] = get('#svc-f-subfault');
+      row[27] = 'OPEN';
+
+      const url = `https://graph.microsoft.com/v1.0/drives/${_serviceState.ticketDriveId}/items/${_serviceState.ticketItemId}/workbook/tables('${SERVICE_TICKET_TABLE}')/rows/add`;
+      const token = await getGraphToken();
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ values: [row] })
+      });
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Graph Excel REST returned ${res.status}: ${errText}`);
+      }
+
+      close();
+      await loadServiceData(true);
+      _renderServiceAll();
+      alert(`Ticket ${ticketNo} created.`);
+    } catch (e) {
+      alert(`Failed to create ticket: ${e.message}`);
+      btn.disabled = false; btn.textContent = 'Create ticket';
+    }
+  });
+}
+
+function _isoToExcelSerial(iso) {
+  if (!iso) return null;
+  const d = new Date(iso + 'T00:00:00Z');
+  return Math.round((d.getTime() / 86400000) + 25569);
+}
+
 function _renderServiceParts() {
   const c = document.getElementById('svc-parts-container');
   if (!c) return;
@@ -21216,6 +21362,7 @@ function _renderServiceShell(content) {
     btn.disabled = true; btn.textContent = '↻ Refreshing…';
     try { await loadServiceData(true); _renderServiceAll(); } finally { btn.disabled = false; btn.textContent = '↻ Refresh'; }
   });
+  document.getElementById('svc-new-ticket-btn').addEventListener('click', openNewServiceTicketModal);
   // Tasks 13-14 wire the +Parts and +Ticket buttons
   _renderServiceKpis();
 }
