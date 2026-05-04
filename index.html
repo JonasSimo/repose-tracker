@@ -20516,6 +20516,61 @@ async function loadServiceData(force = false) {
   return _serviceState;
 }
 
+// Compute all dashboard KPIs from the in-memory _serviceState.
+// Period filter is the current calendar month by default; configurable later.
+function _computeServiceKpis(period = 'mtd') {
+  const tickets = _serviceState.tickets;
+  const parts = _serviceState.parts;
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const weekStart = (() => { const d = new Date(now); const day = d.getDay() || 7; d.setDate(d.getDate() - day + 1); d.setHours(0,0,0,0); return d; })();
+
+  const open = tickets.filter(t => t.openClosed === 'OPEN');
+  const openIn30  = open.filter(t => t.period30.toLowerCase().startsWith('inside 30')).length;
+  const openOut30 = open.filter(t => t.period30.toLowerCase().startsWith('outside 30')).length;
+  const overdue = open.filter(t => t.proposedCloseDate && t.proposedCloseDate < now).length;
+
+  const closedThisMonth = tickets.filter(t => t.closeDate && t.closeDate >= monthStart && t.closeDate <= now);
+  const avgDaysClose = closedThisMonth.length === 0 ? 0
+    : Math.round(closedThisMonth.reduce((a, t) => a + (t.daysToComplete || 0), 0) / closedThisMonth.length);
+  const avgWarrantyClose = (() => {
+    const x = closedThisMonth.filter(t => t.warrantyChargeable === 'WARRANTY');
+    return x.length === 0 ? 0 : Math.round(x.reduce((a, t) => a + (t.daysToComplete || 0), 0) / x.length);
+  })();
+  const avgChargeableClose = (() => {
+    const x = closedThisMonth.filter(t => t.warrantyChargeable === 'CHARGEABLE');
+    return x.length === 0 ? 0 : Math.round(x.reduce((a, t) => a + (t.daysToComplete || 0), 0) / x.length);
+  })();
+
+  const partsInTransit = parts.filter(p => !p.isDelivered);
+  const partsDelivered = parts.filter(p => p.isDelivered);
+
+  const withinTarget = closedThisMonth.length === 0 ? 0
+    : Math.round(closedThisMonth.filter(t => (t.daysToComplete || 0) <= 30).length / closedThisMonth.length * 100);
+
+  const openedThisWeek = tickets.filter(t => t.openDate && t.openDate >= weekStart).length;
+  const closedThisWeek = tickets.filter(t => t.closeDate && t.closeDate >= weekStart).length;
+  const gbpMtd = closedThisMonth
+    .filter(t => t.warrantyChargeable === 'CHARGEABLE')
+    .reduce((a, t) => a + (t.gbp || 0) + (t.gbpDel || 0), 0);
+
+  // Top fault category MTD
+  const faultCounts = {};
+  for (const t of tickets.filter(t => t.openDate && t.openDate >= monthStart)) {
+    const k = t.faultCode || '—';
+    faultCounts[k] = (faultCounts[k] || 0) + 1;
+  }
+  const topFault = Object.entries(faultCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
+
+  return {
+    open: open.length, openIn30, openOut30, overdue,
+    avgDaysClose, avgWarrantyClose, avgChargeableClose,
+    partsInTransit: partsInTransit.length, partsDelivered: partsDelivered.length,
+    withinTarget, openedThisWeek, closedThisWeek, gbpMtd, topFault,
+    closedThisMonthCount: closedThisMonth.length
+  };
+}
+
 // "13.01.26 @ 13.25" → Date(2026, 0, 13, 13, 25). Falls back to null on parse failure.
 function _parseDeliveredText(s) {
   if (!s) return null;
