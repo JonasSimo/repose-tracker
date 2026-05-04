@@ -3121,6 +3121,20 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .svc-cust-row .rank { font-family: 'Bricolage Grotesque', sans-serif; font-size: 14px; font-weight: 800; color: var(--text3); width: 20px; text-align: center; }
 .svc-cust-row .name { font-weight: 700; font-size: 12.5px; color: var(--repose-navy); }
 .svc-cust-row .name .sub { display: block; font-size: 10.5px; color: var(--text2); font-weight: 500; margin-top: 2px; }
+.svc-drawer-bg { position: fixed; inset: 0; background: rgba(14, 2, 58, 0.55); z-index: 1000; display: flex; justify-content: flex-end; }
+.svc-drawer { width: 560px; max-width: 90vw; height: 100vh; background: #fff; box-shadow: -8px 0 32px rgba(0, 0, 0, .15); overflow-y: auto; display: flex; flex-direction: column; }
+.svc-drawer-head { padding: 18px 22px; background: linear-gradient(135deg, var(--bbg), #fff); border-bottom: 1px solid var(--border); display: flex; align-items: flex-start; gap: 14px; }
+.svc-drawer-head .crumb { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--repose-blue); font-weight: 700; letter-spacing: .04em; }
+.svc-drawer-head h2 { font-size: 18px; color: var(--repose-navy); margin-top: 4px; font-family: 'Bricolage Grotesque', Manrope, sans-serif; }
+.svc-drawer-head .badges { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.svc-drawer-head .x { background: transparent; border: none; cursor: pointer; font-size: 22px; color: var(--text2); padding: 0; line-height: 1; }
+.svc-drawer-section { padding: 16px 22px; border-bottom: 1px solid var(--border); }
+.svc-drawer-section:last-child { border-bottom: none; }
+.svc-drawer-section h3 { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--text2); font-weight: 700; margin-bottom: 10px; font-family: Manrope, sans-serif; }
+.svc-drawer-meta { display: grid; grid-template-columns: 110px 1fr; gap: 6px 14px; font-size: 12.5px; }
+.svc-drawer-meta dt { color: var(--text2); font-weight: 600; }
+.svc-drawer-meta dd { margin: 0; font-weight: 600; color: var(--text); }
+.svc-drawer-section p { font-size: 12.5px; line-height: 1.55; color: var(--text); margin: 0; white-space: pre-wrap; }
 </style>
 <script src="/msal-browser.min.js" defer></script>
 <script src="/chart.umd.min.js"></script>
@@ -20916,7 +20930,75 @@ function _escapeSvc(s) {
 }
 
 async function openServiceTicketDrawer(ticketNo) {
-  console.log('[svc] open drawer for', ticketNo);
+  const t = _serviceState.tickets.find(x => x.ticketNo === ticketNo);
+  if (!t) return;
+  const overlay = document.createElement('div');
+  overlay.className = 'svc-drawer-bg';
+  const fmtDate = d => d ? d.toLocaleDateString('en-GB') : '—';
+  const fmtMoney = n => n ? `£${Number(n).toFixed(2)}` : '—';
+  overlay.innerHTML = `
+    <div class="svc-drawer">
+      <div class="svc-drawer-head">
+        <div style="flex:1">
+          <div class="crumb">${_escapeSvc(t.ticketNo)}</div>
+          <h2>${_escapeSvc(t.faultCode || t.description.slice(0, 80) || '—')} · ${_escapeSvc(t.model || '—')}</h2>
+          <div class="badges">
+            <span class="svc-pill ${t.warrantyChargeable === 'WARRANTY' ? 'warranty' : 'chargeable'}">${t.warrantyChargeable === 'WARRANTY' ? 'WARRANTY' : 'CHARGEABLE'}</span>
+            <span class="svc-pill ${t.period30.toLowerCase().startsWith('inside 30') ? 'in30' : 'out30'}">${t.period30 || '—'}</span>
+            <span class="svc-pill ${t.openClosed === 'OPEN' ? 'in30' : ''}" style="${t.openClosed === 'CLOSED' ? 'background:var(--pass-soft);color:var(--pass);border-color:var(--gborder)' : ''}">${t.openClosed}</span>
+          </div>
+        </div>
+        <button class="x" id="svc-drawer-close">×</button>
+      </div>
+
+      <div class="svc-drawer-section">
+        <h3>Ticket details</h3>
+        <dl class="svc-drawer-meta">
+          <dt>Customer</dt><dd>${_escapeSvc(t.customer || '—')}</dd>
+          <dt>REP No</dt><dd>${_escapeSvc(t.repNo || '—')}</dd>
+          <dt>PO ref</dt><dd>${_escapeSvc(t.poRef || '—')}</dd>
+          <dt>Model</dt><dd>${_escapeSvc(t.model || '—')}</dd>
+          <dt>Mech Code</dt><dd>${_escapeSvc(t.mechCode || '—')}</dd>
+          <dt>Fault</dt><dd>${_escapeSvc(t.faultCode || '—')} · ${_escapeSvc(t.subFault || '—')}</dd>
+          <dt>Open Date</dt><dd>${fmtDate(t.openDate)}</dd>
+          <dt>Despatch Date</dt><dd>${fmtDate(t.despatchDate)}</dd>
+          <dt>Proposed Close</dt><dd>${fmtDate(t.proposedCloseDate)}</dd>
+          <dt>Close Date</dt><dd>${fmtDate(t.closeDate)}</dd>
+          <dt>Days to Close</dt><dd>${t.daysToComplete || '—'}</dd>
+          <dt>Owner</dt><dd>${_escapeSvc(t.owner || '—')}</dd>
+        </dl>
+      </div>
+
+      <div class="svc-drawer-section">
+        <h3>Description</h3>
+        <p>${_escapeSvc(t.description) || '<em style="color:var(--text3)">No description</em>'}</p>
+      </div>
+
+      <div class="svc-drawer-section">
+        <h3>Action taken</h3>
+        <p>${_escapeSvc(t.action) || '<em style="color:var(--text3)">No action recorded</em>'}</p>
+      </div>
+
+      ${t.notes ? `
+      <div class="svc-drawer-section">
+        <h3>Notes</h3>
+        <p>${_escapeSvc(t.notes)}</p>
+      </div>` : ''}
+
+      <div class="svc-drawer-section">
+        <h3>Financials</h3>
+        <dl class="svc-drawer-meta">
+          <dt>Invoice No</dt><dd>${_escapeSvc(t.invoiceNo || '—')}</dd>
+          <dt>Invoice Date</dt><dd>${fmtDate(t.invoiceDate)}</dd>
+          <dt>£</dt><dd>${fmtMoney(t.gbp)}</dd>
+          <dt>£ Del</dt><dd>${fmtMoney(t.gbpDel)}</dd>
+        </dl>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  overlay.querySelector('#svc-drawer-close').addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
 }
 
 function _renderServiceParts() {
