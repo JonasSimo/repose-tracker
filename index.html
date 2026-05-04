@@ -2958,9 +2958,33 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .docs-checkbox-row label.on { background: var(--bbg); border-color: var(--bborder); color: var(--repose-blue); }
 
 /* Service Dashboard (Phase A) */
+/* Supplementary palette — maps mockup-style names to existing RepNet vars,
+   plus a few new tones (purple/orange/pink) used by the Service module. */
+#view-service {
+  --pass: var(--green);
+  --pass-soft: var(--gbg);
+  --pass-bg: var(--gbg);
+  --fail: var(--red);
+  --fail-soft: var(--rbg);
+  --warn: var(--amber);
+  --warn-soft: var(--abg);
+  --warn-bg: var(--abg);
+  --info: var(--repose-blue);
+  --info-soft: var(--bbg);
+  --repose-blue-soft: var(--bbg);
+  --repose-blue-dark: #0d8ec9;
+  --grey-soft: #f1f5f9;
+  --purple: #7c3aed;
+  --purple-soft: #ede9fe;
+  --orange: #ea580c;
+  --orange-soft: #fed7aa;
+  --pink: #db2777;
+  --pink-soft: #fce7f3;
+}
+
 .svc-shell { padding: 0; height: 100%; display: flex; flex-direction: column; overflow: hidden; }
 .svc-loading { padding: 64px; text-align: center; color: var(--text2); font-size: 14px; }
-.svc-error { padding: 24px; background: var(--fail-soft); color: var(--fail); border-radius: 12px; margin: 24px; font-size: 13px; }
+.svc-error { padding: 24px; background: var(--rbg); color: var(--red); border-radius: 12px; margin: 24px; font-size: 13px; }
 .svc-content { flex: 1; overflow-y: auto; padding: 24px 28px 64px; max-width: 1640px; }
 </style>
 <script src="/msal-browser.min.js" defer></script>
