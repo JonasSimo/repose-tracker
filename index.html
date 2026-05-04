@@ -2956,6 +2956,12 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .docs-checkbox-row label { display: inline-flex; gap: 6px; align-items: center; font-size: 12px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 999px; cursor: pointer; }
 .docs-checkbox-row label input { accent-color: var(--repose-blue); }
 .docs-checkbox-row label.on { background: var(--bbg); border-color: var(--bborder); color: var(--repose-blue); }
+
+/* Service Dashboard (Phase A) */
+.svc-shell { padding: 0; height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+.svc-loading { padding: 64px; text-align: center; color: var(--text2); font-size: 14px; }
+.svc-error { padding: 24px; background: var(--fail-soft); color: var(--fail); border-radius: 12px; margin: 24px; font-size: 13px; }
+.svc-content { flex: 1; overflow-y: auto; padding: 24px 28px 64px; max-width: 1640px; }
 </style>
 <script src="/msal-browser.min.js" defer></script>
 <script src="/chart.umd.min.js"></script>
@@ -3038,6 +3044,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <button class="nav-item" data-view="safety" onclick="navTo('safety')">Near Misses</button>
         <button class="nav-item" data-view="complaints" onclick="navTo('complaints')">Complaints</button>
         <button class="nav-item" data-view="documents" id="docs-tab-btn" onclick="navTo('documents')" style="display:none">Documents</button>
+        <button class="nav-item" data-view="service" onclick="navTo('service')">Service</button>
         <button class="nav-item" id="ivn-tab-btn" data-view="innovation" onclick="navTo('innovation')" style="display:none">Innovation</button>
         <!-- Order Check — work in progress, hidden until ready -->
         <!-- <button class="nav-item" data-view="ordercheck" onclick="navTo('ordercheck')">Order Check</button> -->
@@ -3670,6 +3677,17 @@ document.addEventListener('DOMContentLoaded', () => {
   </div>
 </div>
 
+<!-- ═══════════════════════════════════════════════
+     VIEW: SERVICE DASHBOARD (Phase A — foundation)
+════════════════════════════════════════════════ -->
+<div class="view" id="view-service" data-view="service">
+  <div class="svc-shell">
+    <div class="svc-loading" id="svc-loading">Loading Service Dashboard…</div>
+    <div class="svc-error" id="svc-error" style="display:none"></div>
+    <div class="svc-content" id="svc-content" style="display:none"></div>
+  </div>
+</div>
+
 <!-- Assign investigator modal -->
 <div id="cp-assign-modal" class="cp-modal-overlay" style="display:none" onclick="if(event.target===this)cpCloseAssignModal()">
   <div class="cp-modal-box">
@@ -4081,7 +4099,7 @@ let ppAutoSyncInterval = null;
 // ═══════════════════════════════════════════════
 // ROUTING
 // ═══════════════════════════════════════════════
-const NAV_LABELS = { 'team-select':'Team View','tracker':'Team View','overview':'Load Plan','loadsheet':'Delivery','production':'Production Plan','stats':'Stats','issues':'Issues','quality':'Quality','actions':'CAPA','safety':'Safety','ordercheck':'Order Check','timing':'Job Timing','complaints':'Complaints','innovation':'Innovation Station','maintenance':'Maintenance','documents':'Documents' };
+const NAV_LABELS = { 'team-select':'Team View','tracker':'Team View','overview':'Load Plan','loadsheet':'Delivery','production':'Production Plan','stats':'Stats','issues':'Issues','quality':'Quality','actions':'CAPA','safety':'Safety','ordercheck':'Order Check','timing':'Job Timing','complaints':'Complaints','innovation':'Innovation Station','maintenance':'Maintenance','documents':'Documents','service':'Service Dashboard' };
 function showView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   const activeView = name === 'tracker' ? 'team-select' : name;
@@ -4115,6 +4133,7 @@ function showView(name) {
   if (name === 'ordercheck')  { ocOnOpen(); }
   if (name === 'timing')      { tmOnOpen(); }
   if (name === 'complaints')  { cpOnOpen(); }
+  if (name === 'service')     { openServiceDashboard(); }
   if (name === 'maintenance')    { mtOnOpen(); }
   if (name === 'innovation')     { ivnOnOpen(); }
 }
@@ -8681,7 +8700,7 @@ const TABLET_TEAM = _validatedTeam || _ssTeamCanon || '';
 // Single-tab lock — add ?tab=production (or any view name) to the URL
 // to lock the app to that tab only, hiding the nav menu
 // Preserve tab across MSAL redirect
-const _VALID_TABS = new Set(['team-select','overview','tracker','loadsheet','production','stats','issues','safety','ordercheck','timing','complaints','maintenance','innovation']);
+const _VALID_TABS = new Set(['team-select','overview','tracker','loadsheet','production','stats','issues','safety','ordercheck','timing','complaints','maintenance','innovation','service']);
 const _paramTab = (new URLSearchParams(window.location.search).get('tab') || '').toLowerCase();
 const _validatedTab = _VALID_TABS.has(_paramTab) ? _paramTab : '';
 if (_validatedTab) sessionStorage.setItem('tabletTab', _validatedTab);
@@ -9297,7 +9316,7 @@ async function initGraph() {
     graphAccount = accounts[0];
     updateAuthBadge();
     const _deepView = new URLSearchParams(window.location.search).get('view');
-    const _validViews = new Set(['team-select','overview','tracker','loadsheet','production','stats','issues','quality','actions','safety','ordercheck','timing','complaints','maintenance','innovation']);
+    const _validViews = new Set(['team-select','overview','tracker','loadsheet','production','stats','issues','quality','actions','safety','ordercheck','timing','complaints','maintenance','innovation','service']);
     if (_deepView && _validViews.has(_deepView)) navTo(_deepView);
     // PROD is the team-view critical path — it builds the job grid (renderJobs runs at
     // the end of loadProductionFromSharePoint). Run it alone first so jobs paint asap.
@@ -20235,6 +20254,30 @@ function cpExportPdf() {
   // Safety net: some very old browsers don't fire afterprint
   setTimeout(cleanup, 10000);
   window.print();
+}
+
+// ═══════════════════════════════════════════════
+// SERVICE DASHBOARD (Phase A — foundation)
+// ═══════════════════════════════════════════════
+
+async function openServiceDashboard() {
+  const loading = document.getElementById('svc-loading');
+  const errEl   = document.getElementById('svc-error');
+  const content = document.getElementById('svc-content');
+  loading.style.display = 'block';
+  errEl.style.display = 'none';
+  content.style.display = 'none';
+  try {
+    // Phase A: full render lands in Task 7. For now, just signal that the route works.
+    content.innerHTML = `<div style="padding:48px;text-align:center;color:var(--text2)">Service Dashboard — view route works. Data layer + render coming in next tasks.</div>`;
+    loading.style.display = 'none';
+    content.style.display = 'block';
+  } catch (e) {
+    loading.style.display = 'none';
+    errEl.style.display = 'block';
+    errEl.textContent = `Failed to open Service Dashboard: ${e.message}`;
+    console.error('[svc] open failed', e);
+  }
 }
 
 // ═══════════════════════════════════════════════

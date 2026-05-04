@@ -34,6 +34,8 @@
     { v: 'safety',       g: '⚠',     l: 'Near Misses' },
     { v: 'complaints',   g: '✉',     l: 'Complaints' },
     { v: 'documents',    g: '📄',    l: 'Documents' },
+    { h: 'Service' },
+    { v: 'service',      g: '🔧',    l: 'Service Dashboard' },
     { h: 'Operations' },
     { v: 'maintenance',  g: '⚒',     l: 'Maintenance' },
     { v: 'timing',       g: '⏱',     l: 'Job Timing' },
