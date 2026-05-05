@@ -101,6 +101,59 @@ async function readTicketLog(token, driveId, itemId) {
   return range.values || [];
 }
 
+// ─── Helpers ─────────────────────────────────────────────────────────────
+function _norm(s) { return String(s || '').trim().toLowerCase(); }
+
+function findColIdx(headerRow, name) {
+  const target = _norm(name);
+  return headerRow.findIndex(h => _norm(h) === target);
+}
+
+// Match index.html's _parseChairId — keeps the REP-No semantics consistent.
+function parseChairId(s) {
+  const v = String(s || '').trim();
+  if (!v) return null;
+  const m = /^(REP\d+)(?:-R(\d+))?$/i.exec(v);
+  if (!m) return { rep: v, returnNo: 0, isReturn: false, label: v };
+  return { rep: m[1].toUpperCase(), returnNo: m[2] ? parseInt(m[2], 10) : 0, isReturn: !!m[2], label: v.toUpperCase() };
+}
+
+function fmtDateLocal(d) {
+  if (!d || isNaN(d.getTime())) return '';
+  const pad = n => String(n).padStart(2, '0');
+  return `${pad(d.getDate())} ${d.toLocaleString('en-GB', { month: 'short' })} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function fmtDateOnly(d) {
+  if (!d || isNaN(d.getTime())) return '';
+  const pad = n => String(n).padStart(2, '0');
+  return `${pad(d.getDate())} ${d.toLocaleString('en-GB', { month: 'short' })}`;
+}
+
+// Translate a Maxoptra job's raw status into the friendly pill text we
+// store in TICKET LOG. Unknown statuses fall through to a "❓" pill that
+// surfaces the raw value so we can extend this mapping fast.
+function mapMaxoptraStatus(rawStatus, scheduledTime, completedAt) {
+  const s = String(rawStatus || '').trim().toLowerCase();
+  const sched = scheduledTime ? new Date(scheduledTime) : null;
+  const done  = completedAt ? new Date(completedAt) : null;
+
+  if (s === 'completed' || s === 'delivered' || s === 'finished') {
+    return `✅ In factory · ${fmtDateOnly(done || sched || new Date())}`;
+  }
+  if (s === 'inprogress' || s === 'in_progress' || s === 'in progress' ||
+      s === 'pickedup'   || s === 'picked_up'   || s === 'picked up'   ||
+      s === 'onway'      || s === 'on_way'      || s === 'on way') {
+    return `🚚 Collected · returning to factory`;
+  }
+  if (s === 'planned' || s === 'scheduled' || s === 'assigned') {
+    const when = fmtDateLocal(sched);
+    return when ? `📅 Scheduled · ${when}` : `📅 Scheduled`;
+  }
+  // Unmapped — surface raw value so the engineer adds it next pass.
+  return `❓ ${rawStatus || 'unknown'}`;
+}
+
 module.exports = async function (context, myTimer) {
   const log = context.log;
   const started = new Date();
@@ -154,5 +207,49 @@ module.exports = async function (context, myTimer) {
     return;
   }
   log(`[service-maxoptra-poll] read TicketLog · ${values.length - 1} data rows`);
-  log(`[service-maxoptra-poll] complete (Task 3 only) · ${((Date.now() - started.getTime()) / 1000).toFixed(1)}s`);
+
+  const headerRow = values[0];
+  const repNoIdx     = findColIdx(headerRow, 'REP Number');
+  const ticketNoIdx  = findColIdx(headerRow, 'Ticket No');
+  const customerIdx  = findColIdx(headerRow, 'Customer');
+  const returnedIdx  = findColIdx(headerRow, 'Returned to Factory');
+  const mxJobIdx     = findColIdx(headerRow, 'Maxoptra Job ID');
+  const mxStatusIdx  = findColIdx(headerRow, 'Maxoptra Status');
+  const mxUpdatedIdx = findColIdx(headerRow, 'Maxoptra Updated');
+
+  if (repNoIdx < 0) {
+    log.error(`TicketLog missing "REP Number" column. Headers: ${headerRow.join(', ')}`);
+    return;
+  }
+  if (mxJobIdx < 0 || mxStatusIdx < 0 || mxUpdatedIdx < 0) {
+    log.error(`TicketLog missing Maxoptra columns. Add them per Task 5 of the plan before this function will write anything.`);
+    // Don't return — let it continue read-only so we can see what the function would do.
+  }
+
+  // Build map: full chair label (e.g. "REP2284-R1") → { rowIdx (0-based data), values reference }
+  const ticketsByLabel = new Map();
+  for (let i = 1; i < values.length; i++) {
+    const cid = parseChairId(values[i][repNoIdx]);
+    if (!cid || !cid.isReturn) continue; // only -R suffix rows are candidates
+    ticketsByLabel.set(cid.label, { rowIdx: i - 1, sheetRow: i + 1, raw: values[i] });
+  }
+  log(`[service-maxoptra-poll] indexed ${ticketsByLabel.size} ticket rows with -R suffix`);
+
+  let matched = 0;
+  let orphans = 0;
+  for (const job of jobs) {
+    // ADJUST these field paths to match what Step 2.1 discovery showed.
+    const ref = String(job.reference || job.externalId || '').trim().toUpperCase();
+    if (!ref) { orphans++; continue; }
+    const ticket = ticketsByLabel.get(ref);
+    if (!ticket) {
+      orphans++;
+      log.warn(`[orphan] Maxoptra job ${job.id || '?'} reference="${ref}" — no matching ticket`);
+      continue;
+    }
+    matched++;
+    const pill = mapMaxoptraStatus(job.status, job.scheduledTime, job.completedAt);
+    log(`[match] ${ref} (ticket row ${ticket.sheetRow}) → ${pill}`);
+  }
+  log(`[service-maxoptra-poll] complete (Task 4 readonly) · matched=${matched} orphans=${orphans} · ${((Date.now() - started.getTime()) / 1000).toFixed(1)}s`);
 };
