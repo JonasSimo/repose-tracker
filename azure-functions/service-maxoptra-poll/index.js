@@ -33,7 +33,11 @@ const MAXOPTRA_ACCOUNT_ID = process.env.MAXOPTRA_ACCOUNT_ID || '';
 const MAXOPTRA_ENV        = (process.env.MAXOPTRA_ENV || 'sandbox').toLowerCase();
 const IS_PROD             = MAXOPTRA_ENV === 'production';
 
-const TICKETS_SHARING_URL = process.env.TICKETS_SHARING_URL || '';
+// Default to the same sharing URL daily-report hardcodes (PROD_SHARING_URL on
+// daily-report/index.js:34). Overridable via env var if we ever migrate to a
+// different workbook.
+const TICKETS_SHARING_URL = process.env.TICKETS_SHARING_URL ||
+  'https://reposefurniturelimited.sharepoint.com/:x:/s/ReposeFurniture-PlanningRepose/IQBLf67iYnbQSq2O8UU_zQihARfBedzZcW-CmO0q3v5zC3o?e=nfze02';
 const TICKET_TABLE = 'TicketLog';
 const TICKET_SHEET = 'TicketLog';
 
