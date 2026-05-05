@@ -20952,18 +20952,23 @@ function _mapPartsRow(row, valuesIdx) {
 //   delivered — Delivered cell filled (parts-fedex-poll auto-fills)
 function _partsStage(p) {
   if (!p) return 'transport';
-  if (p.isDelivered) return 'delivered';
-  if (p.invoiceNo && p.salesAckNo) return 'complete';
+  const hasInvoice = !!(p.invoiceNo && p.salesAckNo);
+  if (p.isDelivered) {
+    // Delivered short-circuits visually, BUT we still surface unbilled state.
+    return hasInvoice ? 'delivered' : 'delivered-unbilled';
+  }
+  if (hasInvoice) return 'complete';
   if (p.fedexTracking) return 'finance';
   return 'transport';
 }
 
 function _partsStagePillHtml(stage) {
   const map = {
-    transport: { cls: 'waiting',    label: '📦 Awaiting transport' },
-    finance:   { cls: 'scheduled',  label: '🚚 Awaiting invoicing' },
-    complete:  { cls: 'collected',  label: '✅ Invoiced · in transit' },
-    delivered: { cls: 'in-factory', label: '✅ Delivered' }
+    transport:           { cls: 'waiting',    label: '📦 Awaiting transport' },
+    finance:             { cls: 'scheduled',  label: '🚚 Awaiting invoicing' },
+    complete:            { cls: 'collected',  label: '✅ Invoiced · in transit' },
+    delivered:           { cls: 'in-factory', label: '✅ Delivered' },
+    'delivered-unbilled':{ cls: 'unknown',    label: '⚠ Delivered · invoice missing' }
   };
   const s = map[stage] || map.transport;
   return `<span class="svc-mx-pill ${s.cls}">${s.label}</span>`;
@@ -21115,22 +21120,25 @@ function _computeServiceKpis(period = 'mtd') {
 
   // 12-month rolling window for the close-time analytics
   const closedLast12mo = tickets.filter(t => t.closeDate && t.closeDate >= yearStart && t.closeDate <= now);
-  const avgDaysClose = closedLast12mo.length === 0 ? 0
-    : Math.round(closedLast12mo.reduce((a, t) => a + (t.daysToComplete || 0), 0) / closedLast12mo.length);
+  // Only count tickets with a real daysToComplete > 0 — null/0 distorts averages
+  // and the within-target ratio (B7/B8 fix).
+  const closedWithDays = closedLast12mo.filter(t => t.daysToComplete > 0);
+  const avgDaysClose = closedWithDays.length === 0 ? 0
+    : Math.round(closedWithDays.reduce((a, t) => a + t.daysToComplete, 0) / closedWithDays.length);
   const avgWarrantyClose = (() => {
-    const x = closedLast12mo.filter(t => t.warrantyChargeable === 'WARRANTY');
-    return x.length === 0 ? 0 : Math.round(x.reduce((a, t) => a + (t.daysToComplete || 0), 0) / x.length);
+    const x = closedWithDays.filter(t => t.warrantyChargeable === 'WARRANTY');
+    return x.length === 0 ? 0 : Math.round(x.reduce((a, t) => a + t.daysToComplete, 0) / x.length);
   })();
   const avgChargeableClose = (() => {
-    const x = closedLast12mo.filter(t => t.warrantyChargeable === 'CHARGEABLE');
-    return x.length === 0 ? 0 : Math.round(x.reduce((a, t) => a + (t.daysToComplete || 0), 0) / x.length);
+    const x = closedWithDays.filter(t => t.warrantyChargeable === 'CHARGEABLE');
+    return x.length === 0 ? 0 : Math.round(x.reduce((a, t) => a + t.daysToComplete, 0) / x.length);
   })();
 
   const partsInTransit = parts.filter(p => !p.isDelivered);
   const partsDelivered = parts.filter(p => p.isDelivered);
 
-  const withinTarget = closedLast12mo.length === 0 ? 0
-    : Math.round(closedLast12mo.filter(t => (t.daysToComplete || 0) <= 30).length / closedLast12mo.length * 100);
+  const withinTarget = closedWithDays.length === 0 ? 0
+    : Math.round(closedWithDays.filter(t => t.daysToComplete <= 30).length / closedWithDays.length * 100);
 
   // Short-window KPIs stay short-window — they're meant as "what's happening now"
   const closedThisMonth = tickets.filter(t => t.closeDate && t.closeDate >= monthStart && t.closeDate <= now);
@@ -21769,7 +21777,7 @@ function openNewServiceTicketModal() {
       <div class="svc-modal-body">
         <div class="svc-field-row">
           <div class="svc-field"><label>Ticket No (auto)</label><input value="${nextTicketNo}" id="svc-f-ticketno" readonly style="background:var(--bg3)"></div>
-          <div class="svc-field"><label>Open Date</label><input type="date" id="svc-f-opendate" value="${new Date().toISOString().slice(0, 10)}"></div>
+          <div class="svc-field"><label>Open Date</label><input type="date" id="svc-f-opendate" value="${_localIsoDate(new Date())}"></div>
         </div>
         <div class="svc-field"><label>Customer *</label>
           <select id="svc-f-customer">${blank}${customers.map(c => opt(c)).join('')}</select>
@@ -21795,7 +21803,7 @@ function openNewServiceTicketModal() {
         <div class="svc-field"><label>Description *</label><textarea id="svc-f-desc" placeholder="What's the issue, in the customer's words?"></textarea></div>
         <div class="svc-field-row">
           <div class="svc-field"><label>Owner</label><select id="svc-f-owner">${ownerOptions.map(o => opt(o, 'Repose')).join('')}</select></div>
-          <div class="svc-field"><label>Proposed Close</label><input type="date" id="svc-f-pclose" value="${new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10)}"></div>
+          <div class="svc-field"><label>Proposed Close</label><input type="date" id="svc-f-pclose" value="${_localIsoDate(new Date(Date.now() + 14 * 86400000))}"></div>
         </div>
       </div>
       <div class="svc-modal-foot">
@@ -21952,7 +21960,7 @@ async function openEditTicketModal(t, drawerOverlay) {
 
   const opt = (v, sel) => `<option value="${_escapeSvc(v)}"${(sel || '') === v ? ' selected' : ''}>${_escapeSvc(v)}</option>`;
   const blank = '<option value=""></option>';
-  const isoOf = d => d ? d.toISOString().slice(0, 10) : '';
+  const isoOf = d => _localIsoDate(d);
 
   // Pre-populate the sub-fault list based on current fault code so the user
   // sees the matching sub-faults immediately.
@@ -22050,13 +22058,28 @@ async function openEditTicketModal(t, drawerOverlay) {
   });
 
   overlay.querySelector('#svc-emod-save').addEventListener('click', async () => {
+    // Disable the button FIRST — before any await — so a fast double-click
+    // can't fire two PATCH sequences in parallel.
+    const btn = overlay.querySelector('#svc-emod-save');
+    btn.disabled = true; btn.textContent = 'Saving…';
+
     const get = id => overlay.querySelector(id).value.trim();
     const newCustomer = get('#svc-ef-customer');
     const newDesc = get('#svc-ef-desc');
-    if (!newCustomer) { alert('Customer is required.'); return; }
+    if (!newCustomer) {
+      alert('Customer is required.');
+      btn.disabled = false; btn.textContent = 'Save changes';
+      return;
+    }
 
-    const btn = overlay.querySelector('#svc-emod-save');
-    btn.disabled = true; btn.textContent = 'Saving…';
+    // Re-fetch live ticket — drawer may have been opened before a Refresh.
+    const liveT = _serviceState.tickets.find(x => x.ticketNo === t.ticketNo);
+    if (!liveT) {
+      alert(`Ticket ${t.ticketNo} no longer in dataset — please refresh.`);
+      btn.disabled = false; btn.textContent = 'Save changes';
+      return;
+    }
+    t = liveT;  // shadow with fresh object before diff
 
     try {
       const token = await getGraphToken();
@@ -22110,7 +22133,7 @@ async function openEditTicketModal(t, drawerOverlay) {
         if (o !== n) updates[colName] = newVal;
       };
       const setDateIfChanged = (colName, oldDate, newIso) => {
-        const oldIso = oldDate ? oldDate.toISOString().slice(0, 10) : '';
+        const oldIso = _localIsoDate(oldDate);
         if (oldIso === (newIso || '')) return;
         updates[colName] = newIso ? _isoToExcelSerial(newIso) : '';
       };
@@ -22173,7 +22196,9 @@ async function openEditTicketModal(t, drawerOverlay) {
 
       console.log(`[svc] ticket edit ${t.ticketNo} (sheet row ${sheetRow}) — ${updateKeys.length} cell(s):`, updateKeys);
 
-      // PATCH each changed cell via worksheets/range(address='X{row}')
+      // PATCH each changed cell via worksheets/range(address='X{row}').
+      // Collect failures rather than throwing — so that a partial save doesn't
+      // leave the user with no way to retry the failed cells without retyping.
       const failures = [];
       for (const colName of updateKeys) {
         if (COMPUTED.has(norm(colName))) {
@@ -22182,7 +22207,7 @@ async function openEditTicketModal(t, drawerOverlay) {
         }
         const colIdx = findColIdx(colName);
         if (colIdx < 0) {
-          failures.push(`${colName}: column not found in TicketLog`);
+          failures.push({ label: colName, msg: 'column not found in TicketLog' });
           continue;
         }
         const cellAddr = `${colIdxToLetter(colIdx)}${sheetRow}`;
@@ -22195,24 +22220,27 @@ async function openEditTicketModal(t, drawerOverlay) {
           });
           if (!r.ok) {
             const errText = await r.text();
-            failures.push(`${colName} (${cellAddr}): ${r.status} ${errText}`);
+            failures.push({ label: colName, msg: `${cellAddr}: ${r.status} ${errText}` });
           }
         } catch (e) {
-          failures.push(`${colName}: ${e.message}`);
+          failures.push({ label: colName, msg: e.message });
         }
       }
 
+      // Partial-save bail-out: keep the modal open so the user can retry
+      // without retyping in-flight values.
       if (failures.length > 0) {
-        alert(`Saved ${updateKeys.length - failures.length}/${updateKeys.length} fields. Failures:\n\n${failures.join('\n')}`);
+        console.warn('[svc] ticket edit — partial save:', failures);
+        alert(`Saved ${updateKeys.length - failures.length}/${updateKeys.length} fields. Failed: ${failures.map(f => f.label).join(', ')}. Please retry — your in-flight values are still in the form.`);
+        btn.disabled = false; btn.textContent = 'Save changes';
+        return;
       }
 
       close();
       drawerOverlay?.remove();
       await loadServiceData(true);
       _renderServiceAll();
-      if (failures.length === 0) {
-        alert(`Ticket ${t.ticketNo} updated.`);
-      }
+      alert(`Ticket ${t.ticketNo} updated.`);
     } catch (e) {
       alert(`Failed to save: ${e.message}`);
       btn.disabled = false; btn.textContent = 'Save changes';
@@ -22224,6 +22252,26 @@ function _isoToExcelSerial(iso) {
   if (!iso) return null;
   const d = new Date(iso + 'T00:00:00Z');
   return Math.round((d.getTime() / 86400000) + 25569);
+}
+
+// Format a Date as YYYY-MM-DD in LOCAL time (not UTC). Use this whenever you
+// need to compare against a value that was originally a calendar-day string,
+// so BST/winter-time round-trips don't shift dates by ±1.
+function _localIsoDate(d) {
+  if (!d || !(d instanceof Date) || isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// UK FY starts 1 April. Returns the start-of-current-FY Date.
+function _currentFyStart() {
+  const now = new Date();
+  const fyYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+  return new Date(fyYear, 3, 1);
+}
+function _currentFyLabel() {
+  const now = new Date();
+  const fyYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+  return `FY${String(fyYear + 1).slice(-2)}`; // FY runs to Mar of fyYear+1, so e.g. Apr 2026 → "FY27"
 }
 
 // Microsoft Graph's Excel REST sometimes returns 504 MaxRequestDurationExceeded
@@ -22263,7 +22311,7 @@ function openNewPartsDispatchModal() {
           <b>📦 Stage 1 of 3 · Awaiting transport.</b> Add the order details now — transport will add the FedEx tracking number after pickup, and accounts will add the invoice + sales ack later.
         </div>
         <div class="svc-field-row">
-          <div class="svc-field"><label>Date *</label><input type="date" id="svc-pf-date" value="${new Date().toISOString().slice(0, 10)}"></div>
+          <div class="svc-field"><label>Date *</label><input type="date" id="svc-pf-date" value="${_localIsoDate(new Date())}"></div>
           <div class="svc-field"><label>Customer *</label><input list="svc-pcust-list" id="svc-pf-customer">
             <datalist id="svc-pcust-list">${customers.map(c => `<option value="${_escapeSvc(c)}">`).join('')}</datalist>
           </div>
@@ -22456,6 +22504,48 @@ async function _sendPartsFinanceHandoffEmail({ customer, po, fedex, salesAck }) 
   });
 }
 
+// Sent when a dispatch transitions finance → complete (Invoice + Sales Ack
+// added on top of an existing FedEx tracking number). Notifies Blake that the
+// dispatch is fully invoiced and on its way.
+async function _sendPartsCompleteEmail({ customer, po, fedex, invoice, salesAck }) {
+  const subject = `✅ Dispatch complete: ${customer} (PO ${po}) · invoiced`;
+  const userName = (graphAccount && graphAccount.name) ? graphAccount.name :
+                   (graphAccount && graphAccount.username) ? graphAccount.username : 'RepNet user';
+  const ref = `${customer} · PO ${po}`;
+  const detailsRows = [
+    `<tr><td style="padding:7px 14px 7px 0;color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:.06em;font-weight:700;vertical-align:top">Customer</td><td style="padding:7px 0;font-size:14px;font-weight:600">${_escapeSvc(customer || '—')}</td></tr>`,
+    `<tr><td style="padding:7px 14px 7px 0;color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:.06em;font-weight:700;vertical-align:top">PO Number</td><td style="padding:7px 0;font-size:14px;font-family:'JetBrains Mono',monospace">${_escapeSvc(po || '—')}</td></tr>`,
+    `<tr><td style="padding:7px 14px 7px 0;color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:.06em;font-weight:700;vertical-align:top">FedEx Tracking</td><td style="padding:7px 0;font-size:14px;font-family:'JetBrains Mono',monospace;color:#065f46;font-weight:700">${_escapeSvc(fedex || '—')} ✓</td></tr>`,
+    `<tr><td style="padding:7px 14px 7px 0;color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:.06em;font-weight:700;vertical-align:top">Invoice No</td><td style="padding:7px 0;font-size:14px;font-family:'JetBrains Mono',monospace;color:#065f46;font-weight:700">${_escapeSvc(invoice || '—')} ✓</td></tr>`,
+    salesAck ? `<tr><td style="padding:7px 14px 7px 0;color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:.06em;font-weight:700;vertical-align:top">Sales Ack</td><td style="padding:7px 0;font-size:14px;font-family:'JetBrains Mono',monospace;color:#065f46;font-weight:700">${_escapeSvc(salesAck)} ✓</td></tr>` : '',
+    `<tr><td style="padding:7px 14px 7px 0;color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:.06em;font-weight:700;vertical-align:top">Updated by</td><td style="padding:7px 0;font-size:14px">${_escapeSvc(userName)} · ${new Date().toLocaleDateString('en-GB')}</td></tr>`
+  ].filter(Boolean).join('');
+
+  const innerHtml = `
+  <p style="font-size:14px;margin:0 0 18px;line-height:1.5">This parts dispatch is now fully invoiced — tracking and invoice are both in place. <b>No further action needed.</b> The FedEx auto-poll will close it once delivered.</p>
+
+  <div style="background:#dcfce7;border:2px solid #16a34a;border-radius:12px;padding:20px 22px;margin:0 0 22px">
+    <div style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#15803d;font-weight:800;margin-bottom:10px">✅ Dispatch complete — invoiced &amp; in transit</div>
+    <div style="font-family:'JetBrains Mono','SF Mono',Menlo,monospace;font-size:22px;font-weight:800;color:#14532d;letter-spacing:-.01em;margin-bottom:6px;word-break:break-all">${_escapeSvc(ref)}</div>
+    <div style="font-size:13px;color:#166534">Tracking number and invoice are both recorded on RepNet. The dispatch will auto-close on delivery.</div>
+  </div>
+
+  <table style="border-collapse:collapse;margin:0 0 22px;width:100%">${detailsRows}</table>
+
+  <div style="background:#f4f6f8;border-radius:10px;padding:14px 18px;margin:0 0 6px;font-size:13px;color:#0e023a;line-height:1.55">
+    <b style="color:#1e40af">What happens next:</b><br>
+    Nothing for you to do — RepNet will mark the dispatch <span style="background:#ecfdf5;color:#065f46;padding:1px 6px;border-radius:4px;font-size:11px;font-weight:700">✅ Delivered</span> automatically once FedEx confirms delivery via the hourly auto-poll.
+  </div>
+  `;
+
+  const htmlBody = _docsEmailShell(innerHtml, 'Service · Parts Dispatch');
+  return await _sendDocsEmail({
+    to: [PARTS_BLAKE],
+    subject,
+    htmlBody
+  });
+}
+
 // Edit an existing parts dispatch — pre-fills all fields with current values,
 // highlights the field(s) the current stage owns, and PATCHes only changed
 // cells via per-cell range-address PATCH. On stage transition, sends the
@@ -22487,12 +22577,13 @@ function openEditPartsDispatchModal(p) {
   // (only shown when the current user is ALLOWED to edit that field)
   const HL = 'border:2px solid #f59e0b !important;background:#fffbeb;box-shadow:0 0 0 3px rgba(245,158,11,.15)';
   const hint = `<span style="font-size:10.5px;color:#92400e;font-weight:700;text-transform:none;letter-spacing:0;margin-left:6px">← Add this</span>`;
+  const needsInvoiceHighlight = (oldStage === 'finance' || oldStage === 'delivered-unbilled');
   const hlFedex   = (oldStage === 'transport' && canFedex) ? HL : '';
   const hintFedex = (oldStage === 'transport' && canFedex) ? hint : '';
-  const hlInvoice = (oldStage === 'finance' && canInvoice) ? HL : '';
-  const hintInvoice = (oldStage === 'finance' && canInvoice) ? hint : '';
-  const hlSalesAck = (oldStage === 'finance' && !p.salesAckNo && canSales) ? HL : '';
-  const hintSalesAck = (oldStage === 'finance' && !p.salesAckNo && canSales) ? hint : '';
+  const hlInvoice = (needsInvoiceHighlight && canInvoice) ? HL : '';
+  const hintInvoice = (needsInvoiceHighlight && canInvoice) ? hint : '';
+  const hlSalesAck = (needsInvoiceHighlight && !p.salesAckNo && canSales) ? HL : '';
+  const hintSalesAck = (needsInvoiceHighlight && !p.salesAckNo && canSales) ? hint : '';
 
   // Disabled-field visual + tooltip explaining who owns it
   const disStyle = 'background:#f3f4f6;color:#6b7280;cursor:not-allowed';
@@ -22502,7 +22593,7 @@ function openEditPartsDispatchModal(p) {
   const lockAccounts  = canInvoice  ? '' : lockNote('accounts');
   const lockSales     = canSales    ? '' : lockNote('Blake / accounts');
 
-  const dateIso = p.date ? p.date.toISOString().slice(0, 10) : '';
+  const dateIso = _localIsoDate(p.date);
 
   const overlay = document.createElement('div');
   overlay.className = 'svc-modal-bg';
@@ -22546,6 +22637,11 @@ function openEditPartsDispatchModal(p) {
   overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
 
   overlay.querySelector('#svc-epmod-save').addEventListener('click', async () => {
+    // Disable the button FIRST — before any await — so a fast double-click
+    // can't fire two PATCH sequences in parallel.
+    const btn = overlay.querySelector('#svc-epmod-save');
+    btn.disabled = true; btn.textContent = 'Saving…';
+
     const get = id => overlay.querySelector(id).value.trim();
     const newDate = get('#svc-epf-date');
     const newCustomer = get('#svc-epf-customer');
@@ -22554,9 +22650,11 @@ function openEditPartsDispatchModal(p) {
     const newInvoice = get('#svc-epf-invoice');
     const newFedex = get('#svc-epf-fedex');
     const newComment = get('#svc-epf-comment');
-    if (!newDate || !newCustomer || !newPo) { alert('Date, Customer, and PO Number are required.'); return; }
-    const btn = overlay.querySelector('#svc-epmod-save');
-    btn.disabled = true; btn.textContent = 'Saving…';
+    if (!newDate || !newCustomer || !newPo) {
+      alert('Date, Customer, and PO Number are required.');
+      btn.disabled = false; btn.textContent = 'Save changes';
+      return;
+    }
 
     try {
       const token = await getGraphToken();
@@ -22594,7 +22692,7 @@ function openEditPartsDispatchModal(p) {
         diffs.push({ col, label, value: newV });
       };
       const newDateSerial = newDate ? _isoToExcelSerial(newDate) : '';
-      const oldDateSerial = p.date ? _isoToExcelSerial(p.date.toISOString().slice(0, 10)) : '';
+      const oldDateSerial = p.date ? _isoToExcelSerial(_localIsoDate(p.date)) : '';
       tryDiff(newDateSerial, oldDateSerial,        COL.date,          'Date',          'Date');
       tryDiff(newCustomer,   p.customer || '',      COL.customer,      'Customer',      'Customer');
       tryDiff(newPo,         p.poNumber || '',      COL.poNumber,      'PO Number',     'PO Number');
@@ -22614,18 +22712,34 @@ function openEditPartsDispatchModal(p) {
 
       console.log(`[svc] parts edit row ${sheetRow} — ${diffs.length} cell(s) changed:`, diffs.map(d => d.label));
 
-      // PATCH each changed cell via worksheets/range(address='X{row}')
+      // PATCH each changed cell via worksheets/range(address='X{row}').
+      // Collect failures rather than throwing — so that a partial save doesn't
+      // leave the user with no way to retry the failed cells without retyping.
+      const failures = [];
       for (const d of diffs) {
         const url = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/worksheets('${encodeURIComponent(PARTS_TRACKER_SHEET)}')/range(address='${d.col}${sheetRow}')`;
-        const r = await _graphFetchWithRetry(url, {
-          method: 'PATCH',
-          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ values: [[d.value]] })
-        });
-        if (!r.ok) {
-          const errText = await r.text();
-          throw new Error(`PATCH ${d.label} failed: ${r.status} ${errText}`);
+        try {
+          const r = await _graphFetchWithRetry(url, {
+            method: 'PATCH',
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ values: [[d.value]] })
+          });
+          if (!r.ok) {
+            const errText = await r.text();
+            failures.push({ label: d.label, msg: `${r.status} ${errText}` });
+          }
+        } catch (e) {
+          failures.push({ label: d.label, msg: e.message });
         }
+      }
+
+      // Partial-save bail-out: keep the modal open so the user can retry
+      // without retyping in-flight values.
+      if (failures.length > 0) {
+        console.warn('[svc] parts edit — partial save:', failures);
+        alert(`Saved ${diffs.length - failures.length}/${diffs.length} fields. Failed: ${failures.map(f => f.label).join(', ')}. Please retry — your in-flight values are still in the form.`);
+        btn.disabled = false; btn.textContent = 'Save changes';
+        return;
       }
 
       // Detect stage transition based on NEW values vs OLD values
@@ -22650,6 +22764,18 @@ function openEditPartsDispatchModal(p) {
         } catch (mailErr) {
           emailFailed = true;
           console.warn('[svc] parts finance email failed:', mailErr.message);
+        }
+      } else if (oldStage === 'finance' && newStage === 'complete') {
+        // User just added Invoice (+ Sales Ack) → notify Blake the dispatch is fully invoiced
+        try {
+          const sent = await _sendPartsCompleteEmail({
+            customer: newCustomer, po: newPo, fedex: newFedex, invoice: newInvoice, salesAck: newSales
+          });
+          if (!sent) emailFailed = true;
+          else emailSentMsg = ' Blake has been notified that the dispatch is complete.';
+        } catch (mailErr) {
+          emailFailed = true;
+          console.warn('[svc] parts complete email failed:', mailErr.message);
         }
       } else if (oldStage === 'transport' && newStage === 'complete') {
         // Edge case: user filled FedEx + Invoice + Sales Ack all in one go
@@ -22957,7 +23083,7 @@ function _computeTopFaults(period, limit = 5) {
 
 function _computeTopMechCodes(limit = 5) {
   const counts = {};
-  const fyStart = new Date(2026, 3, 1); // FY26 starts 1 Apr 2026
+  const fyStart = _currentFyStart();
   for (const t of _serviceState.tickets) {
     if (!t.openDate || t.openDate < fyStart) continue;
     if (!t.mechCode) continue;
@@ -22971,7 +23097,7 @@ function _computeTopCustomers(period, limit = 5) {
   const stats = {};
   const cutoff = _svcPeriodStart(period || _serviceState.customerPeriod);
   for (const t of _serviceState.tickets) {
-    if (t.openDate && t.openDate < cutoff) continue;
+    if (!t.openDate || t.openDate < cutoff) continue;
     const k = (t.customer || '—').toUpperCase().trim();
     if (!stats[k]) stats[k] = { count: 0, warranty: 0, daysSum: 0, daysN: 0 };
     stats[k].count++;
@@ -23025,7 +23151,7 @@ function _renderServicePanels() {
       </div>
 
       <div class="svc-panel">
-        <div class="svc-panel-head"><div><h2>Mech Code analysis <span class="sub">FY26 · top ${mechs.length}</span></h2></div></div>
+        <div class="svc-panel-head"><div><h2>Mech Code analysis <span class="sub">${_currentFyLabel()} · top ${mechs.length}</span></h2></div></div>
         ${mechs.map(([k, n]) => `
           <div class="svc-mech-row">
             <span class="mc">${_escapeSvc(k)}</span>
@@ -23072,7 +23198,7 @@ function _computeCustomerStats(customerName) {
   const norm = String(customerName || '').toUpperCase().trim();
   const tickets = _serviceState.tickets.filter(t => (t.customer || '').toUpperCase().trim() === norm);
   if (tickets.length === 0) return null;
-  const fyStart = new Date(2026, 3, 1); // FY26 starts 1 Apr 2026
+  const fyStart = _currentFyStart();
   const fyTickets = tickets.filter(t => t.openDate && t.openDate >= fyStart);
   const warrantyCount = tickets.filter(t => t.warrantyChargeable === 'WARRANTY').length;
   const closed = tickets.filter(t => t.daysToComplete);
@@ -23122,7 +23248,7 @@ function openServiceCustomerDrill(customerName) {
       </div>
 
       <div class="svc-cdrill-stats">
-        <div class="svc-cdrill-stat"><div class="v">${s.fyTicketCount}</div><div class="l">Tickets FY26</div></div>
+        <div class="svc-cdrill-stat"><div class="v">${s.fyTicketCount}</div><div class="l">Tickets ${_currentFyLabel()}</div></div>
         <div class="svc-cdrill-stat"><div class="v">${s.warrantyPct}<span style="font-size:13px">%</span></div><div class="l">Warranty</div></div>
         <div class="svc-cdrill-stat"><div class="v">${s.avgDays}<span style="font-size:13px">d</span></div><div class="l">Avg close</div></div>
       </div>
@@ -23144,7 +23270,7 @@ function openServiceCustomerDrill(customerName) {
         </div>` : ''}
 
       <div class="svc-cdrill-foot">
-        <span>£ chargeable FY26: <b style="color:var(--text);font-weight:800">£${s.gbpFy.toLocaleString('en-GB')}</b></span>
+        <span>£ chargeable ${_currentFyLabel()}: <b style="color:var(--text);font-weight:800">£${s.gbpFy.toLocaleString('en-GB')}</b></span>
         <a id="svc-cdrill-search">Search all tickets →</a>
       </div>
     </div>
