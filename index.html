@@ -3096,6 +3096,12 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .svc-foot { padding: 11px 20px; background: var(--bg3); border-top: 1px solid var(--border); text-align: center; font-size: 11.5px; color: var(--text2); font-weight: 600; }
 .svc-chair-pill { font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700; background: var(--orange); color: #fff; padding: 2px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; }
 .svc-chair-pill.repeat { background: var(--fail); }
+.svc-mx-pill { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; line-height: 1.4; }
+.svc-mx-pill.waiting    { background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa; }
+.svc-mx-pill.scheduled  { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
+.svc-mx-pill.collected  { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+.svc-mx-pill.in-factory { background: #f0fdf4; color: #14532d; border: 1px solid #86efac; }
+.svc-mx-pill.unknown    { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
 .svc-parts-list { padding: 11px 20px 16px; display: flex; flex-direction: column; gap: 9px; }
 .svc-parcel { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 14px; background: #fff; align-items: center; }
 .svc-parcel-icn { width: 40px; height: 40px; border-radius: 11px; background: var(--info-soft); color: var(--info); display: flex; align-items: center; justify-content: center; font-size: 19px; }
@@ -20698,6 +20704,9 @@ async function openServiceDashboard() {
 //  15 Returned to Factory         33 Inspected
 //  16 Action                      34 In Production
 //  17 Notes                       35 Return to customer
+//                                 36 Maxoptra Status
+//                                 37 Maxoptra Job ID
+//                                 38 Maxoptra Updated
 async function fetchServiceTickets() {
   if (!graphAccount) throw new Error('Not signed in.');
   const encoded = encodeSharingUrl(SERVICE_TICKETING_LOG_URL);
@@ -20759,7 +20768,10 @@ function _mapTicketRow(row) {
     chairReturned: row[32],
     inspected: row[33],
     inProduction: row[34],
-    returnToCustomer: row[35]
+    returnToCustomer: row[35],
+    maxoptraStatus: String(row[36] || '').trim(),
+    maxoptraJobId: String(row[37] || '').trim(),
+    maxoptraUpdated: row[38]
   };
 }
 
@@ -21228,7 +21240,7 @@ function _serviceTicketRowHtml(t) {
       <td><span class="id">${_escapeSvc(t.ticketNo)}</span></td>
       <td>
         <div class="ttl">${_escapeSvc(t.faultCode || t.description.slice(0, 60) || '—')} · ${_escapeSvc(t.model || '—')}</div>
-        <div class="meta">${_escapeSvc(t.customer)} · ${_escapeSvc(t.subFault || '')} ${_chairPillHtml(t) ? ' · ' + _chairPillHtml(t) : ''}</div>
+        <div class="meta">${_escapeSvc(t.customer)} · ${_escapeSvc(t.subFault || '')} ${_chairPillHtml(t) ? ' · ' + _chairPillHtml(t) : ''}${_maxoptraPillHtml(t.maxoptraStatus) ? ' · ' + _maxoptraPillHtml(t.maxoptraStatus) : ''}</div>
       </td>
       <td><span class="svc-pill ${t.warrantyChargeable === 'WARRANTY' ? 'warranty' : 'chargeable'}">${t.warrantyChargeable === 'WARRANTY' ? 'Warranty' : 'Chargeable'}</span></td>
       <td><span class="svc-pill ${t.period30.toLowerCase().startsWith('inside 30') ? 'in30' : 'out30'}">${t.period30.toLowerCase().startsWith('inside 30') ? 'Inside 30 days' : 'Outside 30 days'}</span></td>
@@ -21284,6 +21296,19 @@ function _chairPillHtml(t) {
   return `<span class="svc-chair-pill${cid.isReturn ? ' repeat' : ''}"><span style="font-size:9px">🪑</span>${_escapeSvc(cid.label)}</span>`;
 }
 
+// Render the Maxoptra Status pill from the column text. CSS class derived from
+// the leading emoji which is unambiguous in our mapping (⏳/📅/🚚/✅/❓).
+function _maxoptraPillHtml(statusText) {
+  const t = String(statusText || '').trim();
+  if (!t) return '';
+  let cls = 'unknown';
+  if (t.startsWith('⏳')) cls = 'waiting';
+  else if (t.startsWith('📅')) cls = 'scheduled';
+  else if (t.startsWith('🚚')) cls = 'collected';
+  else if (t.startsWith('✅')) cls = 'in-factory';
+  return `<span class="svc-mx-pill ${cls}">${_escapeSvc(t)}</span>`;
+}
+
 async function openServiceTicketDrawer(ticketNo) {
   const t = _serviceState.tickets.find(x => x.ticketNo === ticketNo);
   if (!t) return;
@@ -21311,6 +21336,8 @@ async function openServiceTicketDrawer(ticketNo) {
         </div>
         <button class="x" id="svc-drawer-close">×</button>
       </div>
+
+      ${t.maxoptraStatus ? `<div style="margin:8px 0 14px">${_maxoptraPillHtml(t.maxoptraStatus)}</div>` : ''}
 
       <div class="svc-drawer-section">
         <h3>Ticket details</h3>
@@ -21904,6 +21931,7 @@ function _renderReturnsPipeline() {
         </div>
         <div class="rcard-meta"><b>${_escapeSvc(t.faultCode || '—')}</b> · ${_escapeSvc(t.model || '—')} · ${_escapeSvc(t.customer || '')}</div>
         <div class="rcard-meta">Ticket <b>${_escapeSvc(t.ticketNo)}</b>${t.owner ? ' · Owner ' + _escapeSvc(t.owner) : ''}</div>
+        ${t.maxoptraStatus ? `<div style="margin-top:6px">${_maxoptraPillHtml(t.maxoptraStatus)}</div>` : ''}
       </div>
     `;
   };
