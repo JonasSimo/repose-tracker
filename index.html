@@ -3201,6 +3201,35 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .svc-drawer-meta dt { color: var(--text2); font-weight: 600; }
 .svc-drawer-meta dd { margin: 0; font-weight: 600; color: var(--text); }
 .svc-drawer-section p { font-size: 12.5px; line-height: 1.55; color: var(--text); margin: 0; white-space: pre-wrap; }
+/* Drawer enrichments — return workflow timeline, SLA progress bar, build sheet */
+.svc-drawer-h3 { font-family: 'Bricolage Grotesque', Manrope, sans-serif; font-size: 14px; font-weight: 800; color: var(--repose-navy); margin: 18px 0 10px; letter-spacing: -.01em; }
+.svc-tl { position: relative; padding-left: 6px; }
+.svc-tl-step { display: grid; grid-template-columns: 28px 1fr; gap: 10px; padding: 6px 0; position: relative; }
+.svc-tl-step:not(:last-child)::after { content: ''; position: absolute; left: 13px; top: 24px; bottom: -6px; width: 2px; background: #e1e6eb; }
+.svc-tl-step.done::after, .svc-tl-step.now::after { background: #14a1e9; }
+.svc-tl-icon { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; flex-shrink: 0; z-index: 1; position: relative; }
+.svc-tl-step.done .svc-tl-icon { background: #14a1e9; color: #fff; }
+.svc-tl-step.now .svc-tl-icon { background: #ea580c; color: #fff; box-shadow: 0 0 0 4px rgba(234,88,12,.18); }
+.svc-tl-step.pending .svc-tl-icon { background: #f4f6f8; color: #a1a8b1; border: 1px solid #d6dde4; }
+.svc-tl-body { padding-top: 1px; }
+.svc-tl-title { font-size: 13px; font-weight: 700; color: var(--repose-navy); line-height: 1.35; }
+.svc-tl-step.pending .svc-tl-title { color: #a1a8b1; font-weight: 600; }
+.svc-tl-side { font-size: 11.5px; color: var(--text2); margin-top: 2px; line-height: 1.4; }
+.svc-sla { margin: 8px 0 4px; }
+.svc-sla-head { display: flex; align-items: baseline; gap: 8px; font-size: 11px; }
+.svc-sla-head .lbl { color: var(--text2); font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
+.svc-sla-head .val { font-weight: 800; color: var(--repose-navy); font-size: 13px; }
+.svc-sla-head .days { color: var(--text2); font-weight: 600; }
+.svc-sla-bar { height: 5px; border-radius: 999px; background: #e1e6eb; overflow: hidden; margin-top: 4px; }
+.svc-sla-fill { height: 100%; background: #14a1e9; transition: width .3s; border-radius: inherit; }
+.svc-sla-fill.warn { background: #f59e0b; }
+.svc-sla-fill.breached { background: #ef4444; }
+.svc-sla-closed { font-size: 11.5px; color: var(--pass); font-weight: 700; margin: 6px 0 2px; }
+.svc-build-sheet { background: #f4f6f8; border: 1px solid #e1e6eb; border-radius: 10px; padding: 12px 14px; }
+.svc-build-sheet-loading { background: #f4f6f8; border: 1px solid #e1e6eb; border-radius: 10px; padding: 12px 14px; font-size: 11.5px; color: var(--text2); font-style: italic; }
+.bs-rep { font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 700; color: var(--orange); }
+.bs-meta { font-size: 12px; color: var(--text2); margin-top: 4px; line-height: 1.45; }
+.bs-note { font-size: 10.5px; color: var(--text2); margin-top: 6px; font-style: italic; opacity: .8; }
 .svc-cdrill-head { padding: 22px 26px; background: linear-gradient(135deg, var(--bbg), #fff); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 16px; }
 .svc-cdrill-avatar { width: 56px; height: 56px; border-radius: 14px; background: linear-gradient(135deg, var(--repose-blue), var(--info)); color: #fff; display: flex; align-items: center; justify-content: center; font-family: 'Bricolage Grotesque', sans-serif; font-size: 20px; font-weight: 800; }
 .svc-cdrill-name h2 { font-size: 22px; color: var(--repose-navy); font-family: 'Bricolage Grotesque', Manrope, sans-serif; }
@@ -21423,6 +21452,147 @@ function _escapeSvc(s) {
   return String(s || '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[ch]);
 }
 
+// ── Drawer enrichments: SLA, return-workflow timeline, build sheet lookup ──
+
+// Compute SLA progress for a ticket. Returns null if no openDate.
+function _ticketSla(t) {
+  if (!t.openDate) return null;
+  const now = new Date();
+  const target = t.proposedCloseDate || (() => { const d = new Date(t.openDate); d.setDate(d.getDate() + 30); return d; })();
+  const total = target.getTime() - t.openDate.getTime();
+  const elapsed = now.getTime() - t.openDate.getTime();
+  if (total <= 0) return null;
+  const pct = Math.max(0, Math.min(100, Math.round(elapsed / total * 100)));
+  const breached = !t.closeDate && now > target;
+  return { pct, breached, daysOpen: Math.floor(elapsed / 86400000), targetDays: Math.floor(total / 86400000) };
+}
+
+// Render the return-workflow timeline HTML for a ticket. Returns '' if the
+// ticket has no return-cycle activity.
+function _renderReturnTimelineHtml(t) {
+  const isReturnRep   = /-R\d+$/i.test(String(t.repNo || ''));
+  const hasFactory    = !!t.returnedToFactory;
+  const hasMaxoptra   = !!String(t.maxoptraStatus || '').trim();
+  if (!isReturnRep && !hasFactory && !hasMaxoptra) return '';
+
+  const fmtAny = v => {
+    if (!v) return '';
+    if (v instanceof Date && !isNaN(v.getTime())) return _localIsoDate(v);
+    return String(v);
+  };
+  const mxStatus = String(t.maxoptraStatus || '').trim();
+  const mxStartsWith = ch => mxStatus.startsWith(ch);
+  const mxAfterDot = (() => {
+    const idx = mxStatus.indexOf('·');
+    return idx >= 0 ? mxStatus.slice(idx + 1).trim() : '';
+  })();
+
+  const steps = [
+    {
+      label: 'Marked for return + email sent',
+      done: isReturnRep,
+      side: isReturnRep ? `Transport notified${t.openDate ? ' · ' + _localIsoDate(t.openDate) : ''}` : ''
+    },
+    {
+      label: 'Maxoptra job booked',
+      done: !!t.maxoptraJobId,
+      side: t.maxoptraJobId ? `Job ${_escapeSvc(String(t.maxoptraJobId))}${t.maxoptraUpdated ? ' · ' + fmtAny(t.maxoptraUpdated) : ''}` : ''
+    },
+    {
+      label: 'Scheduled for collection',
+      done: mxStartsWith('📅'),
+      side: mxStartsWith('📅') ? (mxAfterDot || _escapeSvc(mxStatus)) : ''
+    },
+    {
+      label: 'Out for collection / collected',
+      done: mxStartsWith('🚚'),
+      side: mxStartsWith('🚚') ? 'In transit to factory' : ''
+    },
+    {
+      label: 'Arrived at factory',
+      done: mxStartsWith('✅') || hasFactory,
+      side: hasFactory ? fmtAny(t.returnedToFactory) : (mxStartsWith('✅') ? fmtAny(t.maxoptraUpdated) : '')
+    },
+    {
+      label: 'Inspected',
+      done: !!t.inspected,
+      side: t.inspected instanceof Date ? _localIsoDate(t.inspected) : (t.inspected ? 'Inspected' : '')
+    },
+    {
+      label: 'In production',
+      done: !!t.inProduction,
+      side: t.inProduction ? 'Rework in progress' : ''
+    },
+    {
+      label: 'Ready to return to customer',
+      done: !!t.returnToCustomer,
+      side: t.returnToCustomer instanceof Date ? _localIsoDate(t.returnToCustomer) : ''
+    },
+    {
+      label: 'Closed',
+      done: !!t.closeDate,
+      side: t.closeDate instanceof Date ? _localIsoDate(t.closeDate) : ''
+    }
+  ];
+
+  // Cap at 9 steps (already 9). Compute state per step.
+  // 'done' if step is done AND a later step is also done; 'now' if done with no later done; 'pending' if not done.
+  const lastDoneIdx = steps.reduce((acc, s, i) => s.done ? i : acc, -1);
+  const stepsHtml = steps.map((s, i) => {
+    let state = 'pending';
+    let icon = '○';
+    if (s.done) {
+      if (i < lastDoneIdx) { state = 'done'; icon = '✓'; }
+      else { state = 'now'; icon = '●'; }
+    }
+    return `
+      <div class="svc-tl-step ${state}">
+        <div class="svc-tl-icon">${icon}</div>
+        <div class="svc-tl-body">
+          <div class="svc-tl-title">${_escapeSvc(s.label)}</div>
+          ${s.side ? `<div class="svc-tl-side">${_escapeSvc(s.side)}</div>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+
+  return `
+    <div class="svc-drawer-section">
+      <h3 class="svc-drawer-h3">Return workflow</h3>
+      <div class="svc-tl">${stepsHtml}</div>
+    </div>`;
+}
+
+// In-memory cache: bare REP No → build sheet info object (or null for negative cache)
+const _buildSheetCache = new Map();
+
+// Build sheet lookup. NOTE: the OV Load Sheet ("Load Sheet" tab) uses 7-digit
+// production job numbers as REP IDs (e.g. "REP 1234567"), whereas service
+// tickets use the customer-facing REP No format (e.g. "REP2891"). These are
+// different identifier spaces and there is no reliable in-workbook mapping
+// today. Until that mapping is added, this function returns a structured
+// stub flagged so the UI can be honest about it. When a real lookup is
+// available, replace the body — the contract (return shape) stays the same.
+async function _lookupBuildSheet(bareRepNo, ticket) {
+  if (!bareRepNo) return null;
+  const key = bareRepNo.toUpperCase();
+  if (_buildSheetCache.has(key)) return _buildSheetCache.get(key);
+  // TODO: when OV Load Plan exposes a customer-REP→7-digit mapping, replace
+  // this stub with a real Graph workbook lookup using OV_LOAD_PLAN_URL +
+  // OV_LOAD_PLAN_SHEET. See loadLoadPlanFromSharePoint() for the access
+  // pattern (resolveDriveItem → workbook session → usedRange).
+  const result = {
+    rep: key,
+    customer: ticket?.customer || '',
+    buildWeek: 'TBD',
+    prepDay: '—',
+    sewing: '—',
+    upholstery: '—',
+    pending: true
+  };
+  _buildSheetCache.set(key, result);
+  return result;
+}
+
 // Parse a chair return identifier from any REP-No-like string.
 // Examples:
 //   "REP2891"     → { rep: 'REP2891', returnNo: 0, isReturn: false, label: 'REP2891' }
@@ -21486,6 +21656,35 @@ async function openServiceTicketDrawer(ticketNo) {
   overlay.className = 'svc-drawer-bg';
   const fmtDate = d => d ? d.toLocaleDateString('en-GB') : '—';
   const fmtMoney = n => n ? `£${Number(n).toFixed(2)}` : '—';
+
+  // Drawer enrichments — SLA, return-workflow timeline, build-sheet lookup
+  const sla = _ticketSla(t);
+  const slaHtml = (() => {
+    if (!t.openDate) return '';
+    if (t.closeDate) {
+      const dStr = t.daysToComplete ? `${_escapeSvc(String(t.daysToComplete))}d` : '—';
+      return `<div class="svc-sla-closed">✓ Closed in ${dStr}</div>`;
+    }
+    if (!sla) return '';
+    const fillCls = sla.breached ? 'breached' : sla.pct > 80 ? 'warn' : '';
+    return `
+      <div class="svc-sla">
+        <div class="svc-sla-head">
+          <span class="lbl">SLA</span>
+          <span class="val">${sla.pct}%</span>
+          <span class="days">${sla.daysOpen}d / ${sla.targetDays}d target${sla.breached ? ' · BREACHED' : ''}</span>
+        </div>
+        <div class="svc-sla-bar"><div class="svc-sla-fill ${fillCls}" style="width:${sla.pct}%"></div></div>
+      </div>`;
+  })();
+  const timelineHtml = _renderReturnTimelineHtml(t);
+  const cid = _parseChairId(t.repNo);
+  const buildSheetHtml = (cid && cid.rep) ? `
+      <div class="svc-drawer-section">
+        <h3 class="svc-drawer-h3">🔗 Original build sheet</h3>
+        <div id="svc-bs-${_escapeSvc(t.ticketNo)}" class="svc-build-sheet-loading">Loading build sheet…</div>
+      </div>` : '';
+
   overlay.innerHTML = `
     <div class="svc-drawer">
       <div class="svc-drawer-head">
@@ -21511,6 +21710,8 @@ async function openServiceTicketDrawer(ticketNo) {
 
       ${t.maxoptraStatus ? `<div style="margin:8px 0 14px">${_maxoptraPillHtml(t.maxoptraStatus)}</div>` : ''}
 
+      ${slaHtml ? `<div style="padding:0 22px 4px">${slaHtml}</div>` : ''}
+
       <div class="svc-drawer-section">
         <h3>Ticket details</h3>
         <dl class="svc-drawer-meta">
@@ -21528,6 +21729,10 @@ async function openServiceTicketDrawer(ticketNo) {
           <dt>Owner</dt><dd>${_escapeSvc(t.owner || '—')}</dd>
         </dl>
       </div>
+
+      ${timelineHtml}
+
+      ${buildSheetHtml}
 
       <div class="svc-drawer-section">
         <h3>Description</h3>
@@ -21561,6 +21766,30 @@ async function openServiceTicketDrawer(ticketNo) {
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
   overlay.querySelector('#svc-drawer-mark-return')?.addEventListener('click', () => _openMarkForReturnConfirm(t, overlay));
   overlay.querySelector('#svc-drawer-edit-ticket')?.addEventListener('click', () => openEditTicketModal(t, overlay));
+
+  // Async build-sheet lookup — graceful degrade if it fails or returns nothing
+  if (cid && cid.rep) {
+    _lookupBuildSheet(cid.rep, t).then(bs => {
+      const elId = `svc-bs-${t.ticketNo}`;
+      const el = document.getElementById(elId);
+      if (!el) return;
+      if (bs) {
+        const noteHtml = bs.pending ? `<div class="bs-note">(build sheet integration pending — column mapping TBD)</div>` : '';
+        el.outerHTML = `
+          <div class="svc-build-sheet">
+            <div class="bs-rep">🪑 ${_escapeSvc(bs.rep)}${bs.customer ? ' · ' + _escapeSvc(bs.customer) : ''}</div>
+            <div class="bs-meta">Built ${_escapeSvc(bs.buildWeek)} · prep ${_escapeSvc(bs.prepDay)} · Sewing: ${_escapeSvc(bs.sewing)} · Upholstery: ${_escapeSvc(bs.upholstery)}</div>
+            ${noteHtml}
+          </div>`;
+      } else {
+        el.outerHTML = `<div style="font-size:11.5px;color:var(--text2)">No build sheet found for ${_escapeSvc(cid.rep)}.</div>`;
+      }
+    }).catch(err => {
+      console.warn('[svc] build sheet render failed:', err && err.message);
+      const el = document.getElementById(`svc-bs-${t.ticketNo}`);
+      if (el) el.outerHTML = `<div style="font-size:11.5px;color:var(--text2)">Build sheet lookup not available.</div>`;
+    });
+  }
 }
 
 async function _openMarkForReturnConfirm(t, drawerOverlay) {
