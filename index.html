@@ -3097,6 +3097,10 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .svc-chair-pill { font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700; background: var(--orange); color: #fff; padding: 2px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; }
 .svc-chair-pill.repeat { background: var(--fail); }
 .svc-mx-pill { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; line-height: 1.4; pointer-events: none; }
+.svc-period-pills { display: inline-flex; gap: 4px; align-items: center; }
+.svc-period-pill { font-size: 10px; padding: 4px 9px; border-radius: 999px; border: 1px solid var(--border); background: #fff; color: var(--text2); cursor: pointer; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; line-height: 1; transition: all .12s; }
+.svc-period-pill:hover:not(.active) { border-color: var(--repose-blue); color: var(--repose-blue); }
+.svc-period-pill.active { background: var(--repose-blue); color: #fff; border-color: var(--repose-blue); }
 .svc-mx-pill.waiting    { background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa; }
 .svc-mx-pill.scheduled  { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
 .svc-mx-pill.collected  { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
@@ -4329,7 +4333,11 @@ let _serviceState = {
   parts: [],     // mapped Parts objects
   lastFetch: 0,  // ms epoch
   loading: false,
-  error: null
+  error: null,
+  // Period selectors — per-panel so each can be tuned independently.
+  // Keys: 'mtd' | '3m' | '6m' | '12m' | 'all'
+  faultPeriod: '12m',
+  customerPeriod: '12m'
 };
 
 const COMPLAINTS_MANAGERS  = new Set(['jonas.simonaitis@reposefurniture.co.uk','richard.semmens@reposefurniture.co.uk']);
@@ -20768,7 +20776,7 @@ function _mapTicketRow(row, headerRow) {
     mechCode: String(row[12] || '').trim(),
     description: String(row[13] || '').trim(),
     openDate: _parseExcelDate(row[14]),
-    returnedToFactory: row[15],
+    returnedToFactory: _parseExcelDate(row[15]),
     action: String(row[16] || '').trim(),
     notes: String(row[17] || '').trim(),
     owner: String(row[18] || '').trim(),
@@ -20975,43 +20983,66 @@ async function fetchServiceDropdowns() {
 
 // Compute all dashboard KPIs from the in-memory _serviceState.
 // Period filter is the current calendar month by default; configurable later.
+// Convert a period key into a Date marking the start of that window.
+// Used by both _computeServiceKpis and the Top-Fault / Customer panels.
+function _svcPeriodStart(period) {
+  const now = new Date();
+  if (period === 'mtd') return new Date(now.getFullYear(), now.getMonth(), 1);
+  if (period === '3m')  { const d = new Date(now); d.setMonth(d.getMonth() - 3); return d; }
+  if (period === '6m')  { const d = new Date(now); d.setMonth(d.getMonth() - 6); return d; }
+  if (period === '12m') { const d = new Date(now); d.setMonth(d.getMonth() - 12); return d; }
+  if (period === 'all') return new Date(0);
+  return new Date(now.getFullYear(), now.getMonth(), 1);
+}
+function _svcPeriodLabel(period) {
+  return ({ mtd: 'MTD', '3m': 'Last 3 months', '6m': 'Last 6 months', '12m': 'Last 12 months', all: 'All time' })[period] || 'MTD';
+}
+
 function _computeServiceKpis(period = 'mtd') {
   const tickets = _serviceState.tickets;
   const parts = _serviceState.parts;
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const weekStart = (() => { const d = new Date(now); const day = d.getDay() || 7; d.setDate(d.getDate() - day + 1); d.setHours(0,0,0,0); return d; })();
+  // Rolling 12-month window for the close-time KPIs (Avg close, Within target).
+  // (MTD as a window is too noisy at the start of any month — single bad outlier
+  // skews the average. 12 months smooths that out and matches the longest
+  // useful Maxoptra lookback.)
+  const yearStart = (() => { const d = new Date(now); d.setMonth(d.getMonth() - 12); return d; })();
 
   const open = tickets.filter(t => t.openClosed === 'OPEN');
   const openIn30  = open.filter(t => t.period30.toLowerCase().startsWith('inside 30')).length;
   const openOut30 = open.filter(t => t.period30.toLowerCase().startsWith('outside 30')).length;
   const overdue = open.filter(t => t.proposedCloseDate && t.proposedCloseDate < now).length;
 
-  const closedThisMonth = tickets.filter(t => t.closeDate && t.closeDate >= monthStart && t.closeDate <= now);
-  const avgDaysClose = closedThisMonth.length === 0 ? 0
-    : Math.round(closedThisMonth.reduce((a, t) => a + (t.daysToComplete || 0), 0) / closedThisMonth.length);
+  // 12-month rolling window for the close-time analytics
+  const closedLast12mo = tickets.filter(t => t.closeDate && t.closeDate >= yearStart && t.closeDate <= now);
+  const avgDaysClose = closedLast12mo.length === 0 ? 0
+    : Math.round(closedLast12mo.reduce((a, t) => a + (t.daysToComplete || 0), 0) / closedLast12mo.length);
   const avgWarrantyClose = (() => {
-    const x = closedThisMonth.filter(t => t.warrantyChargeable === 'WARRANTY');
+    const x = closedLast12mo.filter(t => t.warrantyChargeable === 'WARRANTY');
     return x.length === 0 ? 0 : Math.round(x.reduce((a, t) => a + (t.daysToComplete || 0), 0) / x.length);
   })();
   const avgChargeableClose = (() => {
-    const x = closedThisMonth.filter(t => t.warrantyChargeable === 'CHARGEABLE');
+    const x = closedLast12mo.filter(t => t.warrantyChargeable === 'CHARGEABLE');
     return x.length === 0 ? 0 : Math.round(x.reduce((a, t) => a + (t.daysToComplete || 0), 0) / x.length);
   })();
 
   const partsInTransit = parts.filter(p => !p.isDelivered);
   const partsDelivered = parts.filter(p => p.isDelivered);
 
-  const withinTarget = closedThisMonth.length === 0 ? 0
-    : Math.round(closedThisMonth.filter(t => (t.daysToComplete || 0) <= 30).length / closedThisMonth.length * 100);
+  const withinTarget = closedLast12mo.length === 0 ? 0
+    : Math.round(closedLast12mo.filter(t => (t.daysToComplete || 0) <= 30).length / closedLast12mo.length * 100);
 
+  // Short-window KPIs stay short-window — they're meant as "what's happening now"
+  const closedThisMonth = tickets.filter(t => t.closeDate && t.closeDate >= monthStart && t.closeDate <= now);
   const openedThisWeek = tickets.filter(t => t.openDate && t.openDate >= weekStart).length;
   const closedThisWeek = tickets.filter(t => t.closeDate && t.closeDate >= weekStart).length;
   const gbpMtd = closedThisMonth
     .filter(t => t.warrantyChargeable === 'CHARGEABLE')
     .reduce((a, t) => a + (t.gbp || 0) + (t.gbpDel || 0), 0);
 
-  // Top fault category MTD
+  // Top fault category MTD (mini-tile — intentionally short-window to surface surges)
   const faultCounts = {};
   for (const t of tickets.filter(t => t.openDate && t.openDate >= monthStart)) {
     const k = t.faultCode || '—';
@@ -21024,6 +21055,7 @@ function _computeServiceKpis(period = 'mtd') {
     avgDaysClose, avgWarrantyClose, avgChargeableClose,
     partsInTransit: partsInTransit.length, partsDelivered: partsDelivered.length,
     withinTarget, openedThisWeek, closedThisWeek, gbpMtd, topFault,
+    closedLast12moCount: closedLast12mo.length,
     closedThisMonthCount: closedThisMonth.length
   };
 }
@@ -21962,8 +21994,8 @@ function _inferParcelStage(p) {
 }
 
 function _computeReturnsPipeline() {
-  const awaiting = []; // returnedToFactory truthy, inspected falsy
-  const inFactory = []; // returnedToFactory + inspected truthy, returnToCustomer falsy
+  const awaiting = []; // chair NOT yet picked up — at customer, waiting for Maxoptra collection
+  const inFactory = []; // chair IS at the factory (or in transit back) — being inspected/repaired
   const readyToReturn = []; // returnToCustomer truthy, still OPEN
   for (const t of _serviceState.tickets) {
     if (t.openClosed !== 'OPEN') continue;
@@ -21973,16 +22005,25 @@ function _computeReturnsPipeline() {
     const mxStatus = String(t.maxoptraStatus || '').trim();
     const isReturn = /-R\d+$/i.test(String(t.repNo || ''));
 
-    // Awaiting collection: marked-for-return chair that's pre-arrival
-    // (Maxoptra waiting/scheduled/collected, OR no Maxoptra status yet but -R suffix set, OR returnedToFactory not yet inspected)
-    if (
-      (isReturn && !ret && (mxStatus === '' || mxStatus.startsWith('⏳') || mxStatus.startsWith('📅') || mxStatus.startsWith('🚚'))) ||
-      (ret && !ins)
-    ) {
-      awaiting.push(t);
-    } else if ((ret || mxStatus.startsWith('✅')) && ins && !rtc) {
-      inFactory.push(t);
-    }
+    // Awaiting collection: chair has NOT been picked up yet.
+    // Either no Maxoptra job booked yet (⏳ Waiting OR empty status with -R suffix),
+    // or Maxoptra has it Scheduled (📅) but driver hasn't been to the customer yet.
+    const isPrePickup = isReturn && !ret &&
+      (mxStatus === '' || mxStatus.startsWith('⏳') || mxStatus.startsWith('📅'));
+
+    // In factory: chair is at the factory OR in transit back from customer.
+    // Includes 🚚 Collected (picked up, on the way) — once collected, the chair
+    // is logically "ours" and out of the customer's hands. Also includes ✅ in
+    // factory pill, and the legacy returnedToFactory date being set.
+    const isInFactoryOrTransit = !rtc && (
+      mxStatus.startsWith('🚚') ||
+      mxStatus.startsWith('✅') ||
+      ret
+    );
+
+    if (isPrePickup) awaiting.push(t);
+    else if (isInFactoryOrTransit) inFactory.push(t);
+
     if (rtc && !t.closeDate) readyToReturn.push(t);
   }
   return { awaiting, inFactory, readyToReturn };
@@ -22020,7 +22061,7 @@ function _renderReturnsPipeline() {
         <div class="svc-return-col r1">
           <div class="svc-return-col-head">
             <div class="ico">🚚</div>
-            <h3>Awaiting collection<span class="sub">Marked for return · awaiting / in transit</span></h3>
+            <h3>Awaiting collection<span class="sub">Still at customer · waiting for Maxoptra pickup</span></h3>
             <span class="cnt">${awaiting.length}</span>
           </div>
           <div class="svc-return-cards">
@@ -22030,7 +22071,7 @@ function _renderReturnsPipeline() {
         <div class="svc-return-col r2">
           <div class="svc-return-col-head">
             <div class="ico">🏭</div>
-            <h3>In factory<span class="sub">Inspected · in production</span></h3>
+            <h3>In factory<span class="sub">Collected, in transit, or arrived for repair</span></h3>
             <span class="cnt">${inFactory.length}</span>
           </div>
           <div class="svc-return-cards">
@@ -22179,11 +22220,11 @@ function _renderServiceCharts() {
   `;
 }
 
-function _computeTopFaults(limit = 5) {
+function _computeTopFaults(period, limit = 5) {
   const counts = {};
-  const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
+  const cutoff = _svcPeriodStart(period || _serviceState.faultPeriod);
   for (const t of _serviceState.tickets) {
-    if (!t.openDate || t.openDate < monthStart) continue;
+    if (!t.openDate || t.openDate < cutoff) continue;
     const k = t.faultCode || '—';
     counts[k] = (counts[k] || 0) + 1;
   }
@@ -22202,9 +22243,11 @@ function _computeTopMechCodes(limit = 5) {
   return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, limit);
 }
 
-function _computeTopCustomers(limit = 5) {
+function _computeTopCustomers(period, limit = 5) {
   const stats = {};
+  const cutoff = _svcPeriodStart(period || _serviceState.customerPeriod);
   for (const t of _serviceState.tickets) {
+    if (t.openDate && t.openDate < cutoff) continue;
     const k = (t.customer || '—').toUpperCase().trim();
     if (!stats[k]) stats[k] = { count: 0, warranty: 0, daysSum: 0, daysN: 0 };
     stats[k].count++;
@@ -22217,25 +22260,44 @@ function _computeTopCustomers(limit = 5) {
     .slice(0, limit);
 }
 
+// Build the period quick-button strip. `current` is the selected key,
+// `dataAttr` is the data-* used for the click handler dispatch.
+function _periodPillsHtml(dataAttr, current) {
+  const periods = [
+    { k: 'mtd', label: 'MTD' },
+    { k: '3m',  label: '3M'  },
+    { k: '6m',  label: '6M'  },
+    { k: '12m', label: '12M' },
+    { k: 'all', label: 'All' }
+  ];
+  return `<div class="svc-period-pills">
+    ${periods.map(p => `<button class="svc-period-pill${p.k === current ? ' active' : ''}" ${dataAttr}="${p.k}">${p.label}</button>`).join('')}
+  </div>`;
+}
+
 function _renderServicePanels() {
   const c = document.getElementById('svc-panels-container');
   if (!c) return;
-  const faults = _computeTopFaults();
+  const faultPeriod = _serviceState.faultPeriod;
+  const customerPeriod = _serviceState.customerPeriod;
+  const faults = _computeTopFaults(faultPeriod);
   const mechs = _computeTopMechCodes();
-  const customers = _computeTopCustomers();
+  const customers = _computeTopCustomers(customerPeriod);
   const maxFault = Math.max(1, ...faults.map(([, n]) => n));
-  const maxMech = Math.max(1, ...mechs.map(([, n]) => n));
   c.innerHTML = `
     <div class="svc-grid-3">
       <div class="svc-panel">
-        <div class="svc-panel-head"><div><h2>Top fault categories <span class="sub">MTD · top ${faults.length}</span></h2></div></div>
+        <div class="svc-panel-head" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+          <div><h2>Top fault categories <span class="sub">${_svcPeriodLabel(faultPeriod)} · top ${faults.length}</span></h2></div>
+          ${_periodPillsHtml('data-fault-period', faultPeriod)}
+        </div>
         ${faults.map(([k, n]) => `
           <div class="svc-fault-row">
             <div class="label">${_escapeSvc(k)}</div>
             <div class="bar"><div style="width:${(n / maxFault) * 100}%"></div></div>
             <div class="num">${n}</div>
           </div>
-        `).join('') || '<div style="padding:24px;text-align:center;color:var(--text2);font-size:12px">No data this month yet.</div>'}
+        `).join('') || `<div style="padding:24px;text-align:center;color:var(--text2);font-size:12px">No data in this period.</div>`}
       </div>
 
       <div class="svc-panel">
@@ -22250,19 +22312,34 @@ function _renderServicePanels() {
       </div>
 
       <div class="svc-panel">
-        <div class="svc-panel-head"><div><h2>Customer scorecard <span class="sub">By ticket volume</span></h2></div></div>
+        <div class="svc-panel-head" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+          <div><h2>Customer scorecard <span class="sub">${_svcPeriodLabel(customerPeriod)} · by ticket volume</span></h2></div>
+          ${_periodPillsHtml('data-customer-period', customerPeriod)}
+        </div>
         ${customers.map((c, i) => `
           <div class="svc-cust-row" data-customer="${_escapeSvc(c.name)}">
             <div class="rank">${i + 1}</div>
             <div><div class="name">${_escapeSvc(c.name)}<span class="sub">${c.warrantyPct}% warr · ${c.avgDays}d avg close</span></div></div>
             <div class="num">${c.count}</div>
           </div>
-        `).join('') || '<div style="padding:24px;text-align:center;color:var(--text2);font-size:12px">No customer data.</div>'}
+        `).join('') || '<div style="padding:24px;text-align:center;color:var(--text2);font-size:12px">No customer data in this period.</div>'}
       </div>
     </div>
   `;
   c.querySelectorAll('.svc-cust-row[data-customer]').forEach(row => {
     row.addEventListener('click', () => openServiceCustomerDrill(row.dataset.customer));
+  });
+  c.querySelectorAll('[data-fault-period]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      _serviceState.faultPeriod = btn.dataset.faultPeriod;
+      _renderServicePanels();
+    });
+  });
+  c.querySelectorAll('[data-customer-period]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      _serviceState.customerPeriod = btn.dataset.customerPeriod;
+      _renderServicePanels();
+    });
   });
 }
 
@@ -22679,7 +22756,7 @@ function _renderServiceKpis() {
           <div class="svc-kpi-icn">⏰</div>
           <div class="svc-kpi-mid">
             <div class="svc-kpi-num">${k.avgDaysClose}<span class="unit">days</span></div>
-            <div class="svc-kpi-lbl">Avg close · target 14d</div>
+            <div class="svc-kpi-lbl">Avg close · last 12 months · target 14d</div>
           </div>
         </div>
         <div>
@@ -22709,7 +22786,7 @@ function _renderServiceKpis() {
           <div class="svc-kpi-icn">📈</div>
           <div class="svc-kpi-mid">
             <div class="svc-kpi-num">${k.withinTarget}<span class="unit">%</span></div>
-            <div class="svc-kpi-lbl">Closed within 30-day target</div>
+            <div class="svc-kpi-lbl">Within 30-day target · last 12 months</div>
           </div>
         </div>
       </div>
