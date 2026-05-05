@@ -20878,6 +20878,25 @@ function _renderServiceAlerts() {
     `);
   }
 
+  // Third banner: chairs returned 2× or more this quarter (CAPA candidates)
+  const _quarterStart = new Date();
+  _quarterStart.setMonth(Math.floor(_quarterStart.getMonth() / 3) * 3, 1);
+  _quarterStart.setHours(0, 0, 0, 0);
+  const repeats = _computeRepeatReturns().filter(r => r.latestOpenDate && r.latestOpenDate >= _quarterStart);
+  if (repeats.length > 0) {
+    const examples = repeats.slice(0, 3).map(r => `${r.rep} (${r.count}× return${r.count === 1 ? '' : 's'})`).join(', ');
+    banners.push(`
+      <div class="svc-alert warn">
+        <div class="ab-icn">🔁</div>
+        <div class="ab-mid">
+          <b>${repeats.length} chair${repeats.length === 1 ? '' : 's'} returned 2× or more this quarter</b>
+          <span class="small">${_escapeSvc(examples)}${repeats.length > 3 ? ` + ${repeats.length - 3} more` : ''} · candidates for CAPA</span>
+        </div>
+        <button class="ab-act" data-svc-act="show-repeats">Review →</button>
+      </div>
+    `);
+  }
+
   c.innerHTML = banners.length ? `<div class="svc-alerts">${banners.join('')}</div>` : '';
 
   // Defensive — Task 8 hasn't shipped yet, so _renderServiceTickets may not exist.
@@ -20894,6 +20913,11 @@ function _renderServiceAlerts() {
       _renderServiceTickets();
       document.getElementById('svc-tickets-container')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
+  });
+  c.querySelector('[data-svc-act="show-repeats"]')?.addEventListener('click', () => {
+    // Phase B+C Task 4 will route this to the CAPA panel; for now just scroll to ticket list and console-log the repeat REPs
+    console.log('[svc] repeat returns:', _computeRepeatReturns());
+    document.getElementById('svc-tickets-container')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
 }
 
