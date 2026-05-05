@@ -3133,6 +3133,19 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .svc-capa-mid .small { font-size: 10.5px; color: var(--text2); font-weight: 500; }
 .svc-capa-act { font-size: 11px; font-weight: 700; color: var(--repose-blue); cursor: pointer; white-space: nowrap; border: 1px solid var(--bborder); background: var(--bbg); padding: 6px 11px; border-radius: 999px; font-family: inherit; }
 .svc-capa-act:hover { background: var(--repose-blue); color: #fff; }
+.svc-forecast-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; border-bottom: 1px solid var(--border); }
+.svc-forecast-cell { padding: 14px 18px; text-align: center; border-right: 1px solid var(--border); }
+.svc-forecast-cell:last-child { border-right: none; }
+.svc-forecast-cell .lbl { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--text2); font-weight: 700; margin-bottom: 5px; }
+.svc-forecast-cell .v { font-family: 'Bricolage Grotesque', sans-serif; font-size: 24px; font-weight: 800; color: var(--repose-navy); line-height: 1; letter-spacing: -.02em; }
+.svc-forecast-cell .v .unit { font-size: 12px; font-weight: 600; color: var(--text2); margin-left: 3px; }
+.svc-forecast-cell .delta { font-size: 11px; color: var(--text2); font-weight: 600; margin-top: 5px; }
+.svc-forecast-cell .delta.up { color: var(--fail); }
+.svc-forecast-cell .delta.down { color: var(--pass); }
+.svc-forecast-band { padding: 14px 20px; }
+.svc-forecast-band-bar { height: 14px; border-radius: 7px; background: linear-gradient(90deg, var(--pass) 0%, var(--pass) 60%, var(--warn) 60%, var(--warn) 85%, var(--fail) 85%, var(--fail) 100%); position: relative; margin: 14px 0 8px; }
+.svc-forecast-band-bar .marker { position: absolute; top: -4px; width: 4px; height: 22px; background: var(--repose-navy); border-radius: 2px; }
+.svc-forecast-band-labels { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--text2); font-weight: 600; }
 .svc-drawer-bg { position: fixed; inset: 0; background: rgba(14, 2, 58, 0.55); z-index: 1000; display: flex; justify-content: flex-end; }
 .svc-drawer { width: 560px; max-width: 90vw; height: 100vh; background: #fff; box-shadow: -8px 0 32px rgba(0, 0, 0, .15); overflow-y: auto; display: flex; flex-direction: column; }
 .svc-drawer-head { padding: 18px 22px; background: linear-gradient(135deg, var(--bbg), #fff); border-bottom: 1px solid var(--border); display: flex; align-items: flex-start; gap: 14px; }
@@ -21797,6 +21810,107 @@ function _renderServiceCapaBridge() {
   }));
 }
 
+// Compute next-month forecast from 13-month trend.
+// Algorithm v1: simple moving average over last 3 months × seasonal multiplier.
+// Seasonal multipliers are rough heuristics; tune after a year of data.
+function _computeServiceForecast() {
+  const now = new Date();
+  const months = []; // last 12 months excluding current
+  for (let i = 12; i >= 1; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const next = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+    months.push({ start: d, end: next });
+  }
+  // Compute opens-per-month and £-per-month over those 12 months
+  const stats = months.map(m => {
+    const opened = _serviceState.tickets.filter(t => t.openDate && t.openDate >= m.start && t.openDate < m.end).length;
+    const gbp = _serviceState.tickets
+      .filter(t => t.closeDate && t.closeDate >= m.start && t.closeDate < m.end && t.warrantyChargeable === 'CHARGEABLE')
+      .reduce((a, t) => a + (t.gbp || 0) + (t.gbpDel || 0), 0);
+    return { opened, gbp };
+  });
+  // Simple last-3-months moving average
+  const last3 = stats.slice(-3);
+  const avgOpened = last3.length ? Math.round(last3.reduce((a, x) => a + x.opened, 0) / last3.length) : 0;
+  const avgGbp = last3.length ? Math.round(last3.reduce((a, x) => a + x.gbp, 0) / last3.length) : 0;
+
+  // Seasonal multipliers — rough trend (can be tuned per real Repose data later)
+  const seasonal = [1.05, 1.00, 0.95, 0.91, 0.95, 1.00, 1.05, 1.10, 1.05, 1.00, 1.05, 1.15];
+  const nextMonth = (now.getMonth() + 1) % 12;
+  const mult = seasonal[nextMonth];
+
+  const predictedOpens = Math.round(avgOpened * mult);
+  const predictedGbp = Math.round(avgGbp * mult);
+
+  // Current open count vs current month's opened (for delta direction)
+  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const currentOpened = _serviceState.tickets.filter(t => t.openDate && t.openDate >= currentMonthStart).length;
+  const opensDelta = currentOpened > 0 ? Math.round((predictedOpens - currentOpened) / currentOpened * 100) : 0;
+  const gbpDelta = avgGbp > 0 ? Math.round((predictedGbp - avgGbp) / avgGbp * 100) : 0;
+
+  // Backlog risk band: count of currently-open tickets
+  const openCount = _serviceState.tickets.filter(t => t.openClosed === 'OPEN').length;
+  let bandLabel = 'Healthy';
+  let bandPct = Math.min(60, openCount / 18 * 60);
+  if (openCount >= 25) { bandLabel = 'Breach'; bandPct = Math.min(100, 85 + (openCount - 25) / 10 * 15); }
+  else if (openCount >= 18) { bandLabel = 'Warning'; bandPct = 60 + (openCount - 18) / 7 * 25; }
+
+  const monthName = new Date(now.getFullYear(), now.getMonth() + 1, 1).toLocaleDateString('en-GB', { month: 'long' });
+
+  return {
+    monthName,
+    predictedOpens,
+    predictedGbp,
+    opensDelta,
+    gbpDelta,
+    openCount,
+    bandLabel,
+    bandPct
+  };
+}
+
+function _renderServiceForecast() {
+  const c = document.getElementById('svc-forecast-container');
+  if (!c) return;
+  const f = _computeServiceForecast();
+  const opensDeltaCls = f.opensDelta > 0 ? 'up' : f.opensDelta < 0 ? 'down' : '';
+  const opensArrow = f.opensDelta > 0 ? '▲' : f.opensDelta < 0 ? '▼' : '·';
+  const gbpDeltaCls = f.gbpDelta > 0 ? 'up' : f.gbpDelta < 0 ? 'down' : '';
+  const gbpArrow = f.gbpDelta > 0 ? '▲' : f.gbpDelta < 0 ? '▼' : '·';
+  c.innerHTML = `
+    <div class="svc-panel">
+      <div class="svc-panel-head"><div><h2>📊 ${_escapeSvc(f.monthName)} forecast <span class="sub">3-month moving average · seasonal-adjusted · backlog risk band</span></h2></div></div>
+      <div class="svc-forecast-grid">
+        <div class="svc-forecast-cell">
+          <div class="lbl">Predicted opens</div>
+          <div class="v">~${f.predictedOpens}<span class="unit">tickets</span></div>
+          <div class="delta ${opensDeltaCls}">${opensArrow} ${Math.abs(f.opensDelta)}% vs this month</div>
+        </div>
+        <div class="svc-forecast-cell">
+          <div class="lbl">Predicted £ chargeable</div>
+          <div class="v">£${f.predictedGbp.toLocaleString('en-GB')}</div>
+          <div class="delta ${gbpDeltaCls}">${gbpArrow} ${Math.abs(f.gbpDelta)}% vs avg</div>
+        </div>
+        <div class="svc-forecast-cell">
+          <div class="lbl">Backlog risk band</div>
+          <div class="v">${f.openCount}<span class="unit">open</span></div>
+          <div class="delta">Status: <b style="color:var(--text);font-weight:700">${_escapeSvc(f.bandLabel)}</b></div>
+        </div>
+      </div>
+      <div class="svc-forecast-band">
+        <div style="font-size:11.5px;color:var(--text2);font-weight:600">Backlog model · current vs healthy / warning / breach</div>
+        <div class="svc-forecast-band-bar"><div class="marker" style="left:${f.bandPct}%"></div></div>
+        <div class="svc-forecast-band-labels">
+          <span>0 open</span>
+          <span style="color:var(--pass);font-weight:700">Healthy &lt; 18</span>
+          <span style="color:var(--warn);font-weight:700">Warning 18–25</span>
+          <span style="color:var(--fail);font-weight:700">Breach &gt; 25</span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function _renderServiceShell(content) {
   const last = _serviceState.lastFetch ? new Date(_serviceState.lastFetch) : null;
   content.innerHTML = `
@@ -21822,6 +21936,7 @@ function _renderServiceShell(content) {
     <div id="svc-tickets-container"></div>
     <div id="svc-parts-container"></div>
     <div id="svc-charts-container"></div>
+    <div id="svc-forecast-container"></div>
     <div id="svc-capa-container"></div>
     <div id="svc-panels-container"></div>
   `;
@@ -21930,6 +22045,7 @@ function _renderServiceAll() {
   _renderServiceTickets();
   _renderServiceParts();
   _renderServiceCharts();
+  _renderServiceForecast();
   _renderServiceCapaBridge();
   _renderServicePanels();
   // Task 12 adds: drawer
