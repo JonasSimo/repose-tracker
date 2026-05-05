@@ -163,14 +163,27 @@ async function readTicketLog(token, driveId, itemId) {
   // the header as values[0]. NOTE: do NOT add `(valuesOnly=...)` here — that's
   // a parameter on `usedRange` (worksheet-level), not `range`. Graph 400s if
   // we try it on `range`.
-  const url = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/tables('${TICKET_TABLE}')/range?$select=values`;
+  // We MUST fetch rowIndex too — the table may not start at sheet row 1
+  // (TICKET LOG actually starts at A7 because the workbook has merged headers /
+  // banners above). Without this offset, per-cell PATCH would write to the wrong
+  // sheet rows and corrupt data above the table.
+  const url = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/tables('${TICKET_TABLE}')/range?$select=values,rowIndex,address`;
   const range = await graphGet(token, url);
-  return range.values || [];
+  return {
+    values: range.values || [],
+    tableRowIndex: typeof range.rowIndex === 'number' ? range.rowIndex : 0,
+    address: range.address || ''
+  };
 }
 
-async function patchTicketRow(token, driveId, itemId, dataRowIdx, headerRow, updates, sheetName = 'TicketLog') {
-  // Sheet row = data row + 2 (header is sheet row 1, data row 0 = sheet row 2)
-  const sheetRow = dataRowIdx + 2;
+async function patchTicketRow(token, driveId, itemId, dataRowIdx, headerRow, updates, sheetName, tableRowIndex) {
+  // Sheet row (1-based) = tableRowIndex (0-based, points at header) + 1 for the
+  // header itself + dataRowIdx (0-based, 0 = first data row) + 1 to convert to
+  // 1-based sheet addressing. Equivalently: tableRowIndex + dataRowIdx + 2.
+  // CRITICAL: do not use `dataRowIdx + 2` (assumes table starts at sheet row 1)
+  // — TICKET LOG actually starts at sheet row 7, so without this offset writes
+  // would corrupt cells above the table.
+  const sheetRow = (tableRowIndex || 0) + dataRowIdx + 2;
   const errors = [];
   for (const [colName, value] of Object.entries(updates)) {
     if (value === undefined || value === null) continue;
@@ -320,9 +333,9 @@ module.exports = async function (context, myTimer) {
     return;
   }
 
-  let values;
+  let values, tableRowIndex, tableAddress;
   try {
-    values = await readTicketLog(graphToken, driveId, itemId);
+    ({ values, tableRowIndex, address: tableAddress } = await readTicketLog(graphToken, driveId, itemId));
   } catch (e) {
     log.error('Could not read TicketLog:', e.message);
     return;
@@ -331,7 +344,7 @@ module.exports = async function (context, myTimer) {
     log.warn('TicketLog has no data rows.');
     return;
   }
-  log(`[service-maxoptra-poll] read TicketLog · ${values.length - 1} data rows`);
+  log(`[service-maxoptra-poll] read TicketLog · ${values.length - 1} data rows · table at ${tableAddress} (rowIndex=${tableRowIndex})`);
 
   const headerRow = values[0];
   const repNoIdx     = findColIdx(headerRow, 'REP Number');
@@ -361,9 +374,13 @@ module.exports = async function (context, myTimer) {
   for (let i = 1; i < values.length; i++) {
     const cid = parseChairId(values[i][repNoIdx]);
     if (!cid || !cid.isReturn) continue; // only -R suffix rows are candidates
-    ticketsByLabel.set(cid.label, { rowIdx: i - 1, sheetRow: i + 1, raw: values[i] });
+    // sheetRow (1-based) accounts for the table possibly starting below row 1.
+    // tableRowIndex is 0-based and points at the header — first data row sits
+    // at tableRowIndex + 1 (0-based) = tableRowIndex + 2 in 1-based addressing,
+    // and any subsequent row is + (i - 1) more.
+    ticketsByLabel.set(cid.label, { rowIdx: i - 1, sheetRow: tableRowIndex + i + 1, raw: values[i] });
     if (!ticketsByRep.has(cid.rep)) ticketsByRep.set(cid.rep, []);
-    ticketsByRep.get(cid.rep).push({ rowIdx: i - 1, sheetRow: i + 1, raw: values[i], returnNo: cid.returnNo });
+    ticketsByRep.get(cid.rep).push({ rowIdx: i - 1, sheetRow: tableRowIndex + i + 1, raw: values[i], returnNo: cid.returnNo });
   }
   log(`[service-maxoptra-poll] indexed ${ticketsByLabel.size} ticket rows with -R suffix`);
 
@@ -452,7 +469,7 @@ module.exports = async function (context, myTimer) {
     }
 
     try {
-      await patchTicketRow(graphToken, driveId, itemId, ticket.rowIdx, headerRow, updates, TICKET_SHEET);
+      await patchTicketRow(graphToken, driveId, itemId, ticket.rowIdx, headerRow, updates, TICKET_SHEET, tableRowIndex);
       updated++;
       if (updates['Returned to Factory'] !== undefined) returnedToFactoryFilled++;
       log(`✓ ${ref} → ${pill}${updates['Returned to Factory'] !== undefined ? ' (Returned to Factory filled)' : ''}`);
@@ -484,7 +501,7 @@ module.exports = async function (context, myTimer) {
         continue;
       }
       try {
-        await patchTicketRow(graphToken, driveId, itemId, ticket.rowIdx, headerRow, updates, TICKET_SHEET);
+        await patchTicketRow(graphToken, driveId, itemId, ticket.rowIdx, headerRow, updates, TICKET_SHEET, tableRowIndex);
         waitingMarked++;
         log(`⏳ ${label} → ${waitingPill}`);
       } catch (e) {
