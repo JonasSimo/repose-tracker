@@ -83,6 +83,17 @@ async function graphGet(token, url) {
   return await res.json();
 }
 
+// Microsoft Graph's Excel REST sometimes returns 504 MaxRequestDurationExceeded
+// when the workbook is large and the cold-open recalc exceeds the gateway's
+// 30s timeout. Retry once after a brief delay — the second attempt benefits
+// from a warm session and almost always succeeds.
+async function graphFetchWithRetry(url, options) {
+  const res = await fetch(url, options);
+  if (res.status !== 504 && res.status !== 503 && res.status !== 408) return res;
+  await new Promise(r => setTimeout(r, 1500));
+  return await fetch(url, options);
+}
+
 function encodeSharingUrl(url) {
   const b64 = Buffer.from(url).toString('base64');
   return 'u!' + b64.replace(/=+$/, '').replace(/\//g, '_').replace(/\+/g, '-');
@@ -99,6 +110,24 @@ async function readTicketLog(token, driveId, itemId) {
   const url = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/tables('${TICKET_TABLE}')/range(valuesOnly=false)?$select=values`;
   const range = await graphGet(token, url);
   return range.values || [];
+}
+
+async function patchTicketRow(token, driveId, itemId, dataRowIdx, headerRow, updates) {
+  // updates is an object keyed by column name (case-insensitive).
+  const colCount = headerRow.length;
+  const patchRow = new Array(colCount).fill(null);
+  for (const [k, v] of Object.entries(updates)) {
+    const idx = findColIdx(headerRow, k);
+    if (idx < 0) continue;
+    patchRow[idx] = v;
+  }
+  const url = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/tables('${TICKET_TABLE}')/rows/itemAt(index=${dataRowIdx})`;
+  const res = await graphFetchWithRetry(url, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ values: [patchRow] })
+  });
+  if (!res.ok) throw new Error(`PATCH ${res.status}: ${await res.text()}`);
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
@@ -237,8 +266,14 @@ module.exports = async function (context, myTimer) {
 
   let matched = 0;
   let orphans = 0;
+  let updated = 0;
+  let skipped = 0;
+  let wouldUpdate = 0;
+  let returnedToFactoryFilled = 0;
+
+  const todayIso = new Date().toISOString();
+
   for (const job of jobs) {
-    // ADJUST these field paths to match what Step 2.1 discovery showed.
     const ref = String(job.reference || job.externalId || '').trim().toUpperCase();
     if (!ref) { orphans++; continue; }
     const ticket = ticketsByLabel.get(ref);
@@ -249,7 +284,81 @@ module.exports = async function (context, myTimer) {
     }
     matched++;
     const pill = mapMaxoptraStatus(job.status, job.scheduledTime, job.completedAt);
-    log(`[match] ${ref} (ticket row ${ticket.sheetRow}) → ${pill}`);
+    const currentPill = mxStatusIdx >= 0 ? String(ticket.raw[mxStatusIdx] || '').trim() : '';
+    const currentJobId = mxJobIdx >= 0 ? String(ticket.raw[mxJobIdx] || '').trim() : '';
+
+    // Idempotent skip: same pill + same job id = no-op
+    if (pill === currentPill && currentJobId === String(job.id || '')) {
+      skipped++;
+      continue;
+    }
+
+    const updates = {
+      'Maxoptra Job ID': String(job.id || ''),
+      'Maxoptra Status': pill,
+      'Maxoptra Updated': todayIso
+    };
+
+    // Auto-fill Returned to Factory on completion if not already filled
+    const isCompleted = pill.startsWith('✅');
+    if (isCompleted && returnedIdx >= 0) {
+      const currentReturned = String(ticket.raw[returnedIdx] || '').trim();
+      if (!currentReturned) {
+        const completedAt = job.completedAt ? new Date(job.completedAt) : new Date();
+        // Excel date serial
+        updates['Returned to Factory'] = Math.round((completedAt.getTime() / 86400000) + 25569);
+        returnedToFactoryFilled++;
+      }
+    }
+
+    if (!IS_PROD) {
+      wouldUpdate++;
+      log(`[DRY-RUN] ${ref} row ${ticket.sheetRow} → ${pill} (sandbox; not written)`);
+      continue;
+    }
+
+    try {
+      await patchTicketRow(graphToken, driveId, itemId, ticket.rowIdx, headerRow, updates);
+      updated++;
+      log(`✓ ${ref} → ${pill}${updates['Returned to Factory'] ? ' (Returned to Factory filled)' : ''}`);
+    } catch (e) {
+      log.warn(`✗ Failed to update ${ref} at row ${ticket.sheetRow}: ${e.message}`);
+    }
   }
-  log(`[service-maxoptra-poll] complete (Task 4 readonly) · matched=${matched} orphans=${orphans} · ${((Date.now() - started.getTime()) / 1000).toFixed(1)}s`);
+
+  // Mark "stuck waiting" tickets: -R suffix REP No, no Maxoptra Job ID,
+  // no current Maxoptra Status (or current ≠ waiting). Idempotent.
+  let waitingMarked = 0;
+  if (mxJobIdx >= 0 && mxStatusIdx >= 0) {
+    const waitingPill = '⏳ Waiting for collection booking';
+    for (const [label, ticket] of ticketsByLabel.entries()) {
+      const currentJobId = String(ticket.raw[mxJobIdx] || '').trim();
+      const currentPill  = String(ticket.raw[mxStatusIdx] || '').trim();
+      if (currentJobId) continue;             // has Maxoptra job — covered by main loop
+      if (currentPill === waitingPill) continue; // already waiting — skip
+
+      const updates = {
+        'Maxoptra Status': waitingPill,
+        'Maxoptra Updated': todayIso
+      };
+      if (!IS_PROD) {
+        log(`[DRY-RUN] ${label} row ${ticket.sheetRow} → ${waitingPill} (sandbox; not written)`);
+        continue;
+      }
+      try {
+        await patchTicketRow(graphToken, driveId, itemId, ticket.rowIdx, headerRow, updates);
+        waitingMarked++;
+        log(`⏳ ${label} → ${waitingPill}`);
+      } catch (e) {
+        log.warn(`✗ Failed to mark ${label} waiting at row ${ticket.sheetRow}: ${e.message}`);
+      }
+    }
+  }
+
+  const duration = ((Date.now() - started.getTime()) / 1000).toFixed(1);
+  if (IS_PROD) {
+    log(`[service-maxoptra-poll] complete · matched=${matched} updated=${updated} skipped=${skipped} waiting=${waitingMarked} returnedFilled=${returnedToFactoryFilled} orphans=${orphans} · ${duration}s`);
+  } else {
+    log(`[service-maxoptra-poll] complete · DRY-RUN (env=${MAXOPTRA_ENV}) · matched=${matched} wouldUpdate=${wouldUpdate} skipped=${skipped} orphans=${orphans} · no writes performed · ${duration}s`);
+  }
 };
