@@ -10,7 +10,7 @@
     "RECIPIENTS": "mitch@reposefurniture.co.uk,richard.semmens@reposefurniture.co.uk,jody.tilley@reposefurniture.co.uk,jonas.simonaitis@reposefurniture.co.uk",
     "WEBSITE_TIME_ZONE": "GMT Standard Time",
     "MAXOPTRA_API_KEY": "<paste-rotated-key-here>",
-    "MAXOPTRA_BASE_URL": "https://api.maxoptra.com",
+    "MAXOPTRA_BASE_URL": "https://live9.maxoptra.com",
     "MAXOPTRA_ENV": "sandbox",
     "MAXOPTRA_ACCOUNT_ID": "",
     "TICKETS_SHARING_URL": "<paste-the-ticketlog-sharing-url-from-portal>"

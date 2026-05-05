@@ -28,7 +28,7 @@ const CLIENT_ID     = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
 
 const MAXOPTRA_API_KEY    = process.env.MAXOPTRA_API_KEY;
-const MAXOPTRA_BASE_URL   = (process.env.MAXOPTRA_BASE_URL || 'https://api.maxoptra.com').replace(/\/$/, '');
+const MAXOPTRA_BASE_URL   = (process.env.MAXOPTRA_BASE_URL || 'https://live9.maxoptra.com').replace(/\/$/, '');
 const MAXOPTRA_ACCOUNT_ID = process.env.MAXOPTRA_ACCOUNT_ID || '';
 const MAXOPTRA_ENV        = (process.env.MAXOPTRA_ENV || 'sandbox').toLowerCase();
 const IS_PROD             = MAXOPTRA_ENV === 'production';
@@ -48,10 +48,28 @@ function withTimeout(options = {}, ms = 30000) {
 }
 
 // ─── Maxoptra API ────────────────────────────────────────────────────────
+// Confirmed shape (live9.maxoptra.com 2026-05-05):
+//   GET /api/v6/orders            — returns { data: [orders], offset, _links: { next, prev } }
+//   Auth: Authorization: Bearer <key>
+//   Pagination: follow _links.next (relative URL, ~20/page)
+//   Server-side ?task=PICKUP filter is IGNORED, so we filter in code.
+//
+// Per-order shape:
+//   {
+//     referenceNumber:        string  — Maxoptra-internal order ID (e.g. "0000079638")
+//     consignmentReference:   string  — external/customer reference (where transport types REP No)
+//     task:                   "DELIVERY" | "PICKUP"
+//     priority:               "NORMAL" | ...
+//     clientName:             string  — customer name (free text)
+//     contactPerson:          string
+//     customerLocation:       { name, address, latitude, longitude, ... }
+//     status:                 string | null  — e.g. PLANNED, IN_PROGRESS, COMPLETED (filled once dispatched)
+//     statusLastUpdated:      ISO timestamp | null
+//     widgetTrackingDetails:  null | object  — likely contains driver/ETA when scheduled
+//     customFields:           null | object
+//   }
 async function getMaxoptraJobs(log) {
-  // Filter includes cancelled/failed too — we want to detect them and update tickets.
-  // ADJUST the URL + status filter based on Step 2.1 discovery output.
-  const baseUrl = `${MAXOPTRA_BASE_URL}/orders?type=Pickup&status=Planned,InProgress,Scheduled,PickedUp,Cancelled,Failed`;
+  const startPath = '/api/v6/orders';
   const headers = {
     'Authorization': `Bearer ${MAXOPTRA_API_KEY}`,
     'Accept': 'application/json'
@@ -59,33 +77,38 @@ async function getMaxoptraJobs(log) {
   if (MAXOPTRA_ACCOUNT_ID) headers['X-Account-Id'] = MAXOPTRA_ACCOUNT_ID;
 
   const allJobs = [];
-  let nextUrl = baseUrl;
+  let nextPath = startPath;
   let pageCount = 0;
   let firstPageKeys = null;
-  const maxPages = 10;
+  const maxPages = 25; // ~500 orders before we hit the cap
 
-  while (nextUrl && pageCount < maxPages) {
+  while (nextPath && pageCount < maxPages) {
     pageCount++;
+    const fullUrl = nextPath.startsWith('http') ? nextPath : `${MAXOPTRA_BASE_URL}${nextPath}`;
     const { options: timedOpts, cleanup } = withTimeout({ headers }, 30000);
     let res;
     try {
-      res = await fetch(nextUrl, timedOpts);
+      res = await fetch(fullUrl, timedOpts);
     } finally {
       cleanup();
     }
-    if (!res.ok) throw new Error(`Maxoptra GET ${res.status}: ${await res.text()}`);
+    if (!res.ok) throw new Error(`Maxoptra GET ${res.status} on ${fullUrl}: ${await res.text()}`);
     const data = await res.json();
     if (firstPageKeys === null) firstPageKeys = Object.keys(data || {}).join(', ');
-    const jobs = Array.isArray(data) ? data : (data.orders || data.items || data.data || []);
+    const jobs = Array.isArray(data) ? data : (data.data || []);
     if (Array.isArray(jobs)) allJobs.push(...jobs);
-    nextUrl = data.next || data.nextLink || data['@odata.nextLink'] || (data.links && data.links.next) || null;
-    if (typeof nextUrl !== 'string') nextUrl = null;
+    nextPath = (data && data._links && typeof data._links.next === 'string') ? data._links.next : null;
   }
 
-  if (pageCount >= maxPages) log.warn(`[maxoptra] hit max page limit (${maxPages}) — there may be more jobs`);
-  if (allJobs.length === 0) log.warn(`[maxoptra] 0 jobs returned · top-level keys on first page: ${firstPageKeys || '(none)'}`);
-  log(`[maxoptra] retrieved ${allJobs.length} active collection job(s) across ${pageCount} page(s)`);
-  return allJobs;
+  if (pageCount >= maxPages) log.warn(`[maxoptra] hit max page limit (${maxPages}) — there may be more orders`);
+  if (allJobs.length === 0) log.warn(`[maxoptra] 0 orders returned · top-level keys on first page: ${firstPageKeys || '(none)'}`);
+
+  // Filter to PICKUP tasks only (server-side filter is ignored). Terminal states
+  // we don't care about: COMPLETED is interesting (so we mark Returned to Factory),
+  // CANCELLED/FAILED also relevant. Skip any DELIVERY orders entirely.
+  const pickups = allJobs.filter(o => o && String(o.task || '').toUpperCase() === 'PICKUP');
+  log(`[maxoptra] fetched ${allJobs.length} order(s) across ${pageCount} page(s) — ${pickups.length} are PICKUP`);
+  return pickups;
 }
 
 // ─── Microsoft Graph ─────────────────────────────────────────────────────
@@ -261,11 +284,12 @@ module.exports = async function (context, myTimer) {
   }
   // Sample log: just identifying fields, not full payloads (avoids 50KB log lines)
   log(`[service-maxoptra-poll] sample jobs: ${JSON.stringify(jobs.slice(0, 3).map(j => ({
-    id: j.id,
-    reference: j.reference || j.externalId,
+    referenceNumber: j.referenceNumber,
+    consignmentReference: j.consignmentReference,
+    task: j.task,
     status: j.status,
-    scheduledTime: j.scheduledTime,
-    completedAt: j.completedAt
+    statusLastUpdated: j.statusLastUpdated,
+    clientName: j.clientName
   })), null, 2)}`);
 
   if (!TICKETS_SHARING_URL) {
@@ -347,7 +371,9 @@ module.exports = async function (context, myTimer) {
   const todayIso = new Date().toISOString();
 
   for (const job of jobs) {
-    const ref = String(job.reference || job.externalId || '').trim().toUpperCase();
+    // Maxoptra v6: external/customer reference is `consignmentReference`. The Maxoptra-internal
+    // order id is `referenceNumber`. Status changes are timestamped in `statusLastUpdated`.
+    const ref = String(job.consignmentReference || '').trim().toUpperCase();
     if (!ref) { orphans++; continue; }
     let ticket = ticketsByLabel.get(ref);
     if (!ticket) {
@@ -371,22 +397,26 @@ module.exports = async function (context, myTimer) {
     }
     if (!ticket) {
       orphans++;
-      log.warn(`[orphan] Maxoptra job ${job.id || '?'} reference="${ref}" raw="${job.reference}" — no matching ticket`);
+      log.warn(`[orphan] Maxoptra order ${job.referenceNumber || '?'} consignmentReference="${ref}" raw="${job.consignmentReference}" client="${job.clientName || ''}" — no matching ticket`);
       continue;
     }
     matched++;
-    const pill = mapMaxoptraStatus(job.status, job.scheduledTime, job.completedAt);
+    // Maxoptra status timestamps: only `statusLastUpdated` is consistently available.
+    // Use it both as the "scheduled" time hint for in-flight pills and as the
+    // completion timestamp for the ✅ branch.
+    const tsHint = job.statusLastUpdated || null;
+    const pill = mapMaxoptraStatus(job.status, tsHint, tsHint);
     const currentPill = mxStatusIdx >= 0 ? String(ticket.raw[mxStatusIdx] || '').trim() : '';
     const currentJobId = mxJobIdx >= 0 ? String(ticket.raw[mxJobIdx] || '').trim() : '';
 
     // Idempotent skip: same pill + same job id = no-op
-    if (pill === currentPill && currentJobId === String(job.id || '')) {
+    if (pill === currentPill && currentJobId === String(job.referenceNumber || '')) {
       skipped++;
       continue;
     }
 
     const updates = {
-      'Maxoptra Job ID': String(job.id || ''),
+      'Maxoptra Job ID': String(job.referenceNumber || ''),
       'Maxoptra Status': pill,
       'Maxoptra Updated': todayIso
     };
@@ -394,10 +424,10 @@ module.exports = async function (context, myTimer) {
     // Auto-fill Returned to Factory on completion if not already filled.
     // Only fill when Maxoptra actually provided a completion timestamp — never synthesise "today".
     const isCompleted = pill.startsWith('✅');
-    if (isCompleted && returnedIdx >= 0 && job.completedAt) {
+    if (isCompleted && returnedIdx >= 0 && tsHint) {
       const currentReturned = String(ticket.raw[returnedIdx] || '').trim();
       if (!currentReturned) {
-        const completedAt = new Date(job.completedAt);
+        const completedAt = new Date(tsHint);
         if (!isNaN(completedAt.getTime())) {
           // Adjust for local timezone so the Excel serial maps to the local-day, not UTC-day.
           // (Excel interprets serials in workbook local time, but JS getTime() is UTC ms.)
