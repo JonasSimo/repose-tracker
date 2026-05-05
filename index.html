@@ -2986,6 +2986,8 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .svc-loading { padding: 64px; text-align: center; color: var(--text2); font-size: 14px; }
 .svc-error { padding: 24px; background: var(--rbg); color: var(--red); border-radius: 12px; margin: 24px; font-size: 13px; }
 .svc-content { flex: 1; overflow-y: auto; padding: 24px 28px 64px; max-width: 1640px; }
+.svc-mock-ribbon { display: inline-flex; align-items: center; gap: 10px; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; font-weight: 800; color: var(--purple); padding: 7px 14px; background: var(--purple-soft); border: 1px solid #ddd6fe; border-radius: 999px; margin-bottom: 14px; }
+.svc-mock-ribbon .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--purple); }
 
 /* Service Dashboard — page head + KPI tiles */
 .svc-page-head { background: #fff; border: 1px solid var(--border); border-radius: 18px; padding: 22px 26px; margin-bottom: 18px; display: flex; align-items: center; gap: 18px; }
@@ -21636,6 +21638,7 @@ function _renderServicePanels() {
 function _renderServiceShell(content) {
   const last = _serviceState.lastFetch ? new Date(_serviceState.lastFetch) : null;
   content.innerHTML = `
+    <div class="svc-mock-ribbon"><span class="dot"></span> Live · Phase A + B/C ship-now batch · v0.3 feature parity</div>
     <div class="svc-page-head">
       <div>
         <div class="crumb">Service Department</div>
