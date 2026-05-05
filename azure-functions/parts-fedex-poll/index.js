@@ -209,21 +209,24 @@ module.exports = async function (context, myTimer) {
     return;
   }
 
-  // Read the table data + column names
-  let values, columnNames;
+  // Read the worksheet's usedRange. The first row is the header; data
+  // follows. We locate the columns we need by header-name match — no need
+  // for a separate tables/columns endpoint.
+  let values;
   try {
     const range = await graphGet(graphToken,
-      `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/tables('${PARTS_TABLE}')/range(valuesOnly=true)`
+      `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/worksheets('${encodeURIComponent(PARTS_SHEET)}')/usedRange?$select=values`
     );
     values = range.values || [];
-    const colsRes = await graphGet(graphToken,
-      `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/tables('${PARTS_TABLE}')/columns?$select=name`
-    );
-    columnNames = (colsRes.value || []).map(c => c.name);
   } catch (e) {
-    log.error(`Could not read table '${PARTS_TABLE}':`, e.message);
+    log.error('Could not read Part Tracker usedRange:', e.message);
     return;
   }
+  if (values.length < 2) {
+    log.warn('Part Tracker has no data rows.');
+    return;
+  }
+  const columnNames = values[0].map(h => String(h || '').trim());
 
   // Locate the columns we need by name (case-insensitive trim match).
   const norm = s => String(s || '').trim().toLowerCase();
