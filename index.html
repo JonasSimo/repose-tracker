@@ -21107,7 +21107,11 @@ function openNewServiceTicketModal() {
   const faultCategories = (dd && dd.faultCategories && dd.faultCategories.length) ? dd.faultCategories : [...new Set(_serviceState.tickets.map(t => t.faultCode).filter(Boolean))].sort();
   const wcOptions = (dd && dd.warrantyChargeable && dd.warrantyChargeable.length) ? dd.warrantyChargeable : ['WARRANTY', 'CHARGEABLE'];
   const ownerOptions = (dd && dd.owners && dd.owners.length) ? dd.owners : ['Repose', 'Customer'];
-  const reportingIssues = (dd && dd.reportingIssues && dd.reportingIssues.length) ? dd.reportingIssues : ['PF UNDER 30 DAYS', 'PF OVER 30 DAYS'];
+  // "Within / Outside 30 days" column contains the strings 'Inside 30' / 'Outside 30'
+  // (existing cpLoadData filter at line 19534 confirms). Hardcoded — not the
+  // dropdowns sheet's REPORTING ISSUE column ('PF UNDER / OVER 30 DAYS') which
+  // is for a different field.
+  const period30Options = ['Inside 30', 'Outside 30'];
   const faultSubFaultMap = (dd && dd.faultSubFaultMap) || {};
 
   const maxNum = _serviceState.tickets
@@ -21145,7 +21149,7 @@ function openNewServiceTicketModal() {
           <div class="svc-field"><label>Mech Code</label><select id="svc-f-mech">${blank}${mechCodes.map(m => opt(m)).join('')}</select></div>
         </div>
         <div class="svc-field-row">
-          <div class="svc-field"><label>Period *</label><select id="svc-f-period30">${reportingIssues.map(r => opt(r)).join('')}</select></div>
+          <div class="svc-field"><label>Within / Outside 30 days *</label><select id="svc-f-period30">${period30Options.map(r => opt(r)).join('')}</select></div>
           <div class="svc-field"><label>Type *</label><select id="svc-f-wc">${wcOptions.map(w => opt(w)).join('')}</select></div>
         </div>
         <div class="svc-field-row">
@@ -21201,14 +21205,17 @@ function openNewServiceTicketModal() {
       // a positional offset.
       const fault = get('#svc-f-fault');
       const subFault = get('#svc-f-subfault');
-      const periodMonth = todayIso ? new Date(todayIso).toLocaleDateString('en-GB', { month: 'long' }) : '';
+      // Period, Week, FY, and 'Fault - sub fault' are all formula columns in
+      // the existing TICKET LOG. Sending null lets Excel Table calculated-column
+      // formulas auto-fill (writing a static value would override the formula
+      // for this row only).
       const valuesByName = {
         'include in pivot': '',
         'Within / Outside 30 days': get('#svc-f-period30'),
         'Week': null,
-        'Fault - sub fault': fault && subFault ? `${fault} - ${subFault}` : (fault || subFault || ''),
+        'Fault - sub fault': null,
         'FY': null,
-        'Period': periodMonth,
+        'Period': null,
         'Ticket No': ticketNo,
         'Customer': customer,
         'Despatch Date': null,
