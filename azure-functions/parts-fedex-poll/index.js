@@ -335,8 +335,13 @@ module.exports = async function (context, myTimer) {
     if (parsed.trackingNumber) byTracking[parsed.trackingNumber] = parsed;
   }
 
-  // For each delivered parcel, PATCH the Delivered cell with the formatted timestamp
+  // For each delivered parcel, PATCH the Delivered cell with the formatted timestamp.
+  // SAFETY: in sandbox the FedEx API returns canned mock data (e.g. fake "delivered"
+  // for tracking numbers it doesn't recognise), so writes are gated to production-only.
+  // Sandbox runs are dry-run: every would-be update is logged but no PATCH is sent.
+  const isProd = FEDEX_ENV === 'production';
   let updated = 0;
+  let wouldUpdate = 0;
   for (const p of inTransit) {
     const key = p.trackingNumber.replace(/\s+/g, '');
     const r = byTracking[key];
@@ -355,6 +360,11 @@ module.exports = async function (context, myTimer) {
     }
     const colLetter = colIdxToLetter(deliveredIdx);
     const cellAddr = `${colLetter}${p.sheetRow + 1}`; // +1 because data row 0 = sheet row 2
+    if (!isProd) {
+      wouldUpdate++;
+      log(`[DRY-RUN] ${p.trackingNumber} (${p.customer}) → ${text}${r.signedBy ? ` · signed by ${r.signedBy}` : ''} (sandbox; not written)`);
+      continue;
+    }
     try {
       await graphPatch(graphToken,
         `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/worksheets('${encodeURIComponent(PARTS_SHEET)}')/range(address='${cellAddr}')`,
@@ -368,5 +378,9 @@ module.exports = async function (context, myTimer) {
   }
 
   const duration = ((Date.now() - started.getTime()) / 1000).toFixed(1);
-  log(`[parts-fedex-poll] complete · ${updated}/${inTransit.length} parcels marked delivered · ${duration}s`);
+  if (isProd) {
+    log(`[parts-fedex-poll] complete · ${updated}/${inTransit.length} parcels marked delivered · ${duration}s`);
+  } else {
+    log(`[parts-fedex-poll] complete · DRY-RUN (env=${FEDEX_ENV}) · ${wouldUpdate}/${inTransit.length} parcels would have been marked · no writes performed · ${duration}s`);
+  }
 };
