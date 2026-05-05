@@ -20661,6 +20661,12 @@ async function loadServiceData(force = false) {
     _serviceState.tickets = tickets;
     _serviceState.parts = parts;
     _serviceState.lastFetch = now;
+    // Fetch the canonical dropdowns lookup separately (only first time, then cached).
+    // The TicketLog drive/item IDs are populated by fetchServiceTickets above.
+    if (!_serviceState.dropdowns) {
+      try { _serviceState.dropdowns = await fetchServiceDropdowns(); }
+      catch (e) { console.warn('[svc] dropdowns fetch failed (forms degrade to free-text):', e.message); _serviceState.dropdowns = null; }
+    }
   } catch (e) {
     _serviceState.error = e.message;
     console.error('[svc] loadServiceData failed', e);
@@ -20669,6 +20675,78 @@ async function loadServiceData(force = false) {
     _serviceState.loading = false;
   }
   return _serviceState;
+}
+
+// Read the `dropdowns` sheet from the Ticketing Log workbook. Returns an
+// object with canonical lists for each top-level category, plus a
+// faultSubFaultMap mapping each FAULT category to its sub-fault list.
+//
+// The dropdowns sheet structure (columns A-X):
+//   0 OPEN/CLOSED              12 UPHOLSTERY
+//   1 CUSTOMER                 13 DAMAGEONDELIVERY
+//   2 Model                    14 MISSINGITEM
+//   3 Mech Code                15 WRONGITEM
+//   4 WARRANTY / CHARGEABLE    16 MANUALCHAIR
+//   5 REPORTING ISSUE          17 CASTORSGLIDES
+//   6 FAULT                    18 MEASUREMENTISSUES
+//   7 FABRIC                   19 ORDERERROR
+//   8 ELECTRICS                20 CHARGEABLE (sub-faults)
+//   9 SEAT OPTION              21 SERVICECLOSED
+//  10 MECHANISM                22 FACTORY STATUS
+//  11 WOOD                     23 OWNER
+//
+// Each column's non-empty values (excluding the row 0 header) are the
+// canonical options for that field. The columns 7-21 are sub-fault lists
+// where the column header MATCHES one of the FAULT category values.
+async function fetchServiceDropdowns() {
+  const driveId = _serviceState.ticketDriveId;
+  const itemId = _serviceState.ticketItemId;
+  if (!driveId || !itemId) throw new Error('Drive/item IDs not yet populated.');
+  const range = await graphGet(
+    `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/worksheets('dropdowns')/usedRange?$select=values`
+  );
+  const values = range.values || [];
+  if (values.length < 2) return null;
+  const headers = values[0].map(h => String(h || '').trim());
+  // Build a column-by-column list of unique non-empty string values
+  const colVals = headers.map((_, ci) => {
+    const seen = new Set();
+    const list = [];
+    for (let ri = 1; ri < values.length; ri++) {
+      const v = values[ri][ci];
+      if (v === null || v === undefined || v === '') continue;
+      const s = String(v).trim();
+      if (!s || seen.has(s)) continue;
+      seen.add(s);
+      list.push(s);
+    }
+    return list;
+  });
+  const byHeader = name => {
+    const idx = headers.findIndex(h => h.toLowerCase() === name.toLowerCase());
+    return idx >= 0 ? colVals[idx] : [];
+  };
+  // Build the FAULT → sub-fault map. The FAULT column lists category names;
+  // each category name should match a column header further right whose
+  // contents are that category's sub-fault list.
+  const faultCategories = byHeader('FAULT');
+  const faultSubFaultMap = {};
+  for (const cat of faultCategories) {
+    const subs = byHeader(cat);
+    if (subs.length) faultSubFaultMap[cat] = subs;
+  }
+  return {
+    customers: byHeader('CUSTOMER'),
+    models: byHeader('Model'),
+    mechCodes: byHeader('Mech Code'),
+    warrantyChargeable: byHeader('WARRANTY / CHARGEABLE'),
+    reportingIssues: byHeader('REPORTING ISSUE'),
+    faultCategories,
+    faultSubFaultMap,
+    factoryStatus: byHeader('FACTORY STATUS'),
+    owners: byHeader('OWNER'),
+    openClosed: byHeader('OPEN/CLOSED')
+  };
 }
 
 // Compute all dashboard KPIs from the in-memory _serviceState.
@@ -21020,10 +21098,17 @@ async function openServiceTicketDrawer(ticketNo) {
 }
 
 function openNewServiceTicketModal() {
-  const customers = [...new Set(_serviceState.tickets.map(t => t.customer).filter(Boolean))].sort();
-  const models = [...new Set(_serviceState.tickets.map(t => t.model).filter(Boolean))].sort();
-  const faults = [...new Set(_serviceState.tickets.map(t => t.faultCode).filter(Boolean))].sort();
-  const owners = ['Repose', 'Customer'];
+  // Canonical lists from the dropdowns sheet (graceful fallback to data-derived
+  // lists if the dropdowns fetch failed).
+  const dd = _serviceState.dropdowns;
+  const customers = (dd && dd.customers && dd.customers.length) ? dd.customers : [...new Set(_serviceState.tickets.map(t => t.customer).filter(Boolean))].sort();
+  const models = (dd && dd.models && dd.models.length) ? dd.models : [...new Set(_serviceState.tickets.map(t => t.model).filter(Boolean))].sort();
+  const mechCodes = (dd && dd.mechCodes && dd.mechCodes.length) ? dd.mechCodes : [...new Set(_serviceState.tickets.map(t => t.mechCode).filter(Boolean))].sort();
+  const faultCategories = (dd && dd.faultCategories && dd.faultCategories.length) ? dd.faultCategories : [...new Set(_serviceState.tickets.map(t => t.faultCode).filter(Boolean))].sort();
+  const wcOptions = (dd && dd.warrantyChargeable && dd.warrantyChargeable.length) ? dd.warrantyChargeable : ['WARRANTY', 'CHARGEABLE'];
+  const ownerOptions = (dd && dd.owners && dd.owners.length) ? dd.owners : ['Repose', 'Customer'];
+  const reportingIssues = (dd && dd.reportingIssues && dd.reportingIssues.length) ? dd.reportingIssues : ['PF UNDER 30 DAYS', 'PF OVER 30 DAYS'];
+  const faultSubFaultMap = (dd && dd.faultSubFaultMap) || {};
 
   const maxNum = _serviceState.tickets
     .map(t => /^TICKET(\d+)$/i.exec(t.ticketNo))
@@ -21031,6 +21116,9 @@ function openNewServiceTicketModal() {
     .map(m => parseInt(m[1], 10))
     .reduce((a, b) => Math.max(a, b), 0);
   const nextTicketNo = `TICKET${maxNum + 1}`;
+
+  const opt = (v, sel) => `<option value="${_escapeSvc(v)}"${sel === v ? ' selected' : ''}>${_escapeSvc(v)}</option>`;
+  const blank = '<option value=""></option>';
 
   const overlay = document.createElement('div');
   overlay.className = 'svc-modal-bg';
@@ -21045,28 +21133,30 @@ function openNewServiceTicketModal() {
           <div class="svc-field"><label>Ticket No (auto)</label><input value="${nextTicketNo}" id="svc-f-ticketno" readonly style="background:var(--bg3)"></div>
           <div class="svc-field"><label>Open Date</label><input type="date" id="svc-f-opendate" value="${new Date().toISOString().slice(0, 10)}"></div>
         </div>
-        <div class="svc-field"><label>Customer *</label><input list="svc-cust-list" id="svc-f-customer" placeholder="Castelan / Charterhouse / …">
-          <datalist id="svc-cust-list">${customers.map(c => `<option value="${_escapeSvc(c)}">`).join('')}</datalist>
+        <div class="svc-field"><label>Customer *</label>
+          <select id="svc-f-customer">${blank}${customers.map(c => opt(c)).join('')}</select>
         </div>
         <div class="svc-field-row">
           <div class="svc-field"><label>REP No</label><input id="svc-f-repno" placeholder="REP2891"></div>
           <div class="svc-field"><label>PO ref</label><input id="svc-f-poref"></div>
         </div>
         <div class="svc-field-row">
-          <div class="svc-field"><label>Model</label><input list="svc-model-list" id="svc-f-model"><datalist id="svc-model-list">${models.map(m => `<option value="${_escapeSvc(m)}">`).join('')}</datalist></div>
-          <div class="svc-field"><label>Mech Code</label><input id="svc-f-mech" placeholder="1203"></div>
+          <div class="svc-field"><label>Model</label><select id="svc-f-model">${blank}${models.map(m => opt(m)).join('')}</select></div>
+          <div class="svc-field"><label>Mech Code</label><select id="svc-f-mech">${blank}${mechCodes.map(m => opt(m)).join('')}</select></div>
         </div>
         <div class="svc-field-row">
-          <div class="svc-field"><label>Period *</label><select id="svc-f-period30"><option value="Inside 30">Inside 30 days</option><option value="Outside 30">Outside 30 days</option></select></div>
-          <div class="svc-field"><label>Type *</label><select id="svc-f-wc"><option value="WARRANTY">Warranty</option><option value="CHARGEABLE">Chargeable</option></select></div>
+          <div class="svc-field"><label>Period *</label><select id="svc-f-period30">${reportingIssues.map(r => opt(r)).join('')}</select></div>
+          <div class="svc-field"><label>Type *</label><select id="svc-f-wc">${wcOptions.map(w => opt(w)).join('')}</select></div>
         </div>
         <div class="svc-field-row">
-          <div class="svc-field"><label>Fault Code</label><input list="svc-fault-list" id="svc-f-fault"><datalist id="svc-fault-list">${faults.map(f => `<option value="${_escapeSvc(f)}">`).join('')}</datalist></div>
-          <div class="svc-field"><label>Sub-Fault</label><input id="svc-f-subfault"></div>
+          <div class="svc-field"><label>Fault Code</label><select id="svc-f-fault">${blank}${faultCategories.map(f => opt(f)).join('')}</select></div>
+          <div class="svc-field"><label>Sub-Fault <span style="color:var(--text3);font-weight:500;text-transform:none;letter-spacing:0">(pick fault first)</span></label>
+            <select id="svc-f-subfault" disabled>${blank}</select>
+          </div>
         </div>
         <div class="svc-field"><label>Description *</label><textarea id="svc-f-desc" placeholder="What's the issue, in the customer's words?"></textarea></div>
         <div class="svc-field-row">
-          <div class="svc-field"><label>Owner</label><select id="svc-f-owner">${owners.map(o => `<option>${o}</option>`).join('')}</select></div>
+          <div class="svc-field"><label>Owner</label><select id="svc-f-owner">${ownerOptions.map(o => opt(o, 'Repose')).join('')}</select></div>
           <div class="svc-field"><label>Proposed Close</label><input type="date" id="svc-f-pclose" value="${new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10)}"></div>
         </div>
       </div>
@@ -21082,6 +21172,16 @@ function openNewServiceTicketModal() {
   overlay.querySelector('#svc-mod-close').addEventListener('click', close);
   overlay.querySelector('#svc-mod-cancel').addEventListener('click', close);
   overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+
+  // Cascade Fault Code → Sub-Fault. When the user picks a fault category,
+  // re-populate the Sub-Fault select with the matching list and enable it.
+  const faultEl = overlay.querySelector('#svc-f-fault');
+  const subFaultEl = overlay.querySelector('#svc-f-subfault');
+  faultEl.addEventListener('change', () => {
+    const subs = faultSubFaultMap[faultEl.value] || [];
+    subFaultEl.innerHTML = blank + subs.map(s => opt(s)).join('');
+    subFaultEl.disabled = subs.length === 0;
+  });
 
   overlay.querySelector('#svc-mod-save').addEventListener('click', async () => {
     const get = id => overlay.querySelector(id).value.trim();
