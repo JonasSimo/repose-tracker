@@ -21482,7 +21482,7 @@ async function _openMarkForReturnConfirm(t, drawerOverlay) {
 
       // Find the row index for this ticketNo. Use the table's data range.
       const rowsRes = await fetch(
-        `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/tables('${SERVICE_TICKET_TABLE}')/range(valuesOnly=true)?$select=values`,
+        `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/tables('${SERVICE_TICKET_TABLE}')/range?$select=values`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       if (!rowsRes.ok) throw new Error(`Could not read TicketLog data: ${rowsRes.status}`);
