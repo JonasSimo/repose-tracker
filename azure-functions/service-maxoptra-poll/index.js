@@ -36,6 +36,32 @@ const IS_PROD             = MAXOPTRA_ENV === 'production';
 const TICKETS_SHARING_URL = process.env.TICKETS_SHARING_URL || '';
 const TICKET_TABLE = 'TicketLog';
 
+// ─── Maxoptra API ────────────────────────────────────────────────────────
+async function getMaxoptraJobs(log) {
+  // Filter to active pickup/collection jobs only — exclude terminal states.
+  // ADJUST the URL + status filter based on Step 2.1 discovery output.
+  const url = `${MAXOPTRA_BASE_URL}/orders?type=Pickup&status=Planned,InProgress,Scheduled,PickedUp`;
+  const headers = {
+    'Authorization': `Bearer ${MAXOPTRA_API_KEY}`,
+    'Accept': 'application/json'
+  };
+  if (MAXOPTRA_ACCOUNT_ID) headers['X-Account-Id'] = MAXOPTRA_ACCOUNT_ID;
+
+  const res = await fetch(url, { headers });
+  if (!res.ok) {
+    throw new Error(`Maxoptra GET ${res.status}: ${await res.text()}`);
+  }
+  const data = await res.json();
+  // ADJUST 'data.orders' below if the response uses a different envelope key.
+  const jobs = Array.isArray(data) ? data : (data.orders || data.items || data.data || []);
+  if (!Array.isArray(jobs) || jobs.length === 0) {
+    // Surface a hint so the user can compare against the real API shape after Step 2.1 discovery.
+    log.warn(`[maxoptra] response had 0 jobs or unexpected shape · top-level keys: ${Object.keys(data || {}).join(', ') || '(none)'}`);
+  }
+  log(`[maxoptra] retrieved ${Array.isArray(jobs) ? jobs.length : 0} active collection job(s)`);
+  return Array.isArray(jobs) ? jobs : [];
+}
+
 module.exports = async function (context, myTimer) {
   const log = context.log;
   const started = new Date();
@@ -46,6 +72,14 @@ module.exports = async function (context, myTimer) {
     return;
   }
 
-  // TODO: subsequent tasks fill in this body
-  log(`[service-maxoptra-poll] complete · skeleton only · ${((Date.now() - started.getTime()) / 1000).toFixed(1)}s`);
+  // Phase 1 of plan: just retrieve and log Maxoptra jobs to verify auth.
+  let jobs;
+  try {
+    jobs = await getMaxoptraJobs(log);
+  } catch (e) {
+    log.error('Maxoptra fetch failed:', e.message);
+    return;
+  }
+  log(`[service-maxoptra-poll] sample jobs: ${JSON.stringify(jobs.slice(0, 2), null, 2)}`);
+  log(`[service-maxoptra-poll] complete (Task 2 only) · ${((Date.now() - started.getTime()) / 1000).toFixed(1)}s`);
 };
