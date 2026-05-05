@@ -33,13 +33,13 @@ const MAXOPTRA_ACCOUNT_ID = process.env.MAXOPTRA_ACCOUNT_ID || '';
 const MAXOPTRA_ENV        = (process.env.MAXOPTRA_ENV || 'sandbox').toLowerCase();
 const IS_PROD             = MAXOPTRA_ENV === 'production';
 
-// Default to the same sharing URL daily-report hardcodes (PROD_SHARING_URL on
-// daily-report/index.js:34). Overridable via env var if we ever migrate to a
-// different workbook.
+// TICKET LOG sharing URL — same workbook the browser-side Service Dashboard reads
+// (CP_TICKETING_LOG_URL in index.html:4312). NOT the production planning workbook
+// that daily-report uses (which is a different file entirely). Overridable via env.
 const TICKETS_SHARING_URL = process.env.TICKETS_SHARING_URL ||
-  'https://reposefurniturelimited.sharepoint.com/:x:/s/ReposeFurniture-PlanningRepose/IQBLf67iYnbQSq2O8UU_zQihARfBedzZcW-CmO0q3v5zC3o?e=nfze02';
+  'https://reposefurniturelimited.sharepoint.com/:x:/s/ReposeFurniture-Service/IQCQUvM2uD-pQKc9xRkYAfPvAbOaZl0j9liSrWaggTqF60Y?e=6x2dNE';
 const TICKET_TABLE = 'TicketLog';
-const TICKET_SHEET = 'TicketLog';
+const TICKET_SHEET = 'TICKET LOG'; // worksheet name as it appears in Excel (space, caps)
 
 // Adds an AbortController-based timeout to a fetch options bag.
 function withTimeout(options = {}, ms = 30000) {
