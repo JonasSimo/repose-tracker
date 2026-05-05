@@ -165,15 +165,42 @@ async function openServiceDashboard() {
 }
 ```
 
-- [ ] **Step 8: Add minimal CSS for the shell**
+- [ ] **Step 8: Add minimal CSS for the shell + supplementary variable palette**
+
+RepNet's existing `:root` defines `--red/--rbg/--rborder`, `--green/--gbg/--gborder`, `--amber/--abg/--aborder`, `--blue/--bbg/--bborder` — but the Service Dashboard CSS in later tasks uses additional mockup-style names (`--pass`, `--fail`, `--warn`, `--info`, `--purple`, `--orange`, `--pink`, `--grey-soft`, `--repose-blue-soft`, `--repose-blue-dark`) that aren't defined anywhere. Rather than rewriting every CSS rule, we add a supplementary variable block scoped to the Service Dashboard.
 
 Find a CSS block near the existing `docs-shell` styles in `index.html` (search for `.docs-shell {`). Add immediately after the docs styles:
 
 ```css
 /* Service Dashboard (Phase A) */
+/* Supplementary palette — maps mockup-style names to existing RepNet vars,
+   plus a few new tones (purple/orange/pink) used by the Service module. */
+#view-service {
+  --pass: var(--green);
+  --pass-soft: var(--gbg);
+  --pass-bg: var(--gbg);
+  --gborder: var(--gborder);
+  --fail: var(--red);
+  --fail-soft: var(--rbg);
+  --warn: var(--amber);
+  --warn-soft: var(--abg);
+  --warn-bg: var(--abg);
+  --info: var(--repose-blue);
+  --info-soft: var(--bbg);
+  --repose-blue-soft: var(--bbg);
+  --repose-blue-dark: #0d8ec9;
+  --grey-soft: #f1f5f9;
+  --purple: #7c3aed;
+  --purple-soft: #ede9fe;
+  --orange: #ea580c;
+  --orange-soft: #fed7aa;
+  --pink: #db2777;
+  --pink-soft: #fce7f3;
+}
+
 .svc-shell { padding: 0; height: 100%; display: flex; flex-direction: column; overflow: hidden; }
 .svc-loading { padding: 64px; text-align: center; color: var(--text2); font-size: 14px; }
-.svc-error { padding: 24px; background: var(--fail-soft); color: var(--fail); border-radius: 12px; margin: 24px; font-size: 13px; }
+.svc-error { padding: 24px; background: var(--rbg); color: var(--red); border-radius: 12px; margin: 24px; font-size: 13px; }
 .svc-content { flex: 1; overflow-y: auto; padding: 24px 28px 64px; max-width: 1640px; }
 ```
 
