@@ -4341,6 +4341,55 @@ function _canEditTickets() {
   return TICKET_EDITORS.has(u);
 }
 
+// Parts dispatch role-based field editing — each stage's fields are only
+// editable by the team that owns that stage (plus Jonas as admin). Everyone
+// can VIEW and OPEN the edit modal; non-owners see the relevant inputs as
+// read-only.
+const PARTS_ROLES = {
+  // Blake (and admin) own the create + base fields (Date, Customer, PO, Comment).
+  // Sales Ack often comes from the original sales order so Blake can also seed it.
+  blake:     new Set(['blake@reposefurniture.co.uk', 'jonas.simonaitis@reposefurniture.co.uk']),
+  // Transport adds the FedEx Tracking number once the parcel actually ships.
+  transport: new Set(['blake@reposefurniture.co.uk', 'john.bradnick@reposefurniture.co.uk', 'transport@reposefurniture.co.uk', 'jonas.simonaitis@reposefurniture.co.uk']),
+  // Accounts/finance adds the Invoice No (and may correct Sales Ack).
+  accounts:  new Set(['blake@reposefurniture.co.uk', 'accounts@reposefurniture.co.uk', 'jonas.simonaitis@reposefurniture.co.uk'])
+};
+function _userPartsRoles() {
+  const u = (graphAccount && graphAccount.username || '').toLowerCase();
+  return {
+    isBlake:     PARTS_ROLES.blake.has(u),
+    isTransport: PARTS_ROLES.transport.has(u),
+    isAccounts:  PARTS_ROLES.accounts.has(u),
+    isAdmin:     u === 'jonas.simonaitis@reposefurniture.co.uk'
+  };
+}
+// True if the signed-in user can edit the given Parts Dispatch field name.
+// Field-to-role map:
+//   Date, Customer, PO Number, Comment            → Blake (+ admin)
+//   Sales Ack No                                   → Blake or Accounts (+ admin)
+//   FedEx Tracking                                 → Transport (+ admin)
+//   Invoice No                                     → Accounts (+ admin)
+function _canEditPartsField(fieldName) {
+  const r = _userPartsRoles();
+  if (r.isAdmin) return true;
+  switch (fieldName) {
+    case 'Date':
+    case 'Customer':
+    case 'PO Number':
+    case 'Comment':
+      return r.isBlake;
+    case 'Sales Ack No':
+      return r.isBlake || r.isAccounts;
+    case 'Fedex Tracking':
+    case 'FedEx Tracking':
+      return r.isTransport;
+    case 'Invoice No':
+      return r.isAccounts;
+    default:
+      return false;
+  }
+}
+
 // In-memory state for the Service Dashboard. Refreshed lazily from Excel
 // via Graph; manual refresh button busts the cache.
 let _serviceState = {
@@ -22424,15 +22473,34 @@ function openEditPartsDispatchModal(p) {
   const customers = [...new Set(_serviceState.parts.map(x => x.customer).filter(Boolean))].sort();
   const oldStage = _partsStage(p);
 
+  // Per-field edit permission — disabled inputs get a grey background + tooltip
+  // explaining who owns that field. Roles defined globally in PARTS_ROLES.
+  const canDate     = _canEditPartsField('Date');
+  const canCustomer = _canEditPartsField('Customer');
+  const canPo       = _canEditPartsField('PO Number');
+  const canSales    = _canEditPartsField('Sales Ack No');
+  const canInvoice  = _canEditPartsField('Invoice No');
+  const canFedex    = _canEditPartsField('FedEx Tracking');
+  const canComment  = _canEditPartsField('Comment');
+
   // Stage-aware highlighting CSS — yellow border + "← Add this" hint label
+  // (only shown when the current user is ALLOWED to edit that field)
   const HL = 'border:2px solid #f59e0b !important;background:#fffbeb;box-shadow:0 0 0 3px rgba(245,158,11,.15)';
   const hint = `<span style="font-size:10.5px;color:#92400e;font-weight:700;text-transform:none;letter-spacing:0;margin-left:6px">← Add this</span>`;
-  const hlFedex   = oldStage === 'transport' ? HL : '';
-  const hintFedex = oldStage === 'transport' ? hint : '';
-  const hlInvoice = oldStage === 'finance' ? HL : '';
-  const hintInvoice = oldStage === 'finance' ? hint : '';
-  const hlSalesAck = (oldStage === 'finance' && !p.salesAckNo) ? HL : '';
-  const hintSalesAck = (oldStage === 'finance' && !p.salesAckNo) ? hint : '';
+  const hlFedex   = (oldStage === 'transport' && canFedex) ? HL : '';
+  const hintFedex = (oldStage === 'transport' && canFedex) ? hint : '';
+  const hlInvoice = (oldStage === 'finance' && canInvoice) ? HL : '';
+  const hintInvoice = (oldStage === 'finance' && canInvoice) ? hint : '';
+  const hlSalesAck = (oldStage === 'finance' && !p.salesAckNo && canSales) ? HL : '';
+  const hintSalesAck = (oldStage === 'finance' && !p.salesAckNo && canSales) ? hint : '';
+
+  // Disabled-field visual + tooltip explaining who owns it
+  const disStyle = 'background:#f3f4f6;color:#6b7280;cursor:not-allowed';
+  const lockNote = role => `<span title="Only ${role} can edit this" style="font-size:10.5px;color:#6b7280;font-weight:600;margin-left:6px">🔒 ${role} only</span>`;
+  const lockBlake     = canDate     ? '' : lockNote('Blake');
+  const lockTransport = canFedex    ? '' : lockNote('transport');
+  const lockAccounts  = canInvoice  ? '' : lockNote('accounts');
+  const lockSales     = canSales    ? '' : lockNote('Blake / accounts');
 
   const dateIso = p.date ? p.date.toISOString().slice(0, 10) : '';
 
@@ -22450,20 +22518,20 @@ function openEditPartsDispatchModal(p) {
           ${_partsStagePillHtml(oldStage)}
         </div>
         <div class="svc-field-row">
-          <div class="svc-field"><label>Date *</label><input type="date" id="svc-epf-date" value="${_escapeSvc(dateIso)}"></div>
-          <div class="svc-field"><label>Customer *</label><input list="svc-epcust-list" id="svc-epf-customer" value="${_escapeSvc(p.customer || '')}">
+          <div class="svc-field"><label>Date *${lockBlake}</label><input type="date" id="svc-epf-date" value="${_escapeSvc(dateIso)}" ${canDate ? '' : `disabled style="${disStyle}"`}></div>
+          <div class="svc-field"><label>Customer *${lockBlake}</label><input list="svc-epcust-list" id="svc-epf-customer" value="${_escapeSvc(p.customer || '')}" ${canCustomer ? '' : `disabled style="${disStyle}"`}>
             <datalist id="svc-epcust-list">${customers.map(c => `<option value="${_escapeSvc(c)}">`).join('')}</datalist>
           </div>
         </div>
         <div class="svc-field-row">
-          <div class="svc-field"><label>PO Number *</label><input id="svc-epf-po" value="${_escapeSvc(p.poNumber || '')}"></div>
-          <div class="svc-field"><label>Sales Ack No${hintSalesAck}</label><input id="svc-epf-sales" value="${_escapeSvc(p.salesAckNo || '')}" style="${hlSalesAck}"></div>
+          <div class="svc-field"><label>PO Number *${lockBlake}</label><input id="svc-epf-po" value="${_escapeSvc(p.poNumber || '')}" ${canPo ? '' : `disabled style="${disStyle}"`}></div>
+          <div class="svc-field"><label>Sales Ack No${hintSalesAck}${lockSales}</label><input id="svc-epf-sales" value="${_escapeSvc(p.salesAckNo || '')}" style="${hlSalesAck}" ${canSales ? '' : `disabled style="${disStyle}"`}></div>
         </div>
         <div class="svc-field-row">
-          <div class="svc-field"><label>Invoice No${hintInvoice}</label><input id="svc-epf-invoice" value="${_escapeSvc(p.invoiceNo || '')}" style="${hlInvoice}"></div>
-          <div class="svc-field"><label>FedEx Tracking${hintFedex}</label><input id="svc-epf-fedex" value="${_escapeSvc(p.fedexTracking || '')}" placeholder="8876 9467 7089" style="${hlFedex}"></div>
+          <div class="svc-field"><label>Invoice No${hintInvoice}${lockAccounts}</label><input id="svc-epf-invoice" value="${_escapeSvc(p.invoiceNo || '')}" style="${hlInvoice}" ${canInvoice ? '' : `disabled style="${disStyle}"`}></div>
+          <div class="svc-field"><label>FedEx Tracking${hintFedex}${lockTransport}</label><input id="svc-epf-fedex" value="${_escapeSvc(p.fedexTracking || '')}" placeholder="8876 9467 7089" style="${hlFedex}" ${canFedex ? '' : `disabled style="${disStyle}"`}></div>
         </div>
-        <div class="svc-field"><label>Comment</label><textarea id="svc-epf-comment">${_escapeSvc(p.comment || '')}</textarea></div>
+        <div class="svc-field"><label>Comment${canComment ? '' : lockBlake}</label><textarea id="svc-epf-comment" ${canComment ? '' : `disabled style="${disStyle}"`}>${_escapeSvc(p.comment || '')}</textarea></div>
       </div>
       <div class="svc-modal-foot">
         <button class="svc-btn svc-btn-sec" id="svc-epmod-cancel">Cancel</button>
@@ -22514,16 +22582,29 @@ function openEditPartsDispatchModal(p) {
       }
 
       // Build per-cell diff list. Only PATCH cells whose value actually changed.
+      // SECURITY: also gate by per-field permission — if a determined user
+      // re-enables a disabled input via DevTools, we still refuse to PATCH cells
+      // their role doesn't own. (Defense in depth — the disabled attr is a UX
+      // hint; the real gate is here at the write boundary.)
       const diffs = [];
+      const ignored = []; // changes silently dropped because user lacks permission
+      const tryDiff = (newV, oldV, col, label, fieldName) => {
+        if (newV === oldV) return;
+        if (!_canEditPartsField(fieldName)) { ignored.push(label); return; }
+        diffs.push({ col, label, value: newV });
+      };
       const newDateSerial = newDate ? _isoToExcelSerial(newDate) : '';
       const oldDateSerial = p.date ? _isoToExcelSerial(p.date.toISOString().slice(0, 10)) : '';
-      if (newDateSerial !== oldDateSerial) diffs.push({ col: COL.date, label: 'Date', value: newDateSerial });
-      if (newCustomer !== (p.customer || '')) diffs.push({ col: COL.customer, label: 'Customer', value: newCustomer });
-      if (newPo !== (p.poNumber || '')) diffs.push({ col: COL.poNumber, label: 'PO Number', value: newPo });
-      if (newSales !== (p.salesAckNo || '')) diffs.push({ col: COL.salesAckNo, label: 'Sales Ack No', value: newSales });
-      if (newInvoice !== (p.invoiceNo || '')) diffs.push({ col: COL.invoiceNo, label: 'Invoice No', value: newInvoice });
-      if (newFedex !== (p.fedexTracking || '')) diffs.push({ col: COL.fedexTracking, label: 'FedEx Tracking', value: newFedex });
-      if (newComment !== (p.comment || '')) diffs.push({ col: COL.comment, label: 'Comment', value: newComment });
+      tryDiff(newDateSerial, oldDateSerial,        COL.date,          'Date',          'Date');
+      tryDiff(newCustomer,   p.customer || '',      COL.customer,      'Customer',      'Customer');
+      tryDiff(newPo,         p.poNumber || '',      COL.poNumber,      'PO Number',     'PO Number');
+      tryDiff(newSales,      p.salesAckNo || '',    COL.salesAckNo,    'Sales Ack No',  'Sales Ack No');
+      tryDiff(newInvoice,    p.invoiceNo || '',     COL.invoiceNo,     'Invoice No',    'Invoice No');
+      tryDiff(newFedex,      p.fedexTracking || '', COL.fedexTracking, 'FedEx Tracking','FedEx Tracking');
+      tryDiff(newComment,    p.comment || '',       COL.comment,       'Comment',       'Comment');
+      if (ignored.length) {
+        console.warn('[svc] parts edit — ignored changes to fields outside user role:', ignored);
+      }
 
       if (diffs.length === 0) {
         close();
@@ -23344,7 +23425,7 @@ function _renderServiceShell(content) {
       </div>
       <div class="right">
         <button class="svc-btn svc-btn-sec" id="svc-refresh-btn">↻ Refresh</button>
-        <button class="svc-btn svc-btn-sec" id="svc-new-parts-btn">＋ Parts Dispatch</button>
+        ${_userPartsRoles().isBlake ? '<button class="svc-btn svc-btn-sec" id="svc-new-parts-btn">＋ Parts Dispatch</button>' : ''}
         <button class="svc-btn svc-btn-pri" id="svc-new-ticket-btn">＋ New Ticket</button>
       </div>
     </div>
@@ -23364,7 +23445,8 @@ function _renderServiceShell(content) {
     try { await loadServiceData(true); _renderServiceAll(); } finally { btn.disabled = false; btn.textContent = '↻ Refresh'; }
   });
   document.getElementById('svc-new-ticket-btn').addEventListener('click', openNewServiceTicketModal);
-  document.getElementById('svc-new-parts-btn').addEventListener('click', openNewPartsDispatchModal);
+  // Parts Dispatch button only renders for Blake/admin (see template above) — guard the listener attach.
+  document.getElementById('svc-new-parts-btn')?.addEventListener('click', openNewPartsDispatchModal);
   _renderServiceKpis();
 }
 
