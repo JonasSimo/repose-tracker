@@ -21380,7 +21380,7 @@ async function _openMarkForReturnConfirm(t, drawerOverlay) {
           <div><b>Chair ID change:</b></div>
           <div style="font-family:'JetBrains Mono',monospace;margin-top:4px">${_escapeSvc(fromLabel)} <span style="color:var(--text2)">→</span> <span style="color:var(--orange);font-weight:800">${_escapeSvc(nextChairId)}</span></div>
         </div>
-        <p style="font-size:11.5px;color:var(--text2);margin-top:14px;line-height:1.5">This will write today's date to the ticket's <b>Returned to Factory</b> column and update the REP Number to the new chair ID. Maxoptra collection booking + transport email will be added in Phase D — for now this records intent only.</p>
+        <p style="font-size:11.5px;color:var(--text2);margin-top:14px;line-height:1.5">This will update the REP Number to <b>${_escapeSvc(nextChairId)}</b> and email transport@ + John to book collection in Maxoptra. The status will track here automatically once the job is created.</p>
       </div>
       <div class="svc-modal-foot">
         <button class="svc-btn svc-btn-sec" id="svc-mr-cancel">Cancel</button>
@@ -21436,9 +21436,12 @@ async function _openMarkForReturnConfirm(t, drawerOverlay) {
       }
       if (dataRowIdx < 0) throw new Error(`Ticket ${t.ticketNo} not found in TicketLog table.`);
 
-      // PATCH the specific row using the rows/itemAt(index=N) endpoint
+      // PATCH the specific row. Note: we no longer auto-fill Returned to Factory
+      // here — that column now means "actual factory arrival date" and is filled
+      // by the service-maxoptra-poll Azure Function when Maxoptra reports the
+      // collection complete. The Mark-for-return action now only updates REP No
+      // (and triggers the transport email below).
       const patchRow = new Array(cols.length).fill(null);
-      patchRow[returnedColIdx] = _isoToExcelSerial(new Date().toISOString().slice(0, 10));
       if (repNoColIdx >= 0) patchRow[repNoColIdx] = nextChairId;
 
       const patchUrl = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/tables('${SERVICE_TICKET_TABLE}')/rows/itemAt(index=${dataRowIdx})`;
@@ -21453,11 +21456,50 @@ async function _openMarkForReturnConfirm(t, drawerOverlay) {
       }
 
       console.log('[svc] marked for return — ticket:', t.ticketNo, '→ chair:', nextChairId);
+
+      // Email transport + John to book the collection in Maxoptra. Non-blocking:
+      // if the email fails, we still proceed (the row is saved) and surface a
+      // toast so the user notifies transport manually.
+      let emailFailed = false;
+      try {
+        const subject = `Collection needed: ${nextChairId} (${t.customer || 'customer'})`;
+        const userName = (typeof account === 'object' && account?.name) ? account.name :
+                         (typeof account === 'object' && account?.username) ? account.username : 'RepNet user';
+        const customerLine = t.customer ? `<tr><td style="padding:4px 12px 4px 0;color:#666">Customer:</td><td style="padding:4px 0">${_escapeSvc(t.customer)}</td></tr>` : '';
+        const faultLine = (t.faultCode || t.subFault) ? `<tr><td style="padding:4px 12px 4px 0;color:#666">Fault:</td><td style="padding:4px 0">${_escapeSvc(t.faultCode || '')}${t.subFault ? ' — ' + _escapeSvc(t.subFault) : ''}</td></tr>` : '';
+        const htmlBody = `<!doctype html><html><body style="font-family:Manrope,system-ui,sans-serif;color:#0e023a;background:#f4f6f8;padding:0;margin:0">
+<div style="max-width:560px;margin:0 auto;padding:32px 16px">
+  <h2 style="font-size:18px;margin:0 0 16px">Collection needed</h2>
+  <p style="font-size:14px;margin:0 0 16px">${_escapeSvc(t.customer || 'A customer')} have a chair that needs to come back to the factory.</p>
+  <table style="font-size:13px;border-collapse:collapse;margin:0 0 16px">
+    <tr><td style="padding:4px 12px 4px 0;color:#666">Chair:</td><td style="padding:4px 0;font-family:'JetBrains Mono',monospace;font-weight:700;color:#ea580c">${_escapeSvc(nextChairId)}</td></tr>
+    ${customerLine}
+    ${faultLine}
+    <tr><td style="padding:4px 12px 4px 0;color:#666">Marked for return by:</td><td style="padding:4px 0">${_escapeSvc(userName)} on ${new Date().toLocaleDateString('en-GB')}</td></tr>
+  </table>
+  <p style="font-size:13px;margin:0 0 16px"><b>Please book the collection in Maxoptra against reference ${_escapeSvc(nextChairId)}.</b><br>The status will update automatically on RepNet once the job is in Maxoptra.</p>
+  <p style="font-size:11px;color:#666;margin:24px 0 0">— RepNet (auto-generated)</p>
+</div></body></html>`;
+
+        await _sendDocsEmail({
+          to: ['john.bradnick@reposefurniture.co.uk', 'transport@reposefurniture.co.uk'],
+          subject,
+          htmlBody
+        });
+      } catch (mailErr) {
+        emailFailed = true;
+        console.warn('[svc] transport email failed:', mailErr.message);
+      }
+
       close();
       drawerOverlay?.remove();
       await loadServiceData(true);
       _renderServiceAll();
-      alert(`${t.ticketNo} marked for return. Chair is now ${nextChairId}.`);
+      if (emailFailed) {
+        alert(`${t.ticketNo} marked for return (chair: ${nextChairId}). Transport email FAILED — please notify John & transport manually.`);
+      } else {
+        alert(`${t.ticketNo} marked for return. Chair is now ${nextChairId}. Transport has been emailed.`);
+      }
     } catch (e) {
       alert(`Failed to mark for return: ${e.message}`);
       btn.disabled = false; btn.textContent = '🔁 Mark for return';
@@ -21641,13 +21683,16 @@ function openNewServiceTicketModal() {
       console.log('[svc] writing ticket — row payload:', row);
 
       const url = `https://graph.microsoft.com/v1.0/drives/${_serviceState.ticketDriveId}/items/${_serviceState.ticketItemId}/workbook/tables('${SERVICE_TICKET_TABLE}')/rows/add`;
-      const res = await fetch(url, {
+      const res = await _graphFetchWithRetry(url, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ values: [row] })
       });
       if (!res.ok) {
         const errText = await res.text();
+        if (res.status === 504 || res.status === 503 || res.status === 408) {
+          throw new Error(`Microsoft Excel was slow to respond and timed out (${res.status}). This is intermittent — please wait 30 seconds and try again. If it keeps happening, tell QHSE.`);
+        }
         throw new Error(`Graph Excel REST returned ${res.status} (table has ${tableCols.length} cols, sent ${row.length}): ${errText}`);
       }
 
@@ -21666,6 +21711,24 @@ function _isoToExcelSerial(iso) {
   if (!iso) return null;
   const d = new Date(iso + 'T00:00:00Z');
   return Math.round((d.getTime() / 86400000) + 25569);
+}
+
+// Microsoft Graph's Excel REST intermittently returns 504 MaxRequestDurationExceeded
+// when adding rows to large workbooks (cold workbook-session open + formula recalc
+// can exceed the 30s gateway timeout). The second attempt almost always succeeds
+// because the session is then cached warm on Microsoft's side. We retry once after
+// a brief delay on 504/503/408.
+//
+// CAVEAT: if the first attempt actually succeeded server-side but the gateway
+// timed out before responding, the retry creates a duplicate row. Callers using
+// this for POSTs that mutate state should be aware — the spreadsheet should be
+// spot-checked for duplicates if a retry was triggered.
+async function _graphFetchWithRetry(url, options) {
+  const res = await fetch(url, options);
+  if (res.status !== 504 && res.status !== 503 && res.status !== 408) return res;
+  console.warn(`[svc] Graph returned ${res.status} on ${options.method || 'GET'} — retrying once after 1.5s`);
+  await new Promise(r => setTimeout(r, 1500));
+  return await fetch(url, options);
 }
 
 function openNewPartsDispatchModal() {
@@ -21726,7 +21789,7 @@ function openNewPartsDispatchModal() {
         'Invoice No': get('#svc-pf-invoice'),
         'Fedex Tracking': tracking,
         'FedEx Tracking': tracking,                 // alt-case fallback
-        'Delivered': '',                            // FedEx auto-poll fills this in Phase D
+        'Delivered': '',                            // parts-fedex-poll Azure function auto-fills this
         'Comment': get('#svc-pf-comment')
       };
 
@@ -21752,13 +21815,16 @@ function openNewPartsDispatchModal() {
       console.log('[svc] writing parts — row payload:', row);
 
       const url = `https://graph.microsoft.com/v1.0/drives/${_serviceState.partsDriveId}/items/${_serviceState.partsItemId}/workbook/tables('${PARTS_TRACKER_TABLE}')/rows/add`;
-      const res = await fetch(url, {
+      const res = await _graphFetchWithRetry(url, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ values: [row] })
       });
       if (!res.ok) {
         const errText = await res.text();
+        if (res.status === 504 || res.status === 503 || res.status === 408) {
+          throw new Error(`Microsoft Excel was slow to respond and timed out (${res.status}). This is intermittent — please wait 30 seconds and try again. If it keeps happening, tell QHSE.`);
+        }
         throw new Error(`Graph Excel REST returned ${res.status} (table has ${tableCols.length} cols, sent ${row.length}): ${errText}`);
       }
       close();
@@ -21892,7 +21958,7 @@ function _renderServiceParts() {
   c.innerHTML = `
     <div class="svc-panel">
       <div class="svc-panel-head">
-        <div><h2>Parts in Transit <span class="sub">${inTransit.length} parcel${inTransit.length === 1 ? '' : 's'} · FedEx tracking integration in Phase D</span></h2></div>
+        <div><h2>Parts in Transit <span class="sub">${inTransit.length} parcel${inTransit.length === 1 ? '' : 's'} · auto-tracked from FedEx · updates hourly</span></h2></div>
       </div>
       <div class="svc-parts-list">
         ${inTransit.map(_servicePartRowHtml('transit')).join('')}
