@@ -3096,7 +3096,7 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .svc-foot { padding: 11px 20px; background: var(--bg3); border-top: 1px solid var(--border); text-align: center; font-size: 11.5px; color: var(--text2); font-weight: 600; }
 .svc-chair-pill { font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700; background: var(--orange); color: #fff; padding: 2px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; }
 .svc-chair-pill.repeat { background: var(--fail); }
-.svc-mx-pill { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; line-height: 1.4; }
+.svc-mx-pill { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; line-height: 1.4; pointer-events: none; }
 .svc-mx-pill.waiting    { background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa; }
 .svc-mx-pill.scheduled  { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
 .svc-mx-pill.collected  { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
@@ -8012,9 +8012,9 @@ let _mailScopeWarned = false;
 // know approvers won't be auto-notified, then fall through silently for
 // subsequent calls in the same session.
 async function _sendDocsEmail({ to, subject, htmlBody }) {
-  if (!to) return;
+  if (!to) return false;
   const recipients = (Array.isArray(to) ? to : [to]).filter(Boolean);
-  if (recipients.length === 0) return;
+  if (recipients.length === 0) return false;
   let token;
   try {
     const accounts = msalInstance.getAllAccounts();
@@ -8032,7 +8032,7 @@ async function _sendDocsEmail({ to, subject, htmlBody }) {
       alert(`RepNet couldn't send approval emails because the Mail.Send permission isn't granted in your Microsoft account. Approvers will need to be notified manually until this is resolved (sign out + back in, or ask IT to grant the scope).\n\nDetails: ${e.message}`);
     }
     console.warn('[docs] Mail token acquisition failed:', e.message);
-    return;
+    return false;
   }
   try {
     const res = await _graphFetchWithRetry('https://graph.microsoft.com/v1.0/me/sendMail', {
@@ -8050,11 +8050,13 @@ async function _sendDocsEmail({ to, subject, htmlBody }) {
     if (!res.ok) {
       const errText = await res.text();
       console.warn('[docs] sendMail failed (non-blocking):', res.status, errText);
-    } else {
-      console.log('[docs] sendMail OK to', recipients);
+      return false;
     }
+    console.log('[docs] sendMail OK to', recipients);
+    return true;
   } catch (e) {
     console.warn('[docs] sendMail exception (non-blocking):', e.message);
+    return false;
   }
 }
 
@@ -20721,17 +20723,27 @@ async function fetchServiceTickets() {
   _serviceState.ticketDriveId = driveId;
   _serviceState.ticketItemId = itemId;
 
+  const headerRow = values[2] || [];
   const tickets = [];
   for (let i = 3; i < values.length; i++) { // header is row 3 (index 2); data starts at index 3
     const row = values[i];
     const ticketNo = String(row[6] || '').trim();
     if (!ticketNo) continue; // skip blank rows
-    tickets.push(_mapTicketRow(row));
+    tickets.push(_mapTicketRow(row, headerRow));
   }
   return tickets;
 }
 
-function _mapTicketRow(row) {
+// Look up a column index by header name (case-insensitive, trim-tolerant).
+// Returns -1 if not found, which when used as an index yields `undefined` from
+// the row array — safely coerced to '' by the surrounding String(... || '').trim().
+function _findIdx(headerRow, name) {
+  if (!headerRow) return -1;
+  const target = String(name).trim().toLowerCase();
+  return headerRow.findIndex(h => String(h || '').trim().toLowerCase() === target);
+}
+
+function _mapTicketRow(row, headerRow) {
   return {
     includeInPivot: String(row[0] || '').trim(),
     period30: String(row[1] || '').trim(),    // 'Inside 30' | 'Outside 30'
@@ -20769,9 +20781,9 @@ function _mapTicketRow(row) {
     inspected: row[33],
     inProduction: row[34],
     returnToCustomer: row[35],
-    maxoptraStatus: String(row[36] || '').trim(),
-    maxoptraJobId: String(row[37] || '').trim(),
-    maxoptraUpdated: row[38]
+    maxoptraStatus: String(row[_findIdx(headerRow, 'Maxoptra Status')] || '').trim(),
+    maxoptraJobId: String(row[_findIdx(headerRow, 'Maxoptra Job ID')] || '').trim(),
+    maxoptraUpdated: row[_findIdx(headerRow, 'Maxoptra Updated')]
   };
 }
 
@@ -21177,11 +21189,23 @@ function _renderServiceTickets() {
     </div>
   `;
 
+  // Helper: re-render and preserve the search input's value (the re-render replaces
+  // c.innerHTML which destroys the input element, losing what the user has typed).
+  const _rerenderPreserveSearch = () => {
+    const searchEl = document.getElementById('svc-ticket-search');
+    const savedValue = searchEl ? searchEl.value : '';
+    _renderServiceTickets();
+    const newSearchEl = document.getElementById('svc-ticket-search');
+    if (newSearchEl && savedValue && document.activeElement !== newSearchEl) {
+      newSearchEl.value = savedValue;
+    }
+  };
+
   c.querySelectorAll('[data-fclear]').forEach(el => el.addEventListener('click', () => { _serviceFilters = { q: '', period: '', wc: '', overdueOnly: false, slaRiskOnly: false }; _renderServiceTickets(); }));
-  c.querySelectorAll('[data-foverdue]').forEach(el => el.addEventListener('click', () => { _serviceFilters.overdueOnly = !_serviceFilters.overdueOnly; _renderServiceTickets(); }));
-  c.querySelectorAll('[data-fsla]').forEach(el => el.addEventListener('click', () => { _serviceFilters.slaRiskOnly = !_serviceFilters.slaRiskOnly; _renderServiceTickets(); }));
-  c.querySelectorAll('[data-fperiod]').forEach(el => el.addEventListener('click', () => { const v = el.dataset.fperiod; _serviceFilters.period = _serviceFilters.period === v ? '' : v; _renderServiceTickets(); }));
-  c.querySelectorAll('[data-fwc]').forEach(el => el.addEventListener('click', () => { const v = el.dataset.fwc; _serviceFilters.wc = _serviceFilters.wc === v ? '' : v; _renderServiceTickets(); }));
+  c.querySelectorAll('[data-foverdue]').forEach(el => el.addEventListener('click', () => { _serviceFilters.overdueOnly = !_serviceFilters.overdueOnly; _rerenderPreserveSearch(); }));
+  c.querySelectorAll('[data-fsla]').forEach(el => el.addEventListener('click', () => { _serviceFilters.slaRiskOnly = !_serviceFilters.slaRiskOnly; _rerenderPreserveSearch(); }));
+  c.querySelectorAll('[data-fperiod]').forEach(el => el.addEventListener('click', () => { const v = el.dataset.fperiod; _serviceFilters.period = _serviceFilters.period === v ? '' : v; _rerenderPreserveSearch(); }));
+  c.querySelectorAll('[data-fwc]').forEach(el => el.addEventListener('click', () => { const v = el.dataset.fwc; _serviceFilters.wc = _serviceFilters.wc === v ? '' : v; _rerenderPreserveSearch(); }));
 
   const search = c.querySelector('#svc-ticket-search');
   let st;
@@ -21327,7 +21351,7 @@ async function openServiceTicketDrawer(ticketNo) {
             <span class="svc-pill ${t.period30.toLowerCase().startsWith('inside 30') ? 'in30' : 'out30'}">${t.period30 || '—'}</span>
             <span class="svc-pill ${t.openClosed === 'OPEN' ? 'in30' : ''}" style="${t.openClosed === 'CLOSED' ? 'background:var(--pass-soft);color:var(--pass);border-color:var(--gborder)' : ''}">${t.openClosed}</span>
           </div>
-          ${t.openClosed === 'OPEN' && !t.returnedToFactory ? `
+          ${t.openClosed === 'OPEN' && !t.returnedToFactory && !t.maxoptraStatus && !/-R\d+$/i.test(String(t.repNo || '')) ? `
             <div style="margin-top:12px"><button class="svc-btn svc-btn-pri" id="svc-drawer-mark-return" style="background:var(--orange);font-size:12px;padding:8px 14px">🔁 Mark for return</button></div>
           ` : ''}
           ${t.returnedToFactory ? `
@@ -21471,6 +21495,23 @@ async function _openMarkForReturnConfirm(t, drawerOverlay) {
       const patchRow = new Array(cols.length).fill(null);
       if (repNoColIdx >= 0) patchRow[repNoColIdx] = nextChairId;
 
+      // Re-verify the row still matches our ticket — guards against race conditions
+      // where another row was inserted between the cols+rows fetch and the PATCH.
+      // (Without this, the PATCH could write to the wrong ticket.)
+      const verifyRes = await fetch(
+        `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/tables('${SERVICE_TICKET_TABLE}')/rows/itemAt(index=${dataRowIdx})`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (verifyRes.ok) {
+        const verifyData = await verifyRes.json();
+        const verifyRowValues = (verifyData.values && verifyData.values[0]) || [];
+        const verifyTicketNo = String(verifyRowValues[ticketNoColIdx] || '').trim();
+        if (verifyTicketNo !== t.ticketNo) {
+          throw new Error(`Race condition detected: row ${dataRowIdx} now contains ticket ${verifyTicketNo}, expected ${t.ticketNo}. PATCH aborted.`);
+        }
+      }
+      // (If verifyRes is not ok, we let the PATCH attempt proceed — verification was best-effort.)
+
       const patchUrl = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/tables('${SERVICE_TICKET_TABLE}')/rows/itemAt(index=${dataRowIdx})`;
       const patchRes = await fetch(patchUrl, {
         method: 'PATCH',
@@ -21490,8 +21531,8 @@ async function _openMarkForReturnConfirm(t, drawerOverlay) {
       let emailFailed = false;
       try {
         const subject = `Collection needed: ${nextChairId} (${t.customer || 'customer'})`;
-        const userName = (typeof account === 'object' && account?.name) ? account.name :
-                         (typeof account === 'object' && account?.username) ? account.username : 'RepNet user';
+        const userName = (graphAccount && graphAccount.name) ? graphAccount.name :
+                         (graphAccount && graphAccount.username) ? graphAccount.username : 'RepNet user';
         const customerLine = t.customer ? `<tr><td style="padding:4px 12px 4px 0;color:#666">Customer:</td><td style="padding:4px 0">${_escapeSvc(t.customer)}</td></tr>` : '';
         const faultLine = (t.faultCode || t.subFault) ? `<tr><td style="padding:4px 12px 4px 0;color:#666">Fault:</td><td style="padding:4px 0">${_escapeSvc(t.faultCode || '')}${t.subFault ? ' — ' + _escapeSvc(t.subFault) : ''}</td></tr>` : '';
         const htmlBody = `<!doctype html><html><body style="font-family:Manrope,system-ui,sans-serif;color:#0e023a;background:#f4f6f8;padding:0;margin:0">
@@ -21508,11 +21549,12 @@ async function _openMarkForReturnConfirm(t, drawerOverlay) {
   <p style="font-size:11px;color:#666;margin:24px 0 0">— RepNet (auto-generated)</p>
 </div></body></html>`;
 
-        await _sendDocsEmail({
+        const emailSent = await _sendDocsEmail({
           to: ['john.bradnick@reposefurniture.co.uk', 'transport@reposefurniture.co.uk'],
           subject,
           htmlBody
         });
+        if (!emailSent) emailFailed = true;
       } catch (mailErr) {
         emailFailed = true;
         console.warn('[svc] transport email failed:', mailErr.message);
@@ -21740,20 +21782,21 @@ function _isoToExcelSerial(iso) {
   return Math.round((d.getTime() / 86400000) + 25569);
 }
 
-// Microsoft Graph's Excel REST intermittently returns 504 MaxRequestDurationExceeded
-// when adding rows to large workbooks (cold workbook-session open + formula recalc
-// can exceed the 30s gateway timeout). The second attempt almost always succeeds
-// because the session is then cached warm on Microsoft's side. We retry once after
-// a brief delay on 504/503/408.
-//
-// CAVEAT: if the first attempt actually succeeded server-side but the gateway
-// timed out before responding, the retry creates a duplicate row. Callers using
-// this for POSTs that mutate state should be aware — the spreadsheet should be
-// spot-checked for duplicates if a retry was triggered.
+// Microsoft Graph's Excel REST sometimes returns 504 MaxRequestDurationExceeded
+// when the workbook is large and the cold-open recalc exceeds the gateway's
+// 30s timeout. We retry once on idempotent methods (GET, PATCH) — they're safe
+// to repeat. We do NOT retry POSTs because if the first request succeeded
+// server-side and only the gateway timed out, a retry would create a duplicate
+// row. Callers should surface the 504 to the user with a "wait and try again
+// — check the spreadsheet" warning.
 async function _graphFetchWithRetry(url, options) {
   const res = await fetch(url, options);
   if (res.status !== 504 && res.status !== 503 && res.status !== 408) return res;
-  console.warn(`[svc] Graph returned ${res.status} on ${options.method || 'GET'} — retrying once after 1.5s`);
+  const method = (options.method || 'GET').toUpperCase();
+  if (method === 'POST') {
+    // Don't retry POSTs — first attempt may have succeeded server-side.
+    return res;
+  }
   await new Promise(r => setTimeout(r, 1500));
   return await fetch(url, options);
 }
@@ -21905,9 +21948,20 @@ function _computeReturnsPipeline() {
     const ret = !!t.returnedToFactory;
     const ins = !!t.inspected;
     const rtc = !!t.returnToCustomer;
-    if (ret && !ins) awaiting.push(t);
-    else if (ret && ins && !rtc) inFactory.push(t);
-    if (rtc) readyToReturn.push(t);
+    const mxStatus = String(t.maxoptraStatus || '').trim();
+    const isReturn = /-R\d+$/i.test(String(t.repNo || ''));
+
+    // Awaiting collection: marked-for-return chair that's pre-arrival
+    // (Maxoptra waiting/scheduled/collected, OR no Maxoptra status yet but -R suffix set, OR returnedToFactory not yet inspected)
+    if (
+      (isReturn && !ret && (mxStatus === '' || mxStatus.startsWith('⏳') || mxStatus.startsWith('📅') || mxStatus.startsWith('🚚'))) ||
+      (ret && !ins)
+    ) {
+      awaiting.push(t);
+    } else if ((ret || mxStatus.startsWith('✅')) && ins && !rtc) {
+      inFactory.push(t);
+    }
+    if (rtc && !t.closeDate) readyToReturn.push(t);
   }
   return { awaiting, inFactory, readyToReturn };
 }
@@ -21944,7 +21998,7 @@ function _renderReturnsPipeline() {
         <div class="svc-return-col r1">
           <div class="svc-return-col-head">
             <div class="ico">🚚</div>
-            <h3>Awaiting collection<span class="sub">Returned date set · not yet inspected</span></h3>
+            <h3>Awaiting collection<span class="sub">Marked for return · awaiting / in transit</span></h3>
             <span class="cnt">${awaiting.length}</span>
           </div>
           <div class="svc-return-cards">
@@ -21981,8 +22035,8 @@ function _renderReturnsPipeline() {
 function _renderServiceParts() {
   const c = document.getElementById('svc-parts-container');
   if (!c) return;
-  const inTransit = _serviceState.parts.filter(p => !p.isDelivered).slice(-10).reverse();
-  const delivered = _serviceState.parts.filter(p => p.isDelivered).slice(-3).reverse();
+  const inTransit = _serviceState.parts.filter(p => !p.isDelivered).sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0)).slice(0, 10);
+  const delivered = _serviceState.parts.filter(p => p.isDelivered).sort((a, b) => (b.deliveredDate?.getTime() || 0) - (a.deliveredDate?.getTime() || 0)).slice(0, 3);
   c.innerHTML = `
     <div class="svc-panel">
       <div class="svc-panel-head">
@@ -22278,6 +22332,10 @@ function openServiceCustomerDrill(customerName) {
   // "Search all tickets" → set the Open Tickets search filter to this customer name and close drill-down
   overlay.querySelector('#svc-cdrill-search')?.addEventListener('click', () => {
     _serviceFilters.q = customerName;
+    _serviceFilters.overdueOnly = false;
+    _serviceFilters.slaRiskOnly = false;
+    _serviceFilters.period = '';
+    _serviceFilters.wc = '';
     _renderServiceTickets();
     overlay.remove();
     document.getElementById('svc-tickets-container')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -22407,7 +22465,7 @@ function _renderServiceCapaBridge() {
           <div class="svc-capa-icn" style="background:var(--info-soft);color:var(--info)">⚡</div>
           <div class="svc-capa-mid">
             <b>Cross-link · Quality SPC limits</b>
-            <span class="small">When Quality module flags a fault-trend SPC breach, jump straight to the chart. Phase D wires the auto-detection.</span>
+            <span class="small">Open Quality to review fault-trend SPC charts.</span>
           </div>
           <button class="svc-capa-act" id="svc-capa-quality-link" style="border-color:var(--bborder);background:var(--bbg)">→ Open Quality</button>
         </div>
@@ -22531,7 +22589,7 @@ function _renderServiceForecast() {
 function _renderServiceShell(content) {
   const last = _serviceState.lastFetch ? new Date(_serviceState.lastFetch) : null;
   content.innerHTML = `
-    <div class="svc-mock-ribbon"><span class="dot"></span> Live · Phase A + B/C ship-now batch · v0.3 feature parity</div>
+    <div class="svc-mock-ribbon"><span class="dot"></span> Live · auto-syncs every 5 min</div>
     <div class="svc-page-head">
       <div>
         <div class="crumb">Service Department</div>
