@@ -124,7 +124,13 @@ async function trackParcels(fedexToken, trackingNumbers, log) {
       headers: {
         Authorization: `Bearer ${fedexToken}`,
         'Content-Type': 'application/json',
-        'X-locale': 'en_GB'
+        // FedEx accepts X-locale (with hyphen) and Accept-Language; sending
+        // both forces English status text regardless of which one the API
+        // server respects (we saw 'Excepción de entrega' when only X-locale
+        // was set, suggesting the server fell back to a default Spanish locale).
+        'X-locale': 'en_GB',
+        'x-locale': 'en_GB',
+        'Accept-Language': 'en-GB,en;q=0.9'
       },
       body: JSON.stringify(body)
     });
@@ -234,27 +240,74 @@ module.exports = async function (context, myTimer) {
   const trackingIdx = findCol('Fedex Tracking');
   const deliveredIdx = findCol('Delivered');
   const customerIdx = findCol('Customer');
+  const dateIdx = findCol('Date');
   if (trackingIdx < 0 || deliveredIdx < 0) {
     log.error(`Required columns not found. Got: ${columnNames.join(', ')}`);
     return;
   }
 
-  // Find every in-transit row — Delivered blank AND tracking number present.
-  // Header is row 0 of the values array, so data starts at index 1.
+  // Cap how far back we look. Anything older than 12 months has either
+  // arrived ages ago (filled-in manually somewhere or simply forgotten) or
+  // is stale data we don't want to keep re-querying every hour. FedEx Track
+  // also rejects very old tracking numbers as not-found which fills the log
+  // with noise.
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - 12);
+
+  // Detect a valid FedEx tracking number. FedEx tracking IDs are purely
+  // numeric, 12 digits and up (your sample data shows 12-digit numbers like
+  // '8876 9467 7089'). The Tracking column on PARTS TRACKER is also used
+  // for free-text notes ('ROYAL MAIL - LO407…', 'send with Tooles on Wed',
+  // 'ship with Accessories order…') — those have no chance of resolving and
+  // should be skipped.
+  function _looksLikeFedexTracking(s) {
+    const digitsOnly = String(s || '').replace(/\s+/g, '');
+    return /^\d{12,}$/.test(digitsOnly);
+  }
+
+  // Excel can return either a serial number or a string for the Date column.
+  function _parseDateCell(v) {
+    if (v === null || v === undefined || v === '') return null;
+    if (typeof v === 'number') return new Date(Math.round((v - 25569) * 86400 * 1000));
+    const s = String(v).trim();
+    if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(s)) {
+      const [d, m, y] = s.split('/').map(n => parseInt(n, 10));
+      const fy = y < 100 ? 2000 + y : y;
+      const dt = new Date(fy, m - 1, d);
+      return isNaN(dt) ? null : dt;
+    }
+    const dt = new Date(s);
+    return isNaN(dt) ? null : dt;
+  }
+
+  // Find every in-transit row — Delivered blank, valid FedEx tracking, dispatched
+  // within the cutoff window. Header is row 0 of the values array, so data starts at index 1.
+  let totalCandidates = 0;
+  let skippedNonFedex = 0;
+  let skippedStale = 0;
   const inTransit = [];
   for (let i = 1; i < values.length; i++) {
     const row = values[i];
     const tn = String(row[trackingIdx] || '').trim();
     const delivered = String(row[deliveredIdx] || '').trim();
     if (!tn || delivered) continue;
+    totalCandidates++;
+    if (!_looksLikeFedexTracking(tn)) {
+      skippedNonFedex++;
+      continue;
+    }
+    if (dateIdx >= 0) {
+      const d = _parseDateCell(row[dateIdx]);
+      if (d && d < cutoff) { skippedStale++; continue; }
+    }
     inTransit.push({
       rowIdx: i - 1,
-      sheetRow: i + 1, // table starts at sheet row 1; values row 0 = header at sheet row 1; data row 0 = sheet row 2
+      sheetRow: i + 1,
       trackingNumber: tn,
       customer: customerIdx >= 0 ? String(row[customerIdx] || '').trim() : ''
     });
   }
-  log(`[parts-fedex-poll] ${inTransit.length} parcels in transit`);
+  log(`[parts-fedex-poll] ${inTransit.length} pollable parcels (skipped: ${skippedNonFedex} non-FedEx, ${skippedStale} older than 12 months) of ${totalCandidates} blank-Delivered rows total`);
   if (inTransit.length === 0) return;
 
   // Get FedEx token
