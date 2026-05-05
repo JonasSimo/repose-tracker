@@ -3079,6 +3079,8 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .svc-age.bad { background: var(--fail-soft); color: var(--fail); }
 .svc-search { padding: 6px 11px; border: 1px solid var(--border2); border-radius: 8px; font-family: inherit; font-size: 12px; width: 200px; }
 .svc-foot { padding: 11px 20px; background: var(--bg3); border-top: 1px solid var(--border); text-align: center; font-size: 11.5px; color: var(--text2); font-weight: 600; }
+.svc-chair-pill { font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700; background: var(--orange); color: #fff; padding: 2px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; }
+.svc-chair-pill.repeat { background: var(--fail); }
 .svc-parts-list { padding: 11px 20px 16px; display: flex; flex-direction: column; gap: 9px; }
 .svc-parcel { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 14px; background: #fff; align-items: center; }
 .svc-parcel-icn { width: 40px; height: 40px; border-radius: 11px; background: var(--info-soft); color: var(--info); display: flex; align-items: center; justify-content: center; font-size: 19px; }
@@ -21012,7 +21014,7 @@ function _serviceTicketRowHtml(t) {
       <td><span class="id">${_escapeSvc(t.ticketNo)}</span></td>
       <td>
         <div class="ttl">${_escapeSvc(t.faultCode || t.description.slice(0, 60) || '—')} · ${_escapeSvc(t.model || '—')}</div>
-        <div class="meta">${_escapeSvc(t.customer)} · ${_escapeSvc(t.subFault || '')} ${t.repNo ? '· ' + _escapeSvc(t.repNo) : ''}</div>
+        <div class="meta">${_escapeSvc(t.customer)} · ${_escapeSvc(t.subFault || '')} ${_chairPillHtml(t) ? ' · ' + _chairPillHtml(t) : ''}</div>
       </td>
       <td><span class="svc-pill ${t.warrantyChargeable === 'WARRANTY' ? 'warranty' : 'chargeable'}">${t.warrantyChargeable === 'WARRANTY' ? 'Warranty' : 'Chargeable'}</span></td>
       <td><span class="svc-pill ${t.period30.toLowerCase().startsWith('inside 30') ? 'in30' : 'out30'}">${t.period30.toLowerCase().startsWith('inside 30') ? 'Inside 30 days' : 'Outside 30 days'}</span></td>
@@ -21023,6 +21025,49 @@ function _serviceTicketRowHtml(t) {
 
 function _escapeSvc(s) {
   return String(s || '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[ch]);
+}
+
+// Parse a chair return identifier from any REP-No-like string.
+// Examples:
+//   "REP2891"     → { rep: 'REP2891', returnNo: 0, isReturn: false, label: 'REP2891' }
+//   "REP2891-R1"  → { rep: 'REP2891', returnNo: 1, isReturn: true,  label: 'REP2891-R1' }
+//   "REP2284-R3"  → { rep: 'REP2284', returnNo: 3, isReturn: true,  label: 'REP2284-R3' }
+//   ""            → null
+//   "FOO"         → { rep: 'FOO', returnNo: 0, isReturn: false, label: 'FOO' }  (non-conformant input passes through)
+function _parseChairId(s) {
+  const v = String(s || '').trim();
+  if (!v) return null;
+  const m = /^(REP\d+)(?:-R(\d+))?$/i.exec(v);
+  if (!m) return { rep: v, returnNo: 0, isReturn: false, label: v };
+  return { rep: m[1].toUpperCase(), returnNo: m[2] ? parseInt(m[2], 10) : 0, isReturn: !!m[2], label: v.toUpperCase() };
+}
+
+// Group all tickets by chair REP No to detect repeat returns. Returns
+// an array of { rep, count, latestOpenDate, tickets } sorted by count desc.
+// Only includes REPs with 2+ tickets (i.e. at least one return).
+function _computeRepeatReturns() {
+  const byRep = new Map();
+  for (const t of _serviceState.tickets) {
+    const cid = _parseChairId(t.repNo);
+    if (!cid) continue;
+    if (!byRep.has(cid.rep)) byRep.set(cid.rep, []);
+    byRep.get(cid.rep).push(t);
+  }
+  const repeats = [];
+  for (const [rep, tickets] of byRep.entries()) {
+    if (tickets.length < 2) continue;
+    tickets.sort((a, b) => (a.openDate?.getTime() || 0) - (b.openDate?.getTime() || 0));
+    repeats.push({ rep, count: tickets.length, latestOpenDate: tickets[tickets.length - 1].openDate, tickets });
+  }
+  repeats.sort((a, b) => b.count - a.count);
+  return repeats;
+}
+
+// Render a chair # pill HTML for a ticket. Returns empty string if no REP No.
+function _chairPillHtml(t) {
+  const cid = _parseChairId(t.repNo);
+  if (!cid) return '';
+  return `<span class="svc-chair-pill${cid.isReturn ? ' repeat' : ''}"><span style="font-size:9px">🪑</span>${_escapeSvc(cid.label)}</span>`;
 }
 
 async function openServiceTicketDrawer(ticketNo) {
