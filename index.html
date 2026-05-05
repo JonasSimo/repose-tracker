@@ -22285,6 +22285,16 @@ function _renderServiceCapaBridge() {
           <button class="svc-capa-act" data-capa-idx="${i}">⊕ Raise CAPA</button>
         </div>
       `).join('')}
+      ${document.getElementById('view-quality') ? `
+        <div class="svc-capa-row" style="background:var(--bg3);border-top:1px solid var(--border)">
+          <div class="svc-capa-icn" style="background:var(--info-soft);color:var(--info)">⚡</div>
+          <div class="svc-capa-mid">
+            <b>Cross-link · Quality SPC limits</b>
+            <span class="small">When Quality module flags a fault-trend SPC breach, jump straight to the chart. Phase D wires the auto-detection.</span>
+          </div>
+          <button class="svc-capa-act" id="svc-capa-quality-link" style="border-color:var(--bborder);background:var(--bbg)">→ Open Quality</button>
+        </div>
+      ` : ''}
     </div>
   `;
   // Click handlers — for Phase B+C, just navTo CAPA module and console-log the candidate.
@@ -22295,6 +22305,9 @@ function _renderServiceCapaBridge() {
     console.log('[svc] raise CAPA from candidate:', cand);
     if (typeof navTo === 'function') navTo('actions');
   }));
+  c.querySelector('#svc-capa-quality-link')?.addEventListener('click', () => {
+    if (typeof navTo === 'function') navTo('quality');
+  });
 }
 
 // Compute next-month forecast from 13-month trend.
