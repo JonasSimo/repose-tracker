@@ -4326,6 +4326,21 @@ const PARTS_TRACKER_SHEET = 'Part Tracker';
 const PARTS_TRACKER_TABLE = 'DataTable'; // existing table name on Part Tracker sheet
 const _SERVICE_CACHE_MS = 300_000; // 5 min in-browser cache
 
+// Parts dispatch staged-workflow recipients. Stages are derived from cell
+// presence (no schema change) — see _partsStage(). On stage transitions
+// (transport→finance, etc.) the appropriate handoff email is sent.
+const PARTS_BLAKE = 'blake@reposefurniture.co.uk';
+const PARTS_TRANSPORT_RECIPIENTS = ['john.bradnick@reposefurniture.co.uk', 'transport@reposefurniture.co.uk'];
+const PARTS_ACCOUNTS_RECIPIENT = 'accounts@reposefurniture.co.uk';
+
+// Ticket editor — only Jonas + Blake can edit existing tickets directly from
+// the drawer. Everyone else sees no Edit button.
+const TICKET_EDITORS = new Set(['jonas.simonaitis@reposefurniture.co.uk', 'blake@reposefurniture.co.uk']);
+function _canEditTickets() {
+  const u = (graphAccount && graphAccount.username || '').toLowerCase();
+  return TICKET_EDITORS.has(u);
+}
+
 // In-memory state for the Service Dashboard. Refreshed lazily from Excel
 // via Graph; manual refresh button busts the cache.
 let _serviceState = {
@@ -8019,10 +8034,11 @@ let _mailScopeWarned = false;
 // hasn't consented (or admin hasn't), surface a clear alert ONCE so they
 // know approvers won't be auto-notified, then fall through silently for
 // subsequent calls in the same session.
-async function _sendDocsEmail({ to, subject, htmlBody }) {
+async function _sendDocsEmail({ to, subject, htmlBody, cc }) {
   if (!to) return false;
   const recipients = (Array.isArray(to) ? to : [to]).filter(Boolean);
   if (recipients.length === 0) return false;
+  const ccRecipients = (Array.isArray(cc) ? cc : (cc ? [cc] : [])).filter(Boolean);
   let token;
   try {
     const accounts = msalInstance.getAllAccounts();
@@ -8050,7 +8066,8 @@ async function _sendDocsEmail({ to, subject, htmlBody }) {
         message: {
           subject,
           body: { contentType: 'HTML', content: htmlBody },
-          toRecipients: recipients.map(addr => ({ emailAddress: { address: addr } }))
+          toRecipients: recipients.map(addr => ({ emailAddress: { address: addr } })),
+          ...(ccRecipients.length ? { ccRecipients: ccRecipients.map(addr => ({ emailAddress: { address: addr } })) } : {})
         },
         saveToSentItems: true
       })
@@ -20845,18 +20862,24 @@ async function fetchPartTracker() {
     const customer = String(row[1] || '').trim();
     const tracking = String(row[5] || '').trim();
     if (!customer && !tracking) continue; // blank line
-    parts.push(_mapPartsRow(row));
+    parts.push(_mapPartsRow(row, i));
   }
   return parts;
 }
 
-function _mapPartsRow(row) {
+function _mapPartsRow(row, valuesIdx) {
   // "Delivered" column may be:
   // - blank (parcel still in transit)
   // - a string like "13.01.26 @ 13.25" (manually typed timestamp)
   // - an Excel serial number (rare)
   const deliveredRaw = row[6];
   const deliveredText = (deliveredRaw === null || deliveredRaw === undefined) ? '' : String(deliveredRaw).trim();
+  // Part Tracker uses worksheet usedRange (NOT a table range) and the header
+  // is on sheet row 1 at values-array index 0. So the 1-based sheet row for
+  // a values-array index `i` is simply `i + 1` (no banner offset like
+  // TICKET LOG which has a 6-row banner). Stash the sheet row so the edit
+  // modal can PATCH the right cells via worksheets/range(address='X{row}').
+  const sheetRow = (typeof valuesIdx === 'number') ? (valuesIdx + 1) : null;
   return {
     date: _parseExcelDate(row[0]),
     customer: String(row[1] || '').trim(),
@@ -20867,8 +20890,34 @@ function _mapPartsRow(row) {
     deliveredText,
     deliveredDate: _parseDeliveredText(deliveredText),
     comment: String(row[7] || '').trim(),
-    isDelivered: deliveredText.length > 0
+    isDelivered: deliveredText.length > 0,
+    sheetRow
   };
+}
+
+// ─── Parts dispatch staged-workflow helpers ──────────────────────────────
+// Stage is derived from cell presence (NO schema change).
+//   transport — row exists, FedEx Tracking blank
+//   finance   — FedEx present, Invoice OR Sales Ack blank
+//   complete  — Both Invoice + Sales Ack present, Delivered blank
+//   delivered — Delivered cell filled (parts-fedex-poll auto-fills)
+function _partsStage(p) {
+  if (!p) return 'transport';
+  if (p.isDelivered) return 'delivered';
+  if (p.invoiceNo && p.salesAckNo) return 'complete';
+  if (p.fedexTracking) return 'finance';
+  return 'transport';
+}
+
+function _partsStagePillHtml(stage) {
+  const map = {
+    transport: { cls: 'waiting',    label: '📦 Awaiting transport' },
+    finance:   { cls: 'scheduled',  label: '🚚 Awaiting invoicing' },
+    complete:  { cls: 'collected',  label: '✅ Invoiced · in transit' },
+    delivered: { cls: 'in-factory', label: '✅ Delivered' }
+  };
+  const s = map[stage] || map.transport;
+  return `<span class="svc-mx-pill ${s.cls}">${s.label}</span>`;
 }
 
 // Load both Excel files in parallel, with a 5-min in-memory cache.
@@ -21392,8 +21441,10 @@ async function openServiceTicketDrawer(ticketNo) {
             <span class="svc-pill ${t.openClosed === 'OPEN' ? 'in30' : ''}" style="${t.openClosed === 'CLOSED' ? 'background:var(--pass-soft);color:var(--pass);border-color:var(--gborder)' : ''}">${t.openClosed}</span>
           </div>
           ${t.openClosed === 'OPEN' && !t.returnedToFactory && !t.maxoptraStatus && !/-R\d+$/i.test(String(t.repNo || '')) ? `
-            <div style="margin-top:14px"><button class="svc-btn svc-btn-pri" id="svc-drawer-mark-return" style="background:#ea580c;color:#fff;font-size:14px;font-weight:800;padding:11px 22px;box-shadow:0 4px 12px rgba(234,88,12,.35);border:1px solid #c2410c;letter-spacing:.01em">🔁 Mark for return</button></div>
-          ` : ''}
+            <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap"><button class="svc-btn svc-btn-pri" id="svc-drawer-mark-return" style="background:#ea580c;color:#fff;font-size:14px;font-weight:800;padding:11px 22px;box-shadow:0 4px 12px rgba(234,88,12,.35);border:1px solid #c2410c;letter-spacing:.01em">🔁 Mark for return</button>${_canEditTickets() ? `<button class="svc-btn svc-btn-sec" id="svc-drawer-edit-ticket" style="font-size:14px;font-weight:700;padding:11px 22px">✏️ Edit ticket</button>` : ''}</div>
+          ` : (_canEditTickets() ? `
+            <div style="margin-top:14px"><button class="svc-btn svc-btn-sec" id="svc-drawer-edit-ticket" style="font-size:14px;font-weight:700;padding:11px 22px">✏️ Edit ticket</button></div>
+          ` : '')}
           ${t.returnedToFactory ? `
             <div style="margin-top:8px;font-size:11px;color:var(--orange);font-weight:700">🔁 Returned to factory · ${t.returnedToFactory instanceof Date ? t.returnedToFactory.toLocaleDateString('en-GB') : _escapeSvc(String(t.returnedToFactory))}</div>
           ` : ''}
@@ -21452,6 +21503,7 @@ async function openServiceTicketDrawer(ticketNo) {
   overlay.querySelector('#svc-drawer-close').addEventListener('click', () => overlay.remove());
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
   overlay.querySelector('#svc-drawer-mark-return')?.addEventListener('click', () => _openMarkForReturnConfirm(t, overlay));
+  overlay.querySelector('#svc-drawer-edit-ticket')?.addEventListener('click', () => openEditTicketModal(t, overlay));
 }
 
 async function _openMarkForReturnConfirm(t, drawerOverlay) {
@@ -21830,6 +21882,295 @@ function openNewServiceTicketModal() {
   });
 }
 
+// Edit an existing service ticket — Jonas + Blake only (gated by _canEditTickets).
+// Mirrors openNewServiceTicketModal's structure but pre-fills every field with the
+// current ticket values, PATCHes only changed cells via per-cell range-address PATCH,
+// and skips computed/formula columns (Period, Week, FY, Days to Complete, Overdue By,
+// Fault - sub fault, include in pivot). Does NOT send any email on save.
+async function openEditTicketModal(t, drawerOverlay) {
+  if (!_canEditTickets()) { alert('You do not have permission to edit tickets.'); return; }
+  if (!t || !t.ticketNo) { alert('Ticket data is missing — cannot edit.'); return; }
+
+  const dd = _serviceState.dropdowns;
+  const customers = (dd && dd.customers && dd.customers.length) ? dd.customers : [...new Set(_serviceState.tickets.map(x => x.customer).filter(Boolean))].sort();
+  const models = (dd && dd.models && dd.models.length) ? dd.models : [...new Set(_serviceState.tickets.map(x => x.model).filter(Boolean))].sort();
+  const mechCodes = (dd && dd.mechCodes && dd.mechCodes.length) ? dd.mechCodes : [...new Set(_serviceState.tickets.map(x => x.mechCode).filter(Boolean))].sort();
+  const faultCategories = (dd && dd.faultCategories && dd.faultCategories.length) ? dd.faultCategories : [...new Set(_serviceState.tickets.map(x => x.faultCode).filter(Boolean))].sort();
+  const wcOptions = (dd && dd.warrantyChargeable && dd.warrantyChargeable.length) ? dd.warrantyChargeable : ['WARRANTY', 'CHARGEABLE'];
+  const ownerOptions = (dd && dd.owners && dd.owners.length) ? dd.owners : ['Repose', 'Customer'];
+  const period30Options = ['Inside 30', 'Outside 30'];
+  const faultSubFaultMap = (dd && dd.faultSubFaultMap) || {};
+
+  const opt = (v, sel) => `<option value="${_escapeSvc(v)}"${(sel || '') === v ? ' selected' : ''}>${_escapeSvc(v)}</option>`;
+  const blank = '<option value=""></option>';
+  const isoOf = d => d ? d.toISOString().slice(0, 10) : '';
+
+  // Pre-populate the sub-fault list based on current fault code so the user
+  // sees the matching sub-faults immediately.
+  const initSubFaults = faultSubFaultMap[t.faultCode] || [];
+
+  const overlay = document.createElement('div');
+  overlay.className = 'svc-modal-bg';
+  overlay.innerHTML = `
+    <div class="svc-modal">
+      <div class="svc-modal-head">
+        <h2>Edit ticket · ${_escapeSvc(t.ticketNo)} · ${_escapeSvc(t.customer || '—')}</h2>
+        <button class="x" id="svc-emod-close">×</button>
+      </div>
+      <div class="svc-modal-body">
+        <div class="svc-field-row">
+          <div class="svc-field"><label>Ticket No</label><input value="${_escapeSvc(t.ticketNo)}" id="svc-ef-ticketno" readonly style="background:var(--bg3)"></div>
+          <div class="svc-field"><label>Open Date</label><input type="date" id="svc-ef-opendate" value="${_escapeSvc(isoOf(t.openDate))}"></div>
+        </div>
+        <div class="svc-field"><label>Customer *</label>
+          <select id="svc-ef-customer">${blank}${customers.map(c => opt(c, t.customer)).join('')}</select>
+        </div>
+        <div class="svc-field-row">
+          <div class="svc-field"><label>REP No</label><input id="svc-ef-repno" value="${_escapeSvc(t.repNo || '')}"></div>
+          <div class="svc-field"><label>PO ref</label><input id="svc-ef-poref" value="${_escapeSvc(t.poRef || '')}"></div>
+        </div>
+        <div class="svc-field-row">
+          <div class="svc-field"><label>Model</label><select id="svc-ef-model">${blank}${models.map(m => opt(m, t.model)).join('')}</select></div>
+          <div class="svc-field"><label>Mech Code</label><select id="svc-ef-mech">${blank}${mechCodes.map(m => opt(m, t.mechCode)).join('')}</select></div>
+        </div>
+        <div class="svc-field-row">
+          <div class="svc-field"><label>Within / Outside 30 days</label><select id="svc-ef-period30">${blank}${period30Options.map(r => opt(r, t.period30)).join('')}</select></div>
+          <div class="svc-field"><label>Type</label><select id="svc-ef-wc">${wcOptions.map(w => opt(w, t.warrantyChargeable)).join('')}</select></div>
+        </div>
+        <div class="svc-field-row">
+          <div class="svc-field"><label>Fault Code</label><select id="svc-ef-fault">${blank}${faultCategories.map(f => opt(f, t.faultCode)).join('')}</select></div>
+          <div class="svc-field"><label>Sub-Fault</label>
+            <select id="svc-ef-subfault"${initSubFaults.length === 0 ? ' disabled' : ''}>${blank}${initSubFaults.map(s => opt(s, t.subFault)).join('')}</select>
+          </div>
+        </div>
+        <div class="svc-field"><label>Description</label><textarea id="svc-ef-desc">${_escapeSvc(t.description || '')}</textarea></div>
+        <div class="svc-field"><label>Action taken</label><textarea id="svc-ef-action">${_escapeSvc(t.action || '')}</textarea></div>
+        <div class="svc-field"><label>Notes</label><textarea id="svc-ef-notes">${_escapeSvc(t.notes || '')}</textarea></div>
+        <div class="svc-field-row">
+          <div class="svc-field"><label>Owner</label><select id="svc-ef-owner">${blank}${ownerOptions.map(o => opt(o, t.owner)).join('')}</select></div>
+          <div class="svc-field"><label>Status</label><select id="svc-ef-status">${opt('OPEN', t.openClosed)}${opt('CLOSED', t.openClosed)}</select></div>
+        </div>
+        <div class="svc-field-row">
+          <div class="svc-field"><label>Despatch Date</label><input type="date" id="svc-ef-despatch" value="${_escapeSvc(isoOf(t.despatchDate))}"></div>
+          <div class="svc-field"><label>Returned to Factory</label><input type="date" id="svc-ef-returned" value="${_escapeSvc(isoOf(t.returnedToFactory))}"></div>
+        </div>
+        <div class="svc-field-row">
+          <div class="svc-field"><label>Proposed Close</label><input type="date" id="svc-ef-pclose" value="${_escapeSvc(isoOf(t.proposedCloseDate))}"></div>
+          <div class="svc-field"><label>Close Date</label><input type="date" id="svc-ef-cdate" value="${_escapeSvc(isoOf(t.closeDate))}"></div>
+        </div>
+        <div class="svc-field-row">
+          <div class="svc-field"><label>Quality Issue</label><input id="svc-ef-quality" value="${_escapeSvc(t.qualityIssue || '')}"></div>
+          <div class="svc-field"><label>Invoice No</label><input id="svc-ef-invoice" value="${_escapeSvc(t.invoiceNo || '')}"></div>
+        </div>
+        <div class="svc-field-row">
+          <div class="svc-field"><label>Invoice Date</label><input type="date" id="svc-ef-invdate" value="${_escapeSvc(isoOf(t.invoiceDate))}"></div>
+          <div class="svc-field"><label>£</label><input type="number" step="0.01" id="svc-ef-gbp" value="${t.gbp || ''}"></div>
+        </div>
+        <div class="svc-field-row">
+          <div class="svc-field"><label>£ Del</label><input type="number" step="0.01" id="svc-ef-gbpdel" value="${t.gbpDel || ''}"></div>
+          <div class="svc-field"><label>Chair Returned</label><input id="svc-ef-chairret" value="${_escapeSvc(t.chairReturned || '')}"></div>
+        </div>
+        <div class="svc-field-row">
+          <div class="svc-field"><label>Inspected</label><input id="svc-ef-inspected" value="${_escapeSvc(t.inspected || '')}"></div>
+          <div class="svc-field"><label>In Production</label><input id="svc-ef-inprod" value="${_escapeSvc(t.inProduction || '')}"></div>
+        </div>
+        <div class="svc-field"><label>Return to customer</label><input id="svc-ef-rtc" value="${_escapeSvc(t.returnToCustomer || '')}"></div>
+        <div style="font-size:11px;color:var(--text2);margin-top:14px;line-height:1.5;padding:10px 12px;background:var(--bbg);border-radius:8px">
+          ℹ️ Computed columns (Period, Week, FY, Days to Complete, Overdue By, Fault - sub fault, Include in Pivot) are excluded — they recalculate from formulas.
+        </div>
+      </div>
+      <div class="svc-modal-foot">
+        <button class="svc-btn svc-btn-sec" id="svc-emod-cancel">Cancel</button>
+        <button class="svc-btn svc-btn-pri" id="svc-emod-save">Save changes</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.querySelector('#svc-emod-close').addEventListener('click', close);
+  overlay.querySelector('#svc-emod-cancel').addEventListener('click', close);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+
+  // Cascade Fault Code → Sub-Fault
+  const faultEl = overlay.querySelector('#svc-ef-fault');
+  const subFaultEl = overlay.querySelector('#svc-ef-subfault');
+  faultEl.addEventListener('change', () => {
+    const subs = faultSubFaultMap[faultEl.value] || [];
+    subFaultEl.innerHTML = blank + subs.map(s => opt(s)).join('');
+    subFaultEl.disabled = subs.length === 0;
+  });
+
+  overlay.querySelector('#svc-emod-save').addEventListener('click', async () => {
+    const get = id => overlay.querySelector(id).value.trim();
+    const newCustomer = get('#svc-ef-customer');
+    const newDesc = get('#svc-ef-desc');
+    if (!newCustomer) { alert('Customer is required.'); return; }
+
+    const btn = overlay.querySelector('#svc-emod-save');
+    btn.disabled = true; btn.textContent = 'Saving…';
+
+    try {
+      const token = await getGraphToken();
+      const driveId = _serviceState.ticketDriveId;
+      const itemId = _serviceState.ticketItemId;
+
+      // Read TICKET LOG table range with rowIndex so we can compute correct sheet rows.
+      // CRITICAL: TICKET LOG starts at sheet row 7 (banner above) — must use
+      // rowIndex offset, not assume row 1 (would corrupt the banner).
+      const rangeRes = await fetch(
+        `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/tables('${SERVICE_TICKET_TABLE}')/range?$select=values,rowIndex`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (!rangeRes.ok) throw new Error(`Could not read TicketLog range: ${rangeRes.status}`);
+      const rangeData = await rangeRes.json();
+      const allRows = rangeData.values || [];
+      const tableRowIndex = typeof rangeData.rowIndex === 'number' ? rangeData.rowIndex : 0;
+      if (allRows.length < 2) throw new Error('TicketLog table has no header.');
+      const headerRow = allRows[0];
+      const norm = s => String(s || '').trim().toLowerCase();
+      const findColIdx = (name) => headerRow.findIndex(h => norm(h) === norm(name));
+      const ticketNoColIdx = findColIdx('Ticket No');
+      if (ticketNoColIdx < 0) throw new Error('TicketLog has no "Ticket No" column.');
+
+      // Find this ticket's row (data index 0 = first data row)
+      let dataRowIdx = -1;
+      for (let i = 1; i < allRows.length; i++) {
+        if (String(allRows[i][ticketNoColIdx] || '').trim() === t.ticketNo) {
+          dataRowIdx = i - 1;
+          break;
+        }
+      }
+      if (dataRowIdx < 0) throw new Error(`Ticket ${t.ticketNo} not found in TicketLog table.`);
+      // 1-based sheet row: tableRowIndex (0-based, points at header) + 1 (header) + dataRowIdx + 1
+      const sheetRow = (tableRowIndex || 0) + dataRowIdx + 2;
+      // Excel sheet column index → letter (A, B, … Z, AA, AB …)
+      const colIdxToLetter = (n) => {
+        let s = '';
+        n = n + 1;
+        while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); }
+        return s;
+      };
+
+      // Build the new vs old map. Skip computed/formula columns.
+      const COMPUTED = new Set(['period', 'week', 'fy', 'days to complete', 'overdue by', 'fault - sub fault', 'include in pivot']);
+      // Collect proposed updates as { colName: value (or null for blank) }
+      const updates = {};
+      const setIfChanged = (colName, oldVal, newVal) => {
+        const o = (oldVal === null || oldVal === undefined) ? '' : String(oldVal);
+        const n = (newVal === null || newVal === undefined) ? '' : String(newVal);
+        if (o !== n) updates[colName] = newVal;
+      };
+      const setDateIfChanged = (colName, oldDate, newIso) => {
+        const oldIso = oldDate ? oldDate.toISOString().slice(0, 10) : '';
+        if (oldIso === (newIso || '')) return;
+        updates[colName] = newIso ? _isoToExcelSerial(newIso) : '';
+      };
+
+      setIfChanged('Customer', t.customer, newCustomer);
+      setIfChanged('REP Number', t.repNo, get('#svc-ef-repno'));
+      setIfChanged('Ref / PO number', t.poRef, get('#svc-ef-poref'));
+      setIfChanged('Model', t.model, get('#svc-ef-model'));
+      setIfChanged('Mech Code', t.mechCode, get('#svc-ef-mech'));
+      setIfChanged('Within / Outside 30 days', t.period30, get('#svc-ef-period30'));
+      setIfChanged('Warranty / Chargeable', t.warrantyChargeable, get('#svc-ef-wc'));
+      setIfChanged('Fault Code', t.faultCode, get('#svc-ef-fault'));
+      setIfChanged('Sub-Fault', t.subFault, get('#svc-ef-subfault'));
+      setIfChanged('Description', t.description, newDesc);
+      setIfChanged('Action', t.action, get('#svc-ef-action'));
+      setIfChanged('Notes', t.notes, get('#svc-ef-notes'));
+      setIfChanged('Owner', t.owner, get('#svc-ef-owner'));
+      setIfChanged('Open / Closed', t.openClosed, get('#svc-ef-status'));
+      setDateIfChanged('Open Date', t.openDate, get('#svc-ef-opendate'));
+      setDateIfChanged('Despatch Date', t.despatchDate, get('#svc-ef-despatch'));
+      setDateIfChanged('Returned to Factory', t.returnedToFactory, get('#svc-ef-returned'));
+      setDateIfChanged('Proposed Close Date', t.proposedCloseDate, get('#svc-ef-pclose'));
+      setDateIfChanged('Close Date', t.closeDate, get('#svc-ef-cdate'));
+      setIfChanged('Quality Issue', t.qualityIssue, get('#svc-ef-quality'));
+      setIfChanged('Invoice No', t.invoiceNo, get('#svc-ef-invoice'));
+      setDateIfChanged('Invoice Date', t.invoiceDate, get('#svc-ef-invdate'));
+      // £ + £ Del — numeric
+      const newGbp = get('#svc-ef-gbp');
+      const newGbpDel = get('#svc-ef-gbpdel');
+      const oldGbp = (t.gbp === 0 || t.gbp == null) ? '' : String(t.gbp);
+      const oldGbpDel = (t.gbpDel === 0 || t.gbpDel == null) ? '' : String(t.gbpDel);
+      if (oldGbp !== newGbp) updates['£'] = newGbp === '' ? '' : Number(newGbp);
+      if (oldGbpDel !== newGbpDel) updates['£ Del'] = newGbpDel === '' ? '' : Number(newGbpDel);
+      setIfChanged('Chair Returned', t.chairReturned, get('#svc-ef-chairret'));
+      setIfChanged('Inspected', t.inspected, get('#svc-ef-inspected'));
+      setIfChanged('In Production', t.inProduction, get('#svc-ef-inprod'));
+      setIfChanged('Return to customer', t.returnToCustomer, get('#svc-ef-rtc'));
+
+      const updateKeys = Object.keys(updates);
+      if (updateKeys.length === 0) {
+        close();
+        alert('No changes to save.');
+        return;
+      }
+
+      // Race-condition guard: re-verify the row at the computed sheet row still
+      // contains this ticket. (Same pattern as Mark-for-return.)
+      const verifyRes = await _graphFetchWithRetry(
+        `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/tables('${SERVICE_TICKET_TABLE}')/rows/itemAt(index=${dataRowIdx})`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (verifyRes.ok) {
+        const verifyData = await verifyRes.json();
+        const verifyRowValues = (verifyData.values && verifyData.values[0]) || [];
+        const verifyTicketNo = String(verifyRowValues[ticketNoColIdx] || '').trim();
+        if (verifyTicketNo !== t.ticketNo) {
+          throw new Error(`Race condition: row ${dataRowIdx} now contains ticket ${verifyTicketNo}, expected ${t.ticketNo}. PATCH aborted — please refresh.`);
+        }
+      }
+
+      console.log(`[svc] ticket edit ${t.ticketNo} (sheet row ${sheetRow}) — ${updateKeys.length} cell(s):`, updateKeys);
+
+      // PATCH each changed cell via worksheets/range(address='X{row}')
+      const failures = [];
+      for (const colName of updateKeys) {
+        if (COMPUTED.has(norm(colName))) {
+          console.warn(`[svc] skip computed column "${colName}"`);
+          continue;
+        }
+        const colIdx = findColIdx(colName);
+        if (colIdx < 0) {
+          failures.push(`${colName}: column not found in TicketLog`);
+          continue;
+        }
+        const cellAddr = `${colIdxToLetter(colIdx)}${sheetRow}`;
+        const url = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/worksheets('${encodeURIComponent(SERVICE_TICKET_SHEET)}')/range(address='${cellAddr}')`;
+        try {
+          const r = await _graphFetchWithRetry(url, {
+            method: 'PATCH',
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ values: [[updates[colName]]] })
+          });
+          if (!r.ok) {
+            const errText = await r.text();
+            failures.push(`${colName} (${cellAddr}): ${r.status} ${errText}`);
+          }
+        } catch (e) {
+          failures.push(`${colName}: ${e.message}`);
+        }
+      }
+
+      if (failures.length > 0) {
+        alert(`Saved ${updateKeys.length - failures.length}/${updateKeys.length} fields. Failures:\n\n${failures.join('\n')}`);
+      }
+
+      close();
+      drawerOverlay?.remove();
+      await loadServiceData(true);
+      _renderServiceAll();
+      if (failures.length === 0) {
+        alert(`Ticket ${t.ticketNo} updated.`);
+      }
+    } catch (e) {
+      alert(`Failed to save: ${e.message}`);
+      btn.disabled = false; btn.textContent = 'Save changes';
+    }
+  });
+}
+
 function _isoToExcelSerial(iso) {
   if (!iso) return null;
   const d = new Date(iso + 'T00:00:00Z');
@@ -21856,6 +22197,9 @@ async function _graphFetchWithRetry(url, options) {
 }
 
 function openNewPartsDispatchModal() {
+  // Blake's-stage form only — collects what Blake knows when the parts ship out.
+  // FedEx Tracking is added by transport later (via the edit modal); Invoice No
+  // is added by accounts later. See _partsStage() for the lifecycle.
   const customers = [...new Set(_serviceState.parts.map(p => p.customer).filter(Boolean))].sort();
   const overlay = document.createElement('div');
   overlay.className = 'svc-modal-bg';
@@ -21866,6 +22210,9 @@ function openNewPartsDispatchModal() {
         <button class="x" id="svc-pmod-close">×</button>
       </div>
       <div class="svc-modal-body">
+        <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:10px 14px;margin:0 0 14px;font-size:12px;color:#9a3412;line-height:1.5">
+          <b>📦 Stage 1 of 3 · Awaiting transport.</b> Add the order details now — transport will add the FedEx tracking number after pickup, and accounts will add the invoice + sales ack later.
+        </div>
         <div class="svc-field-row">
           <div class="svc-field"><label>Date *</label><input type="date" id="svc-pf-date" value="${new Date().toISOString().slice(0, 10)}"></div>
           <div class="svc-field"><label>Customer *</label><input list="svc-pcust-list" id="svc-pf-customer">
@@ -21874,17 +22221,13 @@ function openNewPartsDispatchModal() {
         </div>
         <div class="svc-field-row">
           <div class="svc-field"><label>PO Number *</label><input id="svc-pf-po"></div>
-          <div class="svc-field"><label>Sales Ack No</label><input id="svc-pf-sales"></div>
-        </div>
-        <div class="svc-field-row">
-          <div class="svc-field"><label>Invoice No</label><input id="svc-pf-invoice"></div>
-          <div class="svc-field"><label>FedEx Tracking *</label><input id="svc-pf-fedex" placeholder="8876 9467 7089"></div>
+          <div class="svc-field"><label>Sales Ack No <span style="color:var(--text3);font-weight:500;text-transform:none;letter-spacing:0">(optional — if you already have it)</span></label><input id="svc-pf-sales"></div>
         </div>
         <div class="svc-field"><label>Comment</label><textarea id="svc-pf-comment" placeholder="Optional notes"></textarea></div>
       </div>
       <div class="svc-modal-foot">
         <button class="svc-btn svc-btn-sec" id="svc-pmod-cancel">Cancel</button>
-        <button class="svc-btn svc-btn-pri" id="svc-pmod-save">Create dispatch</button>
+        <button class="svc-btn svc-btn-pri" id="svc-pmod-save">Create dispatch &amp; email transport</button>
       </div>
     </div>
   `;
@@ -21899,20 +22242,21 @@ function openNewPartsDispatchModal() {
     const date = get('#svc-pf-date');
     const customer = get('#svc-pf-customer');
     const po = get('#svc-pf-po');
-    const tracking = get('#svc-pf-fedex');
-    if (!date || !customer || !po || !tracking) { alert('Date, Customer, PO Number, and FedEx Tracking are required.'); return; }
+    if (!date || !customer || !po) { alert('Date, Customer, and PO Number are required.'); return; }
     const btn = overlay.querySelector('#svc-pmod-save');
     btn.disabled = true; btn.textContent = 'Saving…';
     try {
       // Map values by column name (robust to extra/hidden columns).
+      // FedEx Tracking + Invoice No are intentionally blank — added later
+      // via the edit modal at the appropriate stage transition.
       const valuesByName = {
         'Date': _isoToExcelSerial(date),
         'Customer': customer,
         'PO Number': po,
         'Sales Ack No': get('#svc-pf-sales'),
-        'Invoice No': get('#svc-pf-invoice'),
-        'Fedex Tracking': tracking,
-        'FedEx Tracking': tracking,                 // alt-case fallback
+        'Invoice No': '',
+        'Fedex Tracking': '',
+        'FedEx Tracking': '',                       // alt-case fallback
         'Delivered': '',                            // parts-fedex-poll Azure function auto-fills this
         'Comment': get('#svc-pf-comment')
       };
@@ -21951,13 +22295,301 @@ function openNewPartsDispatchModal() {
         }
         throw new Error(`Graph Excel REST returned ${res.status} (table has ${tableCols.length} cols, sent ${row.length}): ${errText}`);
       }
+
+      // Send the transport handoff email — non-blocking. If email fails the row
+      // still saved, so we surface the failure but don't abort.
+      let emailFailed = false;
+      try {
+        const emailSent = await _sendPartsTransportHandoffEmail({ customer, po });
+        if (!emailSent) emailFailed = true;
+      } catch (mailErr) {
+        emailFailed = true;
+        console.warn('[svc] parts transport email failed:', mailErr.message);
+      }
+
       close();
       await loadServiceData(true);
       _renderServiceAll();
-      alert(`Parts dispatch for ${customer} (PO ${po}) recorded.`);
+      if (emailFailed) {
+        alert(`Parts dispatch for ${customer} (PO ${po}) recorded. Transport email FAILED — please notify John & transport manually.`);
+      } else {
+        alert(`Parts dispatch for ${customer} (PO ${po}) recorded. Transport has been emailed to add the FedEx tracking number.`);
+      }
     } catch (e) {
       alert(`Failed to create dispatch: ${e.message}`);
-      btn.disabled = false; btn.textContent = 'Create dispatch';
+      btn.disabled = false; btn.textContent = 'Create dispatch & email transport';
+    }
+  });
+}
+
+// ─── Parts dispatch handoff emails ───────────────────────────────────────
+// Both emails mirror the Mark-for-return layout (orange action callout +
+// compact details + "what happens next" footer) via _docsEmailShell.
+
+async function _sendPartsTransportHandoffEmail({ customer, po }) {
+  const subject = `📦 Action: add FedEx tracking for ${customer} (PO ${po})`;
+  const userName = (graphAccount && graphAccount.name) ? graphAccount.name :
+                   (graphAccount && graphAccount.username) ? graphAccount.username : 'RepNet user';
+  const ref = `${customer} · PO ${po}`;
+  const detailsRows = [
+    `<tr><td style="padding:7px 14px 7px 0;color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:.06em;font-weight:700;vertical-align:top">Customer</td><td style="padding:7px 0;font-size:14px;font-weight:600">${_escapeSvc(customer || '—')}</td></tr>`,
+    `<tr><td style="padding:7px 14px 7px 0;color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:.06em;font-weight:700;vertical-align:top">PO Number</td><td style="padding:7px 0;font-size:14px;font-family:'JetBrains Mono',monospace">${_escapeSvc(po || '—')}</td></tr>`,
+    `<tr><td style="padding:7px 14px 7px 0;color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:.06em;font-weight:700;vertical-align:top">Logged by</td><td style="padding:7px 0;font-size:14px">${_escapeSvc(userName)} · ${new Date().toLocaleDateString('en-GB')}</td></tr>`
+  ].join('');
+
+  const innerHtml = `
+  <p style="font-size:14px;margin:0 0 18px;line-height:1.5">A new parts dispatch has been logged on RepNet. <b>Please add the FedEx tracking number once the parcel has been shipped.</b></p>
+
+  <div style="background:#fff7ed;border:2px solid #ea580c;border-radius:12px;padding:20px 22px;margin:0 0 22px">
+    <div style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#9a3412;font-weight:800;margin-bottom:10px">📦 Action — add FedEx tracking number</div>
+    <div style="font-family:'JetBrains Mono','SF Mono',Menlo,monospace;font-size:22px;font-weight:800;color:#9a3412;letter-spacing:-.01em;margin-bottom:6px;word-break:break-all">${_escapeSvc(ref)}</div>
+    <div style="font-size:13px;color:#7c2d12">Open RepNet → Service → click this dispatch in the Parts in Transit panel to add the tracking number when the parcel is shipped.</div>
+  </div>
+
+  <table style="border-collapse:collapse;margin:0 0 22px;width:100%">${detailsRows}</table>
+
+  <div style="background:#f4f6f8;border-radius:10px;padding:14px 18px;margin:0 0 6px;font-size:13px;color:#0e023a;line-height:1.55">
+    <b style="color:#1e40af">What happens next:</b><br>
+    Once the FedEx tracking is added, RepNet will email Accounts automatically to raise the invoice + sales ack. After delivery, the FedEx auto-poll closes the dispatch with a delivered timestamp. No further updates needed from you.
+  </div>
+  `;
+
+  const htmlBody = _docsEmailShell(innerHtml, 'Service · Parts Dispatch');
+  return await _sendDocsEmail({
+    to: PARTS_TRANSPORT_RECIPIENTS,
+    cc: [PARTS_BLAKE],
+    subject,
+    htmlBody
+  });
+}
+
+async function _sendPartsFinanceHandoffEmail({ customer, po, fedex, salesAck }) {
+  const subject = `💰 Action: invoice + sales ack needed for ${customer} (PO ${po}, FedEx ${fedex})`;
+  const userName = (graphAccount && graphAccount.name) ? graphAccount.name :
+                   (graphAccount && graphAccount.username) ? graphAccount.username : 'RepNet user';
+  const ref = `${customer} · PO ${po}`;
+  const needSalesAck = !salesAck;
+  const detailsRows = [
+    `<tr><td style="padding:7px 14px 7px 0;color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:.06em;font-weight:700;vertical-align:top">Customer</td><td style="padding:7px 0;font-size:14px;font-weight:600">${_escapeSvc(customer || '—')}</td></tr>`,
+    `<tr><td style="padding:7px 14px 7px 0;color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:.06em;font-weight:700;vertical-align:top">PO Number</td><td style="padding:7px 0;font-size:14px;font-family:'JetBrains Mono',monospace">${_escapeSvc(po || '—')}</td></tr>`,
+    `<tr><td style="padding:7px 14px 7px 0;color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:.06em;font-weight:700;vertical-align:top">FedEx Tracking</td><td style="padding:7px 0;font-size:14px;font-family:'JetBrains Mono',monospace;color:#065f46;font-weight:700">${_escapeSvc(fedex || '—')} ✓</td></tr>`,
+    salesAck ? `<tr><td style="padding:7px 14px 7px 0;color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:.06em;font-weight:700;vertical-align:top">Sales Ack</td><td style="padding:7px 0;font-size:14px;font-family:'JetBrains Mono',monospace;color:#065f46;font-weight:700">${_escapeSvc(salesAck)} ✓</td></tr>` : '',
+    `<tr><td style="padding:7px 14px 7px 0;color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:.06em;font-weight:700;vertical-align:top">Updated by</td><td style="padding:7px 0;font-size:14px">${_escapeSvc(userName)} · ${new Date().toLocaleDateString('en-GB')}</td></tr>`
+  ].filter(Boolean).join('');
+
+  const needsLine = needSalesAck
+    ? '<b>Invoice No</b> and <b>Sales Ack No</b>'
+    : '<b>Invoice No</b>';
+
+  const innerHtml = `
+  <p style="font-size:14px;margin:0 0 18px;line-height:1.5">The parts have shipped — FedEx tracking is in. <b>Please raise the invoice${needSalesAck ? ' and sales ack' : ''} and add ${needsLine} on RepNet.</b></p>
+
+  <div style="background:#fff7ed;border:2px solid #ea580c;border-radius:12px;padding:20px 22px;margin:0 0 22px">
+    <div style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#9a3412;font-weight:800;margin-bottom:10px">💰 Action — add invoice${needSalesAck ? ' + sales ack' : ''}</div>
+    <div style="font-family:'JetBrains Mono','SF Mono',Menlo,monospace;font-size:22px;font-weight:800;color:#9a3412;letter-spacing:-.01em;margin-bottom:6px;word-break:break-all">${_escapeSvc(ref)}</div>
+    <div style="font-size:13px;color:#7c2d12">Open RepNet → Service → click this dispatch in the Parts in Transit panel and fill in ${needsLine}.</div>
+  </div>
+
+  <table style="border-collapse:collapse;margin:0 0 22px;width:100%">${detailsRows}</table>
+
+  <div style="background:#f4f6f8;border-radius:10px;padding:14px 18px;margin:0 0 6px;font-size:13px;color:#0e023a;line-height:1.55">
+    <b style="color:#1e40af">What happens next:</b><br>
+    Once Invoice No${needSalesAck ? ' and Sales Ack' : ''} are added, the dispatch flips to <span style="background:#ecfdf5;color:#065f46;padding:1px 6px;border-radius:4px;font-size:11px;font-weight:700">✅ Invoiced · in transit</span>. The FedEx auto-poll closes it once delivered.
+  </div>
+  `;
+
+  const htmlBody = _docsEmailShell(innerHtml, 'Service · Parts Dispatch');
+  return await _sendDocsEmail({
+    to: [PARTS_ACCOUNTS_RECIPIENT],
+    cc: [PARTS_BLAKE],
+    subject,
+    htmlBody
+  });
+}
+
+// Edit an existing parts dispatch — pre-fills all fields with current values,
+// highlights the field(s) the current stage owns, and PATCHes only changed
+// cells via per-cell range-address PATCH. On stage transition, sends the
+// appropriate handoff email.
+function openEditPartsDispatchModal(p) {
+  if (!p || typeof p.sheetRow !== 'number') {
+    alert('This dispatch row could not be located in the spreadsheet. Try refreshing.');
+    return;
+  }
+  // Map values-array index → column letter (PARTS_TRACKER_SHEET, header row 1)
+  // 0 Date (A), 1 Customer (B), 2 PO Number (C), 3 Sales Ack No (D),
+  // 4 Invoice No (E), 5 Fedex Tracking (F), 6 Delivered (G), 7 Comment (H)
+  const COL = { date: 'A', customer: 'B', poNumber: 'C', salesAckNo: 'D', invoiceNo: 'E', fedexTracking: 'F', delivered: 'G', comment: 'H' };
+
+  const customers = [...new Set(_serviceState.parts.map(x => x.customer).filter(Boolean))].sort();
+  const oldStage = _partsStage(p);
+
+  // Stage-aware highlighting CSS — yellow border + "← Add this" hint label
+  const HL = 'border:2px solid #f59e0b !important;background:#fffbeb;box-shadow:0 0 0 3px rgba(245,158,11,.15)';
+  const hint = `<span style="font-size:10.5px;color:#92400e;font-weight:700;text-transform:none;letter-spacing:0;margin-left:6px">← Add this</span>`;
+  const hlFedex   = oldStage === 'transport' ? HL : '';
+  const hintFedex = oldStage === 'transport' ? hint : '';
+  const hlInvoice = oldStage === 'finance' ? HL : '';
+  const hintInvoice = oldStage === 'finance' ? hint : '';
+  const hlSalesAck = (oldStage === 'finance' && !p.salesAckNo) ? HL : '';
+  const hintSalesAck = (oldStage === 'finance' && !p.salesAckNo) ? hint : '';
+
+  const dateIso = p.date ? p.date.toISOString().slice(0, 10) : '';
+
+  const overlay = document.createElement('div');
+  overlay.className = 'svc-modal-bg';
+  overlay.innerHTML = `
+    <div class="svc-modal">
+      <div class="svc-modal-head">
+        <h2>Edit parts dispatch · ${_escapeSvc(p.customer || '—')} · PO ${_escapeSvc(p.poNumber || '—')}</h2>
+        <button class="x" id="svc-epmod-close">×</button>
+      </div>
+      <div class="svc-modal-body">
+        <div style="display:flex;align-items:center;gap:10px;margin:0 0 16px;padding:12px 14px;background:var(--bbg);border:1px solid var(--bborder);border-radius:10px">
+          <div style="font-size:11px;color:var(--text2);font-weight:700;text-transform:uppercase;letter-spacing:.08em">Current stage</div>
+          ${_partsStagePillHtml(oldStage)}
+        </div>
+        <div class="svc-field-row">
+          <div class="svc-field"><label>Date *</label><input type="date" id="svc-epf-date" value="${_escapeSvc(dateIso)}"></div>
+          <div class="svc-field"><label>Customer *</label><input list="svc-epcust-list" id="svc-epf-customer" value="${_escapeSvc(p.customer || '')}">
+            <datalist id="svc-epcust-list">${customers.map(c => `<option value="${_escapeSvc(c)}">`).join('')}</datalist>
+          </div>
+        </div>
+        <div class="svc-field-row">
+          <div class="svc-field"><label>PO Number *</label><input id="svc-epf-po" value="${_escapeSvc(p.poNumber || '')}"></div>
+          <div class="svc-field"><label>Sales Ack No${hintSalesAck}</label><input id="svc-epf-sales" value="${_escapeSvc(p.salesAckNo || '')}" style="${hlSalesAck}"></div>
+        </div>
+        <div class="svc-field-row">
+          <div class="svc-field"><label>Invoice No${hintInvoice}</label><input id="svc-epf-invoice" value="${_escapeSvc(p.invoiceNo || '')}" style="${hlInvoice}"></div>
+          <div class="svc-field"><label>FedEx Tracking${hintFedex}</label><input id="svc-epf-fedex" value="${_escapeSvc(p.fedexTracking || '')}" placeholder="8876 9467 7089" style="${hlFedex}"></div>
+        </div>
+        <div class="svc-field"><label>Comment</label><textarea id="svc-epf-comment">${_escapeSvc(p.comment || '')}</textarea></div>
+      </div>
+      <div class="svc-modal-foot">
+        <button class="svc-btn svc-btn-sec" id="svc-epmod-cancel">Cancel</button>
+        <button class="svc-btn svc-btn-pri" id="svc-epmod-save">Save changes</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.querySelector('#svc-epmod-close').addEventListener('click', close);
+  overlay.querySelector('#svc-epmod-cancel').addEventListener('click', close);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+
+  overlay.querySelector('#svc-epmod-save').addEventListener('click', async () => {
+    const get = id => overlay.querySelector(id).value.trim();
+    const newDate = get('#svc-epf-date');
+    const newCustomer = get('#svc-epf-customer');
+    const newPo = get('#svc-epf-po');
+    const newSales = get('#svc-epf-sales');
+    const newInvoice = get('#svc-epf-invoice');
+    const newFedex = get('#svc-epf-fedex');
+    const newComment = get('#svc-epf-comment');
+    if (!newDate || !newCustomer || !newPo) { alert('Date, Customer, and PO Number are required.'); return; }
+    const btn = overlay.querySelector('#svc-epmod-save');
+    btn.disabled = true; btn.textContent = 'Saving…';
+
+    try {
+      const token = await getGraphToken();
+      const driveId = _serviceState.partsDriveId;
+      const itemId = _serviceState.partsItemId;
+      const sheetRow = p.sheetRow;
+
+      // Re-verify the row still matches our dispatch — guards against race
+      // conditions where another row was inserted between read and PATCH.
+      // We check Customer + PO Number on the same sheet row.
+      const verifyRange = `A${sheetRow}:H${sheetRow}`;
+      const verifyRes = await _graphFetchWithRetry(
+        `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/worksheets('${encodeURIComponent(PARTS_TRACKER_SHEET)}')/range(address='${verifyRange}')?$select=values`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (!verifyRes.ok) throw new Error(`Could not verify row ${sheetRow}: ${verifyRes.status}`);
+      const verifyData = await verifyRes.json();
+      const cur = (verifyData.values && verifyData.values[0]) || [];
+      const curCustomer = String(cur[1] || '').trim();
+      const curPo = String(cur[2] || '').trim();
+      if (curCustomer !== p.customer || curPo !== p.poNumber) {
+        throw new Error(`Race condition: row ${sheetRow} now contains "${curCustomer} · PO ${curPo}", expected "${p.customer} · PO ${p.poNumber}". PATCH aborted — please refresh.`);
+      }
+
+      // Build per-cell diff list. Only PATCH cells whose value actually changed.
+      const diffs = [];
+      const newDateSerial = newDate ? _isoToExcelSerial(newDate) : '';
+      const oldDateSerial = p.date ? _isoToExcelSerial(p.date.toISOString().slice(0, 10)) : '';
+      if (newDateSerial !== oldDateSerial) diffs.push({ col: COL.date, label: 'Date', value: newDateSerial });
+      if (newCustomer !== (p.customer || '')) diffs.push({ col: COL.customer, label: 'Customer', value: newCustomer });
+      if (newPo !== (p.poNumber || '')) diffs.push({ col: COL.poNumber, label: 'PO Number', value: newPo });
+      if (newSales !== (p.salesAckNo || '')) diffs.push({ col: COL.salesAckNo, label: 'Sales Ack No', value: newSales });
+      if (newInvoice !== (p.invoiceNo || '')) diffs.push({ col: COL.invoiceNo, label: 'Invoice No', value: newInvoice });
+      if (newFedex !== (p.fedexTracking || '')) diffs.push({ col: COL.fedexTracking, label: 'FedEx Tracking', value: newFedex });
+      if (newComment !== (p.comment || '')) diffs.push({ col: COL.comment, label: 'Comment', value: newComment });
+
+      if (diffs.length === 0) {
+        close();
+        alert('No changes to save.');
+        return;
+      }
+
+      console.log(`[svc] parts edit row ${sheetRow} — ${diffs.length} cell(s) changed:`, diffs.map(d => d.label));
+
+      // PATCH each changed cell via worksheets/range(address='X{row}')
+      for (const d of diffs) {
+        const url = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/worksheets('${encodeURIComponent(PARTS_TRACKER_SHEET)}')/range(address='${d.col}${sheetRow}')`;
+        const r = await _graphFetchWithRetry(url, {
+          method: 'PATCH',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ values: [[d.value]] })
+        });
+        if (!r.ok) {
+          const errText = await r.text();
+          throw new Error(`PATCH ${d.label} failed: ${r.status} ${errText}`);
+        }
+      }
+
+      // Detect stage transition based on NEW values vs OLD values
+      const newPartsObj = {
+        isDelivered: p.isDelivered,           // delivered cell not editable here
+        invoiceNo: newInvoice,
+        salesAckNo: newSales,
+        fedexTracking: newFedex
+      };
+      const newStage = _partsStage(newPartsObj);
+
+      let emailFailed = false;
+      let emailSentMsg = '';
+      if (oldStage === 'transport' && newStage === 'finance') {
+        // User just added FedEx Tracking → handoff to accounts
+        try {
+          const sent = await _sendPartsFinanceHandoffEmail({
+            customer: newCustomer, po: newPo, fedex: newFedex, salesAck: newSales
+          });
+          if (!sent) emailFailed = true;
+          else emailSentMsg = ' Accounts has been emailed to add Invoice No.';
+        } catch (mailErr) {
+          emailFailed = true;
+          console.warn('[svc] parts finance email failed:', mailErr.message);
+        }
+      } else if (oldStage === 'transport' && newStage === 'complete') {
+        // Edge case: user filled FedEx + Invoice + Sales Ack all in one go
+        // (e.g. Blake doing everything). Skip email — too edge-case.
+        console.log('[svc] parts edit jumped transport → complete in one go; skipping email per spec');
+      }
+
+      close();
+      await loadServiceData(true);
+      _renderServiceAll();
+      const stageMsg = (oldStage !== newStage)
+        ? ` Stage: ${oldStage} → ${newStage}.`
+        : '';
+      if (emailFailed) {
+        alert(`Dispatch updated (${diffs.length} field${diffs.length === 1 ? '' : 's'} changed).${stageMsg} Handoff email FAILED — please notify the next team manually.`);
+      } else {
+        alert(`Dispatch updated (${diffs.length} field${diffs.length === 1 ? '' : 's'} changed).${stageMsg}${emailSentMsg}`);
+      }
+    } catch (e) {
+      alert(`Failed to save: ${e.message}`);
+      btn.disabled = false; btn.textContent = 'Save changes';
     }
   });
 }
@@ -22113,6 +22745,14 @@ function _renderServiceParts() {
       ${(inTransit.length === 0 && delivered.length === 0) ? '<div style="padding:32px;text-align:center;color:var(--text2);font-size:12.5px">No parts dispatches recorded.</div>' : ''}
     </div>
   `;
+  // Wire up click → edit modal. Uses sheetRow attribute to identify the parcel.
+  c.querySelectorAll('.svc-parcel[data-parts-rowidx]').forEach(el => {
+    el.addEventListener('click', () => {
+      const rowIdx = parseInt(el.dataset.partsRowidx, 10);
+      const p = _serviceState.parts.find(x => x.sheetRow === rowIdx);
+      if (p) openEditPartsDispatchModal(p);
+    });
+  });
 }
 
 function _servicePartRowHtml(state) {
@@ -22120,8 +22760,10 @@ function _servicePartRowHtml(state) {
     const inferred = _inferParcelStage(p);
     const cardState = state === 'delivered' ? 'delivered' : (inferred.state === 'delayed' ? 'delayed' : 'transit');
     const icn = state === 'delivered' ? '✓' : (inferred.state === 'delayed' ? '⚠' : '🚚');
+    const stage = _partsStage(p);
+    const rowAttr = (typeof p.sheetRow === 'number') ? ` data-parts-rowidx="${p.sheetRow}"` : '';
     return `
-      <div class="svc-parcel ${cardState}">
+      <div class="svc-parcel ${cardState}"${rowAttr} style="cursor:pointer">
         <div class="svc-parcel-icn">${icn}</div>
         <div class="svc-parcel-mid">
           <div class="top">
@@ -22136,6 +22778,7 @@ function _servicePartRowHtml(state) {
           </div>
         </div>
         <div class="svc-parcel-right">
+          <div style="margin-bottom:4px">${_partsStagePillHtml(stage)}</div>
           ${p.isDelivered
             ? `<div class="eta"><span class="lbl">Delivered</span>${_escapeSvc(p.deliveredText)}</div>`
             : `<div class="eta"><span class="lbl">Sent</span>${p.date ? p.date.toLocaleDateString('en-GB') : '—'}</div>`}
