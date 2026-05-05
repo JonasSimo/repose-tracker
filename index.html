@@ -21194,51 +21194,76 @@ function openNewServiceTicketModal() {
       const todayIso = get('#svc-f-opendate');
       const pcloseIso = get('#svc-f-pclose');
       const ticketNo = get('#svc-f-ticketno');
-      const row = new Array(36).fill(null);
-      row[0] = '';
-      row[1] = get('#svc-f-period30');
-      row[2] = '';
-      row[3] = `${get('#svc-f-fault')} - ${get('#svc-f-subfault')}`.replace(/^ - $/, '');
-      row[4] = '';
-      row[5] = todayIso ? new Date(todayIso).toLocaleDateString('en-GB', { month: 'long' }) : '';
-      row[6] = ticketNo;
-      row[7] = customer;
-      row[8] = '';
-      row[9] = get('#svc-f-repno');
-      row[10] = get('#svc-f-poref');
-      row[11] = get('#svc-f-model');
-      row[12] = get('#svc-f-mech');
-      row[13] = desc;
-      row[14] = todayIso ? _isoToExcelSerial(todayIso) : null;
-      row[15] = '';
-      row[16] = '';
-      row[17] = '';
-      row[18] = get('#svc-f-owner');
-      row[19] = pcloseIso ? _isoToExcelSerial(pcloseIso) : null;
-      row[20] = null;
-      row[21] = null;
-      row[22] = null;
-      row[23] = '';
-      row[24] = get('#svc-f-wc');
-      row[25] = get('#svc-f-fault');
-      row[26] = get('#svc-f-subfault');
-      row[27] = 'OPEN';
+
+      // Build a values-by-column-name dictionary. Then fetch the table's
+      // actual column list and map values into the table's order. This is
+      // robust to extra/hidden/unnamed columns that would otherwise cause
+      // a positional offset.
+      const fault = get('#svc-f-fault');
+      const subFault = get('#svc-f-subfault');
+      const periodMonth = todayIso ? new Date(todayIso).toLocaleDateString('en-GB', { month: 'long' }) : '';
+      const valuesByName = {
+        'include in pivot': '',
+        'Within / Outside 30 days': get('#svc-f-period30'),
+        'Week': null,
+        'Fault - sub fault': fault && subFault ? `${fault} - ${subFault}` : (fault || subFault || ''),
+        'FY': null,
+        'Period': periodMonth,
+        'Ticket No': ticketNo,
+        'Customer': customer,
+        'Despatch Date': null,
+        'REP Number': get('#svc-f-repno'),
+        'Ref / PO number': get('#svc-f-poref'),
+        'Model': get('#svc-f-model'),
+        'Mech Code': get('#svc-f-mech'),
+        'Description': desc,
+        'Open Date': todayIso ? _isoToExcelSerial(todayIso) : null,
+        'Returned to Factory': '',
+        'Action': '',
+        'Notes': '',
+        'Owner': get('#svc-f-owner'),
+        'Proposed Close Date': pcloseIso ? _isoToExcelSerial(pcloseIso) : null,
+        'Close Date': null,
+        'Days to Complete': null,
+        'Overdue By': null,
+        'Quality Issue': '',
+        'Warranty / Chargeable': get('#svc-f-wc'),
+        'Fault Code': fault,
+        'Sub-Fault': subFault,
+        'Open / Closed': 'OPEN',
+        'Invoice No': '',
+        'Invoice Date': null,
+        '£': null,
+        '£ Del': null,
+        'Chair Returned': '',
+        'Inspected': '',
+        'In Production': '',
+        'Return to customer': ''
+      };
 
       const token = await getGraphToken();
-      // Discover the actual column count of the TicketLog Table — it may
-      // include 1-2 trailing empty columns from when the user defined the
-      // table over the sheet's usedRange. Pad/truncate our 36-cell row to
-      // match exactly so Graph doesn't 400 on dimension mismatch.
+      // Read the actual table column names + order. Map each table column
+      // to its value from valuesByName (case-insensitive trim match).
       const colsRes = await fetch(
         `https://graph.microsoft.com/v1.0/drives/${_serviceState.ticketDriveId}/items/${_serviceState.ticketItemId}/workbook/tables('${SERVICE_TICKET_TABLE}')/columns?$select=name`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       if (!colsRes.ok) throw new Error(`Could not read TicketLog columns: ${colsRes.status}`);
       const colsData = await colsRes.json();
-      const tableColCount = (colsData.value || []).length;
-      // Pad with null or truncate
-      while (row.length < tableColCount) row.push(null);
-      if (row.length > tableColCount) row.length = tableColCount;
+      const tableCols = (colsData.value || []).map(c => c.name);
+
+      // Build a lookup from canonical-trimmed-lowercase name → our value.
+      const norm = s => String(s || '').trim().toLowerCase();
+      const lookup = {};
+      for (const [k, v] of Object.entries(valuesByName)) lookup[norm(k)] = v;
+
+      const row = tableCols.map(colName => {
+        const key = norm(colName);
+        return Object.prototype.hasOwnProperty.call(lookup, key) ? lookup[key] : null;
+      });
+
+      console.log('[svc] writing ticket — table columns:', tableCols);
+      console.log('[svc] writing ticket — row payload:', row);
 
       const url = `https://graph.microsoft.com/v1.0/drives/${_serviceState.ticketDriveId}/items/${_serviceState.ticketItemId}/workbook/tables('${SERVICE_TICKET_TABLE}')/rows/add`;
       const res = await fetch(url, {
@@ -21248,7 +21273,7 @@ function openNewServiceTicketModal() {
       });
       if (!res.ok) {
         const errText = await res.text();
-        throw new Error(`Graph Excel REST returned ${res.status} (table has ${tableColCount} cols, sent ${row.length}): ${errText}`);
+        throw new Error(`Graph Excel REST returned ${res.status} (table has ${tableCols.length} cols, sent ${row.length}): ${errText}`);
       }
 
       close();
@@ -21317,29 +21342,39 @@ function openNewPartsDispatchModal() {
     const btn = overlay.querySelector('#svc-pmod-save');
     btn.disabled = true; btn.textContent = 'Saving…';
     try {
-      const row = [
-        _isoToExcelSerial(date),
-        customer,
-        po,
-        get('#svc-pf-sales'),
-        get('#svc-pf-invoice'),
-        tracking,
-        '', // Delivered — left blank; FedEx auto-poll fills this in Phase D
-        get('#svc-pf-comment')
-      ];
+      // Map values by column name (robust to extra/hidden columns).
+      const valuesByName = {
+        'Date': _isoToExcelSerial(date),
+        'Customer': customer,
+        'PO Number': po,
+        'Sales Ack No': get('#svc-pf-sales'),
+        'Invoice No': get('#svc-pf-invoice'),
+        'Fedex Tracking': tracking,
+        'FedEx Tracking': tracking,                 // alt-case fallback
+        'Delivered': '',                            // FedEx auto-poll fills this in Phase D
+        'Comment': get('#svc-pf-comment')
+      };
+
       const token = await getGraphToken();
-      // Discover the actual column count of the DataTable Table — it may
-      // include trailing empty columns from when the user defined the
-      // table. Pad/truncate so Graph doesn't 400 on dimension mismatch.
       const colsRes = await fetch(
         `https://graph.microsoft.com/v1.0/drives/${_serviceState.partsDriveId}/items/${_serviceState.partsItemId}/workbook/tables('${PARTS_TRACKER_TABLE}')/columns?$select=name`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       if (!colsRes.ok) throw new Error(`Could not read ${PARTS_TRACKER_TABLE} columns: ${colsRes.status}`);
       const colsData = await colsRes.json();
-      const tableColCount = (colsData.value || []).length;
-      while (row.length < tableColCount) row.push(null);
-      if (row.length > tableColCount) row.length = tableColCount;
+      const tableCols = (colsData.value || []).map(c => c.name);
+
+      const norm = s => String(s || '').trim().toLowerCase();
+      const lookup = {};
+      for (const [k, v] of Object.entries(valuesByName)) lookup[norm(k)] = v;
+
+      const row = tableCols.map(colName => {
+        const key = norm(colName);
+        return Object.prototype.hasOwnProperty.call(lookup, key) ? lookup[key] : null;
+      });
+
+      console.log('[svc] writing parts — table columns:', tableCols);
+      console.log('[svc] writing parts — row payload:', row);
 
       const url = `https://graph.microsoft.com/v1.0/drives/${_serviceState.partsDriveId}/items/${_serviceState.partsItemId}/workbook/tables('${PARTS_TRACKER_TABLE}')/rows/add`;
       const res = await fetch(url, {
@@ -21349,7 +21384,7 @@ function openNewPartsDispatchModal() {
       });
       if (!res.ok) {
         const errText = await res.text();
-        throw new Error(`Graph Excel REST returned ${res.status} (table has ${tableColCount} cols, sent ${row.length}): ${errText}`);
+        throw new Error(`Graph Excel REST returned ${res.status} (table has ${tableCols.length} cols, sent ${row.length}): ${errText}`);
       }
       close();
       await loadServiceData(true);
