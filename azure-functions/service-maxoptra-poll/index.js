@@ -62,6 +62,45 @@ async function getMaxoptraJobs(log) {
   return Array.isArray(jobs) ? jobs : [];
 }
 
+// ─── Microsoft Graph ─────────────────────────────────────────────────────
+async function getGraphToken() {
+  const cca = new ConfidentialClientApplication({
+    auth: {
+      clientId: CLIENT_ID,
+      authority: `https://login.microsoftonline.com/${TENANT_ID}`,
+      clientSecret: CLIENT_SECRET
+    }
+  });
+  const result = await cca.acquireTokenByClientCredential({
+    scopes: ['https://graph.microsoft.com/.default']
+  });
+  return result.accessToken;
+}
+
+async function graphGet(token, url) {
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) throw new Error(`Graph GET ${res.status}: ${await res.text()}`);
+  return await res.json();
+}
+
+function encodeSharingUrl(url) {
+  const b64 = Buffer.from(url).toString('base64');
+  return 'u!' + b64.replace(/=+$/, '').replace(/\//g, '_').replace(/\+/g, '-');
+}
+
+async function resolveDriveItem(token, sharingUrl) {
+  const encoded = encodeSharingUrl(sharingUrl);
+  const item = await graphGet(token, `https://graph.microsoft.com/v1.0/shares/${encoded}/driveItem`);
+  return { driveId: item.parentReference.driveId, itemId: item.id };
+}
+
+async function readTicketLog(token, driveId, itemId) {
+  // Use the table's range to get header + values in one call.
+  const url = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/tables('${TICKET_TABLE}')/range(valuesOnly=false)?$select=values`;
+  const range = await graphGet(token, url);
+  return range.values || [];
+}
+
 module.exports = async function (context, myTimer) {
   const log = context.log;
   const started = new Date();
@@ -81,5 +120,39 @@ module.exports = async function (context, myTimer) {
     return;
   }
   log(`[service-maxoptra-poll] sample jobs: ${JSON.stringify(jobs.slice(0, 2), null, 2)}`);
-  log(`[service-maxoptra-poll] complete (Task 2 only) · ${((Date.now() - started.getTime()) / 1000).toFixed(1)}s`);
+
+  if (!TICKETS_SHARING_URL) {
+    log.warn('TICKETS_SHARING_URL missing — cannot continue.');
+    return;
+  }
+
+  let graphToken;
+  try {
+    graphToken = await getGraphToken();
+  } catch (e) {
+    log.error('Graph auth failed:', e.message);
+    return;
+  }
+
+  let driveId, itemId;
+  try {
+    ({ driveId, itemId } = await resolveDriveItem(graphToken, TICKETS_SHARING_URL));
+  } catch (e) {
+    log.error('Could not resolve TICKET LOG:', e.message);
+    return;
+  }
+
+  let values;
+  try {
+    values = await readTicketLog(graphToken, driveId, itemId);
+  } catch (e) {
+    log.error('Could not read TicketLog:', e.message);
+    return;
+  }
+  if (values.length < 2) {
+    log.warn('TicketLog has no data rows.');
+    return;
+  }
+  log(`[service-maxoptra-poll] read TicketLog · ${values.length - 1} data rows`);
+  log(`[service-maxoptra-poll] complete (Task 3 only) · ${((Date.now() - started.getTime()) / 1000).toFixed(1)}s`);
 };
