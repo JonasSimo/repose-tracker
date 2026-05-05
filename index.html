@@ -3096,6 +3096,15 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .svc-parcel-right { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
 .svc-parcel-right .eta { font-family: 'Bricolage Grotesque', sans-serif; font-size: 13px; font-weight: 700; color: var(--repose-navy); }
 .svc-parcel-right .eta .lbl { display: block; font-family: Manrope, sans-serif; font-size: 9px; font-weight: 600; color: var(--text2); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 1px; }
+.svc-parcel { grid-template-columns: auto 1fr auto; align-items: stretch; }
+.svc-parcel-mid .progress { height: 5px; border-radius: 999px; background: var(--grey-soft); margin-top: 8px; overflow: hidden; }
+.svc-parcel-mid .progress-fill { height: 100%; background: linear-gradient(90deg, var(--info), var(--repose-blue)); border-radius: 999px; transition: width .4s; }
+.svc-parcel.delivered .svc-parcel-mid .progress-fill { background: var(--pass); }
+.svc-parcel.delayed .svc-parcel-mid .progress-fill { background: var(--fail); }
+.svc-parcel-mid .stages { display: flex; gap: 8px; font-size: 9.5px; color: var(--text2); margin-top: 5px; font-weight: 600; flex-wrap: wrap; }
+.svc-parcel-mid .stages span.done { color: var(--pass); }
+.svc-parcel-mid .stages span.now { color: var(--info); font-weight: 700; }
+.svc-parcel.delayed .svc-parcel-mid .stages span.now { color: var(--fail); }
 .svc-grid-12 { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 16px; margin-bottom: 16px; }
 @media (max-width: 1280px) { .svc-grid-12 { grid-template-columns: 1fr; } }
 .svc-perf-strip { padding: 16px 20px; }
@@ -21514,6 +21523,37 @@ function openNewPartsDispatchModal() {
   });
 }
 
+// Infer current shipment stage from elapsed days since dispatch.
+// Returns { stages: [{label, status}], pct: 0-100, state: 'transit'|'delivered'|'delayed' }
+function _inferParcelStage(p) {
+  const stages = ['Picked up', 'Transit', 'Local depot', 'Out for delivery', 'Delivered'];
+  if (p.isDelivered) {
+    return { stages: stages.map(label => ({ label, status: 'done' })), pct: 100, state: 'delivered' };
+  }
+  if (!p.date) {
+    // No dispatch date — show first stage only
+    return {
+      stages: stages.map((label, i) => ({ label, status: i === 0 ? 'now' : 'pending' })),
+      pct: 10, state: 'transit'
+    };
+  }
+  const days = Math.floor((Date.now() - p.date.getTime()) / 86400000);
+  let nowIdx = 0;
+  if (days >= 4) nowIdx = 3;
+  else if (days >= 3) nowIdx = 2;
+  else if (days >= 1) nowIdx = 1;
+  // 5+ days un-delivered: classify as delayed; nowIdx caps at 3 (OFD)
+  const state = days >= 5 ? 'delayed' : 'transit';
+  return {
+    stages: stages.map((label, i) => ({
+      label,
+      status: i < nowIdx ? 'done' : i === nowIdx ? 'now' : 'pending'
+    })),
+    pct: state === 'delayed' ? 65 : Math.min(85, (nowIdx + 1) * 22),
+    state
+  };
+}
+
 function _renderServiceParts() {
   const c = document.getElementById('svc-parts-container');
   if (!c) return;
@@ -21535,22 +21575,33 @@ function _renderServiceParts() {
 }
 
 function _servicePartRowHtml(state) {
-  return (p) => `
-    <div class="svc-parcel ${state}">
-      <div class="svc-parcel-icn">${state === 'delivered' ? '✓' : '🚚'}</div>
-      <div class="svc-parcel-mid">
-        <div class="top">
-          <span class="who">${_escapeSvc(p.customer)}</span>
-          ${p.poNumber ? `<span class="po">PO ${_escapeSvc(p.poNumber)}</span>` : ''}
+  return (p) => {
+    const inferred = _inferParcelStage(p);
+    const cardState = state === 'delivered' ? 'delivered' : (inferred.state === 'delayed' ? 'delayed' : 'transit');
+    const icn = state === 'delivered' ? '✓' : (inferred.state === 'delayed' ? '⚠' : '🚚');
+    return `
+      <div class="svc-parcel ${cardState}">
+        <div class="svc-parcel-icn">${icn}</div>
+        <div class="svc-parcel-mid">
+          <div class="top">
+            <span class="who">${_escapeSvc(p.customer)}</span>
+            ${p.poNumber ? `<span class="po">PO ${_escapeSvc(p.poNumber)}</span>` : ''}
+          </div>
+          ${p.fedexTracking ? `<div class="tn">FedEx <b>${_escapeSvc(p.fedexTracking)}</b></div>` : ''}
+          ${p.invoiceNo ? `<div class="tn">Invoice ${_escapeSvc(p.invoiceNo)}</div>` : ''}
+          <div class="progress"><div class="progress-fill" style="width:${inferred.pct}%"></div></div>
+          <div class="stages">
+            ${inferred.stages.map(s => `<span class="${s.status}">${s.status === 'done' ? '✓' : s.status === 'now' ? '●' : '○'} ${_escapeSvc(s.label)}</span>`).join('')}
+          </div>
         </div>
-        ${p.fedexTracking ? `<div class="tn">FedEx <b>${_escapeSvc(p.fedexTracking)}</b></div>` : ''}
-        ${p.invoiceNo ? `<div class="tn">Invoice ${_escapeSvc(p.invoiceNo)}</div>` : ''}
+        <div class="svc-parcel-right">
+          ${p.isDelivered
+            ? `<div class="eta"><span class="lbl">Delivered</span>${_escapeSvc(p.deliveredText)}</div>`
+            : `<div class="eta"><span class="lbl">Sent</span>${p.date ? p.date.toLocaleDateString('en-GB') : '—'}</div>`}
+        </div>
       </div>
-      <div class="svc-parcel-right">
-        ${p.isDelivered ? `<div class="eta"><span class="lbl">Delivered</span>${p.deliveredText}</div>` : `<div class="eta"><span class="lbl">Sent</span>${p.date ? p.date.toLocaleDateString('en-GB') : '—'}</div>`}
-      </div>
-    </div>
-  `;
+    `;
+  };
 }
 
 function _computeMonthlyTrend() {
