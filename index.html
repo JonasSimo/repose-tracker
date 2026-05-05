@@ -1290,6 +1290,19 @@ body.tablet-mode .uh-token-icon { font-size:14px; }
 .tt-zero .tt-count { color: var(--repose-grey); }
 .tt-locked { opacity: .6; cursor: default; }
 .tt-locked:hover { transform: none; box-shadow: none; border-color: var(--border); }
+.tt-export-btn {
+  position: absolute; top: 8px; right: 8px;
+  background: var(--tc, var(--repose-navy)); color: #fff;
+  border: none; border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 10px; font-weight: 600; font-family: inherit;
+  cursor: pointer; line-height: 1.4;
+  transition: opacity .12s, transform .12s;
+  z-index: 2;
+}
+.tt-export-btn:hover { opacity: .85; transform: translateY(-1px); }
+.tt-export-btn:disabled,
+.tt-export-btn[disabled] { opacity: .35; cursor: not-allowed; pointer-events: none; }
 .cpar-stat-pills { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
 .cpar-stat-pill  { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 10px; }
 .cpar-stat-pill.open   { background: var(--bbg); color: var(--blue); }
@@ -7250,6 +7263,100 @@ function exportCSV() {
   toast('CSV exported — open in Excel', 's');
 }
 
+// Build the list of outstanding Assembly jobs (overdue + due today).
+// Returns an array of rows ready for CSV writing.
+function getAssemblyBacklogRows() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const todayDOW = today.getDay();                  // 0=Sun … 6=Sat
+  const todayPrep = (todayDOW >= 1 && todayDOW <= 5) ? todayDOW : 0;
+  const currentWk = `WK ${isoWeekNumber(today)}`;
+  const currentWkIdx = WEEKS.indexOf(currentWk);
+
+  const rows = [];
+  WEEKS.forEach((wk, wkIdx) => {
+    const wkData = PROD[wk] || {};
+    const wcDDMMYYYY = wkData.wc || '';
+    let wcDate = null;
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(wcDDMMYYYY)) {
+      const [dd, mm, yyyy] = wcDDMMYYYY.split('/');
+      wcDate = new Date(+yyyy, +mm - 1, +dd);
+      wcDate.setHours(0,0,0,0);
+    }
+
+    for (const p of [1,2,3,4,5,'express']) {
+      const jobs = wkData[p];
+      if (!Array.isArray(jobs)) continue;
+
+      // Apply date filter
+      let included = false;
+      if (p === 'express') {
+        included = true;                              // express always due
+      } else if (wkIdx < currentWkIdx) {
+        included = true;                              // strictly prior week
+      } else if (wk === currentWk && todayPrep > 0 && Number(p) <= todayPrep) {
+        included = true;                              // current week, ≤ today's prep
+      }
+      if (!included) continue;
+
+      jobs.forEach((job, ji) => {
+        if (STATE['Assembly']?.['all']?.[wk]?.[p]?.[ji]?.done) return;
+
+        // Days late = working days between due date (exclusive) and today (inclusive).
+        let daysLate = 0;
+        if (p !== 'express' && wcDate) {
+          const due = new Date(wcDate); due.setDate(due.getDate() + (Number(p) - 1));
+          due.setHours(0,0,0,0);
+          if (due < today) {
+            const cur = new Date(due); cur.setDate(cur.getDate() + 1);
+            while (cur <= today) {
+              const dow = cur.getDay();
+              if (dow >= 1 && dow <= 5) daysLate++;
+              cur.setDate(cur.getDate() + 1);
+            }
+          }
+        }
+
+        const rep7 = String(job.rep || '').replace(/\D/g,'').slice(-7);
+        const isExpress = (p === 'express') || (rep7 && EXPRESS_TYPE_MAP.has(rep7));
+
+        rows.push({
+          rep:      job.rep || '',
+          week:     wk,
+          wc:       wcDDMMYYYY,
+          prepLbl:  p === 'express' ? 'Express' : (PREP_DAYS[Number(p) - 1] || String(p)),
+          itemNo:   job.itemNo ?? '',
+          daysLate,
+          express:  isExpress ? 'Yes' : '',
+        });
+      });
+    }
+  });
+
+  rows.sort((a, b) => (b.daysLate - a.daysLate) || a.rep.localeCompare(b.rep));
+  return rows;
+}
+
+function exportAssemblyBacklogCSV() {
+  const rows = getAssemblyBacklogRows();
+  if (!rows.length) { toast('No outstanding Assembly jobs', 'i'); return; }
+
+  const header = ['REP','Week','W/C Date','Prep Day','Item No','Days Late','Express?'];
+  const data   = rows.map(r => [r.rep, r.week, r.wc, r.prepLbl, r.itemNo, r.daysLate, r.express]);
+  const csv = [header, ...data]
+    .map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(','))
+    .join('\r\n');
+
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });   // BOM for Excel
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  const ts   = new Date().toISOString().slice(0,10);
+  a.href     = url;
+  a.download = `repose-assembly-backlog-${ts}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast(`Backlog exported (${rows.length} jobs) — open in Excel`, 's');
+}
+
 // ═══════════════════════════════════════════════
 // OVERVIEW
 // ═══════════════════════════════════════════════
@@ -11266,8 +11373,16 @@ function renderStatsDashboard() {
     }
     const isActive   = statsTeamFilter === t.name;
     const isLocked   = statsAllowedTeams && !statsAllowedTeams.includes(t.name);
+    let exportBtnHtml = '';
+    if (t.name === 'Assembly') {
+      const backlogN = (typeof getAssemblyBacklogRows === 'function') ? getAssemblyBacklogRows().length : 0;
+      exportBtnHtml = `<button class="tt-export-btn" ${backlogN === 0 ? 'disabled' : ''}
+          title="Export outstanding Assembly jobs (overdue + due today) to Excel"
+          onclick="event.stopPropagation(); exportAssemblyBacklogCSV()">⬇ Backlog${backlogN ? ' ('+backlogN+')' : ''}</button>`;
+    }
     return `<div class="team-token${isEmpty?' tt-zero':''}${isActive?' active':''}${isLocked?' tt-locked':''}" style="--tc:${t.color}"
         onclick="statsSetTeamFilter('${t.name}')">
+      ${exportBtnHtml}
       <div class="tt-name">${t.name}${isLocked?' 🔒':''}</div>
       <div class="tt-count">${count}</div>
       <div class="tt-sub">${t.hasSubs ? 'parts' : 'jobs'}</div>
@@ -21162,6 +21277,12 @@ async function openServiceTicketDrawer(ticketNo) {
             <span class="svc-pill ${t.period30.toLowerCase().startsWith('inside 30') ? 'in30' : 'out30'}">${t.period30 || '—'}</span>
             <span class="svc-pill ${t.openClosed === 'OPEN' ? 'in30' : ''}" style="${t.openClosed === 'CLOSED' ? 'background:var(--pass-soft);color:var(--pass);border-color:var(--gborder)' : ''}">${t.openClosed}</span>
           </div>
+          ${t.openClosed === 'OPEN' && !t.returnedToFactory ? `
+            <div style="margin-top:12px"><button class="svc-btn svc-btn-pri" id="svc-drawer-mark-return" style="background:var(--orange);font-size:12px;padding:8px 14px">🔁 Mark for return</button></div>
+          ` : ''}
+          ${t.returnedToFactory ? `
+            <div style="margin-top:8px;font-size:11px;color:var(--orange);font-weight:700">🔁 Returned to factory · ${t.returnedToFactory instanceof Date ? t.returnedToFactory.toLocaleDateString('en-GB') : _escapeSvc(String(t.returnedToFactory))}</div>
+          ` : ''}
         </div>
         <button class="x" id="svc-drawer-close">×</button>
       </div>
@@ -21214,6 +21335,109 @@ async function openServiceTicketDrawer(ticketNo) {
   document.body.appendChild(overlay);
   overlay.querySelector('#svc-drawer-close').addEventListener('click', () => overlay.remove());
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  overlay.querySelector('#svc-drawer-mark-return')?.addEventListener('click', () => _openMarkForReturnConfirm(t, overlay));
+}
+
+async function _openMarkForReturnConfirm(t, drawerOverlay) {
+  // Compute the next chair ID — if REP is REP2891, becomes REP2891-R1; if -R1, becomes -R2
+  const cid = _parseChairId(t.repNo);
+  const nextChairId = cid ? `${cid.rep}-R${cid.returnNo + 1}` : t.repNo;
+  const fromLabel = cid ? cid.label : t.repNo || '—';
+
+  const cm = document.createElement('div');
+  cm.className = 'svc-modal-bg';
+  cm.innerHTML = `
+    <div class="svc-modal" style="max-width:480px">
+      <div class="svc-modal-head"><h2>🔁 Mark chair for return</h2><button class="x" id="svc-mr-close">×</button></div>
+      <div class="svc-modal-body">
+        <p style="font-size:13px;line-height:1.6;margin:0 0 14px">Confirm that <b>${_escapeSvc(t.ticketNo)}</b> needs the chair to physically come back to the factory.</p>
+        <div style="background:var(--bbg);border:1px solid var(--bborder);border-radius:10px;padding:12px;font-size:12.5px;line-height:1.5">
+          <div><b>Chair ID change:</b></div>
+          <div style="font-family:'JetBrains Mono',monospace;margin-top:4px">${_escapeSvc(fromLabel)} <span style="color:var(--text2)">→</span> <span style="color:var(--orange);font-weight:800">${_escapeSvc(nextChairId)}</span></div>
+        </div>
+        <p style="font-size:11.5px;color:var(--text2);margin-top:14px;line-height:1.5">This will write today's date to the ticket's <b>Returned to Factory</b> column and update the REP Number to the new chair ID. Maxoptra collection booking + transport email will be added in Phase D — for now this records intent only.</p>
+      </div>
+      <div class="svc-modal-foot">
+        <button class="svc-btn svc-btn-sec" id="svc-mr-cancel">Cancel</button>
+        <button class="svc-btn svc-btn-pri" id="svc-mr-confirm" style="background:var(--orange)">🔁 Mark for return</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(cm);
+  const close = () => cm.remove();
+  cm.querySelector('#svc-mr-close').addEventListener('click', close);
+  cm.querySelector('#svc-mr-cancel').addEventListener('click', close);
+  cm.addEventListener('click', e => { if (e.target === cm) close(); });
+
+  cm.querySelector('#svc-mr-confirm').addEventListener('click', async () => {
+    const btn = cm.querySelector('#svc-mr-confirm');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      // Patch the row by ticketNo. Excel REST tables don't have a row-by-id-update endpoint,
+      // so we use the ICellsCollection approach: query the table for its rows, find the index
+      // matching this ticket, then patch that row's specific cells via the ranges endpoint.
+      const token = await getGraphToken();
+      const driveId = _serviceState.ticketDriveId;
+      const itemId = _serviceState.ticketItemId;
+
+      // Fetch table column names to map values by name
+      const colsRes = await fetch(
+        `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/tables('${SERVICE_TICKET_TABLE}')/columns?$select=name`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (!colsRes.ok) throw new Error(`Could not read TicketLog columns: ${colsRes.status}`);
+      const cols = (await colsRes.json()).value.map(c => c.name);
+      const norm = s => String(s || '').trim().toLowerCase();
+      const findColIdx = (name) => cols.findIndex(c => norm(c) === norm(name));
+
+      const ticketNoColIdx = findColIdx('Ticket No');
+      const repNoColIdx = findColIdx('REP Number');
+      const returnedColIdx = findColIdx('Returned to Factory');
+      if (ticketNoColIdx < 0) throw new Error('TicketLog has no "Ticket No" column.');
+      if (returnedColIdx < 0) throw new Error('TicketLog has no "Returned to Factory" column.');
+
+      // Find the row index for this ticketNo. Use the table's data range.
+      const rowsRes = await fetch(
+        `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/tables('${SERVICE_TICKET_TABLE}')/range(valuesOnly=true)?$select=values`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (!rowsRes.ok) throw new Error(`Could not read TicketLog data: ${rowsRes.status}`);
+      const rowsData = await rowsRes.json();
+      const allRows = rowsData.values || [];
+      // Header is row 0 of the data range. Find the matching ticket
+      let dataRowIdx = -1;
+      for (let i = 1; i < allRows.length; i++) {
+        if (String(allRows[i][ticketNoColIdx] || '').trim() === t.ticketNo) { dataRowIdx = i - 1; break; }
+      }
+      if (dataRowIdx < 0) throw new Error(`Ticket ${t.ticketNo} not found in TicketLog table.`);
+
+      // PATCH the specific row using the rows/itemAt(index=N) endpoint
+      const patchRow = new Array(cols.length).fill(null);
+      patchRow[returnedColIdx] = _isoToExcelSerial(new Date().toISOString().slice(0, 10));
+      if (repNoColIdx >= 0) patchRow[repNoColIdx] = nextChairId;
+
+      const patchUrl = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/tables('${SERVICE_TICKET_TABLE}')/rows/itemAt(index=${dataRowIdx})`;
+      const patchRes = await fetch(patchUrl, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ values: [patchRow] })
+      });
+      if (!patchRes.ok) {
+        const errText = await patchRes.text();
+        throw new Error(`Excel REST PATCH ${patchRes.status}: ${errText}`);
+      }
+
+      console.log('[svc] marked for return — ticket:', t.ticketNo, '→ chair:', nextChairId);
+      close();
+      drawerOverlay?.remove();
+      await loadServiceData(true);
+      _renderServiceAll();
+      alert(`${t.ticketNo} marked for return. Chair is now ${nextChairId}.`);
+    } catch (e) {
+      alert(`Failed to mark for return: ${e.message}`);
+      btn.disabled = false; btn.textContent = '🔁 Mark for return';
+    }
+  });
 }
 
 function openNewServiceTicketModal() {
