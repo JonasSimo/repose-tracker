@@ -35,31 +35,57 @@ const IS_PROD             = MAXOPTRA_ENV === 'production';
 
 const TICKETS_SHARING_URL = process.env.TICKETS_SHARING_URL || '';
 const TICKET_TABLE = 'TicketLog';
+const TICKET_SHEET = 'TicketLog';
+
+// Adds an AbortController-based timeout to a fetch options bag.
+function withTimeout(options = {}, ms = 30000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  return {
+    options: { ...options, signal: controller.signal },
+    cleanup: () => clearTimeout(timer)
+  };
+}
 
 // ─── Maxoptra API ────────────────────────────────────────────────────────
 async function getMaxoptraJobs(log) {
-  // Filter to active pickup/collection jobs only — exclude terminal states.
+  // Filter includes cancelled/failed too — we want to detect them and update tickets.
   // ADJUST the URL + status filter based on Step 2.1 discovery output.
-  const url = `${MAXOPTRA_BASE_URL}/orders?type=Pickup&status=Planned,InProgress,Scheduled,PickedUp`;
+  const baseUrl = `${MAXOPTRA_BASE_URL}/orders?type=Pickup&status=Planned,InProgress,Scheduled,PickedUp,Cancelled,Failed`;
   const headers = {
     'Authorization': `Bearer ${MAXOPTRA_API_KEY}`,
     'Accept': 'application/json'
   };
   if (MAXOPTRA_ACCOUNT_ID) headers['X-Account-Id'] = MAXOPTRA_ACCOUNT_ID;
 
-  const res = await fetch(url, { headers });
-  if (!res.ok) {
-    throw new Error(`Maxoptra GET ${res.status}: ${await res.text()}`);
+  const allJobs = [];
+  let nextUrl = baseUrl;
+  let pageCount = 0;
+  let firstPageKeys = null;
+  const maxPages = 10;
+
+  while (nextUrl && pageCount < maxPages) {
+    pageCount++;
+    const { options: timedOpts, cleanup } = withTimeout({ headers }, 30000);
+    let res;
+    try {
+      res = await fetch(nextUrl, timedOpts);
+    } finally {
+      cleanup();
+    }
+    if (!res.ok) throw new Error(`Maxoptra GET ${res.status}: ${await res.text()}`);
+    const data = await res.json();
+    if (firstPageKeys === null) firstPageKeys = Object.keys(data || {}).join(', ');
+    const jobs = Array.isArray(data) ? data : (data.orders || data.items || data.data || []);
+    if (Array.isArray(jobs)) allJobs.push(...jobs);
+    nextUrl = data.next || data.nextLink || data['@odata.nextLink'] || (data.links && data.links.next) || null;
+    if (typeof nextUrl !== 'string') nextUrl = null;
   }
-  const data = await res.json();
-  // ADJUST 'data.orders' below if the response uses a different envelope key.
-  const jobs = Array.isArray(data) ? data : (data.orders || data.items || data.data || []);
-  if (!Array.isArray(jobs) || jobs.length === 0) {
-    // Surface a hint so the user can compare against the real API shape after Step 2.1 discovery.
-    log.warn(`[maxoptra] response had 0 jobs or unexpected shape · top-level keys: ${Object.keys(data || {}).join(', ') || '(none)'}`);
-  }
-  log(`[maxoptra] retrieved ${Array.isArray(jobs) ? jobs.length : 0} active collection job(s)`);
-  return Array.isArray(jobs) ? jobs : [];
+
+  if (pageCount >= maxPages) log.warn(`[maxoptra] hit max page limit (${maxPages}) — there may be more jobs`);
+  if (allJobs.length === 0) log.warn(`[maxoptra] 0 jobs returned · top-level keys on first page: ${firstPageKeys || '(none)'}`);
+  log(`[maxoptra] retrieved ${allJobs.length} active collection job(s) across ${pageCount} page(s)`);
+  return allJobs;
 }
 
 // ─── Microsoft Graph ─────────────────────────────────────────────────────
@@ -78,7 +104,7 @@ async function getGraphToken() {
 }
 
 async function graphGet(token, url) {
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  const res = await graphFetchWithRetry(url, { headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) throw new Error(`Graph GET ${res.status}: ${await res.text()}`);
   return await res.json();
 }
@@ -112,22 +138,28 @@ async function readTicketLog(token, driveId, itemId) {
   return range.values || [];
 }
 
-async function patchTicketRow(token, driveId, itemId, dataRowIdx, headerRow, updates) {
-  // updates is an object keyed by column name (case-insensitive).
-  const colCount = headerRow.length;
-  const patchRow = new Array(colCount).fill(null);
-  for (const [k, v] of Object.entries(updates)) {
-    const idx = findColIdx(headerRow, k);
-    if (idx < 0) continue;
-    patchRow[idx] = v;
+async function patchTicketRow(token, driveId, itemId, dataRowIdx, headerRow, updates, sheetName = 'TicketLog') {
+  // Sheet row = data row + 2 (header is sheet row 1, data row 0 = sheet row 2)
+  const sheetRow = dataRowIdx + 2;
+  const errors = [];
+  for (const [colName, value] of Object.entries(updates)) {
+    if (value === undefined || value === null) continue;
+    const colIdx = findColIdx(headerRow, colName);
+    if (colIdx < 0) continue;
+    const cellAddr = `${colIdxToLetter(colIdx)}${sheetRow}`;
+    const url = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/worksheets('${encodeURIComponent(sheetName)}')/range(address='${cellAddr}')`;
+    try {
+      const res = await graphFetchWithRetry(url, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ values: [[value]] })
+      });
+      if (!res.ok) errors.push(`${cellAddr} → ${res.status}: ${await res.text()}`);
+    } catch (e) {
+      errors.push(`${cellAddr} → ${e.message}`);
+    }
   }
-  const url = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/tables('${TICKET_TABLE}')/rows/itemAt(index=${dataRowIdx})`;
-  const res = await graphFetchWithRetry(url, {
-    method: 'PATCH',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ values: [patchRow] })
-  });
-  if (!res.ok) throw new Error(`PATCH ${res.status}: ${await res.text()}`);
+  if (errors.length) throw new Error(`PATCH errors: ${errors.join('; ')}`);
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
@@ -136,6 +168,17 @@ function _norm(s) { return String(s || '').trim().toLowerCase(); }
 function findColIdx(headerRow, name) {
   const target = _norm(name);
   return headerRow.findIndex(h => _norm(h) === target);
+}
+
+// 0-based column index → Excel column letter ('A', 'B', ..., 'Z', 'AA', ...)
+function colIdxToLetter(idx) {
+  let s = '';
+  let n = idx;
+  while (n >= 0) {
+    s = String.fromCharCode(65 + (n % 26)) + s;
+    n = Math.floor(n / 26) - 1;
+  }
+  return s;
 }
 
 // Match index.html's _parseChairId — keeps the REP-No semantics consistent.
@@ -149,14 +192,25 @@ function parseChairId(s) {
 
 function fmtDateLocal(d) {
   if (!d || isNaN(d.getTime())) return '';
-  const pad = n => String(n).padStart(2, '0');
-  return `${pad(d.getDate())} ${d.toLocaleString('en-GB', { month: 'short' })} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  // Force Europe/London timezone regardless of server locale (Azure default is UTC).
+  return d.toLocaleString('en-GB', {
+    timeZone: 'Europe/London',
+    weekday: 'short',
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  }).replace(',', '');
 }
 
 function fmtDateOnly(d) {
   if (!d || isNaN(d.getTime())) return '';
-  const pad = n => String(n).padStart(2, '0');
-  return `${pad(d.getDate())} ${d.toLocaleString('en-GB', { month: 'short' })}`;
+  return d.toLocaleString('en-GB', {
+    timeZone: 'Europe/London',
+    day: '2-digit',
+    month: 'short'
+  });
 }
 
 // Translate a Maxoptra job's raw status into the friendly pill text we
@@ -167,8 +221,12 @@ function mapMaxoptraStatus(rawStatus, scheduledTime, completedAt) {
   const sched = scheduledTime ? new Date(scheduledTime) : null;
   const done  = completedAt ? new Date(completedAt) : null;
 
+  if (s === 'cancelled' || s === 'canceled' || s === 'failed' || s === 'rejected') {
+    return `❌ Collection ${s} · please rebook`;
+  }
   if (s === 'completed' || s === 'delivered' || s === 'finished') {
-    return `✅ In factory · ${fmtDateOnly(done || sched || new Date())}`;
+    const when = fmtDateOnly(done || sched);
+    return when ? `✅ In factory · ${when}` : `✅ In factory`;
   }
   if (s === 'inprogress' || s === 'in_progress' || s === 'in progress' ||
       s === 'pickedup'   || s === 'picked_up'   || s === 'picked up'   ||
@@ -201,7 +259,14 @@ module.exports = async function (context, myTimer) {
     log.error('Maxoptra fetch failed:', e.message);
     return;
   }
-  log(`[service-maxoptra-poll] sample jobs: ${JSON.stringify(jobs.slice(0, 2), null, 2)}`);
+  // Sample log: just identifying fields, not full payloads (avoids 50KB log lines)
+  log(`[service-maxoptra-poll] sample jobs: ${JSON.stringify(jobs.slice(0, 3).map(j => ({
+    id: j.id,
+    reference: j.reference || j.externalId,
+    status: j.status,
+    scheduledTime: j.scheduledTime,
+    completedAt: j.completedAt
+  })), null, 2)}`);
 
   if (!TICKETS_SHARING_URL) {
     log.warn('TICKETS_SHARING_URL missing — cannot continue.');
@@ -242,6 +307,7 @@ module.exports = async function (context, myTimer) {
   const ticketNoIdx  = findColIdx(headerRow, 'Ticket No');
   const customerIdx  = findColIdx(headerRow, 'Customer');
   const returnedIdx  = findColIdx(headerRow, 'Returned to Factory');
+  const openDateIdx  = findColIdx(headerRow, 'Open Date');
   const mxJobIdx     = findColIdx(headerRow, 'Maxoptra Job ID');
   const mxStatusIdx  = findColIdx(headerRow, 'Maxoptra Status');
   const mxUpdatedIdx = findColIdx(headerRow, 'Maxoptra Updated');
@@ -250,17 +316,23 @@ module.exports = async function (context, myTimer) {
     log.error(`TicketLog missing "REP Number" column. Headers: ${headerRow.join(', ')}`);
     return;
   }
+  let isProdRun = IS_PROD;
   if (mxJobIdx < 0 || mxStatusIdx < 0 || mxUpdatedIdx < 0) {
-    log.error(`TicketLog missing Maxoptra columns. Add them per Task 5 of the plan before this function will write anything.`);
-    // Don't return — let it continue read-only so we can see what the function would do.
+    log.error(`TicketLog missing one or more Maxoptra columns (Job ID=${mxJobIdx}, Status=${mxStatusIdx}, Updated=${mxUpdatedIdx}). Add them per Task 5 of the plan. Forcing dry-run for this invocation.`);
+    isProdRun = false;
   }
 
   // Build map: full chair label (e.g. "REP2284-R1") → { rowIdx (0-based data), values reference }
+  // Also maintain a secondary map keyed by bare REP No (e.g. "REP2284") → array of all
+  // matching tickets so we can fall back when transport types just the REP without -R suffix.
   const ticketsByLabel = new Map();
+  const ticketsByRep = new Map();
   for (let i = 1; i < values.length; i++) {
     const cid = parseChairId(values[i][repNoIdx]);
     if (!cid || !cid.isReturn) continue; // only -R suffix rows are candidates
     ticketsByLabel.set(cid.label, { rowIdx: i - 1, sheetRow: i + 1, raw: values[i] });
+    if (!ticketsByRep.has(cid.rep)) ticketsByRep.set(cid.rep, []);
+    ticketsByRep.get(cid.rep).push({ rowIdx: i - 1, sheetRow: i + 1, raw: values[i], returnNo: cid.returnNo });
   }
   log(`[service-maxoptra-poll] indexed ${ticketsByLabel.size} ticket rows with -R suffix`);
 
@@ -269,6 +341,7 @@ module.exports = async function (context, myTimer) {
   let updated = 0;
   let skipped = 0;
   let wouldUpdate = 0;
+  let wouldFillReturned = 0;
   let returnedToFactoryFilled = 0;
 
   const todayIso = new Date().toISOString();
@@ -276,10 +349,29 @@ module.exports = async function (context, myTimer) {
   for (const job of jobs) {
     const ref = String(job.reference || job.externalId || '').trim().toUpperCase();
     if (!ref) { orphans++; continue; }
-    const ticket = ticketsByLabel.get(ref);
+    let ticket = ticketsByLabel.get(ref);
+    if (!ticket) {
+      // Fallback: try matching bare REP No (transport may have typed e.g. "REP2284" not "REP2284-R1")
+      const bareMatch = /^(REP\d+)/i.exec(ref);
+      if (bareMatch) {
+        const candidates = ticketsByRep.get(bareMatch[1].toUpperCase()) || [];
+        if (candidates.length === 1) {
+          ticket = candidates[0];
+        } else if (candidates.length > 1 && openDateIdx >= 0) {
+          // Pick the latest by Open Date (Excel serial; bigger = newer)
+          candidates.sort((a, b) => {
+            const ad = Number(a.raw[openDateIdx]) || 0;
+            const bd = Number(b.raw[openDateIdx]) || 0;
+            return bd - ad;
+          });
+          ticket = candidates[0];
+          log.warn(`[ambiguous] Maxoptra ref="${ref}" matched ${candidates.length} -R variants — picking latest Open Date (row ${ticket.sheetRow})`);
+        }
+      }
+    }
     if (!ticket) {
       orphans++;
-      log.warn(`[orphan] Maxoptra job ${job.id || '?'} reference="${ref}" — no matching ticket`);
+      log.warn(`[orphan] Maxoptra job ${job.id || '?'} reference="${ref}" raw="${job.reference}" — no matching ticket`);
       continue;
     }
     matched++;
@@ -299,54 +391,63 @@ module.exports = async function (context, myTimer) {
       'Maxoptra Updated': todayIso
     };
 
-    // Auto-fill Returned to Factory on completion if not already filled
+    // Auto-fill Returned to Factory on completion if not already filled.
+    // Only fill when Maxoptra actually provided a completion timestamp — never synthesise "today".
     const isCompleted = pill.startsWith('✅');
-    if (isCompleted && returnedIdx >= 0) {
+    if (isCompleted && returnedIdx >= 0 && job.completedAt) {
       const currentReturned = String(ticket.raw[returnedIdx] || '').trim();
       if (!currentReturned) {
-        const completedAt = job.completedAt ? new Date(job.completedAt) : new Date();
-        // Excel date serial
-        updates['Returned to Factory'] = Math.round((completedAt.getTime() / 86400000) + 25569);
-        returnedToFactoryFilled++;
+        const completedAt = new Date(job.completedAt);
+        if (!isNaN(completedAt.getTime())) {
+          // Adjust for local timezone so the Excel serial maps to the local-day, not UTC-day.
+          // (Excel interprets serials in workbook local time, but JS getTime() is UTC ms.)
+          const tzOffsetMs = completedAt.getTimezoneOffset() * 60000;
+          updates['Returned to Factory'] = Math.round(((completedAt.getTime() - tzOffsetMs) / 86400000) + 25569);
+        }
       }
     }
 
-    if (!IS_PROD) {
+    if (!isProdRun) {
       wouldUpdate++;
-      log(`[DRY-RUN] ${ref} row ${ticket.sheetRow} → ${pill} (sandbox; not written)`);
+      if (updates['Returned to Factory'] !== undefined) wouldFillReturned++;
+      log(`[DRY-RUN] ${ref} row ${ticket.sheetRow} → ${pill}${updates['Returned to Factory'] !== undefined ? ' (+ Returned to Factory)' : ''} (sandbox; not written)`);
       continue;
     }
 
     try {
-      await patchTicketRow(graphToken, driveId, itemId, ticket.rowIdx, headerRow, updates);
+      await patchTicketRow(graphToken, driveId, itemId, ticket.rowIdx, headerRow, updates, TICKET_SHEET);
       updated++;
-      log(`✓ ${ref} → ${pill}${updates['Returned to Factory'] ? ' (Returned to Factory filled)' : ''}`);
+      if (updates['Returned to Factory'] !== undefined) returnedToFactoryFilled++;
+      log(`✓ ${ref} → ${pill}${updates['Returned to Factory'] !== undefined ? ' (Returned to Factory filled)' : ''}`);
     } catch (e) {
       log.warn(`✗ Failed to update ${ref} at row ${ticket.sheetRow}: ${e.message}`);
     }
   }
 
   // Mark "stuck waiting" tickets: -R suffix REP No, no Maxoptra Job ID,
-  // no current Maxoptra Status (or current ≠ waiting). Idempotent.
+  // and no current Maxoptra Status (any value already present — waiting,
+  // legacy, or manual edit — is left alone). Idempotent.
   let waitingMarked = 0;
+  let wouldMarkWaiting = 0;
   if (mxJobIdx >= 0 && mxStatusIdx >= 0) {
     const waitingPill = '⏳ Waiting for collection booking';
     for (const [label, ticket] of ticketsByLabel.entries()) {
       const currentJobId = String(ticket.raw[mxJobIdx] || '').trim();
       const currentPill  = String(ticket.raw[mxStatusIdx] || '').trim();
-      if (currentJobId) continue;             // has Maxoptra job — covered by main loop
-      if (currentPill === waitingPill) continue; // already waiting — skip
+      if (currentJobId) continue;  // has Maxoptra job — covered by main loop
+      if (currentPill) continue;   // anything already in Maxoptra Status (waiting, legacy, manual edit) — skip
 
       const updates = {
         'Maxoptra Status': waitingPill,
         'Maxoptra Updated': todayIso
       };
-      if (!IS_PROD) {
+      if (!isProdRun) {
+        wouldMarkWaiting++;
         log(`[DRY-RUN] ${label} row ${ticket.sheetRow} → ${waitingPill} (sandbox; not written)`);
         continue;
       }
       try {
-        await patchTicketRow(graphToken, driveId, itemId, ticket.rowIdx, headerRow, updates);
+        await patchTicketRow(graphToken, driveId, itemId, ticket.rowIdx, headerRow, updates, TICKET_SHEET);
         waitingMarked++;
         log(`⏳ ${label} → ${waitingPill}`);
       } catch (e) {
@@ -356,9 +457,9 @@ module.exports = async function (context, myTimer) {
   }
 
   const duration = ((Date.now() - started.getTime()) / 1000).toFixed(1);
-  if (IS_PROD) {
+  if (isProdRun) {
     log(`[service-maxoptra-poll] complete · matched=${matched} updated=${updated} skipped=${skipped} waiting=${waitingMarked} returnedFilled=${returnedToFactoryFilled} orphans=${orphans} · ${duration}s`);
   } else {
-    log(`[service-maxoptra-poll] complete · DRY-RUN (env=${MAXOPTRA_ENV}) · matched=${matched} wouldUpdate=${wouldUpdate} skipped=${skipped} orphans=${orphans} · no writes performed · ${duration}s`);
+    log(`[service-maxoptra-poll] complete · DRY-RUN (env=${MAXOPTRA_ENV}) · matched=${matched} wouldUpdate=${wouldUpdate} wouldFillReturned=${wouldFillReturned} wouldMarkWaiting=${wouldMarkWaiting} skipped=${skipped} orphans=${orphans} · no writes performed · ${duration}s`);
   }
 };
