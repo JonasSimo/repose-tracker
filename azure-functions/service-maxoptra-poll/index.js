@@ -159,8 +159,11 @@ async function resolveDriveItem(token, sharingUrl) {
 }
 
 async function readTicketLog(token, driveId, itemId) {
-  // Use the table's range to get header + values in one call.
-  const url = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/tables('${TICKET_TABLE}')/range(valuesOnly=false)?$select=values`;
+  // Microsoft Graph: a table's `/range` endpoint returns the full range INCLUDING
+  // the header as values[0]. NOTE: do NOT add `(valuesOnly=...)` here — that's
+  // a parameter on `usedRange` (worksheet-level), not `range`. Graph 400s if
+  // we try it on `range`.
+  const url = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/tables('${TICKET_TABLE}')/range?$select=values`;
   const range = await graphGet(token, url);
   return range.values || [];
 }
