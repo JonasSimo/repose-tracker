@@ -19720,8 +19720,13 @@ function renderNearMisses() {
     }, 0);
     meanDays = (sum / closedWithDate.length).toFixed(1);
   }
+  // Hotspots = items raised in the last 3 months (rolling), open OR closed.
+  // Captures "where do near misses keep happening" rather than just current
+  // backlog. Same dataset feeds the side panel and the KPI top-hotspot tile.
+  const hotspotSince = new Date(now - 90 * 86400000);
+  const hotspotItems = NMS_ITEMS.filter(i => { const r = _NM_DATE(i.createdDateTime); return r && r >= hotspotSince; });
   const hotspotCounts = {};
-  allOpen.forEach(i => { const a = _NM_NORM_AREA(i.fields?.Locationofissue); if (a) hotspotCounts[a] = (hotspotCounts[a] || 0) + 1; });
+  hotspotItems.forEach(i => { const a = _NM_NORM_AREA(i.fields?.Locationofissue); if (a) hotspotCounts[a] = (hotspotCounts[a] || 0) + 1; });
   const topHotspot = Object.entries(hotspotCounts).sort((a,b) => b[1]-a[1])[0];
 
   document.getElementById('nm-kpis').innerHTML = `
@@ -19757,7 +19762,7 @@ function renderNearMisses() {
         <div class="svc-kpi-icn">📍</div>
         <div class="svc-kpi-mid">
           <div class="svc-kpi-num" style="font-size:20px">${topHotspot ? escHtml(topHotspot[0]) : '—'}</div>
-          <div class="svc-kpi-lbl">${topHotspot ? `Top hotspot · ${topHotspot[1]} open` : 'Top hotspot · none'}</div>
+          <div class="svc-kpi-lbl">${topHotspot ? `Top hotspot · ${topHotspot[1]} in last 90d` : 'Top hotspot · none'}</div>
         </div>
       </div>
     </div>
@@ -19807,9 +19812,8 @@ function renderNearMisses() {
   // ── Hotspots ────────────────────────────────────────────────────────
   const hotspotEntries = Object.entries(hotspotCounts).sort((a,b) => b[1]-a[1]).slice(0, 6);
   const maxHot = Math.max(1, ...hotspotEntries.map(([,n]) => n));
-  const totalOpen = allOpen.length;
   const subEl = document.getElementById('nm-hotspot-sub');
-  if (subEl) subEl.textContent = `${totalOpen} currently open · click an area to filter`;
+  if (subEl) subEl.textContent = `${hotspotItems.length} raised in last 3 months · click an area to filter`;
   const clearBar = nmsAreaFilter
     ? `<div class="nm-hotspot-clear">
          <span class="lbl">Filtered:</span>
