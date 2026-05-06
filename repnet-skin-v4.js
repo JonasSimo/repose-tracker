@@ -291,7 +291,21 @@
     }
     function doneFor(date) {
       const want = ddmmyyyy(date);
-      return COMPS.filter(c => c.fields && c.fields.Team === team && c.fields.CompletedDate === want).length;
+      const dayComps = COMPS.filter(c => c.fields && c.fields.Team === team && c.fields.CompletedDate === want);
+      // Woodmill and Upholstery write one completion record per sub-part
+      // (Arms / Backs / Seats), so a raw count is ~3× the effective job
+      // count and won't match the "Total jobs" shown on the main stats
+      // dashboard token. Reduce to job count instead:
+      //   Woodmill   → (arms + backs) / 2  (matches main-token formula)
+      //   Upholstery → (arms + backs + seats) / 3  (3-part average)
+      if (team === 'Woodmill' || team === 'Upholstery') {
+        const arms  = dayComps.filter(c => c.fields.SubTeam === 'Arms').length;
+        const backs = dayComps.filter(c => c.fields.SubTeam === 'Backs').length;
+        const seats = dayComps.filter(c => c.fields.SubTeam === 'Seats').length;
+        if (team === 'Woodmill')   return Math.floor((arms + backs) / 2);
+        if (team === 'Upholstery') return Math.floor((arms + backs + seats) / 3);
+      }
+      return dayComps.length;
     }
 
     const labels = [], planned = [], done = [];
