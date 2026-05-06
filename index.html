@@ -3115,7 +3115,10 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .svc-mx-pill.collected  { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
 .svc-mx-pill.in-factory { background: #f0fdf4; color: #14532d; border: 1px solid #86efac; }
 .svc-mx-pill.unknown    { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
-.svc-parts-list { padding: 11px 20px 16px; display: flex; flex-direction: column; gap: 9px; }
+.svc-parts-list { padding: 11px 20px 16px; display: flex; flex-direction: column; gap: 9px; max-height: 540px; overflow-y: auto; }
+.svc-table-scroll { max-height: 540px; overflow-y: auto; border-bottom: 1px solid var(--border); }
+.svc-table-scroll table { margin-bottom: 0; }
+.svc-table-scroll thead th { position: sticky; top: 0; background: var(--bg2); z-index: 1; }
 .svc-parcel { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 14px; background: #fff; align-items: center; }
 .svc-parcel-icn { width: 40px; height: 40px; border-radius: 11px; background: var(--info-soft); color: var(--info); display: flex; align-items: center; justify-content: center; font-size: 19px; }
 .svc-parcel.delivered .svc-parcel-icn { background: var(--pass-soft); color: var(--pass); }
@@ -7439,8 +7442,8 @@ function getAssemblyBacklogRows() {
         included = true;                              // express always due
       } else if (wkIdx < currentWkIdx) {
         included = true;                              // strictly prior week
-      } else if (wk === currentWk && todayPrep > 0 && Number(p) <= todayPrep) {
-        included = true;                              // current week, ≤ today's prep
+      } else if (wk === currentWk && todayPrep > 0 && Number(p) < todayPrep) {
+        included = true;                              // current week, strictly before today's prep (today's jobs excluded)
       }
       if (!included) continue;
 
@@ -10820,9 +10823,9 @@ async function loadStatsData() {
   }
 
   // Each list loaded independently so one failure doesn't block others.
-  // statsAfter is ~400 days back; Created is auto-indexed so the server-side
-  // filter is safe. Cuts each list from "all time" to ~13 months of data.
-  const dateFilter = `&$filter=${encodeURIComponent("fields/Created ge '" + statsAfter + "'")}`;
+  // statsAfter is ~400 days back. createdDateTime (top-level OData) is always indexed;
+  // fields/Created is NOT auto-indexed and 400s once a list crosses the SP threshold.
+  const dateFilter = `&$filter=${encodeURIComponent("createdDateTime ge " + statsAfter)}`;
   try {
   await Promise.allSettled([
     getListIdByName('ProductionCompletions').then(id =>
@@ -11535,7 +11538,7 @@ function renderStatsDashboard() {
     if (t.name === 'Assembly') {
       const backlogN = (typeof getAssemblyBacklogRows === 'function') ? getAssemblyBacklogRows().length : 0;
       exportBtnHtml = `<button class="tt-export-btn" ${backlogN === 0 ? 'disabled' : ''}
-          title="Export outstanding Assembly jobs (overdue + due today) to Excel"
+          title="Export overdue Assembly jobs (excludes today) to Excel"
           onclick="event.stopPropagation(); exportAssemblyBacklogCSV()">⬇ Backlog${backlogN ? ' ('+backlogN+')' : ''}</button>`;
     }
     return `<div class="team-token${isEmpty?' tt-zero':''}${isActive?' active':''}${isLocked?' tt-locked':''}" style="--tc:${t.color}"
@@ -15890,13 +15893,14 @@ function renderRecentRepeats() {
 }
 
 // Filter: open CPARs (any age) + everything created in the last CPAR_HISTORY_DAYS.
-// Status indexed manually; Created is auto-indexed by SharePoint.
+// Status indexed manually; createdDateTime (top-level OData) is always indexed
+// — fields/Created is NOT auto-indexed and 400s once the list crosses the SP threshold.
 // 365d window matched ~3875 of 12k rows in practice — most CPARs <1y old aren't yet closed.
 // 90d still covers the active triage horizon and cuts to a few hundred rows.
 const CPAR_HISTORY_DAYS = 90;
 function _cparFilterUrl(siteId, listId) {
   const cutoff = new Date(Date.now() - CPAR_HISTORY_DAYS * 86400000).toISOString();
-  const filter = `(fields/Status ne 'Closed' and fields/Status ne 'Archived') or fields/Created ge '${cutoff}'`;
+  const filter = `(fields/Status ne 'Closed' and fields/Status ne 'Archived') or createdDateTime ge ${cutoff}`;
   return `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items` +
          `?$expand=fields&$top=999&$filter=${encodeURIComponent(filter)}`;
 }
