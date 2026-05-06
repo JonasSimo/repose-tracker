@@ -7441,11 +7441,15 @@ function getAssemblyBacklogRows() {
       const jobs = wkData[p];
       if (!Array.isArray(jobs)) continue;
 
-      // Apply date filter
+      // Apply date filter — backlog = strictly overdue, never future.
       let included = false;
       if (p === 'express') {
-        included = true;                              // express always due
-      } else if (wkIdx < currentWkIdx) {
+        // Express has no prep-day, so we can't apply the today-exclusion rule;
+        // include past + current week, exclude future weeks (so wk20 express
+        // doesn't leak into a wk19 backlog). Same rule catches MF-T jobs that
+        // land in the express bucket.
+        included = currentWkIdx >= 0 && wkIdx <= currentWkIdx;
+      } else if (currentWkIdx >= 0 && wkIdx < currentWkIdx) {
         included = true;                              // strictly prior week
       } else if (wk === currentWk && todayPrep > 0 && Number(p) < todayPrep) {
         included = true;                              // current week, strictly before today's prep (today's jobs excluded)
