@@ -19874,7 +19874,7 @@ function renderNearMisses() {
   const repeats = Object.entries(last30Counts).filter(([,n]) => n >= 3).sort((a,b) => b[1]-a[1]);
   const banner = document.getElementById('nm-banner-container');
   if (repeats.length) {
-    banner.innerHTML = `<div class="nm-banner">⚠️ <b>Repeat pattern:</b> ${repeats[0][1]} near misses logged in <b>${escHtml(repeats[0][0])}</b> in the last 30 days — consider a focused safety briefing or raising a CPAR.</div>`;
+    banner.innerHTML = `<div class="nm-banner">⚠️ <b>Repeat pattern:</b> ${repeats[0][1]} near misses logged in <b>${escHtml(repeats[0][0])}</b> in the last 30 days — consider a focused safety briefing or running a <b>PPS</b> (Problem Solving Session).</div>`;
   } else {
     banner.innerHTML = '';
   }
