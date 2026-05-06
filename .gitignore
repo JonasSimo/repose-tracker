@@ -2,3 +2,6 @@ claude.exe
 production-tracker-mockup.html
 DESIGN.md
 .worktrees/
+node_modules/
+azure-functions/node_modules/
+azure-functions/local.settings.json
