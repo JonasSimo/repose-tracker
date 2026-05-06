@@ -3119,6 +3119,19 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .svc-table-scroll { max-height: 540px; overflow-y: auto; border-bottom: 1px solid var(--border); }
 .svc-table-scroll table { margin-bottom: 0; }
 .svc-table-scroll thead th { position: sticky; top: 0; background: var(--bg2); z-index: 1; }
+/* Match heights of Open Tickets + Parts in Transit panels when side-by-side.
+   Without this each panel sizes to its own content (different totals → uneven row).
+   Inner scroll area flexes to fill whatever vertical space is left after head/chips/search/footer. */
+.svc-row-2col .svc-panel { display: flex; flex-direction: column; height: 720px; }
+.svc-row-2col .svc-panel-collapsible.collapsed { height: auto; }
+.svc-row-2col .svc-panel-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.svc-row-2col .svc-table-scroll,
+.svc-row-2col .svc-parts-list { flex: 1 1 auto; max-height: none; min-height: 0; }
+@media (max-width: 1100px) {
+  .svc-row-2col .svc-panel { height: auto; }
+  .svc-row-2col .svc-table-scroll,
+  .svc-row-2col .svc-parts-list { max-height: 540px; }
+}
 .svc-parcel { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 14px; background: #fff; align-items: center; }
 .svc-parcel-icn { width: 40px; height: 40px; border-radius: 11px; background: var(--info-soft); color: var(--info); display: flex; align-items: center; justify-content: center; font-size: 19px; }
 .svc-parcel.delivered .svc-parcel-icn { background: var(--pass-soft); color: var(--pass); }
