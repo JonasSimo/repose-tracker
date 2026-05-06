@@ -11158,62 +11158,54 @@ async function loadStatsData() {
     getListIdByName(SP_CPAR_LIST).then(id =>
       graphGetAll(_cparFilterUrl(siteId, id))
     ).then(r => { STATS_CPARS = r; console.log(`stats (CPARs): loaded ${r.length} records (filtered: open + last ${CPAR_HISTORY_DAYS}d)`); }).catch(e => console.warn('stats (CPARLog):', e.message)),
-  ]);
 
-  // Load QC completions from the QC sheet (col A = REP, col B = ISO timestamp)
-  try {
-    const encoded   = encodeSharingUrl(QC_SHEET_SHARING_URL);
-    const driveItem = await graphGet(`https://graph.microsoft.com/v1.0/shares/${encoded}/driveItem`);
-    const driveId   = driveItem.parentReference.driveId;
-    const itemId    = driveItem.id;
-    const dims = await graphGet(
-      `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}` +
-      `/workbook/worksheets('${encodeURIComponent(QC_SHEET_NAME)}')/usedRange?$select=rowCount`
-    );
-    const lastRow = dims.rowCount || 1;
-    const CHUNK = 5000;
-    const ranges = [];
-    for (let r = 1; r <= lastRow; r += CHUNK) ranges.push([r, Math.min(r + CHUNK - 1, lastRow)]);
-    // Sequential — same workbook chunks in parallel = FileOpenHostTooManyRequests.
-    const chunks = [];
-    for (const [r, end] of ranges) {
-      try {
-        const c = await graphGet(
+    // QC sheet (col A = REP, col B = ISO timestamp). Mirrors autoSyncQCCompletions:
+    // cached driveItem, workbook session, parallel chunks. Runs alongside SP lists.
+    (async () => {
+      const { driveId, itemId } = await resolveDriveItem(QC_SHEET_SHARING_URL, 'qc');
+      const sessionId = await getWorkbookSession(driveId, itemId);
+      const dims = await graphGet(
+        `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}` +
+        `/workbook/worksheets('${encodeURIComponent(QC_SHEET_NAME)}')/usedRange?$select=rowCount`,
+        sessionId
+      );
+      const lastRow = dims.rowCount || 1;
+      const CHUNK = 10000;
+      const ranges = [];
+      for (let r = 1; r <= lastRow; r += CHUNK) ranges.push([r, Math.min(r + CHUNK - 1, lastRow)]);
+      const chunks = await Promise.all(ranges.map(([r, end]) =>
+        graphGet(
           `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}` +
-          `/workbook/worksheets('${encodeURIComponent(QC_SHEET_NAME)}')/range(address='A${r}:D${end}')?$select=values`
-        );
-        chunks.push(c);
-      } catch(e) {
-        console.warn(`stats QC chunk A${r}:D${end} failed:`, e.message);
-      }
-    }
-    const seen = new Set();
-    const qcRows = [];
-    chunks.forEach(chunk => {
-      (chunk.values || []).forEach(row => {
-        const repCell = String(row[0] ?? '').trim();
-        const tsCell  = String(row[1] ?? '').trim();
-        const m = repCell.match(/(?<!\d)(\d{7})(?!\d)/);
-        if (!m) return;
-        const d = tsCell ? new Date(tsCell) : null;
-        const date = d && !isNaN(d) ? d : null;
-        // Deduplicate: same REP + same minute = one entry (catches accidental double-scans; different times on same day count separately)
-        const dateKey = date ? date.toISOString().slice(0, 16) : 'nodate';
-        const uniqKey = `${m[1]}__${dateKey}`;
-        if (seen.has(uniqKey)) return;
-        seen.add(uniqKey);
-        const inspector = String(row[2] ?? '').trim();
-        const rawType   = String(row[3] ?? '').trim().toLowerCase();
-        const type = rawType.includes('service') ? 'Service Chair'
-                   : rawType.includes('access')  ? 'Accessories'
-                   : 'New Chair'; // default to New Chair if blank or "new chair"
-        qcRows.push({ rep7: m[1], date, inspector, type });
+          `/workbook/worksheets('${encodeURIComponent(QC_SHEET_NAME)}')/range(address='A${r}:D${end}')?$select=values`,
+          sessionId
+        ).catch(e => { console.warn(`stats QC chunk A${r}:D${end} failed:`, e.message); return { values: [] }; })
+      ));
+      const seen = new Set();
+      const qcRows = [];
+      chunks.forEach(chunk => {
+        (chunk.values || []).forEach(row => {
+          const repCell = String(row[0] ?? '').trim();
+          const tsCell  = String(row[1] ?? '').trim();
+          const m = repCell.match(/(?<!\d)(\d{7})(?!\d)/);
+          if (!m) return;
+          const d = tsCell ? new Date(tsCell) : null;
+          const date = d && !isNaN(d) ? d : null;
+          // Deduplicate: same REP + same minute = one entry (catches accidental double-scans; different times on same day count separately)
+          const dateKey = date ? date.toISOString().slice(0, 16) : 'nodate';
+          const uniqKey = `${m[1]}__${dateKey}`;
+          if (seen.has(uniqKey)) return;
+          seen.add(uniqKey);
+          const inspector = String(row[2] ?? '').trim();
+          const rawType   = String(row[3] ?? '').trim().toLowerCase();
+          const type = rawType.includes('service') ? 'Service Chair'
+                     : rawType.includes('access')  ? 'Accessories'
+                     : 'New Chair'; // default to New Chair if blank or "new chair"
+          qcRows.push({ rep7: m[1], date, inspector, type });
+        });
       });
-    });
-    STATS_QC = qcRows;
-  } catch(e) {
-    console.warn('loadStatsData (QC sheet):', e.message);
-  }
+      STATS_QC = qcRows;
+    })().catch(e => console.warn('stats (QC sheet):', e.message)),
+  ]);
 
   // Use STATS_QC (already correctly typed) to seed accQCDone and qcCompletedReps
   // This is more reliable than relying solely on the 60-second QC sync interval
