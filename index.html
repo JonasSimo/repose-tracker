@@ -7545,7 +7545,9 @@ let LS_RAW     = []; // [{ key, lsKey, date, items:[{text,rep7,isMech}] }] — o
 const LS_CHANGES = new Map(); // item.text → ms timestamp — new/changed items (last 1 hour)
 const MECH_SERIALS = new Map(); // `${rep}__${wk}__${prep}` → serial code (Assembly only)
 
-const UK_BANK_HOLIDAYS = new Set([
+// `var` (not `const`) so the v4 skin can read it via window.UK_BANK_HOLIDAYS —
+// const declarations are not attached to the global object in classic scripts.
+var UK_BANK_HOLIDAYS = new Set([
   // 2025
   '2025-01-01','2025-04-18','2025-04-21','2025-05-05','2025-05-26','2025-08-25','2025-12-25','2025-12-26',
   // 2026
