@@ -6384,6 +6384,7 @@ function renderPrepGrid() {
   if (!activeWC || activeWC === 'PRIORITY') { sec.style.display='none'; return; }
   sec.style.display = 'block';
   const wkData = PROD[activeWC]||{};
+  const wcStr  = wkData.wc || '';
   const prepBtns = [1,2,3,4,5].map(p => {
     const jobs = wkData[p]||[];
     const servCt = jobs.filter(j => j.isService).length;
@@ -6393,7 +6394,7 @@ function renderPrepGrid() {
       : `${jobs.length} job${jobs.length!==1?'s':''}`;
     return `<button class="prep-btn ${activePrep===p?'active':''}" onclick="selectPrep(${p})">
       <span class="prep-num">${p}</span>
-      <span class="prep-day">${PREP_DAYS[p-1]}</span>
+      <span class="prep-day">${prepDayLabel(wcStr, p)}</span>
       <span class="prep-ct">${ctLabel}</span>
     </button>`;
   });
@@ -6461,7 +6462,7 @@ function renderJobs() {
 
   // Header
   const prepLabel = activePrep === 'express' ? 'Express / M-FT' : `Prep ${activePrep}`;
-  const dayLabel  = activePrep === 'express' ? 'Fast Track' : (PREP_DAYS[activePrep-1] || '');
+  const dayLabel  = activePrep === 'express' ? 'Fast Track' : prepDayLabel(PROD[activeWC]?.wc || '', activePrep);
   document.getElementById('jh-title').textContent =
     `${activeTeam}${activeHasSubs?' — '+activeSub:''}: ${prepLabel}`;
   const jobCountLabel = servCt
@@ -7198,7 +7199,7 @@ function renderSearchResults() {
     const { wk, p, ji, job, s } = r;
     const ctx = p === 'express'
       ? `${wk} · ${PROD[wk]?.wc||''} · Express / Fast Track`
-      : `${wk} · ${PROD[wk]?.wc||''} · Prep ${p} (${PREP_DAYS[p-1]})`;
+      : `${wk} · ${PROD[wk]?.wc||''} · Prep ${p} (${prepDayLabel(PROD[wk]?.wc || '', p)})`;
     const isDone = s.done;
     return `<div class="search-result">
       <div style="flex:1;min-width:0;cursor:pointer" onclick="goToJob('${wk}','${p}')">
@@ -7391,7 +7392,7 @@ function exportCSV() {
               sub === 'all' ? '' : sub,
               wk,
               PROD[wk]?.wc || '',
-              p === 'express' ? 'Express' : PREP_DAYS[p-1],
+              p === 'express' ? 'Express' : prepDayLabel(PROD[wk]?.wc || '', p),
               job.itemNo,
               job.rep,
               s.done ? 'Complete' : 'Pending',
@@ -7417,12 +7418,14 @@ function exportCSV() {
   toast('CSV exported — open in Excel', 's');
 }
 
-// Build the list of outstanding Assembly jobs (overdue + due today).
+// Build the list of outstanding Assembly jobs (strictly overdue — today excluded).
 // Returns an array of rows ready for CSV writing.
 function getAssemblyBacklogRows() {
   const today = new Date(); today.setHours(0,0,0,0);
-  const todayDOW = today.getDay();                  // 0=Sun … 6=Sat
-  const todayPrep = (todayDOW >= 1 && todayDOW <= 5) ? todayDOW : 0;
+  // Effective prep-day for today, accounting for UK bank holidays. On wc
+  // 04/05/2026 (Mon = bank holiday) Tuesday is the new "Prep 1", so its
+  // prep-1 jobs aren't backlog yet (Number(p) < todayPrep filters them out).
+  const todayPrep = workingPrepNumber(today);
   const currentWk = `WK ${isoWeekNumber(today)}`;
   const currentWkIdx = WEEKS.indexOf(currentWk);
 
@@ -7481,7 +7484,7 @@ function getAssemblyBacklogRows() {
           rep:      job.rep || '',
           week:     wk,
           wc:       wcDDMMYYYY,
-          prepLbl:  p === 'express' ? 'Express' : (PREP_DAYS[Number(p) - 1] || String(p)),
+          prepLbl:  p === 'express' ? 'Express' : (prepDayLabel(wcDDMMYYYY, Number(p)) || String(p)),
           itemNo:   job.itemNo ?? '',
           daysLate,
           express:  isExpress ? 'Yes' : '',
@@ -7552,6 +7555,48 @@ function localDateKey(d) {
 }
 // Shorthand: today's local date as yyyy-mm-dd (avoids toISOString() UTC-vs-BST bug)
 function localDateStr(d = new Date()) { return localDateKey(d); }
+
+// Working-day prep number for a date: 1-based count of working days from
+// Monday-of-week through `d` inclusive, skipping weekends and UK bank
+// holidays. Returns 0 if `d` is itself a non-working day.
+//   Mon (normal) → 1
+//   Tue (after bank-holiday Mon) → 1
+//   Wed (after bank-holiday Mon) → 2
+function workingPrepNumber(d) {
+  const dow = d.getDay();
+  if (dow < 1 || dow > 5) return 0;
+  if (UK_BANK_HOLIDAYS.has(localDateKey(d))) return 0;
+  const mon = new Date(d);
+  mon.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  mon.setHours(0,0,0,0);
+  let count = 0;
+  for (let cur = new Date(mon); cur.getTime() <= d.getTime(); cur.setDate(cur.getDate() + 1)) {
+    const cdow = cur.getDay();
+    if (cdow >= 1 && cdow <= 5 && !UK_BANK_HOLIDAYS.has(localDateKey(cur))) count++;
+  }
+  return count;
+}
+
+// Day-of-week label ('Mon'..'Fri') for a given prep number in a given week,
+// accounting for UK bank holidays. On wc 04/05/2026 (Mon = bank holiday)
+// prep 1 → 'Tue', prep 2 → 'Wed', etc. Falls back to the static PREP_DAYS
+// mapping if the wc is malformed or the prep doesn't fit the week.
+function prepDayLabel(wcDDMMYYYY, prepNum) {
+  const fallback = PREP_DAYS[Number(prepNum) - 1] || '';
+  if (!wcDDMMYYYY || !/^\d{2}\/\d{2}\/\d{4}$/.test(wcDDMMYYYY) || !prepNum) return fallback;
+  const [dd, mm, yyyy] = wcDDMMYYYY.split('/');
+  const mon = new Date(+yyyy, +mm - 1, +dd);
+  let count = 0;
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(mon); d.setDate(mon.getDate() + i);
+    const dow = d.getDay();
+    if (dow < 1 || dow > 5) continue;
+    if (UK_BANK_HOLIDAYS.has(localDateKey(d))) continue;
+    count++;
+    if (count === Number(prepNum)) return ['Mon','Tue','Wed','Thu','Fri'][dow - 1];
+  }
+  return fallback;
+}
 
 function addWorkdays(d, n) {
   const r = new Date(d);
