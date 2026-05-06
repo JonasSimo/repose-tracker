@@ -2126,6 +2126,210 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .nms-close-submit:hover { background:#047857; }
 .nms-close-submit:disabled { background:var(--text3); cursor:not-allowed; }
 .nms-done-badge { font-size:11px; font-weight:600; background:var(--gbg); color:var(--green); border:1px solid var(--gborder); border-radius:6px; padding:2px 8px; }
+
+/* ── NEAR MISS REPORTS — redesigned (proposal v3 markup) ─────────────────────
+   Reuses .svc-* tokens from the Service tab. Adds NM-specific classes for
+   parent-category pills, observation-category chips, day-counter, the
+   trend chart, the hotspot list, and the QHSE-only override panel. */
+#view-safety {
+  --pass: var(--green);
+  --pass-soft: var(--gbg);
+  --fail: var(--red);
+  --fail-soft: var(--rbg);
+  --warn: var(--amber);
+  --warn-soft: var(--abg);
+  --info: var(--repose-blue);
+  --info-soft: var(--bbg);
+  --repose-blue-dark: #0d8ec9;
+  --grey-soft: #f1f5f9;
+  --purple: #7c3aed;
+  --purple-soft: #ede9fe;
+
+  --p-cond:        var(--blue);
+  --p-cond-soft:   var(--bbg);
+  --p-cond-border: var(--bborder);
+  --p-beh:         var(--red);
+  --p-beh-soft:    var(--rbg);
+  --p-beh-border:  var(--rborder);
+  --p-pos:         #7c3aed;
+  --p-pos-soft:    #ede9fe;
+  --p-pos-border:  #ddd6fe;
+}
+
+#view-safety .svc-content { padding: 24px 28px 64px; }
+#view-safety h1 em { color: var(--repose-blue); font-style: normal; }
+
+/* Trend chart */
+.nm-trend{display:grid;grid-template-columns:repeat(8,1fr);gap:18px;align-items:end;height:150px;padding:14px 6px 24px;position:relative;border-bottom:1px dashed var(--border)}
+.nm-trend-col{display:flex;flex-direction:column;align-items:center;gap:2px;position:relative;height:100%;justify-content:flex-end}
+.nm-trend-col .bars{display:flex;gap:4px;align-items:flex-end;height:100%;width:100%;justify-content:center}
+.nm-trend-col .bar{width:13px;border-radius:3px 3px 0 0;position:relative;min-height:1px}
+.nm-trend-col .bar.opened{background:var(--repose-navy)}
+.nm-trend-col .bar.closed{background:var(--repose-blue)}
+.nm-trend-col .bar .v{position:absolute;top:-15px;left:50%;transform:translateX(-50%);font-size:9px;font-weight:800;color:var(--text2);font-family:'JetBrains Mono',monospace;opacity:0;transition:opacity .15s;white-space:nowrap}
+.nm-trend-col:hover .bar .v{opacity:1}
+.nm-trend-col .lbl{position:absolute;bottom:-22px;font-size:10px;color:var(--text2);font-family:'JetBrains Mono',monospace;font-weight:600}
+.nm-trend-col.cur .lbl{color:var(--repose-navy);font-weight:800}
+.nm-trend-col.cur .bar.opened{box-shadow:0 0 0 2px rgba(14,2,58,.15)}
+.nm-trend-col.cur .bar.closed{box-shadow:0 0 0 2px rgba(20,161,233,.18)}
+.nm-legend{display:flex;gap:14px;font-size:11px;color:var(--text2);font-weight:600}
+.nm-legend i{width:10px;height:10px;border-radius:2px;display:inline-block;margin-right:6px;vertical-align:middle}
+
+/* Split row inside trend panel — % by parent category */
+.nm-split{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;border-top:1px solid var(--border)}
+.nm-split > div{padding:14px 18px;text-align:center;border-right:1px solid var(--border)}
+.nm-split > div:last-child{border-right:none}
+.nm-split .lbl{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text2);font-weight:700;margin-bottom:5px}
+.nm-split .v{font-family:'Bricolage Grotesque',sans-serif;font-size:24px;font-weight:800;line-height:1;letter-spacing:-.02em}
+
+/* Hotspots */
+.nm-hotspot{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
+.nm-hotspot:last-of-type{border-bottom:none}
+.nm-hot-rank{font-family:'Bricolage Grotesque',sans-serif;font-size:14px;font-weight:800;color:var(--text3);width:20px;text-align:center}
+.nm-hot-name{flex:1;font-size:13px;font-weight:700;color:var(--repose-navy)}
+.nm-hot-bar{flex:1.2;height:7px;background:var(--grey-soft);border-radius:999px;overflow:hidden}
+.nm-hot-bar i{display:block;height:100%;background:linear-gradient(90deg,var(--info),var(--repose-blue));border-radius:999px}
+.nm-hot-cnt{font-family:'Bricolage Grotesque',sans-serif;font-size:17px;font-weight:800;color:var(--repose-navy);min-width:28px;text-align:right;cursor:pointer}
+
+/* Filter strip */
+.nm-filter-strip{background:#fff;border:1px solid var(--border);border-radius:18px;padding:14px 18px;margin-bottom:14px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.nm-f-grp{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.nm-f-lbl{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text2);font-weight:700}
+.nm-f-divider{width:1px;height:22px;background:var(--border)}
+.nm-pill{font-size:10px;padding:5px 11px;border-radius:999px;border:1px solid var(--border);background:#fff;color:var(--text2);cursor:pointer;font-weight:700;letter-spacing:.04em;text-transform:uppercase;line-height:1;transition:all .12s;font-family:inherit}
+.nm-pill:hover:not(.active){border-color:var(--repose-blue);color:var(--repose-blue)}
+.nm-pill.active{background:var(--repose-blue);color:#fff;border-color:var(--repose-blue)}
+.nm-pill.fail{background:var(--rbg);color:var(--red);border-color:var(--rborder)}
+.nm-pill.active.fail{background:var(--red);color:#fff;border-color:var(--red)}
+.nm-pill .cnt{margin-left:4px;background:var(--grey-soft);color:var(--text2);padding:1px 6px;border-radius:999px;font-size:9px}
+.nm-pill.active .cnt{background:rgba(255,255,255,.25);color:#fff}
+.nm-pill.fail .cnt{background:rgba(220,38,38,.18);color:var(--red)}
+
+/* Banner */
+.nm-banner{background:var(--abg);border:1px solid var(--aborder);border-left:4px solid var(--amber);border-radius:14px;padding:12px 16px;margin-bottom:18px;display:flex;align-items:center;gap:12px;font-size:13px;color:#7a4f1a}
+.nm-banner b{color:#5a3915}
+
+/* Body layout */
+.nm-body-row{display:grid;grid-template-columns:1fr 320px;gap:18px}
+@media(max-width:1200px){ .nm-body-row{grid-template-columns:1fr} }
+.nm-list-col{display:flex;flex-direction:column;gap:14px}
+.nm-section-h{display:flex;align-items:center;gap:10px;margin:6px 0 -2px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--text2)}
+.nm-section-h .dot{width:8px;height:8px;border-radius:50%;background:var(--text3)}
+.nm-section-h.urgent{color:var(--red)} .nm-section-h.urgent .dot{background:var(--red)}
+.nm-section-h.amber{color:var(--amber)} .nm-section-h.amber .dot{background:var(--amber)}
+.nm-section-h.ok{color:var(--green)} .nm-section-h.ok .dot{background:var(--green)}
+.nm-section-h.pos{color:var(--purple)} .nm-section-h.pos .dot{background:var(--purple)}
+.nm-section-h .cnt{margin-left:auto;font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--text2)}
+
+/* Card */
+.nm2-card{background:#fff;border:1px solid var(--border);border-radius:18px;display:flex;overflow:hidden;transition:all .15s}
+.nm2-card:hover{border-color:var(--repose-blue);box-shadow:0 8px 22px rgba(20,161,233,.08);transform:translateY(-1px)}
+.nm2-stripe{width:5px;flex-shrink:0;background:var(--text3)}
+.nm2-stripe.cond{background:var(--p-cond)}
+.nm2-stripe.beh{background:var(--p-beh)}
+.nm2-stripe.pos{background:var(--p-pos)}
+.nm2-stripe.closed{background:var(--green)}
+.nm2-bd{flex:1;padding:16px 20px;display:flex;flex-direction:column;gap:9px}
+
+.nm2-row1{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.nm2-ref{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:var(--text3);background:var(--grey-soft);padding:3px 8px;border-radius:6px}
+.parent-pill{font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;display:inline-flex;align-items:center;gap:5px;line-height:1.4;border:1px solid}
+.parent-pill.cond{background:var(--p-cond-soft);color:var(--p-cond);border-color:var(--p-cond-border)}
+.parent-pill.beh{background:var(--p-beh-soft);color:var(--p-beh);border-color:var(--p-beh-border)}
+.parent-pill.pos{background:var(--p-pos-soft);color:var(--p-pos);border-color:var(--p-pos-border)}
+.parent-pill.closed{background:var(--gbg);color:var(--green);border-color:var(--gborder)}
+.cat-pill{font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;background:#fff;color:var(--text2);border:1px solid var(--border2);display:inline-flex;align-items:center;gap:5px}
+.cat-pill .ico{font-size:12px}
+.auto-pill{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;color:var(--purple);background:var(--purple-soft);border:1px solid var(--p-pos-border);border-radius:999px;padding:3px 8px;font-family:'JetBrains Mono',monospace;letter-spacing:.02em;text-transform:uppercase}
+.auto-pill.review{color:var(--amber);background:var(--abg);border-color:var(--aborder)}
+.nm2-age{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;padding:3px 9px;border-radius:6px}
+.nm2-age.ok{background:var(--grey-soft);color:var(--text2)}
+.nm2-age.warn{background:var(--abg);color:var(--amber);border:1px solid var(--aborder)}
+.nm2-age.bad{background:var(--rbg);color:var(--red);border:1px solid var(--rborder)}
+.nm2-age.pass{background:var(--gbg);color:var(--green);border:1px solid var(--gborder)}
+
+.nm2-loc{font-size:14px;font-weight:700;color:var(--repose-navy);display:flex;align-items:center;gap:6px}
+.nm2-loc .pin{color:var(--text3);font-size:13px}
+.nm2-loc .specific{font-weight:600;color:var(--text2);font-size:13px}
+.nm2-issue{font-size:13px;color:var(--text);line-height:1.5}
+
+.nm2-row3{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:2px;padding-top:10px;border-top:1px dashed var(--border)}
+.nm2-person{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text2)}
+.nm2-person .av{width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#fff;font-family:'JetBrains Mono',monospace;background:var(--text2)}
+.nm2-person .role{color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.06em;font-size:9.5px;margin-right:2px}
+.nm2-person b{color:var(--text);font-weight:700}
+
+.nm2-actions{display:flex;align-items:center;gap:8px;margin-left:auto}
+.nm2-act{padding:7px 14px;border-radius:999px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;border:1px solid var(--border2);background:#fff;color:var(--text2);display:inline-flex;align-items:center;gap:5px;transition:all .12s}
+.nm2-act:hover{border-color:var(--repose-blue);color:var(--repose-blue)}
+.nm2-act.primary{background:var(--green);border-color:var(--green);color:#fff}
+.nm2-act.primary:hover{background:#047857;border-color:#047857;color:#fff}
+.nm2-act.primary:disabled{background:var(--text3);border-color:var(--text3);cursor:not-allowed}
+.nm2-act.warn{color:var(--amber);border-color:var(--aborder);background:var(--abg)}
+.nm2-act.warn:hover{background:var(--amber);color:#fff;border-color:var(--amber)}
+
+.nm2-close-form{margin-top:10px;padding-top:14px;border-top:1px solid var(--border);display:none;flex-direction:column;gap:10px}
+.nm2-card.expanded .nm2-close-form{display:flex}
+.nm2-cf-lbl{font-size:10.5px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px}
+.nm2-cf-input,.nm2-cf-area{width:100%;padding:10px 12px;border-radius:10px;border:1.5px solid var(--border2);background:#fff;font-family:inherit;font-size:13px;color:var(--text);box-sizing:border-box;resize:vertical;transition:border-color .12s}
+.nm2-cf-input:focus,.nm2-cf-area:focus{outline:none;border-color:var(--repose-blue)}
+.nm2-cf-area{min-height:68px}
+.nm2-cf-row{display:flex;gap:8px;align-items:flex-end}
+
+.nm2-lessons{margin-top:8px;padding:11px 14px;background:var(--gbg);border:1px solid var(--gborder);border-radius:12px;font-size:12.5px;color:#065f46;line-height:1.5}
+.nm2-lessons b{color:#064e3b;display:block;font-size:10px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;font-weight:800}
+
+/* Side rail */
+.nm-rail{display:flex;flex-direction:column;gap:14px}
+.nm-rail .svc-panel{margin-bottom:0}
+.nm-cat-row{display:flex;align-items:center;gap:10px;padding:9px 18px;border-bottom:1px solid var(--border);font-size:12.5px}
+.nm-cat-row:last-child{border-bottom:none}
+.nm-cat-row .ic{font-size:15px;width:22px;text-align:center;opacity:.85}
+.nm-cat-row .nm{flex:1;color:var(--repose-navy);font-weight:600}
+.nm-cat-row .ct{font-family:'Bricolage Grotesque',sans-serif;font-size:15px;font-weight:800;color:var(--repose-navy);min-width:24px;text-align:right}
+.nm-who-row{display:flex;align-items:center;gap:10px;padding:9px 18px;border-bottom:1px solid var(--border)}
+.nm-who-row:last-child{border-bottom:none}
+.nm-who-row .av{width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff;font-family:'JetBrains Mono',monospace;flex-shrink:0;background:var(--text2)}
+.nm-who-row .who-name{flex:1;font-size:12.5px;font-weight:600;color:var(--repose-navy)}
+.nm-who-row .who-name .sub{display:block;font-size:10.5px;color:var(--text2);font-weight:500;margin-top:1px}
+.nm-who-row .who-cnt{font-family:'Bricolage Grotesque',sans-serif;font-size:16px;font-weight:800;color:var(--repose-navy)}
+.nm-who-row .who-cnt.warn{color:var(--amber)}
+.nm-who-row .who-cnt.fail{color:var(--red)}
+
+/* QHSE-only Classification Review panel */
+.nm-qhse{margin-top:24px;border:1.5px solid var(--p-pos-border);background:linear-gradient(180deg,#fbfaff,#fff);border-radius:18px;overflow:hidden}
+.nm-qhse-head{padding:16px 20px 12px;display:flex;align-items:center;gap:14px;border-bottom:1px solid var(--p-pos-border);background:linear-gradient(180deg,var(--purple-soft),#fff)}
+.nm-qhse-head h2{font-size:16px;font-weight:700;color:var(--repose-navy);font-family:'Bricolage Grotesque',Manrope,sans-serif;margin:0;display:flex;align-items:center;gap:10px}
+.nm-qhse-head .sub{display:block;font-family:Manrope,sans-serif;font-size:11.5px;color:var(--text2);font-weight:500;margin-top:5px}
+.nm-qhse-head .right{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+.nm-qhse-badge{display:inline-flex;align-items:center;gap:5px;background:var(--purple);color:#fff;font-size:9.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:4px 10px;border-radius:999px}
+.nm-qhse-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border-bottom:1px solid var(--border);background:var(--bg3)}
+.nm-qhse-summary > div{padding:14px 18px;text-align:center;border-right:1px solid var(--border)}
+.nm-qhse-summary > div:last-child{border-right:none}
+.nm-qhse-summary .lbl{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text2);font-weight:800;margin-bottom:5px}
+.nm-qhse-summary .v{font-family:'Bricolage Grotesque',sans-serif;font-size:22px;font-weight:800;color:var(--repose-navy);line-height:1;letter-spacing:-.02em}
+.nm-qhse-summary .v.warn{color:var(--amber)} .nm-qhse-summary .v.fail{color:var(--red)} .nm-qhse-summary .v.pass{color:var(--green)}
+.nm-rev-row{display:grid;grid-template-columns:1fr 240px 240px auto;gap:14px;align-items:center;padding:14px 20px;border-bottom:1px solid var(--border)}
+.nm-rev-row:last-child{border-bottom:none}
+.nm-rev-row.low{background:rgba(217,119,6,.04)}
+.nm-rev-meta{display:flex;flex-direction:column;gap:5px;min-width:0}
+.nm-rev-meta .top{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.nm-rev-meta .text{font-size:13px;color:var(--text);line-height:1.5}
+.nm-rev-meta .footer{font-size:11px;color:var(--text3)}
+.nm-rev-sel{display:flex;flex-direction:column;gap:4px}
+.nm-rev-sel label{font-size:9.5px;font-weight:800;color:var(--text2);text-transform:uppercase;letter-spacing:.06em}
+.nm-rev-sel select{font-family:inherit;font-size:12px;padding:7px 10px;border:1.5px solid var(--border2);border-radius:8px;background:#fff;color:var(--text);cursor:pointer;transition:border-color .12s;width:100%}
+.nm-rev-sel select:hover{border-color:var(--repose-blue)}
+.nm-rev-sel select:focus{outline:none;border-color:var(--repose-blue);box-shadow:0 0 0 3px rgba(20,161,233,.12)}
+.nm-rev-sel.changed select{border-color:var(--amber);background:var(--abg)}
+.nm-rev-act{display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+.nm-rev-save{padding:7px 14px;border-radius:999px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;border:none;background:var(--repose-blue);color:#fff;transition:background .12s;white-space:nowrap}
+.nm-rev-save:hover{background:#0d8ec9}
+.nm-rev-save.disabled{background:var(--grey-soft);color:var(--text3);cursor:default;pointer-events:none}
+.nm-rev-save.changed{background:var(--amber)}
+.nm-rev-save.changed:hover{background:#b45309}
+.nm-qhse-foot{padding:12px 20px;font-size:11.5px;color:var(--text2);background:var(--purple-soft);border-top:1px solid var(--p-pos-border);display:flex;align-items:center;gap:10px}
+
 /* ── JOB TIMING ──────────────────────────────── */
 .tm-wrap          { display:flex; flex-direction:column; height:100%; overflow:hidden; }
 .tm-toolbar       { background:var(--bg2); border-bottom:1px solid var(--border); padding:10px 14px; display:flex; flex-direction:column; gap:8px; flex-shrink:0; }
@@ -3459,37 +3663,74 @@ document.addEventListener('DOMContentLoaded', () => {
 </div>
 
 <!-- ═══════════════════════════════════════════════
-     VIEW: SAFETY (Near Miss Reports)
+     VIEW: SAFETY (Near Miss Reports) — redesigned
 ════════════════════════════════════════════════ -->
 <div class="view" id="view-safety">
-  <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
-    <div style="padding:12px 16px;border-bottom:1px solid var(--border);background:var(--bg2);display:flex;align-items:center;gap:10px;flex-shrink:0;position:relative">
-      <button class="stats-back-btn" onclick="navTo('team-select')">← Back</button>
-      <div style="font-size:16px;font-weight:700;color:var(--text)">Near Miss Reports</div>
-      <span id="safety-open-count" style="font-size:12px;font-weight:600;background:var(--rbg);color:var(--red);border:1px solid var(--rborder);border-radius:20px;padding:3px 10px">0 open</span>
-      <div style="position:absolute;left:50%;transform:translateX(-50%);text-align:center;pointer-events:none">
-        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3)">On-Time Closure</div>
-        <div id="safety-closure-pct" style="font-size:22px;font-weight:700;color:var(--green)">—</div>
-        <div id="safety-closure-sub" style="font-size:10px;color:var(--text3)"></div>
+  <div class="svc-shell">
+    <div class="svc-content">
+
+      <!-- Page head -->
+      <div class="svc-page-head">
+        <div>
+          <div class="crumb">Health &amp; Safety</div>
+          <h1>Near Miss <em>Reports</em></h1>
+          <div class="ps">
+            <span class="live" id="nm-sync-pill">● Loading…</span>
+            <span>· <b id="nm-record-count">— records</b></span>
+            <span>· Period: <b id="nm-period-label">May MTD</b></span>
+          </div>
+        </div>
+        <div class="right">
+          <button class="svc-btn svc-btn-sec" onclick="navTo('team-select')">← Back</button>
+          <button class="svc-btn svc-btn-sec" onclick="exportNmsCsv()">⬇ Export CSV</button>
+          <button class="svc-btn svc-btn-sec" onclick="loadNearMisses()">↻ Refresh</button>
+          <button class="svc-btn svc-btn-pri" style="background:var(--red)" onclick="openNmsModal()">＋ Raise Near Miss</button>
+        </div>
       </div>
-      <div style="margin-left:auto;display:flex;gap:8px">
-        <button style="padding:7px 14px;border-radius:8px;border:1px solid var(--border2);background:var(--bg3);font-size:12px;cursor:pointer;font-family:inherit;color:var(--text2)" onclick="loadNearMisses()">↻ Refresh</button>
-        <button style="padding:7px 14px;border-radius:8px;border:none;background:#dc2626;color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit" onclick="openNmsModal()">⚠ Raise NMS</button>
+
+      <!-- KPI strip -->
+      <div class="svc-kpis" id="nm-kpis"></div>
+
+      <!-- Trend + Hotspots -->
+      <div class="svc-grid-12">
+        <div class="svc-panel" id="nm-trend-panel">
+          <div class="svc-panel-head">
+            <h2>8-week trend <span class="sub">opened vs closed by ISO week</span></h2>
+            <div class="right">
+              <div class="nm-legend">
+                <span><i style="background:var(--repose-navy)"></i>Opened</span>
+                <span><i style="background:var(--repose-blue)"></i>Closed</span>
+              </div>
+            </div>
+          </div>
+          <div id="nm-trend-body" style="padding:0 20px"></div>
+          <div class="nm-split" id="nm-split"></div>
+        </div>
+        <div class="svc-panel">
+          <div class="svc-panel-head">
+            <h2>Top hotspots <span class="sub">click to filter</span></h2>
+          </div>
+          <div id="nm-hotspots" style="padding:8px 20px 12px"></div>
+        </div>
       </div>
-    </div>
-    <div class="safety-filter-bar">
-      <span class="safety-filter-label">Status</span>
-      <button class="safety-chip open-chip active" id="nms-chip-open" onclick="setNmsStatusFilter('open',this)">Open</button>
-      <button class="safety-chip closed-chip" id="nms-chip-closed" onclick="setNmsStatusFilter('closed',this)">Closed</button>
-      <button class="safety-chip" id="nms-chip-all" onclick="setNmsStatusFilter('all',this)">All</button>
-      <button class="safety-chip" id="nms-chip-overdue" onclick="setNmsStatusFilter('overdue',this)" style="background:rgba(220,38,38,.12);color:#dc2626;border-color:rgba(220,38,38,.3)">⏱ Overdue</button>
-    </div>
-    <div class="safety-filter-bar" id="safety-area-bar">
-      <span class="safety-filter-label">Area</span>
-      <button class="safety-chip active" id="nms-area-all" onclick="setNmsAreaFilter('',this)">All</button>
-    </div>
-    <div id="safety-list" class="safety-wrap">
-      <div style="color:var(--text3);text-align:center;padding:40px">Sign in and open Safety to load reports.</div>
+
+      <!-- Filter strip -->
+      <div class="nm-filter-strip" id="nm-filter-strip"></div>
+
+      <!-- Repeat-pattern banner (conditional) -->
+      <div id="nm-banner-container"></div>
+
+      <!-- Body: list + side rail -->
+      <div class="nm-body-row">
+        <div class="nm-list-col" id="safety-list">
+          <div style="color:var(--text3);text-align:center;padding:40px">Sign in and open Safety to load reports.</div>
+        </div>
+        <div class="nm-rail" id="nm-rail"></div>
+      </div>
+
+      <!-- QHSE-only Classification Review (gated by isJonas) -->
+      <div id="nm-qhse-panel" class="nm-qhse" style="display:none"></div>
+
     </div>
   </div>
 </div>
@@ -4306,30 +4547,32 @@ const TEAM_OPERATORS = {
     { name: 'Craig Harris',    initials: 'CH' },
   ],
   'Upholstery Backs': [
-    { name: 'Corey Lloyd',     initials: 'CL' },
-    { name: 'Richard Harper',  initials: 'RH' },
-    { name: 'Luke Southall',   initials: 'LS' },
-    { name: 'Lee Powell',      initials: 'LP' },
-    { name: 'Justin Taylor',   initials: 'JT' },
-    { name: 'Kevin Morgan',    initials: 'KM' },
-    { name: 'Robert Pardoe',   initials: 'RP' },
-    { name: 'Steven Sibley',   initials: 'SS' },
-    { name: 'David Terry',     initials: 'DT' },
-    { name: 'Kyle Jones',      initials: 'KJ' },
-    { name: 'Eugenie Bacon',   initials: 'EB' },
-    { name: 'Craig Harris',    initials: 'CH' },
+    { name: 'Corey Lloyd',        initials: 'CL' },
+    { name: 'Richard Harper',     initials: 'RH' },
+    { name: 'Luke Southall',      initials: 'LS' },
+    { name: 'Lee Powell',         initials: 'LP' },
+    { name: 'Justin Taylor',      initials: 'JT' },
+    { name: 'Kevin Morgan',       initials: 'KM' },
+    { name: 'Robert Pardoe',      initials: 'RP' },
+    { name: 'Steven Sibley',      initials: 'SS' },
+    { name: 'David Terry',        initials: 'DT' },
+    { name: 'Kyle Jones',         initials: 'KJ' },
+    { name: 'Eugenie Bacon',      initials: 'EB' },
+    { name: 'Craig Harris',       initials: 'CH' },
+    { name: 'Gheorghita Chelaru', initials: 'GC' },
   ],
   'Upholstery Arms': [
-    { name: 'Mark Jones',      initials: 'MJ' },
-    { name: 'Corey Lloyd',     initials: 'CL' },
-    { name: 'Paul Adkins',     initials: 'PA' },
-    { name: 'Eugenie Bacon',   initials: 'EB' },
-    { name: 'Keiron Wright',   initials: 'KW' },
-    { name: 'Kyle Jones',      initials: 'KJ' },
-    { name: 'Richard Harper',  initials: 'RH' },
-    { name: 'Luke Southall',   initials: 'LS' },
-    { name: 'Justin Taylor',   initials: 'JT' },
-    { name: 'Craig Harris',    initials: 'CH' },
+    { name: 'Mark Jones',         initials: 'MJ' },
+    { name: 'Corey Lloyd',        initials: 'CL' },
+    { name: 'Paul Adkins',        initials: 'PA' },
+    { name: 'Eugenie Bacon',      initials: 'EB' },
+    { name: 'Keiron Wright',      initials: 'KW' },
+    { name: 'Kyle Jones',         initials: 'KJ' },
+    { name: 'Richard Harper',     initials: 'RH' },
+    { name: 'Luke Southall',      initials: 'LS' },
+    { name: 'Justin Taylor',      initials: 'JT' },
+    { name: 'Craig Harris',       initials: 'CH' },
+    { name: 'Gheorghita Chelaru', initials: 'GC' },
   ],
   'Assembly': [
     { name: 'Justin Taylor',   initials: 'JT' },
@@ -19246,28 +19489,38 @@ async function submitNearMiss() {
     alert('Please fill in all required fields.');
     return;
   }
+
+  // Auto-classify before submit. Falls back gracefully if the classifier
+  // hasn't loaded yet — SharePoint columns just stay blank for QHSE review.
+  let cls = { nearMissCategory: '', observationCategory: '', confidence: 0 };
+  try { if (window.classifyNearMiss) cls = window.classifyNearMiss(issue) || cls; } catch {}
+
   const btn = document.getElementById('nms-submit-btn');
   btn.disabled = true;
   btn.textContent = 'Submitting…';
   try {
     const siteId = await getNmsSiteId();
     const token  = await getGraphToken();
+    const fields = {
+      RaisedBy_x003a_:          raisedBy,
+      SiteLocation_x003a_:      'Repose',
+      Locationofissue:          location,
+      Whatistheissue_x003f_:    issue,
+      IsAreaSafe:               areaSafe,
+      StepsTakenToKeepSafe:     stepsTaken,
+      IssueFullyResolved:       fullyResolved === 'Yes',
+      NearMissclosedout_x003f_: false,
+      Source:                   'RepNet',
+    };
+    if (cls.nearMissCategory)    fields.NearMissCategory    = cls.nearMissCategory;
+    if (cls.observationCategory) fields.ObservationCategory = cls.observationCategory;
+
     const res = await fetch(
       `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${NMS_LIST_ID}/items`,
       {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fields: {
-          RaisedBy_x003a_:          raisedBy,
-          SiteLocation_x003a_:      'Repose',
-          Locationofissue:          location,
-          Whatistheissue_x003f_:    issue,
-          IsAreaSafe:               areaSafe,
-          StepsTakenToKeepSafe:     stepsTaken,
-          IssueFullyResolved:       fullyResolved === 'Yes',
-          NearMissclosedout_x003f_: false,
-          Source:                   'RepNet',
-        }})
+        body: JSON.stringify({ fields })
       }
     );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -19318,132 +19571,627 @@ function calcNmsClosureRate() {
   return total === 0 ? null : { pct: Math.round(success / total * 100), success, failed: failedIds.size, total, failedIds };
 }
 
-function setNmsStatusFilter(val, btn) {
-  nmsStatusFilter = val;
-  ['nms-chip-open','nms-chip-closed','nms-chip-all','nms-chip-overdue'].forEach(id => document.getElementById(id)?.classList.remove('active'));
-  if (btn) btn.classList.add('active');
-  renderNearMisses();
-}
+// ── New filter state (replaces legacy chip vars) ─────────────────────────
+let nmDateFilter     = '30d';   // '7d' | '30d' | '90d' | 'all'
+let nmCategoryFilter = '';      // '' | 'At-Risk Condition' | 'At-Risk Behavior' | 'Positive Observation'
+// nmsStatusFilter and nmsAreaFilter declared above are reused.
 
-function setNmsAreaFilter(val, btn) {
-  nmsAreaFilter = val;
-  document.querySelectorAll('#safety-area-bar .safety-chip').forEach(b => b.classList.remove('active'));
-  if (btn) btn.classList.add('active');
-  renderNearMisses();
-}
+function setNmsStatusFilter(val) { nmsStatusFilter = val; renderNearMisses(); }
+function setNmsAreaFilter(val)   { nmsAreaFilter = val;   renderNearMisses(); }
+function setNmDateFilter(val)    { nmDateFilter = val;    renderNearMisses(); }
+function setNmCategoryFilter(val){ nmCategoryFilter = val; renderNearMisses(); }
 
 async function loadNearMisses() {
   const el = document.getElementById('safety-list');
   if (!el) return;
   el.innerHTML = '<div style="color:var(--text3);text-align:center;padding:40px">Loading…</div>';
+  const pill = document.getElementById('nm-sync-pill');
+  if (pill) pill.textContent = '● Loading…';
   try {
     const siteId = await getNmsSiteId();
     const url = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${NMS_LIST_ID}/items?$expand=fields&$top=999&$orderby=createdDateTime desc`;
     NMS_ITEMS = await graphGetAll(url);
+    if (pill) pill.textContent = '● Synced just now';
     renderNearMisses();
   } catch(e) {
     el.innerHTML = `<div style="color:var(--red);text-align:center;padding:40px">Failed to load: ${escHtml(e.message)}</div>`;
+    if (pill) { pill.textContent = '● Failed to sync'; pill.style.color = 'var(--red)'; }
   }
 }
 
+// ── Helpers ──────────────────────────────────────────────────────────────
+const _NM_NORM_AREA   = a => (a || '').replace(/^Repose\s*-\s*/i, '').trim();
+const _NM_INITIALS    = n => (n || '?').split(/[\s.@]+/).filter(Boolean).slice(0,2).map(s => s[0].toUpperCase()).join('') || '?';
+const _NM_AV_HUE      = n => { let h = 0; for (const c of (n||'')) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h % 360; };
+const _NM_AV_BG       = n => `hsl(${_NM_AV_HUE(n)} 38% 45%)`;
+const _NM_DATE        = s => { if (!s) return null; const d = new Date(s); if (!isNaN(d)) return d; const p = String(s).split('/'); if (p.length === 3) { const dd=+p[0], mm=+p[1], yy=+p[2]; if (dd&&mm&&yy) return new Date(yy, mm-1, dd); } return null; };
+const _NM_DAYS_BETWEEN = (a, b) => Math.floor((b - a) / 86400000);
+const _NM_ISO_WEEK    = d => { const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); const day = t.getUTCDay() || 7; t.setUTCDate(t.getUTCDate() + 4 - day); const y0 = new Date(Date.UTC(t.getUTCFullYear(), 0, 1)); return Math.ceil((((t - y0) / 86400000) + 1) / 7); };
+const _NM_WEEK_KEY    = d => { const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); const day = t.getUTCDay() || 7; t.setUTCDate(t.getUTCDate() + 4 - day); return t.getUTCFullYear() + '-W' + String(_NM_ISO_WEEK(d)).padStart(2,'0'); };
+
+const NM_OBS_CATEGORIES = [
+  'Biohazards / Contamination',
+  'Bypassing or Removing Safety Devices',
+  'Defective or Damaged Equipment',
+  'Electrical Hazards',
+  'Fire / Access / Egress Issues',
+  'Inadequate or Wrong Equipment / Guards',
+  'Lack of Attention or Judgement',
+  'Not Using or Misusing PPE',
+  'Poor Housekeeping or Storage',
+  'Positive Observation',
+  'Slips, Trips & Falls Hazards',
+  'Unsafe Behaviour / Horseplay',
+  'Unsafe Manual Handling / Posture',
+  'Using Defective or Wrong Tools/Equipment',
+  'Third-Party Unsafe Behaviour',
+  'Sharp Edges / Protrusions',
+  'Hazardous Substances / Chemical Hazard',
+  'Energy waste/environmental impact',
+  'Security Issue',
+];
+
+const NM_CAT_ICON = {
+  'Biohazards / Contamination':                '🧪',
+  'Bypassing or Removing Safety Devices':      '🔓',
+  'Defective or Damaged Equipment':            '🛠',
+  'Electrical Hazards':                        '⚡',
+  'Fire / Access / Egress Issues':             '🔥',
+  'Inadequate or Wrong Equipment / Guards':    '🛡',
+  'Lack of Attention or Judgement':            '👀',
+  'Not Using or Misusing PPE':                 '🦺',
+  'Poor Housekeeping or Storage':              '📦',
+  'Positive Observation':                      '👍',
+  'Slips, Trips & Falls Hazards':              '🚶',
+  'Unsafe Behaviour / Horseplay':              '🏃',
+  'Unsafe Manual Handling / Posture':          '🦴',
+  'Using Defective or Wrong Tools/Equipment':  '🔧',
+  'Third-Party Unsafe Behaviour':              '👥',
+  'Sharp Edges / Protrusions':                 '📌',
+  'Hazardous Substances / Chemical Hazard':    '🧴',
+  'Energy waste/environmental impact':         '💡',
+  'Security Issue':                            '🔒',
+};
+
+function _nmGetCategories(item) {
+  // Returns { parent, child, conf, isAuto } merging stored fields with a
+  // live classification fallback for legacy rows that don't yet have the
+  // SharePoint columns populated.
+  const f = item.fields || {};
+  const stored = { parent: f.NearMissCategory || '', child: f.ObservationCategory || '' };
+  if (stored.parent && stored.child) return { ...stored, conf: 1, isAuto: false };
+  const cls = (typeof window !== 'undefined' && window.classifyNearMiss)
+    ? window.classifyNearMiss(f.Whatistheissue_x003f_ || '') : null;
+  if (cls && cls.observationCategory) {
+    return { parent: cls.nearMissCategory, child: cls.observationCategory, conf: cls.confidence, isAuto: true };
+  }
+  return { parent: stored.parent || 'At-Risk Condition', child: stored.child || '', conf: 0, isAuto: false };
+}
+
+function _nmParentClass(parent) {
+  if (parent === 'At-Risk Behavior')     return 'beh';
+  if (parent === 'Positive Observation') return 'pos';
+  return 'cond';
+}
+
 function renderNearMisses() {
-  const el = document.getElementById('safety-list');
-  if (!el) return;
+  const root = document.getElementById('safety-list');
+  if (!root) return;
 
-  const allOpen   = NMS_ITEMS.filter(i => !i.fields?.NearMissclosedout_x003f_);
-  const allClosed = NMS_ITEMS.filter(i =>  i.fields?.NearMissclosedout_x003f_);
-  const cntEl = document.getElementById('safety-open-count');
-  if (cntEl) cntEl.textContent = `${allOpen.length} open`;
+  const now = new Date();
+  const failedIds = (calcNmsClosureRate()?.failedIds) || new Set();
 
-  // Closure rate
+  // Date window filter (applies to all panels except total record count)
+  const dateCutoff = (() => {
+    if (nmDateFilter === '7d')  return new Date(now - 7  * 86400000);
+    if (nmDateFilter === '30d') return new Date(now - 30 * 86400000);
+    if (nmDateFilter === '90d') return new Date(now - 90 * 86400000);
+    return new Date(0);
+  })();
+
+  // Header pill + record count
+  document.getElementById('nm-record-count').textContent = `${NMS_ITEMS.length} records`;
+  const periodLbl = document.getElementById('nm-period-label');
+  if (periodLbl) periodLbl.textContent = nmDateFilter === 'all' ? 'All time' : `Last ${nmDateFilter}`;
+
+  // ── KPIs ────────────────────────────────────────────────────────────
+  const allOpen = NMS_ITEMS.filter(i => !i.fields?.NearMissclosedout_x003f_);
+  const overdueOpen = allOpen.filter(i => failedIds.has(i.id));
   const rate = calcNmsClosureRate();
-  const nmsFailedIds = rate?.failedIds || new Set();
-  const pctEl = document.getElementById('safety-closure-pct');
-  const subEl = document.getElementById('safety-closure-sub');
-  if (pctEl) {
-    if (rate === null) {
-      pctEl.textContent = '—';
-      pctEl.style.color = 'var(--text3)';
-      if (subEl) subEl.textContent = '';
-    } else {
-      pctEl.textContent = rate.pct + '%';
-      pctEl.style.color = rate.pct >= 80 ? 'var(--green)' : rate.pct >= 50 ? 'var(--amber)' : 'var(--red)';
-      if (subEl) subEl.textContent = `${rate.success} of ${rate.total} closed on time · ${rate.failed} overdue`;
+  const closedWithDate = NMS_ITEMS.filter(i => {
+    const f = i.fields || {};
+    if (!f.NearMissclosedout_x003f_) return false;
+    return !!f.Actionclosedon;
+  });
+  let meanDays = null;
+  if (closedWithDate.length) {
+    const sum = closedWithDate.reduce((a, i) => {
+      const c = _NM_DATE(i.fields.Actionclosedon); const r = _NM_DATE(i.createdDateTime);
+      if (!c || !r) return a;
+      return a + Math.max(0, _NM_DAYS_BETWEEN(r, c));
+    }, 0);
+    meanDays = (sum / closedWithDate.length).toFixed(1);
+  }
+  const hotspotCounts = {};
+  allOpen.forEach(i => { const a = _NM_NORM_AREA(i.fields?.Locationofissue); if (a) hotspotCounts[a] = (hotspotCounts[a] || 0) + 1; });
+  const topHotspot = Object.entries(hotspotCounts).sort((a,b) => b[1]-a[1])[0];
+
+  document.getElementById('nm-kpis').innerHTML = `
+    <div class="svc-kpi fail">
+      <div class="svc-kpi-top">
+        <div class="svc-kpi-icn">⚠</div>
+        <div class="svc-kpi-mid">
+          <div class="svc-kpi-num">${allOpen.length}<span class="unit">open</span></div>
+          <div class="svc-kpi-lbl">Open · ${overdueOpen.length} overdue</div>
+        </div>
+      </div>
+    </div>
+    <div class="svc-kpi pass">
+      <div class="svc-kpi-top">
+        <div class="svc-kpi-icn">✓</div>
+        <div class="svc-kpi-mid">
+          <div class="svc-kpi-num">${rate ? rate.pct + '<span class="unit">%</span>' : '—'}</div>
+          <div class="svc-kpi-lbl">${rate ? `${rate.success} of ${rate.total} closed within 30d` : 'On-time closure'}</div>
+        </div>
+      </div>
+    </div>
+    <div class="svc-kpi warn">
+      <div class="svc-kpi-top">
+        <div class="svc-kpi-icn">⏱</div>
+        <div class="svc-kpi-mid">
+          <div class="svc-kpi-num">${meanDays !== null ? meanDays + '<span class="unit">days</span>' : '—'}</div>
+          <div class="svc-kpi-lbl">Mean days to close · target ≤21</div>
+        </div>
+      </div>
+    </div>
+    <div class="svc-kpi purple">
+      <div class="svc-kpi-top">
+        <div class="svc-kpi-icn">📍</div>
+        <div class="svc-kpi-mid">
+          <div class="svc-kpi-num" style="font-size:20px">${topHotspot ? escHtml(topHotspot[0]) : '—'}</div>
+          <div class="svc-kpi-lbl">${topHotspot ? `Top hotspot · ${topHotspot[1]} open` : 'Top hotspot · none'}</div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // ── 8-week trend ────────────────────────────────────────────────────
+  const weeks = [];
+  for (let w = 7; w >= 0; w--) {
+    const d = new Date(now); d.setDate(d.getDate() - w * 7);
+    weeks.push({ key: _NM_WEEK_KEY(d), label: 'W' + String(_NM_ISO_WEEK(d)).padStart(2,'0'), opened: 0, closed: 0 });
+  }
+  const wkIdx = Object.fromEntries(weeks.map((w,i) => [w.key, i]));
+  NMS_ITEMS.forEach(i => {
+    const f = i.fields || {};
+    const r = _NM_DATE(i.createdDateTime);
+    if (r) { const k = _NM_WEEK_KEY(r); if (k in wkIdx) weeks[wkIdx[k]].opened++; }
+    if (f.NearMissclosedout_x003f_ && f.Actionclosedon) {
+      const c = _NM_DATE(f.Actionclosedon);
+      if (c) { const k = _NM_WEEK_KEY(c); if (k in wkIdx) weeks[wkIdx[k]].closed++; }
     }
+  });
+  const maxBar = Math.max(1, ...weeks.flatMap(w => [w.opened, w.closed]));
+  document.getElementById('nm-trend-body').innerHTML = `
+    <div class="nm-trend">
+      ${weeks.map((w,i) => `
+        <div class="nm-trend-col${i === weeks.length - 1 ? ' cur' : ''}">
+          <div class="bars">
+            <div class="bar opened" style="height:${(w.opened / maxBar) * 100}%"><span class="v">${w.opened}</span></div>
+            <div class="bar closed" style="height:${(w.closed / maxBar) * 100}%"><span class="v">${w.closed}</span></div>
+          </div>
+          <div class="lbl">${w.label}</div>
+        </div>`).join('')}
+    </div>`;
+
+  // Parent split (last 90 days)
+  const since90 = new Date(now - 90 * 86400000);
+  const last90 = NMS_ITEMS.filter(i => { const r = _NM_DATE(i.createdDateTime); return r && r >= since90; });
+  const splitCounts = { 'At-Risk Condition': 0, 'At-Risk Behavior': 0, 'Positive Observation': 0 };
+  last90.forEach(i => { const c = _nmGetCategories(i); if (c.parent in splitCounts) splitCounts[c.parent]++; });
+  const splitTotal = Math.max(1, last90.length);
+  document.getElementById('nm-split').innerHTML = `
+    <div><div class="lbl">At-Risk Condition</div><div class="v" style="color:var(--p-cond)">${Math.round(splitCounts['At-Risk Condition'] / splitTotal * 100)}%</div></div>
+    <div><div class="lbl">At-Risk Behavior</div><div class="v" style="color:var(--p-beh)">${Math.round(splitCounts['At-Risk Behavior'] / splitTotal * 100)}%</div></div>
+    <div><div class="lbl">Positive Observation</div><div class="v" style="color:var(--p-pos)">${Math.round(splitCounts['Positive Observation'] / splitTotal * 100)}%</div></div>
+  `;
+
+  // ── Hotspots ────────────────────────────────────────────────────────
+  const hotspotEntries = Object.entries(hotspotCounts).sort((a,b) => b[1]-a[1]).slice(0, 6);
+  const maxHot = Math.max(1, ...hotspotEntries.map(([,n]) => n));
+  document.getElementById('nm-hotspots').innerHTML = hotspotEntries.length
+    ? hotspotEntries.map(([name, cnt], i) => `
+        <div class="nm-hotspot" onclick="setNmsAreaFilter('${escHtml(name)}')">
+          <div class="nm-hot-rank">${i+1}</div>
+          <div class="nm-hot-name">${escHtml(name)}</div>
+          <div class="nm-hot-bar"><i style="width:${(cnt/maxHot)*100}%"></i></div>
+          <div class="nm-hot-cnt">${cnt}</div>
+        </div>`).join('')
+    : '<div style="text-align:center;color:var(--text3);padding:24px;font-size:12px">No open near misses 🎉</div>';
+
+  // ── Filter strip ────────────────────────────────────────────────────
+  const allClosedCnt = NMS_ITEMS.filter(i => i.fields?.NearMissclosedout_x003f_).length;
+  const areas = [...new Set(NMS_ITEMS.map(i => _NM_NORM_AREA(i.fields?.Locationofissue)).filter(Boolean))].sort();
+  const areaCounts = Object.fromEntries(areas.map(a => [a, NMS_ITEMS.filter(i => _NM_NORM_AREA(i.fields?.Locationofissue) === a && !i.fields?.NearMissclosedout_x003f_).length]));
+  const condCnt = NMS_ITEMS.filter(i => _nmGetCategories(i).parent === 'At-Risk Condition' && !i.fields?.NearMissclosedout_x003f_).length;
+  const behCnt  = NMS_ITEMS.filter(i => _nmGetCategories(i).parent === 'At-Risk Behavior'  && !i.fields?.NearMissclosedout_x003f_).length;
+  const posCnt  = NMS_ITEMS.filter(i => _nmGetCategories(i).parent === 'Positive Observation' && !i.fields?.NearMissclosedout_x003f_).length;
+
+  document.getElementById('nm-filter-strip').innerHTML = `
+    <div class="nm-f-grp"><span class="nm-f-lbl">Status</span>
+      <button class="nm-pill ${nmsStatusFilter==='open'?'active':''}" onclick="setNmsStatusFilter('open')">Open <span class="cnt">${allOpen.length}</span></button>
+      <button class="nm-pill ${nmsStatusFilter==='closed'?'active':''}" onclick="setNmsStatusFilter('closed')">Closed <span class="cnt">${allClosedCnt}</span></button>
+      <button class="nm-pill ${nmsStatusFilter==='all'?'active':''}" onclick="setNmsStatusFilter('all')">All</button>
+      <button class="nm-pill fail ${nmsStatusFilter==='overdue'?'active':''}" onclick="setNmsStatusFilter('overdue')">⏱ Overdue <span class="cnt">${overdueOpen.length}</span></button>
+    </div>
+    <div class="nm-f-divider"></div>
+    <div class="nm-f-grp"><span class="nm-f-lbl">Date</span>
+      <button class="nm-pill ${nmDateFilter==='7d'?'active':''}" onclick="setNmDateFilter('7d')">7d</button>
+      <button class="nm-pill ${nmDateFilter==='30d'?'active':''}" onclick="setNmDateFilter('30d')">30d</button>
+      <button class="nm-pill ${nmDateFilter==='90d'?'active':''}" onclick="setNmDateFilter('90d')">90d</button>
+      <button class="nm-pill ${nmDateFilter==='all'?'active':''}" onclick="setNmDateFilter('all')">All</button>
+    </div>
+    <div class="nm-f-divider"></div>
+    <div class="nm-f-grp"><span class="nm-f-lbl">Category</span>
+      <button class="nm-pill ${nmCategoryFilter===''?'active':''}" onclick="setNmCategoryFilter('')">All</button>
+      <button class="nm-pill ${nmCategoryFilter==='At-Risk Condition'?'active':''}" onclick="setNmCategoryFilter('At-Risk Condition')">At-Risk Condition <span class="cnt">${condCnt}</span></button>
+      <button class="nm-pill ${nmCategoryFilter==='At-Risk Behavior'?'active':''}" onclick="setNmCategoryFilter('At-Risk Behavior')">At-Risk Behavior <span class="cnt">${behCnt}</span></button>
+      <button class="nm-pill ${nmCategoryFilter==='Positive Observation'?'active':''}" onclick="setNmCategoryFilter('Positive Observation')">Positive ${posCnt ? `<span class="cnt">${posCnt}</span>` : ''}</button>
+    </div>
+    <div class="nm-f-divider"></div>
+    <div class="nm-f-grp"><span class="nm-f-lbl">Site Area</span>
+      <button class="nm-pill ${nmsAreaFilter===''?'active':''}" onclick="setNmsAreaFilter('')">All</button>
+      ${areas.map(a => `<button class="nm-pill ${nmsAreaFilter===a?'active':''}" onclick="setNmsAreaFilter('${escHtml(a)}')">${escHtml(a)}${areaCounts[a] ? ` <span class="cnt">${areaCounts[a]}</span>` : ''}</button>`).join('')}
+    </div>
+  `;
+
+  // ── Repeat-pattern banner ───────────────────────────────────────────
+  const since30 = new Date(now - 30 * 86400000);
+  const last30Counts = {};
+  NMS_ITEMS.forEach(i => {
+    const r = _NM_DATE(i.createdDateTime);
+    if (!r || r < since30) return;
+    const a = _NM_NORM_AREA(i.fields?.Locationofissue);
+    if (a) last30Counts[a] = (last30Counts[a] || 0) + 1;
+  });
+  const repeats = Object.entries(last30Counts).filter(([,n]) => n >= 3).sort((a,b) => b[1]-a[1]);
+  const banner = document.getElementById('nm-banner-container');
+  if (repeats.length) {
+    banner.innerHTML = `<div class="nm-banner">⚠️ <b>Repeat pattern:</b> ${repeats[0][1]} near misses logged in <b>${escHtml(repeats[0][0])}</b> in the last 30 days — consider a focused safety briefing or raising a CPAR.</div>`;
+  } else {
+    banner.innerHTML = '';
   }
 
-  // Build area chips dynamically from unique locations — deduplicate by normalised label
-  const normArea = a => (a || '').replace(/^Repose\s*-\s*/i, '').trim();
-  const areaBar = document.getElementById('safety-area-bar');
-  if (areaBar) {
-    const uniqueLabels = [...new Set(NMS_ITEMS.map(i => normArea(i.fields?.Locationofissue)).filter(Boolean))].sort();
-    const existingChips = areaBar.querySelectorAll('.safety-chip:not(#nms-area-all)');
-    existingChips.forEach(c => c.remove());
-    uniqueLabels.forEach(label => {
-      const openCount = NMS_ITEMS.filter(i => normArea(i.fields?.Locationofissue) === label && !i.fields?.NearMissclosedout_x003f_).length;
-      const btn = document.createElement('button');
-      btn.className = 'safety-chip' + (nmsAreaFilter === label ? ' active' : '');
-      btn.innerHTML = openCount > 0 ? `${label} <span style="background:rgba(220,38,38,.15);color:#dc2626;border-radius:10px;padding:1px 6px;font-size:11px;font-weight:700;margin-left:2px">${openCount}</span>` : label;
-      btn.onclick = () => setNmsAreaFilter(label, btn);
-      areaBar.appendChild(btn);
-    });
-    const allBtn = document.getElementById('nms-area-all');
-    if (allBtn) allBtn.classList.toggle('active', nmsAreaFilter === '');
-  }
-
-  // Apply filters
-  let items = NMS_ITEMS;
-  if (nmsAreaFilter)                items = items.filter(i => normArea(i.fields?.Locationofissue) === nmsAreaFilter);
+  // ── Apply filters to list items ─────────────────────────────────────
+  let items = NMS_ITEMS.slice();
+  items = items.filter(i => { const r = _NM_DATE(i.createdDateTime); return r && r >= dateCutoff; });
+  if (nmsAreaFilter)                items = items.filter(i => _NM_NORM_AREA(i.fields?.Locationofissue) === nmsAreaFilter);
+  if (nmCategoryFilter)             items = items.filter(i => _nmGetCategories(i).parent === nmCategoryFilter);
   if (nmsStatusFilter === 'open')   items = items.filter(i => !i.fields?.NearMissclosedout_x003f_);
   if (nmsStatusFilter === 'closed') items = items.filter(i =>  i.fields?.NearMissclosedout_x003f_);
-  if (nmsStatusFilter === 'overdue') items = items.filter(i => nmsFailedIds.has(i.id));
+  if (nmsStatusFilter === 'overdue')items = items.filter(i => failedIds.has(i.id));
 
-  const open   = items.filter(i => !i.fields?.NearMissclosedout_x003f_);
-  const closed = items.filter(i =>  i.fields?.NearMissclosedout_x003f_);
+  // ── Group cards ─────────────────────────────────────────────────────
+  const groups = { overdue: [], thisWeek: [], older: [], positive: [], closed: [] };
+  items.forEach(i => {
+    const f = i.fields || {};
+    const closed = !!f.NearMissclosedout_x003f_;
+    const parent = _nmGetCategories(i).parent;
+    if (closed)                                 groups.closed.push(i);
+    else if (failedIds.has(i.id))               groups.overdue.push(i);
+    else if (parent === 'Positive Observation') groups.positive.push(i);
+    else {
+      const r = _NM_DATE(i.createdDateTime);
+      const age = r ? _NM_DAYS_BETWEEN(r, now) : 0;
+      if (age <= 7) groups.thisWeek.push(i); else groups.older.push(i);
+    }
+  });
 
-  function cardHtml(item) {
-    const f   = item.fields || {};
-    const isclosed = !!f.NearMissclosedout_x003f_;
-    const isOverdue = nmsFailedIds.has(item.id);
-    const ref  = f.Title || ('NMS-' + item.id.slice(0,6));
-    const date = item.createdDateTime ? item.createdDateTime.slice(0,10) : '';
-    const overdueBadge = isOverdue
-      ? `<span style="background:#dc2626;color:#fff;font-size:10px;font-weight:700;border-radius:20px;padding:2px 8px;white-space:nowrap">⏱ Overdue 30d</span>`
-      : '';
-    return `<div class="nms-card ${isclosed ? '' : 'open'}" id="nms-card-${item.id}" style="${isOverdue ? 'border-color:#dc2626;' : ''}">
-      <div style="display:flex;align-items:flex-start;gap:10px">
-        <div class="nms-card-meta" style="flex:1">
-          <div class="nms-ref" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${ref} · ${date} ${overdueBadge}</div>
-          <div class="nms-location-lbl">${escHtml(f.Locationofissue || '—')}</div>
-          <div class="nms-issue-txt">${escHtml(f.Whatistheissue_x003f_ || '—')}</div>
-          <div class="nms-raised-lbl">Raised by: ${escHtml(f.RaisedBy_x003a_ || '—')}${f.ActionOwners ? ' · Owner: ' + escHtml(f.ActionOwners) : ''}</div>
-        </div>
-        ${isclosed ? `<span class="nms-done-badge">Closed</span>` : ''}
+  // ── Render list ─────────────────────────────────────────────────────
+  const sections = [];
+  if (groups.overdue.length)
+    sections.push({ cls:'urgent', title:'Action needed today', sub:`${groups.overdue.length} overdue`, items: groups.overdue });
+  if (groups.thisWeek.length)
+    sections.push({ cls:'amber',  title:'Open this week',     sub:`${groups.thisWeek.length}`, items: groups.thisWeek });
+  if (groups.older.length)
+    sections.push({ cls:'',       title:'Open · older',        sub:`${groups.older.length}`,    items: groups.older });
+  if (groups.positive.length)
+    sections.push({ cls:'pos',    title:'Positive observations',sub:`${groups.positive.length}`,items: groups.positive });
+  if (groups.closed.length)
+    sections.push({ cls:'ok',     title:'Recently closed',     sub:`${groups.closed.length}`,    items: groups.closed.slice(0, 20) });
+
+  const html = sections.length
+    ? sections.map(s => `
+        <div class="nm-section-h ${s.cls}"><span class="dot"></span>${s.title}<span class="cnt">${s.sub}</span></div>
+        ${s.items.map(i => _nmRenderCard(i, failedIds, now)).join('')}`).join('')
+    : '<div style="color:var(--text3);text-align:center;padding:40px">No near miss reports match the current filter.</div>';
+  root.innerHTML = html;
+
+  // ── Side rail ───────────────────────────────────────────────────────
+  _nmRenderRail(NMS_ITEMS, last90);
+
+  // ── QHSE-only Classification Review (gated) ─────────────────────────
+  const isJonas = (typeof graphAccount !== 'undefined' && graphAccount?.username?.toLowerCase() === 'jonas.simonaitis@reposefurniture.co.uk');
+  const qhsePanel = document.getElementById('nm-qhse-panel');
+  if (qhsePanel) {
+    if (isJonas) { qhsePanel.style.display = ''; _nmRenderQhsePanel(NMS_ITEMS); }
+    else qhsePanel.style.display = 'none';
+  }
+}
+
+function _nmRenderCard(item, failedIds, now) {
+  const f = item.fields || {};
+  const closed = !!f.NearMissclosedout_x003f_;
+  const overdue = failedIds.has(item.id);
+  const ref = f.ReferenceNumber || f.Title || ('NMS-' + item.id.slice(0,6));
+  const date = item.createdDateTime ? item.createdDateTime.slice(0,10) : '';
+  const r = _NM_DATE(item.createdDateTime);
+  const age = r ? _NM_DAYS_BETWEEN(r, now) : 0;
+  const cat = _nmGetCategories(item);
+  const parentCls = _nmParentClass(cat.parent);
+
+  let ageBadge;
+  if (closed) {
+    const c = _NM_DATE(f.Actionclosedon);
+    const days = (r && c) ? _NM_DAYS_BETWEEN(r, c) : null;
+    ageBadge = `<span class="nm2-age pass">${days !== null ? `Closed in ${days}d` : 'Closed'}</span>`;
+  } else if (overdue)        ageBadge = `<span class="nm2-age bad">Day ${age} · overdue</span>`;
+  else if (age > 7)          ageBadge = `<span class="nm2-age warn">Day ${age}</span>`;
+  else                       ageBadge = `<span class="nm2-age ok">Day ${age}</span>`;
+
+  const stripeCls = closed ? 'closed' : parentCls;
+  const parentLabel = closed ? 'Closed' : cat.parent || '—';
+  const parentPillCls = closed ? 'closed' : parentCls;
+  const catPill = cat.child
+    ? `<span class="cat-pill"><span class="ico">${NM_CAT_ICON[cat.child] || '•'}</span>${escHtml(cat.child)}</span>`
+    : '';
+  const autoPill = !closed && cat.isAuto && cat.conf > 0
+    ? (cat.conf < 0.6 ? `<span class="auto-pill review">⚑ review · ${cat.conf.toFixed(2)}</span>`
+                       : `<span class="auto-pill">auto · ${cat.conf.toFixed(2)}</span>`)
+    : '';
+
+  const loc = _NM_NORM_AREA(f.Locationofissue);
+  const raised = f.RaisedBy_x003a_ || '—';
+  const owner  = f.ActionOwners || '';
+  const initR = _NM_INITIALS(raised);
+  const initO = _NM_INITIALS(owner);
+
+  const closedActionsBlock = closed && f.Actionstaken
+    ? `<div class="nm2-lessons"><b>Evidence of close out</b>${escHtml(f.Actionstaken)}</div>` : '';
+
+  const closeForm = !closed ? `
+    <div class="nm2-close-form">
+      <div><div class="nm2-cf-lbl">Evidence of close out *</div><textarea class="nm2-cf-area" id="nms-actions-${item.id}" maxlength="10000" placeholder="Describe actions taken to resolve…"></textarea></div>
+      <div class="nm2-cf-row">
+        <div style="flex:1"><div class="nm2-cf-lbl">Action closed on</div><input class="nm2-cf-input" type="date" id="nms-closedon-${item.id}"></div>
+        <button class="nm2-act primary" id="nms-close-btn-${item.id}" onclick="closeOutNearMiss('${item.id}')">Mark Closed</button>
       </div>
-      ${!isclosed ? `<div class="nms-close-form">
-        <div>
-          <div class="nms-close-label">Actions taken *</div>
-          <textarea class="nms-close-textarea" id="nms-actions-${item.id}" maxlength="10000" placeholder="Describe actions taken to resolve…"></textarea>
-        </div>
-        <div class="nms-close-row">
-          <div style="flex:1">
-            <div class="nms-close-label">Action closed on</div>
-            <input class="nms-close-input" type="date" id="nms-closedon-${item.id}">
-          </div>
-          <button class="nms-close-submit" id="nms-close-btn-${item.id}" onclick="closeOutNearMiss('${item.id}')">Mark Closed</button>
-        </div>
-      </div>` : `${f.Actionstaken ? `<div style="margin-top:8px;font-size:11px;color:var(--text2)"><span style="font-weight:600">Actions:</span> ${f.Actionstaken}</div>` : ''}`}
-    </div>`;
-  }
+    </div>` : '';
 
-  let html = '';
-  if (open.length === 0 && closed.length === 0) {
-    html = '<div style="color:var(--text3);text-align:center;padding:40px">No near miss reports found.</div>';
-  } else {
-    if (open.length)   html += `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--red);margin-bottom:8px">Open (${open.length})</div>` + open.map(cardHtml).join('');
-    if (closed.length) html += `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:16px 0 8px">Closed (${closed.length})</div>` + closed.map(cardHtml).join('');
+  const expanded = overdue ? ' expanded' : '';
+  const closeToggle = !closed && !overdue
+    ? `<div class="nm2-actions"><button class="nm2-act" onclick="document.getElementById('nm2-card-${item.id}').classList.toggle('expanded')">→ Close out</button></div>`
+    : '';
+
+  return `
+    <div class="nm2-card${expanded}" id="nm2-card-${item.id}">
+      <div class="nm2-stripe ${stripeCls}"></div>
+      <div class="nm2-bd">
+        <div class="nm2-row1">
+          <span class="nm2-ref">${escHtml(ref)}</span>
+          <span class="parent-pill ${parentPillCls}">${escHtml(parentLabel)}</span>
+          ${catPill}
+          ${autoPill}
+          ${ageBadge}
+        </div>
+        <div class="nm2-loc"><span class="pin">📍</span>${escHtml(loc || '—')}</div>
+        <div class="nm2-issue">${escHtml(f.Whatistheissue_x003f_ || '—')}</div>
+        <div class="nm2-row3">
+          <span class="nm2-person"><span class="role">Raised</span><span class="av" style="background:${_NM_AV_BG(raised)}">${initR}</span><b>${escHtml(raised)}</b></span>
+          ${owner ? `<span class="nm2-person"><span class="role">Owner</span><span class="av" style="background:${_NM_AV_BG(owner)}">${initO}</span><b>${escHtml(owner)}</b></span>` : ''}
+          ${closeToggle}
+        </div>
+        ${closeForm}
+        ${closedActionsBlock}
+      </div>
+    </div>`;
+}
+
+function _nmRenderRail(allItems, last90) {
+  const rail = document.getElementById('nm-rail');
+  if (!rail) return;
+
+  // By observation category — last 90d
+  const catCounts = {};
+  last90.forEach(i => {
+    const c = _nmGetCategories(i);
+    if (c.child) catCounts[c.child] = (catCounts[c.child] || 0) + 1;
+  });
+  const sortedCats = Object.entries(catCounts).sort((a,b) => b[1]-a[1]);
+
+  // Top reporters — last 90d
+  const repCounts = {};
+  last90.forEach(i => { const r = i.fields?.RaisedBy_x003a_; if (r) repCounts[r] = (repCounts[r] || 0) + 1; });
+  const topReps = Object.entries(repCounts).sort((a,b) => b[1]-a[1]).slice(0, 5);
+
+  // Action owners — currently open
+  const ownCounts = {};
+  allItems.filter(i => !i.fields?.NearMissclosedout_x003f_).forEach(i => {
+    const o = i.fields?.ActionOwners; if (o) ownCounts[o] = (ownCounts[o] || 0) + 1;
+  });
+  const topOwners = Object.entries(ownCounts).sort((a,b) => b[1]-a[1]).slice(0, 5);
+
+  rail.innerHTML = `
+    <div class="svc-panel">
+      <div class="svc-panel-head"><h2>By observation category <span class="sub">last 90 days</span></h2></div>
+      ${sortedCats.length
+        ? sortedCats.map(([c, n]) => `<div class="nm-cat-row"><span class="ic">${NM_CAT_ICON[c] || '•'}</span><span class="nm">${escHtml(c)}</span><span class="ct">${n}</span></div>`).join('')
+        : '<div style="padding:18px;text-align:center;color:var(--text3);font-size:12px">No data in window.</div>'}
+    </div>
+    <div class="svc-panel">
+      <div class="svc-panel-head"><h2>Most active reporters <span class="sub">last 90 days</span></h2></div>
+      ${topReps.length
+        ? topReps.map(([n, c]) => `<div class="nm-who-row"><span class="av" style="background:${_NM_AV_BG(n)}">${_NM_INITIALS(n)}</span><div class="who-name">${escHtml(n)}</div><div class="who-cnt">${c}</div></div>`).join('')
+        : '<div style="padding:18px;text-align:center;color:var(--text3);font-size:12px">—</div>'}
+    </div>
+    <div class="svc-panel">
+      <div class="svc-panel-head"><h2>Action owners <span class="sub">currently open</span></h2></div>
+      ${topOwners.length
+        ? topOwners.map(([n, c]) => { const cls = c >= 3 ? 'fail' : c >= 1 ? 'warn' : ''; return `<div class="nm-who-row"><span class="av" style="background:${_NM_AV_BG(n)}">${_NM_INITIALS(n)}</span><div class="who-name">${escHtml(n)}</div><div class="who-cnt ${cls}">${c}</div></div>`; }).join('')
+        : '<div style="padding:18px;text-align:center;color:var(--text3);font-size:12px">All clear 🎉</div>'}
+    </div>`;
+}
+
+function _nmRenderQhsePanel(items) {
+  const panel = document.getElementById('nm-qhse-panel');
+  if (!panel) return;
+
+  // Most-recent 20 records — auto-classify any that are missing categories
+  const recent = items.slice().sort((a,b) => (b.createdDateTime || '').localeCompare(a.createdDateTime || '')).slice(0, 20);
+  let autoCount = 0, highConf = 0, lowConf = 0, unmatched = 0;
+  recent.forEach(i => {
+    const c = _nmGetCategories(i);
+    if (c.isAuto) {
+      autoCount++;
+      if (c.conf >= 0.85) highConf++;
+      else if (c.conf > 0 && c.conf < 0.6) lowConf++;
+      else if (c.conf === 0) unmatched++;
+    }
+  });
+
+  const rows = recent.map(item => {
+    const f = item.fields || {};
+    const ref = f.ReferenceNumber || f.Title || ('NMS-' + item.id.slice(0,6));
+    const cat = _nmGetCategories(item);
+    const isLow = cat.isAuto && (cat.conf < 0.6);
+    const isUnmatched = cat.isAuto && cat.conf === 0;
+    const loc = _NM_NORM_AREA(f.Locationofissue);
+    const raised = f.RaisedBy_x003a_ || '—';
+    const date = item.createdDateTime ? item.createdDateTime.slice(0,10) : '';
+
+    const parentOpts = ['At-Risk Condition','At-Risk Behavior','Positive Observation']
+      .map(p => `<option value="${p}"${(!isUnmatched && p === cat.parent) ? ' selected' : ''}>${p}</option>`).join('');
+    const childOpts = NM_OBS_CATEGORIES
+      .map(o => `<option value="${o}"${(!isUnmatched && o === cat.child) ? ' selected' : ''}>${o}</option>`).join('');
+    const blankParent = isUnmatched ? '<option value="" selected>— select —</option>' : '';
+    const blankChild  = isUnmatched ? '<option value="" selected>— select —</option>' : '';
+
+    const conPill = isUnmatched ? `<span class="auto-pill review">⚑ unmatched</span>`
+                  : isLow       ? `<span class="auto-pill review">⚑ review · ${cat.conf.toFixed(2)}</span>`
+                  : cat.isAuto  ? `<span class="auto-pill">auto · ${cat.conf.toFixed(2)}</span>`
+                                : `<span class="auto-pill" style="background:var(--gbg);color:var(--green);border-color:var(--gborder)">stored</span>`;
+
+    return `
+      <div class="nm-rev-row${isLow || isUnmatched ? ' low' : ''}" data-id="${item.id}">
+        <div class="nm-rev-meta">
+          <div class="top">
+            <span class="nm2-ref">${escHtml(ref)}</span>
+            ${conPill}
+            <span style="font-size:10.5px;color:var(--text3)">📍 ${escHtml(loc || '—')}</span>
+          </div>
+          <div class="text">"${escHtml((f.Whatistheissue_x003f_ || '').slice(0,200))}${(f.Whatistheissue_x003f_ || '').length > 200 ? '…' : ''}"</div>
+          <div class="footer">Raised by ${escHtml(raised)} · ${date}</div>
+        </div>
+        <div class="nm-rev-sel">
+          <label>Near Miss Category</label>
+          <select onchange="_nmReviewChanged('${item.id}')" id="qhse-parent-${item.id}">${blankParent}${parentOpts}</select>
+        </div>
+        <div class="nm-rev-sel">
+          <label>Observation Category</label>
+          <select onchange="_nmReviewChanged('${item.id}')" id="qhse-child-${item.id}">${blankChild}${childOpts}</select>
+        </div>
+        <div class="nm-rev-act">
+          <button class="nm-rev-save${cat.isAuto ? '' : ' disabled'}" id="qhse-save-${item.id}" onclick="saveNmsClassification('${item.id}')">${cat.isAuto ? 'Save' : '✓ Stored'}</button>
+        </div>
+      </div>`;
+  }).join('');
+
+  panel.innerHTML = `
+    <div class="nm-qhse-head">
+      <div>
+        <h2>🔒 Classification Review <span class="nm-qhse-badge">QHSE only</span></h2>
+        <span class="sub">Auto-classifier got the categories right ~85% of the time. Review the most recent submissions and override anything that looks off — your changes save back to SharePoint.</span>
+      </div>
+    </div>
+    <div class="nm-qhse-summary">
+      <div><div class="lbl">Auto-classified</div><div class="v">${autoCount}</div></div>
+      <div><div class="lbl">High confidence (≥0.85)</div><div class="v pass">${highConf}</div></div>
+      <div><div class="lbl">Low confidence (&lt;0.6)</div><div class="v warn">${lowConf}</div></div>
+      <div><div class="lbl">Unmatched · need review</div><div class="v fail">${unmatched}</div></div>
+    </div>
+    <div>${rows || '<div style="padding:24px;text-align:center;color:var(--text3)">No records.</div>'}</div>
+    <div class="nm-qhse-foot">💡 <span><b>Tip:</b> overrides write back to SharePoint <code>NearMissCategory</code> + <code>ObservationCategory</code> on the item.</span></div>
+  `;
+}
+
+function _nmReviewChanged(id) {
+  const parentSel = document.getElementById(`qhse-parent-${id}`);
+  const childSel  = document.getElementById(`qhse-child-${id}`);
+  const saveBtn   = document.getElementById(`qhse-save-${id}`);
+  if (!parentSel || !childSel || !saveBtn) return;
+  const parentChanged = parentSel.value && parentSel.value !== parentSel.dataset.original;
+  parentSel.parentElement.classList.toggle('changed', parentChanged);
+  childSel.parentElement.classList.toggle('changed', !!childSel.value);
+  saveBtn.classList.remove('disabled');
+  saveBtn.classList.add('changed');
+  saveBtn.textContent = 'Save override';
+}
+
+async function saveNmsClassification(itemId) {
+  const parentVal = document.getElementById(`qhse-parent-${itemId}`)?.value;
+  const childVal  = document.getElementById(`qhse-child-${itemId}`)?.value;
+  const saveBtn   = document.getElementById(`qhse-save-${itemId}`);
+  if (!parentVal || !childVal) { alert('Pick both Near Miss Category and Observation Category before saving.'); return; }
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
+  try {
+    const siteId = await getNmsSiteId();
+    const token  = await getGraphToken();
+    const res = await fetch(
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${NMS_LIST_ID}/items/${itemId}`,
+      { method:'PATCH', headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
+        body: JSON.stringify({ fields: { NearMissCategory: parentVal, ObservationCategory: childVal } }) }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const idx = NMS_ITEMS.findIndex(i => i.id === itemId);
+    if (idx >= 0) {
+      NMS_ITEMS[idx].fields.NearMissCategory = parentVal;
+      NMS_ITEMS[idx].fields.ObservationCategory = childVal;
+    }
+    try { toast('Classification saved', 's'); } catch {}
+    renderNearMisses();
+  } catch (e) {
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save override'; }
+    alert('Failed to save classification: ' + e.message);
   }
-  el.innerHTML = html;
+}
+
+function exportNmsCsv() {
+  const headers = ['Reference','Created','Site','Location','Issue','Raised By','Owner','Near Miss Category','Observation Category','Closed','Closed On','Actions'];
+  const rows = NMS_ITEMS.map(i => {
+    const f = i.fields || {};
+    const c = _nmGetCategories(i);
+    return [
+      f.ReferenceNumber || f.Title || i.id,
+      i.createdDateTime ? i.createdDateTime.slice(0,10) : '',
+      f.SiteLocation_x003a_ || '',
+      f.Locationofissue || '',
+      (f.Whatistheissue_x003f_ || '').replace(/[\r\n]+/g, ' '),
+      f.RaisedBy_x003a_ || '',
+      f.ActionOwners || '',
+      c.parent || '',
+      c.child  || '',
+      f.NearMissclosedout_x003f_ ? 'Yes' : 'No',
+      f.Actionclosedon || '',
+      (f.Actionstaken || '').replace(/[\r\n]+/g, ' '),
+    ];
+  });
+  const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `near-misses-${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 async function closeOutNearMiss(itemId) {
@@ -27001,6 +27749,7 @@ async function mtDeleteYearly(id) {
 </div>
 
 <!-- ═══ RepNet Skin v4 — flag JS (no-op unless ?ui=v4) ═══ -->
+<script src="./classify-near-miss.js"></script>
 <script src="./repnet-skin-v4.js" defer></script>
 </body>
 </html>
