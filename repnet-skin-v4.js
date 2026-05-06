@@ -262,12 +262,27 @@
       const x = new Date(d); const day = (x.getDay() + 6) % 7; x.setDate(x.getDate() - day); x.setHours(0,0,0,0);
       return x;
     }
+    // UK bank-holiday awareness (uses globals defined in index.html — falls
+    // back to no-op if the bundle hasn't loaded yet).
+    const BANK = (typeof window !== 'undefined' && window.UK_BANK_HOLIDAYS) || new Set();
+    const dateKey = (typeof window !== 'undefined' && window.localDateKey)
+      || function(d) { return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); };
+    function isBankHoliday(d) { return BANK.has(dateKey(d)); }
     function plannedFor(date) {
+      const dow = date.getDay();              // 0=Sun, 1=Mon … 5=Fri, 6=Sat
+      if (dow < 1 || dow > 5) return 0;       // weekend
+      if (isBankHoliday(date)) return 0;      // closed — no work expected
+      // Prep number = nth working day of the week (skipping bank holidays).
+      // On a bank-holiday Monday week, Tuesday becomes Prep 1, Wed = Prep 2, etc.
       const targetMon = mondayOf(date);
-      const dow = (date.getDay() + 6) % 7; // 0=Mon, 4=Fri
-      if (dow > 4) return 0;
-      const prep = dow + 1;
-      // Find wc key whose .wc string matches targetMon (dd/mm/yyyy)
+      let prep = 0;
+      const cur = new Date(targetMon);
+      while (cur.getTime() <= date.getTime()) {
+        const cdow = cur.getDay();
+        if (cdow >= 1 && cdow <= 5 && !isBankHoliday(cur)) prep++;
+        cur.setDate(cur.getDate() + 1);
+      }
+      if (prep < 1) return 0;
       const targetStr = ddmmyyyy(targetMon);
       const wcKey = Object.keys(PROD).find(k => PROD[k] && PROD[k].wc === targetStr);
       if (!wcKey) return 0;
