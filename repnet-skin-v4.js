@@ -307,18 +307,31 @@
       }
       return dayComps.length;
     }
+    // Was-anything-completed check used for Saturday-overtime detection.
+    // Uses the raw record count (not the part-aggregated one) so that even
+    // a partial Woodmill day on Saturday triggers the Sat token.
+    function hasCompletions(date) {
+      const want = ddmmyyyy(date);
+      return COMPS.some(c => c.fields && c.fields.Team === team && c.fields.CompletedDate === want);
+    }
 
     const labels = [], planned = [], done = [];
     let subtitle = '';
 
     if (period === 'today' || period === 'yesterday') {
-      // Walk back 10 working days (Mon–Fri) ending on today (today is the rightmost token).
+      // Walk back 10 working days ending on today. Mon–Fri always; Saturday
+      // counts as a "working day" only when there were any completions
+      // (overtime). Sunday excluded entirely. Today is the rightmost token.
       const today = new Date(); today.setHours(0, 0, 0, 0);
       const days = [];
       const cur = new Date(today);
       while (days.length < 10) {
         const dow = cur.getDay();
-        if (dow >= 1 && dow <= 5) days.push(new Date(cur));
+        if (dow >= 1 && dow <= 5) {
+          days.push(new Date(cur));
+        } else if (dow === 6 && hasCompletions(cur)) {
+          days.push(new Date(cur));
+        }
         cur.setDate(cur.getDate() - 1);
       }
       days.reverse(); // oldest first → today last
@@ -340,19 +353,29 @@
         planned.push(plannedFor(d));
         done.push(doneFor(d));
       }
+      // Saturday overtime token — only show when something was actually
+      // completed on Saturday. Planned stays 0 (no prep day), so the bar
+      // visually flags "we worked Saturday to clear N jobs".
+      const sat = new Date(mon); sat.setDate(mon.getDate() + 5); sat.setHours(0,0,0,0);
+      if (hasCompletions(sat)) {
+        labels.push('Sat');
+        planned.push(plannedFor(sat)); // always 0
+        done.push(doneFor(sat));
+      }
       subtitle = 'Week of ' + mon.toLocaleDateString('en-GB', { day:'numeric', month:'short' });
     } else if (period === 'month') {
-      // Group by week within the month
+      // Group by week within the month — include Saturdays in the inner
+      // loop so overtime completions roll into the weekly bar (planned is
+      // 0 on Sat so totals only gain on the done side).
       const ref = new Date(refDate);
       const first = new Date(ref.getFullYear(), ref.getMonth(), 1);
       const last  = new Date(ref.getFullYear(), ref.getMonth() + 1, 0);
-      // Walk weeks (Mon-Fri) intersecting this month
       const monStart = mondayOf(first);
       let cursor = new Date(monStart);
       while (cursor <= last) {
         const wkLabel = 'W' + (typeof window.isoWeekNumber === 'function' ? window.isoWeekNumber(cursor) : '?');
         let wkPlanned = 0, wkDone = 0;
-        for (let i = 0; i < 5; i++) {
+        for (let i = 0; i < 6; i++) { // Mon..Sat
           const d = new Date(cursor); d.setDate(cursor.getDate() + i); d.setHours(0,0,0,0);
           if (d.getMonth() === ref.getMonth()) {
             wkPlanned += plannedFor(d);
@@ -374,7 +397,7 @@
         let mPlanned = 0, mDone = 0;
         for (let d = new Date(first); d <= last; d.setDate(d.getDate() + 1)) {
           const dow = (d.getDay() + 6) % 7;
-          if (dow <= 4) {
+          if (dow <= 5) { // Mon..Sat (Sat collects overtime done; planned is 0 there)
             mPlanned += plannedFor(d);
             mDone    += doneFor(d);
           }
