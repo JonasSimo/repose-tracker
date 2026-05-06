@@ -2484,92 +2484,395 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .tm-restore-btn   { font-family:inherit; font-size:11px; font-weight:600; padding:3px 9px; border-radius:5px; border:1.5px solid var(--border2); background:transparent; color:var(--text2); cursor:pointer; white-space:nowrap; }
 .tm-restore-btn:hover { background:var(--bg4,#2a2a3a); color:var(--text1); }
 
-/* ─── COMPLAINTS ─────────────────────────────── */
-.cp-list-wrap       { display:flex; flex-direction:column; height:100%; overflow:hidden; }
-.cp-list-header     { background:var(--bg2); border-bottom:1px solid var(--border); padding:10px 14px; display:flex; flex-direction:column; gap:8px; flex-shrink:0; }
-.cp-title           { font-size:15px; font-weight:700; color:var(--text1); }
-.cp-chips           { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
-.cp-chip            { font-family:inherit; font-size:12px; font-weight:600; padding:5px 12px; border-radius:20px; border:1.5px solid var(--border2); background:var(--bg3); color:var(--text2); cursor:pointer; }
-.cp-chip:hover      { background:var(--bg4,#2a2a3a); color:var(--text1); }
+/* ─── COMPLAINTS · v4 (light, Bricolage/Manrope) ─── */
+/* Local v4 token aliases — keeps this block self-contained. Fall back to existing brand vars. */
+#view-complaints {
+  --cp-bg:#f4f6f8; --cp-bg2:#ffffff; --cp-bg3:#f8fafb;
+  --cp-text:#101828; --cp-text2:#475467; --cp-text3:#98a2b3;
+  --cp-border:#e6eaf0; --cp-border2:#d0d5dd;
+  --cp-pass:#059669; --cp-pass-soft:#ecfdf5; --cp-pass-border:#a7f3d0;
+  --cp-warn:#d97706; --cp-warn-soft:#fffbeb; --cp-warn-border:#fed7aa;
+  --cp-fail:#dc2626; --cp-fail-soft:#fef2f2; --cp-fail-border:#fecaca;
+  --cp-info:#14a1e9; --cp-info-soft:#e6f5fd; --cp-info-border:#7dcef6;
+  --cp-purple:#7c3aed; --cp-purple-soft:#ede9fe; --cp-purple-border:#ddd6fe;
+  --cp-orange:#ea580c; --cp-orange-soft:#fff7ed; --cp-orange-border:#fed7aa;
+  --cp-grey-soft:#f1f5f9;
+  background:var(--cp-bg) !important;
+  color:var(--cp-text);
+  font-family:'Manrope',system-ui,sans-serif;
+}
+.cp-list-wrap       { display:flex; flex-direction:column; height:100%; overflow-y:auto; padding:24px 28px 64px; max-width:1640px; margin:0 auto; }
+.cp-list-header     { display:none; } /* legacy, replaced by .cp-page-head */
+.cp-title           { display:none; }
+
+/* Page head */
+.cp-page-head       { background:#fff; border:1px solid var(--cp-border); border-radius:18px; padding:22px 26px; margin-bottom:18px; display:flex; align-items:center; gap:18px; flex-wrap:wrap; }
+.cp-page-head .crumb{ font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--cp-text2); font-weight:700; margin-bottom:4px; }
+.cp-page-head h1    { font-size:28px; font-weight:800; color:var(--repose-navy); font-family:'Bricolage Grotesque','Manrope',sans-serif; letter-spacing:-.02em; margin:0; }
+.cp-page-head h1 em { color:var(--repose-blue); font-style:normal; }
+.cp-page-head .ps   { font-size:13px; color:var(--cp-text2); margin-top:6px; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+.cp-page-head .ps .live { display:inline-flex; align-items:center; gap:6px; color:var(--cp-pass); font-weight:700; font-size:12px; }
+.cp-page-head .right{ margin-left:auto; display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+
+/* Buttons */
+.cp-btn             { font-family:inherit; font-size:13px; font-weight:600; padding:10px 16px; border-radius:999px; border:none; cursor:pointer; display:inline-flex; align-items:center; gap:7px; transition:all .12s; }
+.cp-btn-pri         { background:var(--repose-blue); color:#fff; }
+.cp-btn-pri:hover   { background:#0d8ec9; }
+.cp-btn-sec         { background:#fff; color:var(--repose-navy); border:1.5px solid var(--cp-border2); }
+.cp-btn-sec:hover   { border-color:var(--repose-blue); color:var(--repose-blue); }
+.cp-refresh-btn     { font-family:inherit; font-size:13px; padding:9px 14px; border-radius:999px; border:1.5px solid var(--cp-border2); background:#fff; color:var(--repose-navy); cursor:pointer; font-weight:600; }
+.cp-refresh-btn:hover { border-color:var(--repose-blue); color:var(--repose-blue); }
+
+/* KPI strip */
+.cp-kpis            { display:grid; grid-template-columns:repeat(5,1fr); gap:14px; margin-bottom:18px; }
+@media(max-width:1100px){ .cp-kpis{ grid-template-columns:repeat(2,1fr); } }
+.cp-kpi             { background:#fff; border:1px solid var(--cp-border); border-radius:18px; padding:18px 22px; cursor:pointer; transition:all .15s; }
+.cp-kpi:hover       { border-color:var(--repose-blue); box-shadow:0 8px 22px rgba(20,161,233,.10); transform:translateY(-1px); }
+.cp-kpi-top         { display:flex; align-items:center; gap:14px; }
+.cp-kpi-icn         { width:44px; height:44px; border-radius:14px; background:var(--cp-info-soft); color:var(--cp-info); display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
+.cp-kpi.fail .cp-kpi-icn { background:var(--cp-fail-soft); color:var(--cp-fail); }
+.cp-kpi.warn .cp-kpi-icn { background:var(--cp-warn-soft); color:var(--cp-warn); }
+.cp-kpi.pass .cp-kpi-icn { background:var(--cp-pass-soft); color:var(--cp-pass); }
+.cp-kpi.navy .cp-kpi-icn { background:rgba(14,2,58,.08); color:var(--repose-navy); }
+.cp-kpi-mid         { flex:1; min-width:0; }
+.cp-kpi-num         { font-family:'Bricolage Grotesque',sans-serif; font-size:28px; font-weight:800; color:var(--repose-navy); line-height:1; letter-spacing:-.02em; }
+.cp-kpi-num .unit   { font-size:13px; font-weight:600; color:var(--cp-text2); margin-left:4px; }
+.cp-kpi-lbl         { font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--cp-text2); font-weight:700; margin-top:6px; }
+.cp-kpi-delta       { font-size:11px; font-weight:700; margin-top:8px; }
+.cp-kpi-delta.up    { color:var(--cp-fail); }
+.cp-kpi-delta.down  { color:var(--cp-pass); }
+.cp-kpi-delta.flat  { color:var(--cp-text2); }
+
+/* Panels + grid */
+.cp-panel           { background:#fff; border:1px solid var(--cp-border); border-radius:18px; overflow:hidden; margin-bottom:16px; }
+.cp-panel-head      { padding:16px 20px 12px; display:flex; align-items:center; gap:14px; border-bottom:1px solid var(--cp-border); }
+.cp-panel-head h2   { font-size:16px; font-weight:700; color:var(--repose-navy); flex:1; font-family:'Bricolage Grotesque','Manrope',sans-serif; margin:0; }
+.cp-panel-head h2 .sub { display:block; font-family:'Manrope',sans-serif; font-size:11.5px; color:var(--cp-text2); font-weight:500; margin-top:3px; }
+.cp-panel-head .right { display:flex; gap:6px; align-items:center; flex-wrap:wrap; justify-content:flex-end; }
+.cp-panel-body      { padding:16px 20px; }
+.cp-grid-12         { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:18px; align-items:stretch; }
+.cp-grid-12 .cp-panel { margin-bottom:0; display:flex; flex-direction:column; }
+@media(max-width:1100px){ .cp-grid-12 { grid-template-columns:1fr; } }
+
+/* Trend chart */
+.cp-trend           { display:grid; grid-template-columns:repeat(12,1fr); gap:12px; align-items:end; height:160px; padding:14px 6px 24px; position:relative; border-bottom:1px dashed var(--cp-border); }
+.cp-trend-col       { display:flex; flex-direction:column; align-items:center; gap:2px; position:relative; height:100%; justify-content:flex-end; }
+.cp-trend-col .bars { display:flex; gap:3px; align-items:flex-end; height:100%; width:100%; justify-content:center; }
+.cp-trend-col .bar  { width:11px; border-radius:3px 3px 0 0; }
+.cp-trend-col .bar.opened { background:var(--repose-navy); }
+.cp-trend-col .bar.closed { background:var(--repose-blue); }
+.cp-trend-col .lbl  { position:absolute; bottom:-22px; font-size:10px; color:var(--cp-text2); font-family:'JetBrains Mono',monospace; font-weight:600; }
+.cp-trend-col.cur .lbl { color:var(--repose-navy); font-weight:800; }
+.cp-trend-col.cur .bar.opened { box-shadow:0 0 0 2px rgba(14,2,58,.15); }
+.cp-trend-col.cur .bar.closed { box-shadow:0 0 0 2px rgba(20,161,233,.18); }
+.cp-legend          { display:flex; gap:14px; font-size:11px; color:var(--cp-text2); font-weight:600; }
+.cp-legend i        { width:10px; height:10px; border-radius:2px; display:inline-block; margin-right:6px; vertical-align:middle; }
+
+/* Hotspots */
+.cp-hotspot         { display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--cp-border); cursor:pointer; }
+.cp-hotspot:last-of-type { border-bottom:none; }
+.cp-hotspot:hover   { background:var(--cp-bg3); margin:0 -8px; padding:10px 8px; border-radius:6px; }
+.cp-hot-rank        { font-family:'Bricolage Grotesque',sans-serif; font-size:14px; font-weight:800; color:var(--cp-text3); width:20px; text-align:center; }
+.cp-hot-name        { flex:1; font-size:13px; font-weight:700; color:var(--repose-navy); display:flex; align-items:center; gap:8px; }
+.cp-hot-bar         { flex:1.2; height:7px; background:var(--cp-grey-soft); border-radius:999px; overflow:hidden; }
+.cp-hot-bar i       { display:block; height:100%; background:linear-gradient(90deg,var(--cp-info),var(--repose-blue)); border-radius:999px; }
+.cp-hot-cnt         { font-family:'Bricolage Grotesque',sans-serif; font-size:17px; font-weight:800; color:var(--repose-navy); min-width:28px; text-align:right; }
+.cp-hot-delta       { font-size:10.5px; font-weight:700; font-family:'JetBrains Mono',monospace; min-width:36px; text-align:right; }
+.cp-hot-delta.up    { color:var(--cp-fail); }
+.cp-hot-delta.down  { color:var(--cp-pass); }
+.cp-hot-delta.flat  { color:var(--cp-text3); }
+
+/* Workload */
+.cp-workload-grid   { display:grid; grid-template-columns:repeat(4,1fr); gap:0; padding:0; }
+@media(max-width:1100px){ .cp-workload-grid{ grid-template-columns:repeat(2,1fr); } }
+.cp-who-card        { padding:16px 18px; border-right:1px solid var(--cp-border); cursor:pointer; transition:background .12s; display:flex; flex-direction:column; gap:10px; }
+.cp-who-card:last-child { border-right:none; }
+.cp-who-card:hover  { background:var(--cp-bg3); }
+.cp-who-card.has-overdue { background:linear-gradient(180deg,rgba(220,38,38,.04),transparent 60%); }
+.cp-who-head        { display:flex; align-items:center; gap:10px; }
+.cp-who-av          { width:38px; height:38px; border-radius:999px; display:grid; place-items:center; font-family:'Bricolage Grotesque',sans-serif; font-weight:800; font-size:13px; color:#fff; flex-shrink:0; border:1.5px solid rgba(255,255,255,.25); }
+.cp-who-name        { flex:1; min-width:0; }
+.cp-who-name b      { font-size:13.5px; color:var(--repose-navy); font-weight:700; display:block; line-height:1.2; }
+.cp-who-name span   { font-size:10.5px; color:var(--cp-text2); text-transform:uppercase; letter-spacing:.06em; font-weight:600; }
+.cp-who-stats       { display:flex; gap:6px; flex-wrap:wrap; }
+.cp-who-stat        { font-size:10px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; padding:3px 8px; border-radius:999px; background:var(--cp-grey-soft); color:var(--cp-text2); }
+.cp-who-stat.open   { background:var(--cp-info-soft); color:var(--cp-info); border:1px solid var(--cp-info-border); }
+.cp-who-stat.prog   { background:rgba(14,2,58,.06); color:var(--repose-navy); }
+.cp-who-stat.over   { background:var(--cp-fail-soft); color:var(--cp-fail); border:1px solid var(--cp-fail-border); }
+.cp-who-stat.zero   { opacity:.55; }
+.cp-who-cap         { height:6px; background:var(--cp-grey-soft); border-radius:999px; overflow:hidden; }
+.cp-who-cap i       { display:block; height:100%; background:linear-gradient(90deg,var(--cp-info),var(--repose-blue)); border-radius:999px; }
+.cp-who-cap i.over  { background:linear-gradient(90deg,var(--cp-warn),var(--cp-fail)); }
+.cp-who-cap-lbl     { font-size:10px; color:var(--cp-text3); font-family:'JetBrains Mono',monospace; text-align:right; margin-top:2px; }
+
+/* Filter strip */
+.cp-filter-strip    { background:#fff; border:1px solid var(--cp-border); border-radius:18px; padding:14px 18px; margin-bottom:14px; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+.cp-fgrp            { display:flex; align-items:center; gap:6px; }
+.cp-flbl            { font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--cp-text2); font-weight:700; }
+.cp-fdiv            { width:1px; height:22px; background:var(--cp-border); }
+.cp-chips           { display:inline-flex; gap:4px; align-items:center; flex-wrap:wrap; }
+.cp-chip            { font-size:10.5px; padding:5px 11px; border-radius:999px; border:1px solid var(--cp-border); background:#fff; color:var(--cp-text2); cursor:pointer; font-weight:700; letter-spacing:.04em; text-transform:uppercase; line-height:1; transition:all .12s; font-family:inherit; }
+.cp-chip:hover:not(.active) { border-color:var(--repose-blue); color:var(--repose-blue); }
 .cp-chip.active     { background:var(--repose-blue); color:#fff; border-color:var(--repose-blue); }
-.cp-refresh-btn     { margin-left:auto; font-family:inherit; font-size:14px; padding:4px 10px; border-radius:7px; border:1.5px solid var(--border2); background:var(--bg3); color:var(--text2); cursor:pointer; }
-.cp-table-wrap      { flex:1; overflow-y:auto; padding:0 14px 14px; }
-.cp-table           { width:100%; border-collapse:collapse; margin-top:8px; }
-.cp-table th        { font-size:11px; font-weight:700; color:var(--text2); text-transform:uppercase; letter-spacing:.05em; padding:6px 8px; border-bottom:1.5px solid var(--border); text-align:left; }
-.cp-table td        { font-size:13px; color:var(--text1); padding:8px 8px; border-bottom:1px solid var(--border); }
-.cp-table tbody tr:hover { background:var(--bg2); }
-.cp-empty           { text-align:center; padding:32px; font-size:14px; color:var(--text2); }
-.cp-badge           { display:inline-block; padding:2px 8px; border-radius:12px; font-size:11px; font-weight:700; }
-.cp-badge-open      { background:#1e3a5f; color:#60a5fa; }
-.cp-badge-inprogress{ background:#3b2a00; color:#f59e0b; }
-.cp-badge-pending   { background:#2d1a00; color:#fb923c; }
-.cp-badge-closed    { background:#0a2e1a; color:#4ade80; }
-.cp-action-btn      { font-family:inherit; font-size:12px; font-weight:600; padding:4px 10px; border-radius:6px; border:1.5px solid var(--border2); background:var(--bg3); color:var(--text1); cursor:pointer; white-space:nowrap; }
-.cp-action-btn:hover{ background:var(--bg4,#2a2a3a); }
-.cp-action-btn-green{ background:#059669; color:#fff; border-color:#059669; }
-.cp-action-btn-green:hover { background:#047857; }
+.cp-chip.fail       { background:var(--cp-fail-soft); color:var(--cp-fail); border-color:var(--cp-fail-border); }
+.cp-chip.fail.active{ background:var(--cp-fail); color:#fff; border-color:var(--cp-fail); }
+.cp-chip .cnt       { margin-left:4px; background:var(--cp-grey-soft); color:var(--cp-text2); padding:1px 6px; border-radius:999px; font-size:9.5px; }
+.cp-chip.active .cnt{ background:rgba(255,255,255,.25); color:#fff; }
+.cp-chip.fail .cnt  { background:#fff; color:var(--cp-fail); }
+.cp-search          { flex:1; min-width:160px; display:flex; align-items:center; gap:8px; background:var(--cp-bg3); border:1px solid var(--cp-border); border-radius:999px; padding:7px 14px; }
+.cp-search input    { flex:1; border:none; background:transparent; outline:none; font-family:inherit; font-size:12.5px; color:var(--cp-text); }
 
-/* Form view */
-.cp-form-wrap       { height:100%; overflow-y:auto; padding:16px 20px 40px; }
-.cp-form-back-row   { display:flex; gap:8px; align-items:center; margin-bottom:12px; }
-.cp-back-btn        { font-family:inherit; font-size:13px; padding:6px 12px; border-radius:7px; border:1.5px solid var(--border2); background:var(--bg3); color:var(--text2); cursor:pointer; }
-.cp-back-btn:hover  { color:var(--text1); }
-.cp-save-btn        { font-family:inherit; font-size:13px; font-weight:600; padding:6px 14px; border-radius:7px; border:none; background:var(--repose-blue); color:#fff; cursor:pointer; }
-.cp-pdf-btn         { font-family:inherit; font-size:13px; padding:6px 12px; border-radius:7px; border:1.5px solid var(--border2); background:var(--bg3); color:var(--text2); cursor:pointer; margin-left:auto; }
-.cp-form-title      { font-size:16px; font-weight:700; color:var(--text1); margin-bottom:12px; padding-bottom:8px; border-bottom:2px solid var(--repose-blue); }
-.cp-form-meta       { display:grid; grid-template-columns:1fr 1fr; gap:6px 16px; margin-bottom:16px; }
-.cp-meta-row        { display:flex; align-items:center; gap:6px; }
-.cp-meta-row.cp-meta-desc { grid-column:1/-1; align-items:flex-start; }
-.cp-meta-label      { font-size:11px; font-weight:700; color:var(--text2); text-transform:uppercase; min-width:90px; flex-shrink:0; }
-.cp-meta-input      { font-family:inherit; font-size:13px; color:var(--text1); background:var(--bg3); border:1px solid var(--border2); border-radius:5px; padding:3px 7px; flex:1; }
-.cp-meta-input[readonly] { background:transparent; border-color:transparent; cursor:default; }
-.cp-section         { margin-bottom:16px; }
-.cp-section-title   { font-size:13px; font-weight:700; color:var(--repose-blue); margin-bottom:6px; }
-.cp-section-ta      { width:100%; min-height:80px; font-family:inherit; font-size:13px; color:var(--text1); background:var(--bg3); border:1px solid var(--border2); border-radius:6px; padding:8px; resize:vertical; box-sizing:border-box; }
-.cp-section-ta[readonly] { background:var(--bg2); border-color:var(--border); }
+/* Table */
+.cp-table-wrap      { background:#fff; border:1px solid var(--cp-border); border-radius:18px; overflow:hidden; margin-bottom:18px; padding:0; }
+.cp-table           { width:100%; border-collapse:collapse; margin:0; }
+.cp-table thead th  { font-size:10px; font-weight:800; color:var(--cp-text2); text-transform:uppercase; letter-spacing:.08em; padding:14px 16px; text-align:left; background:var(--cp-bg3); border-bottom:1px solid var(--cp-border); }
+.cp-table tbody td  { font-size:13px; color:var(--cp-text); padding:14px 16px; border-bottom:1px solid var(--cp-border); vertical-align:middle; }
+.cp-table tbody tr:last-child td { border-bottom:none; }
+.cp-table tbody tr:hover { background:var(--cp-bg3); }
+.cp-table tbody tr.overdue-row td:first-child { box-shadow:inset 4px 0 0 var(--cp-fail); }
+.cp-empty           { text-align:center; padding:42px 14px; color:var(--cp-text2); font-size:13px; }
+.cp-table .ticket   { font-family:'JetBrains Mono',monospace; font-size:11.5px; font-weight:700; color:var(--repose-blue); text-decoration:none; cursor:pointer; }
+.cp-table .ticket:hover { text-decoration:underline; }
+.cp-table .cust     { font-weight:700; color:var(--repose-navy); display:block; line-height:1.25; }
+.cp-table .repno    { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--cp-text3); margin-top:2px; display:block; }
+.cp-table .model    { font-size:12.5px; color:var(--cp-text); }
 
-/* 5 Whys */
-.cp-whys            { margin-top:10px; }
-.cp-whys-title      { font-size:12px; font-weight:700; color:var(--text2); text-transform:uppercase; margin-bottom:6px; }
-.cp-whys-table      { width:100%; border-collapse:collapse; }
-.cp-whys-table th   { font-size:11px; font-weight:700; color:var(--text2); padding:4px 6px; border:1px solid var(--border); background:var(--bg2); text-align:left; }
-.cp-whys-table td   { padding:3px; border:1px solid var(--border); }
-.cp-why-input,.cp-why-cause { width:100%; font-family:inherit; font-size:12px; color:var(--text1); background:var(--bg3); border:none; padding:4px 6px; border-radius:4px; box-sizing:border-box; }
-.cp-why-input[readonly],.cp-why-cause[readonly] { background:transparent; }
+/* Action buttons in rows */
+.cp-action-btn      { padding:7px 14px; border-radius:999px; font-size:11px; font-weight:700; cursor:pointer; font-family:inherit; border:1px solid var(--cp-border2); background:#fff; color:var(--cp-text2); transition:all .12s; white-space:nowrap; }
+.cp-action-btn:hover{ border-color:var(--repose-blue); color:var(--repose-blue); }
+.cp-action-btn.primary { background:var(--repose-blue); border-color:var(--repose-blue); color:#fff; }
+.cp-action-btn.primary:hover { background:#0d8ec9; border-color:#0d8ec9; color:#fff; }
+.cp-action-btn-green{ background:var(--cp-pass); border-color:var(--cp-pass); color:#fff; }
+.cp-action-btn-green:hover { background:#047857; border-color:#047857; color:#fff; }
 
-/* Actions Log */
-.cp-actions-table   { width:100%; border-collapse:collapse; margin-bottom:8px; }
-.cp-actions-table th{ font-size:11px; font-weight:700; color:var(--text2); padding:4px 6px; border:1px solid var(--border); background:var(--bg2); text-align:left; }
-.cp-actions-table td{ padding:3px; border:1px solid var(--border); }
-.cp-act-input       { width:100%; font-family:inherit; font-size:12px; color:var(--text1); background:var(--bg3); border:none; padding:4px 6px; border-radius:4px; box-sizing:border-box; }
-.cp-act-input[readonly] { background:transparent; }
-.cp-add-row-btn     { font-family:inherit; font-size:12px; padding:4px 10px; border-radius:6px; border:1.5px dashed var(--border2); background:transparent; color:var(--text2); cursor:pointer; }
-.cp-rm-row-btn      { font-family:inherit; font-size:11px; padding:2px 6px; border-radius:4px; border:none; background:transparent; color:var(--text2); cursor:pointer; }
-.cp-rm-row-btn:hover{ color:#ef4444; }
+/* Legacy badges — repurposed as pills (kept for cpStatusBadge compat) */
+.cp-badge           { display:none; }
+.cp-badge-open, .cp-badge-inprogress, .cp-badge-pending, .cp-badge-closed { display:none; }
+
+/* Status pill */
+.cp-st-pill         { font-size:10.5px; font-weight:800; padding:3px 9px; border-radius:999px; display:inline-flex; align-items:center; gap:5px; letter-spacing:.04em; text-transform:uppercase; border:1px solid; line-height:1.4; }
+.cp-st-pill::before { content:""; width:6px; height:6px; border-radius:50%; }
+.cp-st-pill.open    { background:var(--cp-info-soft); color:var(--cp-info); border-color:var(--cp-info-border); }
+.cp-st-pill.open::before { background:var(--cp-info); }
+.cp-st-pill.prog    { background:#fff7d6; color:#a16207; border-color:#fde68a; }
+.cp-st-pill.prog::before { background:#a16207; }
+.cp-st-pill.pend    { background:var(--cp-purple-soft); color:var(--cp-purple); border-color:var(--cp-purple-border); }
+.cp-st-pill.pend::before { background:var(--cp-purple); }
+.cp-st-pill.closed  { background:var(--cp-pass-soft); color:var(--cp-pass); border-color:var(--cp-pass-border); }
+.cp-st-pill.closed::before { background:var(--cp-pass); }
+
+/* Category pill */
+.cp-cat-pill        { font-size:10.5px; font-weight:700; padding:3px 9px; border-radius:999px; display:inline-flex; align-items:center; gap:5px; letter-spacing:.02em; border:1px solid; }
+.cp-cat-pill.mech   { background:var(--cp-info-soft); color:var(--cp-info); border-color:var(--cp-info-border); }
+.cp-cat-pill.fab    { background:var(--cp-purple-soft); color:var(--cp-purple); border-color:var(--cp-purple-border); }
+.cp-cat-pill.frame  { background:var(--cp-warn-soft); color:var(--cp-warn); border-color:var(--cp-warn-border); }
+.cp-cat-pill.foam   { background:var(--cp-pass-soft); color:var(--cp-pass); border-color:var(--cp-pass-border); }
+.cp-cat-pill.stitch { background:var(--cp-orange-soft); color:var(--cp-orange); border-color:var(--cp-orange-border); }
+.cp-cat-pill.deliv  { background:var(--cp-fail-soft); color:var(--cp-fail); border-color:var(--cp-fail-border); }
+.cp-cat-pill.other  { background:var(--cp-grey-soft); color:var(--cp-text2); border-color:var(--cp-border); }
+
+/* Age chip */
+.cp-age-chip        { font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; padding:4px 10px; border-radius:7px; display:inline-flex; align-items:center; gap:5px; border:1px solid; line-height:1.3; white-space:nowrap; }
+.cp-age-chip.ok     { background:var(--cp-pass-soft); color:var(--cp-pass); border-color:var(--cp-pass-border); }
+.cp-age-chip.warn   { background:var(--cp-warn-soft); color:var(--cp-warn); border-color:var(--cp-warn-border); }
+.cp-age-chip.bad    { background:var(--cp-fail-soft); color:var(--cp-fail); border-color:var(--cp-fail-border); }
+.cp-age-chip.neutral{ background:var(--cp-grey-soft); color:var(--cp-text2); border-color:var(--cp-border); }
+
+/* Investigator cell */
+.cp-inv-cell        { display:inline-flex; align-items:center; gap:8px; }
+.cp-inv-av          { width:26px; height:26px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:10.5px; font-weight:800; color:#fff; font-family:'JetBrains Mono',monospace; flex-shrink:0; border:1.5px solid rgba(255,255,255,.25); }
+.cp-inv-name        { font-size:12.5px; color:var(--repose-navy); font-weight:600; }
+.cp-inv-unassigned  { font-size:11px; font-weight:700; color:var(--cp-fail); background:var(--cp-fail-soft); border:1px dashed var(--cp-fail-border); padding:4px 10px; border-radius:999px; cursor:pointer; font-family:inherit; }
+.cp-inv-unassigned:hover { background:var(--cp-fail); color:#fff; border-style:solid; }
+
+/* Avatar palette (deterministic by hash → av-c1..6) */
+.cp-av-c1{ background:linear-gradient(135deg,#14a1e9,#0a78b8); }
+.cp-av-c2{ background:linear-gradient(135deg,#7c3aed,#5b21b6); }
+.cp-av-c3{ background:linear-gradient(135deg,#059669,#047857); }
+.cp-av-c4{ background:linear-gradient(135deg,#d97706,#b45309); }
+.cp-av-c5{ background:linear-gradient(135deg,#dc2626,#991b1b); }
+.cp-av-c6{ background:linear-gradient(135deg,#0e023a,#312e81); }
+
+/* Empty list state */
+.cp-empty-list      { display:none; background:#fff; border:1px solid var(--cp-border); border-radius:18px; padding:80px 32px; text-align:center; margin-bottom:18px; }
+.cp-empty-list.show { display:block; }
+.cp-empty-list .ico-circle { width:80px; height:80px; border-radius:24px; background:var(--cp-info-soft); color:var(--cp-info); display:flex; align-items:center; justify-content:center; font-size:38px; margin:0 auto 18px; }
+.cp-empty-list h2   { font-family:'Bricolage Grotesque',sans-serif; font-size:24px; font-weight:800; color:var(--repose-navy); letter-spacing:-.02em; margin:0 0 8px; }
+.cp-empty-list p    { font-size:14px; color:var(--cp-text2); max-width:480px; margin:0 auto 22px; line-height:1.55; }
+
+/* ── Form view ── */
+.cp-form-wrap       { height:100%; overflow-y:auto; padding:24px 28px 64px; max-width:1640px; margin:0 auto; }
+
+/* Sticky header + stepper */
+.cp-form-stick      { position:sticky; top:0; z-index:20; background:#fff; border:1px solid var(--cp-border); border-radius:18px; margin-bottom:14px; box-shadow:0 4px 18px rgba(14,2,58,.04); }
+.cp-form-stick .row1{ display:flex; align-items:center; gap:14px; padding:16px 22px; border-bottom:1px solid var(--cp-border); flex-wrap:wrap; }
+.cp-back-btn        { font-family:inherit; font-size:13px; font-weight:600; background:transparent; border:none; color:var(--cp-text2); cursor:pointer; display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:8px; }
+.cp-back-btn:hover  { background:var(--cp-bg3); color:var(--repose-navy); }
+.cp-ticket-mono     { font-family:'JetBrains Mono',monospace; font-size:14px; font-weight:700; color:var(--repose-navy); background:var(--cp-grey-soft); padding:5px 11px; border-radius:7px; }
+.cp-form-meta-line  { flex:1; min-width:200px; font-size:13px; color:var(--cp-text2); display:flex; gap:14px; align-items:center; flex-wrap:wrap; }
+.cp-form-meta-line b{ color:var(--repose-navy); font-weight:700; }
+.cp-form-stick .right{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.cp-save-btn        { font-family:inherit; font-size:13px; font-weight:600; padding:10px 16px; border-radius:999px; border:none; background:var(--repose-blue); color:#fff; cursor:pointer; }
+.cp-save-btn:hover  { background:#0d8ec9; }
+.cp-pdf-btn         { font-family:inherit; font-size:13px; font-weight:600; padding:10px 16px; border-radius:999px; border:1.5px solid var(--cp-border2); background:#fff; color:var(--repose-navy); cursor:pointer; }
+.cp-pdf-btn:hover   { border-color:var(--repose-blue); color:var(--repose-blue); }
+.cp-form-back-row   { display:none; } /* legacy, replaced by sticky header */
+
+/* Stepper */
+.cp-stepper         { display:flex; align-items:center; gap:0; padding:16px 22px; flex-wrap:wrap; }
+.cp-step            { flex:1; display:flex; align-items:center; gap:10px; cursor:pointer; min-width:120px; padding:6px 4px; border-radius:10px; transition:background .12s; }
+.cp-step:hover      { background:var(--cp-bg3); }
+.cp-step .dot       { width:30px; height:30px; border-radius:50%; display:grid; place-items:center; font-family:'Bricolage Grotesque',sans-serif; font-weight:800; font-size:13px; background:var(--cp-grey-soft); color:var(--cp-text3); border:2px solid var(--cp-border); }
+.cp-step.done .dot  { background:var(--cp-pass); color:#fff; border-color:var(--cp-pass); }
+.cp-step.active .dot{ background:var(--repose-blue); color:#fff; border-color:var(--repose-blue); box-shadow:0 0 0 4px rgba(20,161,233,.18); }
+.cp-step .label     { display:flex; flex-direction:column; gap:1px; min-width:0; }
+.cp-step .label .n  { font-size:9.5px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--cp-text3); }
+.cp-step.active .label .n { color:var(--repose-blue); }
+.cp-step.done .label .n   { color:var(--cp-pass); }
+.cp-step .label .t  { font-size:13px; font-weight:700; color:var(--repose-navy); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.cp-step-conn       { flex:0 0 16px; height:2px; background:var(--cp-border); margin:0 -2px; align-self:center; margin-top:14px; border-radius:999px; }
+.cp-step-conn.done  { background:var(--cp-pass); }
+
+/* Body two-up: main + right rail */
+.cp-form-row        { display:grid; grid-template-columns:1fr 320px; gap:16px; align-items:start; }
+@media(max-width:1280px){ .cp-form-row{ grid-template-columns:1fr; } }
+.cp-form-main       { display:flex; flex-direction:column; gap:14px; min-width:0; }
+.cp-form-rail       { display:flex; flex-direction:column; gap:14px; position:sticky; top:170px; align-self:start; }
+
+/* Closure banner */
+.cp-closure-banner  { display:none; background:linear-gradient(90deg,var(--cp-pass-soft),#fff 70%); border:1px solid var(--cp-pass-border); border-left:4px solid var(--cp-pass); border-radius:14px; padding:14px 18px; margin-bottom:14px; align-items:center; gap:14px; font-size:13.5px; color:#065f46; }
+.cp-closure-banner.show { display:flex; }
+.cp-closure-banner .ico { font-size:24px; flex-shrink:0; }
+.cp-closure-banner b { color:#064e3b; font-weight:800; display:block; font-family:'Bricolage Grotesque','Manrope',sans-serif; font-size:14.5px; }
+.cp-closure-banner .meta { font-size:11px; color:var(--cp-pass); font-weight:700; letter-spacing:.04em; text-transform:uppercase; margin-top:3px; }
+
+/* Meta panel */
+.cp-meta-card       { background:#fff; border:1px solid var(--cp-border); border-radius:18px; padding:18px 22px; }
+.cp-form-meta       { display:grid; grid-template-columns:repeat(3,1fr); gap:0; margin-bottom:0; }
+@media(max-width:900px){ .cp-form-meta{ grid-template-columns:repeat(2,1fr); } }
+.cp-meta-row        { padding:8px 0; border-bottom:1px solid var(--cp-border); display:flex; flex-direction:column; align-items:flex-start; gap:0; }
+.cp-meta-row.cp-meta-desc { grid-column:1/-1; padding-top:14px; border-bottom:none; }
+.cp-meta-label      { font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--cp-text2); font-weight:700; display:block; margin-bottom:4px; min-width:auto; }
+.cp-meta-input      { font-family:inherit; font-size:13.5px; color:var(--repose-navy); font-weight:600; background:transparent; border:none; padding:0; outline:none; width:100%; }
+.cp-meta-input:focus{ color:var(--repose-blue); }
+.cp-meta-input[readonly] { color:var(--repose-navy); background:transparent; border-color:transparent; cursor:default; }
+.cp-meta-val        { font-size:13.5px; color:var(--repose-navy); font-weight:600; }
+.cp-meta-val.mono   { font-family:'JetBrains Mono',monospace; font-size:13px; }
+.cp-meta-desc-card  { background:var(--cp-bg3); border-radius:10px; padding:14px 16px; border:1px solid var(--cp-border); font-size:13.5px; color:var(--cp-text); line-height:1.55; font-style:italic; }
+
+/* Section card */
+.cp-section         { background:#fff; border:1px solid var(--cp-border); border-radius:18px; padding:20px 22px; margin-bottom:0; scroll-margin-top:170px; }
+.cp-sec-head        { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+.cp-sec-num         { font-family:'Bricolage Grotesque',sans-serif; font-size:12px; font-weight:800; color:var(--cp-text3); background:var(--cp-grey-soft); padding:3px 10px; border-radius:999px; letter-spacing:.04em; }
+.cp-section-title   { font-size:17px; font-weight:800; color:var(--repose-navy); font-family:'Bricolage Grotesque','Manrope',sans-serif; letter-spacing:-.01em; margin:0; flex:1; }
+.cp-sec-wc          { font-size:10.5px; color:var(--cp-text3); font-family:'JetBrains Mono',monospace; font-weight:600; }
+.cp-section-ta      { width:100%; min-height:96px; font-family:inherit; font-size:13.5px; color:var(--cp-text); background:var(--cp-bg3); border:1.5px solid var(--cp-border); border-radius:12px; padding:12px 14px; resize:vertical; line-height:1.55; outline:none; transition:border-color .12s,box-shadow .12s; box-sizing:border-box; }
+.cp-section-ta:focus{ border-color:var(--repose-blue); background:#fff; box-shadow:0 0 0 3px rgba(20,161,233,.10); }
+.cp-section-ta[readonly] { background:var(--cp-bg3); border-color:var(--cp-border); }
+
+/* 5 Whys vertical stepper */
+.cp-whys            { margin-top:0; display:flex; flex-direction:column; }
+.cp-whys-title      { display:none; }
+.cp-whys-table      { display:none; } /* legacy table, kept hidden so cpExportPdf can find inputs */
+.cp-why-card        { background:var(--cp-bg3); border:1px solid var(--cp-border); border-radius:14px; padding:14px 16px; display:grid; grid-template-columns:30px 1fr; gap:14px; position:relative; margin-bottom:18px; }
+.cp-why-card:last-child { margin-bottom:0; }
+.cp-why-card::after { content:""; position:absolute; left:30px; bottom:-13px; width:2px; height:13px; border-left:2px dashed var(--cp-border2); transform:translateX(-1px); }
+.cp-why-card:last-child::after { display:none; }
+.cp-why-num         { width:30px; height:30px; border-radius:50%; background:var(--repose-blue); color:#fff; display:grid; place-items:center; font-family:'Bricolage Grotesque',sans-serif; font-weight:800; font-size:13px; align-self:flex-start; }
+.cp-why-body        { display:flex; flex-direction:column; gap:10px; min-width:0; }
+.cp-why-q           { font-size:10.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--cp-text2); }
+.cp-why-input       { width:100%; font-family:inherit; font-size:13.5px; color:var(--cp-text); background:#fff; border:1.5px solid var(--cp-border); border-radius:10px; padding:10px 12px; line-height:1.45; outline:none; transition:border-color .12s,box-shadow .12s; resize:none; min-height:44px; box-sizing:border-box; }
+.cp-why-input:focus { border-color:var(--repose-blue); box-shadow:0 0 0 3px rgba(20,161,233,.10); }
+.cp-why-input[readonly] { background:var(--cp-bg3); }
+.cp-why-causes      { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.cp-why-causes .lbl { font-size:10px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--cp-text3); margin-right:2px; }
+.cp-why-cause       { font-size:11.5px; font-weight:600; padding:5px 11px; border-radius:999px; background:#fff; color:var(--cp-text); border:1px solid var(--cp-border2); display:inline-flex; align-items:center; gap:6px; box-sizing:border-box; width:auto; font-family:inherit; outline:none; min-width:120px; }
+.cp-why-cause:focus { border-color:var(--repose-blue); }
+.cp-why-cause[readonly] { background:transparent; }
+
+/* Actions Log row cards */
+.cp-actions-table   { display:none; } /* legacy table — kept hidden so cpExportPdf can read .cp-act-input */
+.cp-act-list        { display:flex; flex-direction:column; gap:8px; margin-top:8px; }
+.cp-act-row         { background:var(--cp-bg3); border:1px solid var(--cp-border); border-radius:14px; padding:12px 14px; display:grid; grid-template-columns:1.6fr 1fr 1fr 1fr 1fr 28px; gap:12px; align-items:center; transition:border-color .12s; }
+.cp-act-row:hover   { border-color:var(--cp-border2); }
+.cp-act-row.done .ititle { text-decoration:line-through; color:var(--cp-text3); }
+.cp-act-row.over    { border-color:var(--cp-fail-border); background:var(--cp-fail-soft); }
+@media(max-width:900px){ .cp-act-row{ grid-template-columns:1fr 1fr; gap:8px; } }
+.cp-act-cell        { display:flex; flex-direction:column; gap:3px; }
+.cp-act-cell .lbl   { font-size:9.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--cp-text2); }
+.cp-act-input       { width:100%; font-family:inherit; font-size:12.5px; color:var(--cp-text); background:#fff; border:1px solid var(--cp-border); border-radius:8px; padding:7px 10px; outline:none; box-sizing:border-box; }
+.cp-act-input:focus { border-color:var(--repose-blue); }
+.cp-act-input.ititle{ font-weight:700; color:var(--repose-navy); }
+.cp-act-input[readonly] { background:transparent; border-color:transparent; }
+.cp-act-input[type=date] { font-family:'JetBrains Mono',monospace; font-size:11.5px; }
+.cp-add-row-btn     { margin-top:10px; font-family:inherit; font-size:12px; font-weight:700; padding:8px 14px; border-radius:999px; border:1.5px dashed var(--cp-border2); background:transparent; color:var(--cp-text2); cursor:pointer; }
+.cp-add-row-btn:hover { border-style:solid; border-color:var(--repose-blue); color:var(--repose-blue); }
+.cp-rm-row-btn      { font-family:inherit; font-size:12px; padding:4px 8px; border-radius:6px; border:none; background:transparent; color:var(--cp-text3); cursor:pointer; align-self:center; }
+.cp-rm-row-btn:hover{ color:var(--cp-fail); background:var(--cp-fail-soft); }
 
 /* Signatures */
-.cp-sig-section     { border-top:1.5px solid var(--border); padding-top:16px; margin-top:8px; }
-.cp-sig-block       { margin-bottom:16px; }
-.cp-sig-label       { font-size:12px; font-weight:700; color:var(--text2); margin-bottom:6px; }
-.cp-sig-canvas      { display:block; border:1.5px solid var(--border2); border-radius:6px; background:#fff; cursor:crosshair; width:100%; max-width:400px; }
-.cp-sig-img         { display:block; max-width:400px; border:1px solid var(--border); border-radius:4px; background:#fff; }
-.cp-sig-date        { font-size:11px; color:var(--text2); margin-top:4px; }
-.cp-sig-btns        { display:flex; gap:8px; margin-top:8px; }
-.cp-sig-clear       { font-family:inherit; font-size:12px; padding:5px 12px; border-radius:6px; border:1.5px solid var(--border2); background:var(--bg3); color:var(--text2); cursor:pointer; }
-.cp-sig-submit      { font-family:inherit; font-size:12px; font-weight:600; padding:5px 14px; border-radius:6px; border:none; background:var(--repose-blue); color:#fff; cursor:pointer; }
-.cp-sig-close       { background:#059669; }
-.cp-sig-pending     { font-size:12px; color:var(--text2); font-style:italic; }
+.cp-sig-section     { background:#fff; border:1px solid var(--cp-border); border-radius:18px; padding:20px 22px; }
+.cp-sig-grid        { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:8px; }
+@media(max-width:900px){ .cp-sig-grid{ grid-template-columns:1fr; } }
+.cp-sig-block       { padding:18px 20px; background:var(--cp-bg3); border:1px solid var(--cp-border); border-radius:14px; display:flex; flex-direction:column; gap:10px; min-height:200px; margin-bottom:0; }
+.cp-sig-block.pending { background:var(--cp-bg3); border:1.5px dashed var(--cp-border2); }
+.cp-sig-block.active  { background:#fff; }
+.cp-sig-label       { font-size:10.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--cp-text3); margin-bottom:0; }
+.cp-sig-who         { font-size:14px; font-weight:700; color:var(--repose-navy); font-family:'Bricolage Grotesque','Manrope',sans-serif; }
+.cp-sig-canvas      { display:block; flex:1; min-height:120px; background:#fff; border:1.5px solid var(--cp-border); border-radius:10px; cursor:crosshair; width:100%; max-width:none; }
+.cp-sig-img         { display:block; max-width:280px; border:1px solid var(--cp-border); border-radius:8px; background:#fff; padding:6px; }
+.cp-sig-date        { font-size:11.5px; color:var(--cp-text2); margin-top:0; display:flex; align-items:center; gap:6px; }
+.cp-sig-date .pass  { color:var(--cp-pass); font-weight:700; }
+.cp-sig-btns        { display:flex; gap:8px; margin-top:0; }
+.cp-sig-clear       { font-family:inherit; font-size:12px; padding:7px 14px; border-radius:999px; border:1px solid var(--cp-border2); background:#fff; color:var(--cp-text2); cursor:pointer; }
+.cp-sig-submit      { font-family:inherit; font-size:12px; font-weight:700; padding:7px 14px; border-radius:999px; border:none; background:var(--repose-blue); color:#fff; cursor:pointer; }
+.cp-sig-close       { background:var(--cp-pass); }
+.cp-sig-pending     { font-size:12.5px; color:var(--cp-text2); font-style:italic; padding:14px 0; }
 
-/* Assign modal */
-.cp-modal-overlay   { position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center; z-index:999; }
-.cp-modal-box       { background:var(--bg2); border:1.5px solid var(--border); border-radius:12px; padding:24px; width:320px; max-width:90vw; }
-.cp-modal-title     { font-size:15px; font-weight:700; color:var(--text1); margin-bottom:16px; }
-.cp-modal-field     { margin-bottom:12px; }
-.cp-modal-label     { display:block; font-size:11px; font-weight:700; color:var(--text2); text-transform:uppercase; margin-bottom:4px; }
-.cp-modal-input     { width:100%; font-family:inherit; font-size:13px; color:var(--text1); background:var(--bg3); border:1.5px solid var(--border2); border-radius:7px; padding:7px 10px; box-sizing:border-box; }
-.cp-modal-actions   { display:flex; gap:8px; justify-content:flex-end; margin-top:16px; }
-.cp-modal-cancel    { font-family:inherit; font-size:13px; padding:6px 14px; border-radius:7px; border:1.5px solid var(--border2); background:var(--bg3); color:var(--text2); cursor:pointer; }
-.cp-modal-confirm   { font-family:inherit; font-size:13px; font-weight:600; padding:6px 16px; border-radius:7px; border:none; background:var(--repose-blue); color:#fff; cursor:pointer; }
+/* Right rail */
+.cp-rail-card       { background:#fff; border:1px solid var(--cp-border); border-radius:18px; overflow:hidden; }
+.cp-rail-card .head { padding:14px 18px 10px; border-bottom:1px solid var(--cp-border); }
+.cp-rail-card .head h4 { font-size:13px; font-weight:800; color:var(--repose-navy); font-family:'Bricolage Grotesque','Manrope',sans-serif; margin:0; }
+.cp-rail-card .head .sub { font-size:11px; color:var(--cp-text2); margin-top:2px; }
+.cp-rail-card .body { padding:12px 18px; }
+.cp-rail-num        { font-family:'Bricolage Grotesque',sans-serif; font-size:32px; font-weight:800; color:var(--repose-navy); line-height:1; letter-spacing:-.02em; margin-bottom:6px; }
+.cp-rail-num .unit  { font-size:13px; font-weight:600; color:var(--cp-text2); margin-left:5px; }
+.cp-rail-spark      { height:32px; display:flex; gap:2px; align-items:flex-end; margin-top:8px; }
+.cp-rail-spark .b   { flex:1; background:linear-gradient(180deg,var(--cp-info),var(--repose-blue)); border-radius:2px 2px 0 0; min-height:3px; }
+.cp-rail-list       { display:flex; flex-direction:column; }
+.cp-rail-row        { display:flex; align-items:center; gap:10px; padding:10px 18px; border-top:1px solid var(--cp-border); font-size:12.5px; }
+.cp-rail-row:first-child { border-top:none; }
+.cp-rail-row .ref   { font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--cp-text3); font-weight:700; }
+.cp-rail-row .desc  { flex:1; color:var(--repose-navy); font-weight:600; line-height:1.35; }
+.cp-rail-row .desc .when { display:block; font-size:10.5px; color:var(--cp-text3); font-weight:500; margin-top:2px; }
+.cp-rail-row .pill-mini  { font-size:9.5px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; padding:3px 8px; border-radius:999px; border:1px solid; }
+.cp-rail-row .pill-mini.closed { background:var(--cp-pass-soft); color:var(--cp-pass); border-color:var(--cp-pass-border); }
+.cp-rail-row .pill-mini.open { background:var(--cp-info-soft); color:var(--cp-info); border-color:var(--cp-info-border); }
+
+/* Disposition checks */
+.cp-disp-checks     { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+.cp-disp-check      { display:inline-flex; align-items:center; gap:7px; font-size:12px; font-weight:600; padding:7px 14px; border-radius:999px; border:1.5px solid var(--cp-border); background:#fff; color:var(--cp-text2); cursor:pointer; font-family:inherit; transition:all .12s; }
+.cp-disp-check:hover{ border-color:var(--repose-blue); color:var(--repose-blue); }
+.cp-disp-check.on   { background:var(--cp-pass-soft); color:var(--cp-pass); border-color:var(--cp-pass-border); }
+.cp-disp-check.on::before { content:"✓"; font-weight:800; }
+
+/* Assign modal — v4 styled */
+.cp-modal-overlay   { position:fixed; inset:0; background:rgba(14,2,58,.42); backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center; z-index:999; padding:24px; }
+.cp-modal-box       { background:#fff; border:none; border-radius:18px; padding:0; width:100%; max-width:480px; box-shadow:0 24px 60px rgba(14,2,58,.32); overflow:hidden; }
+.cp-modal-title     { padding:18px 22px 14px; border-bottom:1px solid var(--cp-border); font-size:18px; font-weight:800; color:var(--repose-navy); font-family:'Bricolage Grotesque','Manrope',sans-serif; letter-spacing:-.01em; margin-bottom:0; display:flex; align-items:center; gap:12px; }
+.cp-modal-title::before { content:"👤"; width:42px; height:42px; border-radius:14px; background:var(--cp-info-soft); color:var(--cp-info); display:grid; place-items:center; font-size:18px; flex-shrink:0; }
+.cp-modal-title span{ font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--repose-blue); font-weight:700; background:var(--cp-bg3); padding:3px 8px; border-radius:5px; margin-left:auto; }
+.cp-modal-field     { padding:0 22px; margin-bottom:14px; display:flex; flex-direction:column; gap:5px; }
+.cp-modal-field:first-of-type { padding-top:18px; }
+.cp-modal-label     { display:block; font-size:10.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--cp-text2); margin-bottom:0; }
+.cp-modal-input     { width:100%; font-family:inherit; font-size:13.5px; color:var(--cp-text); background:#fff; border:1.5px solid var(--cp-border2); border-radius:12px; padding:11px 14px; outline:none; box-sizing:border-box; transition:border-color .12s,box-shadow .12s; }
+.cp-modal-input:focus { border-color:var(--repose-blue); box-shadow:0 0 0 3px rgba(20,161,233,.10); }
+.cp-modal-actions   { padding:14px 22px; border-top:1px solid var(--cp-border); background:var(--cp-bg3); display:flex; gap:8px; justify-content:flex-end; margin-top:8px; }
+.cp-modal-cancel    { font-family:inherit; font-size:13px; font-weight:600; padding:10px 16px; border-radius:999px; border:1.5px solid var(--cp-border2); background:#fff; color:var(--repose-navy); cursor:pointer; }
+.cp-modal-cancel:hover { border-color:var(--repose-blue); color:var(--repose-blue); }
+.cp-modal-confirm   { font-family:inherit; font-size:13px; font-weight:600; padding:10px 16px; border-radius:999px; border:none; background:var(--repose-blue); color:#fff; cursor:pointer; }
+.cp-modal-confirm:hover { background:#0d8ec9; }
+.cp-modal-confirm:disabled { background:var(--cp-text3); cursor:not-allowed; }
 
 /* ═══════════════════════════════════════════════
    INNOVATION STATION
@@ -2979,105 +3282,127 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 /* ─── PRINT (PDF EXPORT) ─────────────────────── */
 
 /* Replaced elements created by cpExportPdf() — hidden on screen, shown in print */
-.cp-print-ta, .cp-print-val, .cp-print-whys-table { display: none; }
+.cp-print-ta, .cp-print-val, .cp-print-cover, .cp-print-foot { display: none; }
 
 @media print {
-  /* Section textarea replacement */
-  .cp-print-ta {
-    display: block !important; white-space: pre-wrap; word-break: break-word;
-    font-family: inherit; font-size: 8pt; color: #000;
-    border: 0.75pt solid #bbb; padding: 3pt 5pt; min-height: 16pt;
-    background: transparent;
-  }
-  /* Inline input replacement */
-  .cp-print-val { display: inline !important; font-size: 7.5pt; color: #000; word-break: break-word; }
-
-  /* 2-column 5 Whys table */
-  .cp-print-whys-table {
-    display: table !important; width: 100%; table-layout: fixed;
-    border-collapse: collapse; margin: 4pt 0 6pt;
-    word-break: break-word;
-  }
-  .cp-pwhy-hdr {
-    padding: 3pt 5pt; border: 0.5pt solid #999;
-    background: #e8eef5; font-size: 7pt; font-weight: 700; text-align: left;
-    -webkit-print-color-adjust: exact; print-color-adjust: exact;
-  }
-  .cp-pwhy-cell {
-    padding: 3pt 5pt; border: 0.5pt solid #999;
-    font-size: 7.5pt; vertical-align: top; color: #000;
-  }
-  .cp-pwhy-cause { margin-bottom: 2pt; }
-  .cp-pwhy-cause:last-child { margin-bottom: 0; }
-}
-
-@media print {
-  @page { size:A4 portrait; margin:14mm 12mm; }
+  @page { size:A4 portrait; margin:14mm 12mm; @bottom-right { content: "Page " counter(page) " of " counter(pages); font-family: Manrope, sans-serif; font-size: 8pt; color: #98a2b3; } }
 
   /* Hide every top-level sibling — let complaints view flow normally */
   body > *:not(#view-complaints) { display:none !important; }
+  body { background:#fff !important; }
   #view-complaints {
     display:block !important; position:static !important;
-    width:100% !important; background:#fff !important; color:#000 !important;
+    width:100% !important; background:#fff !important; color:#0e023a !important;
     overflow:visible !important; height:auto !important;
+    --cp-bg:#fff !important; --cp-bg2:#fff !important; --cp-bg3:#fff !important;
   }
-  #cp-list-view { display:none !important; }
+  #cp-list-view, #cp-empty-list { display:none !important; }
   #cp-form-view {
     display:block !important; overflow:visible !important;
-    height:auto !important; position:static !important; padding:0 !important;
+    height:auto !important; position:static !important;
+    padding:0 !important; max-width:none !important;
   }
+  #cp-form-inner { padding: 0; }
 
-  /* Hide interactive controls */
-  .cp-back-btn, .cp-save-btn, .cp-pdf-btn, .cp-refresh-btn,
-  .cp-chip, .cp-add-row-btn, .cp-rm-row-btn,
-  .cp-sig-btns, #cp-filter-chips, .cp-form-back-row { display:none !important; }
+  /* Hide interactive chrome */
+  .cp-form-stick, .cp-form-rail, .cp-add-row-btn, .cp-rm-row-btn,
+  .cp-sig-btns, .cp-back-btn, .cp-save-btn, .cp-pdf-btn,
+  .cp-closure-banner .actions, .cp-stepper { display:none !important; }
 
-  /* Show JS-injected print elements */
-  .cp-print-ta  { display:block !important; font-size:8pt !important; padding:3pt 5pt !important; border:0.75pt solid #bbb !important; background:transparent !important; min-height:16pt; }
-  .cp-print-val { display:inline !important; font-size:7.5pt !important; }
+  /* Cover page (injected by cpExportPdf) */
+  .cp-print-cover { display:block !important; page-break-after:always; }
+  .cp-print-cover .ph { display:flex; align-items:center; justify-content:space-between; padding-bottom:10pt; margin-bottom:14pt; border-bottom:1.5pt solid #0e023a; }
+  .cp-print-cover .ph .logo { font-family:'Bricolage Grotesque',sans-serif; font-weight:800; font-size:13pt; color:#0e023a; letter-spacing:-.02em; }
+  .cp-print-cover .ph .logo span { color:#14a1e9; }
+  .cp-print-cover .ph .doc-title { font-size:9pt; color:#475467; text-transform:uppercase; letter-spacing:.1em; font-weight:700; }
+  .cp-print-cover .tno { font-family:'Bricolage Grotesque',sans-serif; font-size:24pt; font-weight:800; color:#0e023a; letter-spacing:-.02em; margin-bottom:4pt; }
+  .cp-print-cover .sub { display:flex; gap:14pt; font-size:9.5pt; color:#475467; margin-bottom:18pt; flex-wrap:wrap; }
+  .cp-print-cover .sub b { color:#0e023a; }
+  .cp-print-cover .meta-grid { display:grid; grid-template-columns:1fr 1fr; gap:6pt 22pt; margin-bottom:18pt; font-size:10pt; }
+  .cp-print-cover .meta-grid .lbl { font-size:8pt; text-transform:uppercase; letter-spacing:.08em; color:#475467; font-weight:700; margin-bottom:1pt; }
+  .cp-print-cover .meta-grid .v { color:#0e023a; font-weight:600; }
+  .cp-print-cover .desc { padding:10pt 14pt; background:#f8fafb; border-left:3pt solid #14a1e9; font-style:italic; font-size:10pt; line-height:1.55; margin-bottom:14pt; }
+  .cp-print-cover .timeline { display:flex; gap:0; justify-content:space-between; padding:10pt 0; border-top:1pt solid #e6eaf0; border-bottom:1pt solid #e6eaf0; }
+  .cp-print-cover .timeline .step { flex:1; text-align:center; font-size:8.5pt; color:#475467; }
+  .cp-print-cover .timeline .step .d { width:11pt; height:11pt; background:#fff; border:1.5pt solid #14a1e9; border-radius:50%; margin:0 auto 4pt; }
+  .cp-print-cover .timeline .step .d.done { background:#14a1e9; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .cp-print-cover .timeline .step b { display:block; color:#0e023a; font-weight:700; font-size:9pt; margin-top:2pt; }
 
-  /* Logo bar */
-  .cp-print-logo-bar {
-    display:flex !important; align-items:center; justify-content:space-between;
-    border-bottom:2pt solid #14a1e9; padding-bottom:7pt; margin-bottom:10pt;
-  }
-  .cp-print-logo-bar img { height:32pt; width:auto; }
-  .cp-print-logo-bar span { color:#0e023a; font-size:9.5pt; font-weight:700; letter-spacing:.04em; }
+  /* Closure banner — keep but tone down for print */
+  .cp-closure-banner { display:none !important; }
 
-  /* Form title + meta */
-  .cp-form-title { font-size:12pt !important; margin-bottom:8pt !important; padding-bottom:5pt !important; }
-  .cp-form-meta  { gap:4pt 14pt !important; margin-bottom:12pt !important; font-size:8pt !important; }
-  .cp-meta-label { font-size:7.5pt !important; font-weight:700; min-width:70pt; }
+  /* Body two-column → one column on print */
+  .cp-form-row { display:block !important; }
+  .cp-form-main { gap:0 !important; }
 
-  /* Section blocks — avoid splitting mid-section where possible */
-  .cp-section       { margin-bottom:8pt !important; page-break-inside:avoid; break-inside:avoid; }
-  .cp-section-title { font-size:8.5pt !important; margin-bottom:3pt !important; }
+  /* Meta panel */
+  .cp-meta-card { border:none !important; padding:0 !important; margin-bottom:8pt; }
+  .cp-form-meta { display:grid !important; grid-template-columns:1fr 1fr 1fr !important; gap:4pt 18pt !important; }
+  .cp-meta-row { padding:4pt 0 !important; border-bottom:0.5pt solid #e6eaf0 !important; }
+  .cp-meta-label { font-size:7.5pt !important; letter-spacing:.06em !important; }
+  .cp-meta-val,.cp-meta-input { font-size:9.5pt !important; color:#0e023a !important; border:none !important; padding:0 !important; background:transparent !important; }
+  .cp-meta-row.cp-meta-desc { grid-column:1/-1; padding-top:8pt; border-bottom:none !important; }
+  .cp-meta-desc-card { background:#f8fafb !important; border-left:3pt solid #14a1e9 !important; padding:7pt 10pt !important; border-radius:3pt !important; font-size:9.5pt !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
 
-  /* Hide original form elements (replaced by JS) */
+  /* Section cards — bordered print blocks */
+  .cp-section { margin-bottom:9pt !important; page-break-inside:avoid; break-inside:avoid; padding:0 !important; border:none !important; border-radius:0 !important; }
+  .cp-sec-head { margin-bottom:4pt !important; gap:6pt !important; }
+  .cp-sec-num { font-size:7.5pt !important; padding:1pt 6pt !important; background:#f0f4f8 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .cp-section-title { font-size:11pt !important; color:#0e023a !important; margin:0 !important; }
+  .cp-sec-wc { display:none !important; }
+
+  /* Hide the live textarea — the JS injects .cp-print-ta blocks for clean print */
   .cp-section-ta { display:none !important; }
-  .cp-whys-table { display:none !important; }
-
-  /* ── Actions Log table ── */
-  .cp-actions-table {
-    width:100% !important; table-layout:fixed !important;
-    border-collapse:collapse !important; word-break:break-word !important; margin-bottom:6pt !important;
+  .cp-print-ta {
+    display:block !important; white-space:pre-wrap; word-break:break-word;
+    font-family:'Manrope',sans-serif; font-size:9.5pt; color:#101828;
+    border:0.5pt solid #d0d5dd; padding:5pt 8pt; min-height:14pt;
+    background:transparent; line-height:1.5; border-radius:3pt;
   }
-  .cp-actions-table th,
-  .cp-actions-table td { padding:2pt 3pt !important; border:0.5pt solid #999 !important; vertical-align:top; font-size:7.5pt !important; }
-  .cp-actions-table th { background:#f0f4f8 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-  .cp-actions-table th:nth-child(1), .cp-actions-table td:nth-child(1) { width:36% !important; }
-  .cp-actions-table th:nth-child(2), .cp-actions-table td:nth-child(2) { width:19% !important; }
-  .cp-actions-table th:nth-child(3), .cp-actions-table td:nth-child(3) { width:14% !important; }
-  .cp-actions-table th:nth-child(4), .cp-actions-table td:nth-child(4) { width:16% !important; }
-  .cp-actions-table th:nth-child(5), .cp-actions-table td:nth-child(5) { width:15% !important; }
+  .cp-print-val { display:inline !important; font-size:9pt; color:#0e023a; font-weight:600; }
 
-  /* Signatures */
-  .cp-sig-section { page-break-inside:avoid; break-inside:avoid; margin-top:10pt !important; }
-  .cp-sig-label   { font-size:8pt !important; }
-  .cp-sig-date    { font-size:7.5pt !important; }
-  .cp-sig-canvas  { display:none !important; }
-  .cp-sig-img     { max-width:150pt !important; border:0.5pt solid #ccc !important; display:block !important; }
-  .cp-sig-pending { font-size:8pt !important; }
+  /* 5 Whys vertical chain */
+  .cp-whys { margin-top:4pt !important; }
+  .cp-why-card { background:transparent !important; border:none !important; padding:4pt 0 !important; margin-bottom:6pt !important; grid-template-columns:18pt 1fr !important; gap:8pt !important; page-break-inside:avoid; }
+  .cp-why-card::after { display:none !important; }
+  .cp-why-num { width:18pt !important; height:18pt !important; font-size:9pt !important; background:#14a1e9 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .cp-why-q { font-size:9pt !important; color:#0e023a !important; font-weight:700 !important; margin-bottom:2pt !important; }
+  .cp-why-input { display:none !important; }
+  .cp-why-cause { display:none !important; }
+  .cp-print-why { display:block; font-size:9pt; color:#101828; margin-bottom:2pt; padding:4pt 7pt; background:#f8fafb; border:0.5pt solid #d0d5dd; border-radius:3pt; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .cp-print-why-causes { display:flex; flex-wrap:wrap; gap:4pt; margin-top:3pt; }
+  .cp-print-why-cause { font-size:8pt; color:#475467; padding:1pt 6pt; border:0.5pt solid #d0d5dd; border-radius:6pt; }
+
+  /* Actions Log — render as table */
+  .cp-act-list { display:table !important; width:100% !important; border-collapse:collapse !important; }
+  .cp-act-row { display:table-row !important; background:transparent !important; border:none !important; padding:0 !important; }
+  .cp-act-row.over { background:transparent !important; }
+  .cp-act-cell { display:table-cell !important; padding:3pt 5pt !important; border:0.5pt solid #999 !important; vertical-align:top !important; font-size:8.5pt !important; }
+  .cp-act-cell .lbl { display:none !important; }
+  .cp-act-input { display:none !important; }
+  .cp-print-act-val { display:inline !important; font-size:8.5pt; color:#101828; }
+  .cp-act-row .cp-rm-row-btn { display:none !important; }
+  .cp-print-act-head { display:table-row !important; background:#f8fafb !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; font-weight:700; }
+  .cp-print-act-head .cp-act-cell { font-size:7.5pt !important; text-transform:uppercase; letter-spacing:.04em; color:#475467 !important; }
+
+  /* Sticky-header content shown only as in-flow header in print (the chrome itself is hidden) */
+  .cp-form-stick { display:none !important; }
+
+  /* Signatures — clean side-by-side */
+  .cp-sig-section { page-break-inside:avoid; break-inside:avoid; margin-top:14pt !important; padding:0 !important; border:none !important; }
+  .cp-sig-grid { gap:18pt !important; margin-top:6pt !important; }
+  .cp-sig-block { background:transparent !important; border:0.5pt solid #d0d5dd !important; border-radius:3pt !important; padding:8pt 10pt !important; min-height:90pt !important; }
+  .cp-sig-block.pending { border-style:dashed !important; }
+  .cp-sig-label { font-size:7.5pt !important; color:#475467 !important; }
+  .cp-sig-who { font-size:10pt !important; color:#0e023a !important; }
+  .cp-sig-canvas { display:none !important; }
+  .cp-sig-img { max-width:150pt !important; padding:0 !important; border:none !important; }
+  .cp-sig-date { font-size:8pt !important; color:#475467 !important; border-top:0.5pt solid #d0d5dd !important; padding-top:4pt !important; }
+  .cp-sig-pending { font-size:8.5pt !important; color:#98a2b3 !important; }
+
+  /* Page break hints */
+  .cp-print-pb { page-break-after:always; }
+  .cp-print-foot { display:block !important; margin-top:14pt; text-align:center; font-size:8pt; color:#98a2b3; letter-spacing:.06em; text-transform:uppercase; }
 
   * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
 }
@@ -4188,17 +4513,86 @@ document.addEventListener('DOMContentLoaded', () => {
 <div class="view" id="view-complaints">
   <!-- LIST SUBVIEW -->
   <div id="cp-list-view" class="cp-list-wrap">
-    <div class="cp-list-header">
-      <div class="cp-title">Customer Complaints</div>
-      <div class="cp-chips" id="cp-filter-chips">
-        <button class="cp-chip active" onclick="cpSetFilter(this,'all')">All</button>
-        <button class="cp-chip" onclick="cpSetFilter(this,'open')">Open</button>
-        <button class="cp-chip" onclick="cpSetFilter(this,'inprogress')">In Progress</button>
-        <button class="cp-chip" onclick="cpSetFilter(this,'pending')">Pending</button>
-        <button class="cp-chip" onclick="cpSetFilter(this,'closed')">Closed</button>
-        <button class="cp-refresh-btn" onclick="cpOnOpen()" title="Refresh">↻</button>
+
+    <!-- Page head -->
+    <div class="cp-page-head">
+      <div>
+        <div class="crumb">Quality · Customer Complaints</div>
+        <h1>Customer <em>Complaints</em></h1>
+        <div class="ps">
+          <span class="live" id="cp-sync-state">● Loading…</span>
+          <span>· Sources: <b>Customer Care Excel</b> · <b>SharePoint Investigations</b></span>
+        </div>
+      </div>
+      <div class="right">
+        <button class="cp-refresh-btn" onclick="cpOnOpen()" title="Refresh">↻ Refresh</button>
       </div>
     </div>
+
+    <!-- Empty state -->
+    <div class="cp-empty-list" id="cp-empty-list">
+      <div class="ico-circle">📋</div>
+      <h2>No complaints assigned to you</h2>
+      <p>You don't currently have any open customer complaints. New investigations will appear here when a manager assigns one to you.</p>
+      <button class="cp-refresh-btn" onclick="cpOnOpen()">↻ Refresh</button>
+    </div>
+
+    <!-- KPI strip (populated by cpRenderList) -->
+    <div class="cp-kpis" id="cp-kpis"></div>
+
+    <!-- Trend + Hotspots -->
+    <div class="cp-grid-12">
+      <div class="cp-panel">
+        <div class="cp-panel-head">
+          <h2>12-week trend <span class="sub">opened vs closed by ISO week</span></h2>
+          <div class="right">
+            <div class="cp-legend">
+              <span><i style="background:var(--repose-navy)"></i>Opened</span>
+              <span><i style="background:var(--repose-blue)"></i>Closed</span>
+            </div>
+          </div>
+        </div>
+        <div class="cp-panel-body">
+          <div class="cp-trend" id="cp-trend"></div>
+        </div>
+      </div>
+
+      <div class="cp-panel">
+        <div class="cp-panel-head">
+          <h2>Top categories <span class="sub">last 90 d · click to filter the list below</span></h2>
+        </div>
+        <div class="cp-panel-body" id="cp-hotspots" style="padding:8px 20px 12px"></div>
+      </div>
+    </div>
+
+    <!-- Workload by investigator -->
+    <div class="cp-panel" id="cp-workload-panel">
+      <div class="cp-panel-head">
+        <h2>Workload by investigator <span class="sub">click a card to filter · sorted by overdue first</span></h2>
+      </div>
+      <div class="cp-workload-grid" id="cp-workload"></div>
+    </div>
+
+    <!-- Filter strip -->
+    <div class="cp-filter-strip">
+      <div class="cp-fgrp"><span class="cp-flbl">Status</span>
+        <div class="cp-chips" id="cp-filter-chips">
+          <button class="cp-chip active" onclick="cpSetFilter(this,'all')">All</button>
+          <button class="cp-chip" onclick="cpSetFilter(this,'open')">Open</button>
+          <button class="cp-chip" onclick="cpSetFilter(this,'inprogress')">In Progress</button>
+          <button class="cp-chip" onclick="cpSetFilter(this,'pending')">Pending Closure</button>
+          <button class="cp-chip" onclick="cpSetFilter(this,'closed')">Closed</button>
+          <button class="cp-chip fail" onclick="cpSetFilter(this,'overdue')">⏱ Overdue</button>
+        </div>
+      </div>
+      <div class="cp-fdiv"></div>
+      <div class="cp-search">
+        <span style="color:var(--cp-text3);font-size:13px">🔍</span>
+        <input id="cp-search-input" placeholder="Search ticket, customer, REP no, model…" oninput="cpRenderList()">
+      </div>
+    </div>
+
+    <!-- Table -->
     <div class="cp-table-wrap">
       <table class="cp-table">
         <thead>
@@ -4207,8 +4601,8 @@ document.addEventListener('DOMContentLoaded', () => {
             <th>Customer</th>
             <th>Model</th>
             <th>Category</th>
-            <th>Action</th>
-            <th>Opened</th>
+            <th>Investigator</th>
+            <th>Age</th>
             <th>Status</th>
             <th></th>
           </tr>
@@ -4217,6 +4611,7 @@ document.addEventListener('DOMContentLoaded', () => {
       </table>
     </div>
   </div>
+
   <!-- FORM SUBVIEW -->
   <div id="cp-form-view" class="cp-form-wrap" style="display:none">
     <div id="cp-form-inner"></div>
@@ -20986,54 +21381,366 @@ async function cpLoadData() {
   });
 }
 
+// ─── v4 helpers ────────────────────────────────
+function cpParseDmy(s) {
+  if (!s) return null;
+  const m = String(s).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (!m) return null;
+  const d = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+  return isNaN(d) ? null : d;
+}
+function cpDayDiff(d1, d2) {
+  return Math.floor((d2 - d1) / 86400000);
+}
+function cpHash(s) {
+  let h = 0; for (const ch of String(s||'')) h = (h*31 + ch.charCodeAt(0)) | 0;
+  return Math.abs(h);
+}
+function cpInitials(name) {
+  const parts = String(name||'?').trim().split(/\s+/);
+  if (!parts[0]) return '?';
+  return ((parts[0][0]||'') + (parts[1]?.[0]||'')).toUpperCase();
+}
+function cpAvatarClass(seed) {
+  return 'cp-av-c' + ((cpHash(seed) % 6) + 1);
+}
+const CP_INVESTIGATOR_ROLE = {
+  'jonas.simonaitis@reposefurniture.co.uk': 'QHSE Manager',
+  'richard.semmens@reposefurniture.co.uk':  'Operations',
+};
+function cpInvestigatorRole(email) {
+  return CP_INVESTIGATOR_ROLE[(email||'').toLowerCase()] || 'Investigator';
+}
+
+// Status-aware SLA classification.
+// Returns { band:'ok'|'warn'|'bad'|'neutral', days, label, isOverdue }
+function cpSlaBand(c) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  if (c.status === 'Closed') {
+    const opened = cpParseDmy(c.OpenDate);
+    const closed = cpParseDmy(c.inv?.ClosedDate);
+    if (opened && closed) return { band:'neutral', days: cpDayDiff(opened, closed), label:`Closed · ${cpDayDiff(opened, closed)}d`, isOverdue:false };
+    return { band:'neutral', days:0, label:'Closed', isOverdue:false };
+  }
+  const opened = cpParseDmy(c.OpenDate);
+  if (!opened) return { band:'neutral', days:0, label:'—', isOverdue:false };
+  const days = cpDayDiff(opened, today);
+  if (c.status === 'Open') {
+    return days > 3 ? { band:'bad', days, label:`Unassigned ${days}d`, isOverdue:true }
+                    : { band:'ok',  days, label:`Unassigned ${days}d`, isOverdue:false };
+  }
+  if (c.status === 'InProgress') {
+    if (days > 35) return { band:'bad',  days, label:`In progress ${days}d`, isOverdue:true };
+    if (days > 21) return { band:'warn', days, label:`In progress ${days}d`, isOverdue:false };
+    return            { band:'ok',   days, label:`In progress ${days}d`, isOverdue:false };
+  }
+  if (c.status === 'PendingClosure') {
+    // Days since the investigator submitted (proxy: AssignedDate not great; use OpenDate as a fallback)
+    const subDate = cpParseDmy(c.inv?.InvestigatorSignedDate?.split(' ')[0]) || opened;
+    const pendDays = cpDayDiff(subDate, today);
+    return pendDays > 7 ? { band:'warn', days:pendDays, label:`Pending ${pendDays}d`, isOverdue:false }
+                        : { band:'ok',   days:pendDays, label:`Pending ${pendDays}d`, isOverdue:false };
+  }
+  return { band:'neutral', days, label:`${days}d`, isOverdue:false };
+}
+
+// Map free-text Category from Excel onto a v4 pill class
+function cpCategoryClass(cat) {
+  const s = String(cat||'').toLowerCase();
+  if (/mech|motor|recline|handset|electric/.test(s)) return { cls:'mech',   label:'Mechanism' };
+  if (/fab|cover|cushion|cloth|leather|colour/.test(s)) return { cls:'fab',  label:'Fabric' };
+  if (/frame|wood|joint|crack|rail/.test(s))         return { cls:'frame',  label:'Frame' };
+  if (/foam|filling|seat pad|comfort/.test(s))       return { cls:'foam',   label:'Foam' };
+  if (/stitch|seam|piping|sewn/.test(s))             return { cls:'stitch', label:'Stitching' };
+  if (/deliv|transit|damage|scuff|trans/.test(s))    return { cls:'deliv',  label:'Delivery' };
+  return { cls:'other', label: cat || 'Other' };
+}
+
 function cpStatusBadge(status) {
-  const map    = { Open:'cp-badge-open', InProgress:'cp-badge-inprogress', PendingClosure:'cp-badge-pending', Closed:'cp-badge-closed' };
-  const labels = { Open:'Open', InProgress:'In Progress', PendingClosure:'Pending Sign-off', Closed:'Closed' };
-  return `<span class="cp-badge ${map[status]||''}">${labels[status]||status}</span>`;
+  const map    = { Open:'open', InProgress:'prog', PendingClosure:'pend', Closed:'closed' };
+  const labels = { Open:'Open', InProgress:'In Progress', PendingClosure:'Pending Closure', Closed:'Closed' };
+  return `<span class="cp-st-pill ${map[status]||''}">${labels[status]||status}</span>`;
 }
 
 function cpActionBtn(c) {
   if (c.status === 'Open' && cpIsManager)
-    return `<button class="cp-action-btn" onclick="cpOpenAssignModal('${escHtml(c.TicketNo)}')">Investigate</button>`;
+    return `<button class="cp-action-btn primary" onclick="event.stopPropagation();cpOpenAssignModal('${escHtml(c.TicketNo)}')">Investigate</button>`;
   if (c.status === 'InProgress')
-    return `<button class="cp-action-btn" onclick="cpOpenInvestigation('${escHtml(c.TicketNo)}')">Open</button>`;
+    return `<button class="cp-action-btn" onclick="event.stopPropagation();cpOpenInvestigation('${escHtml(c.TicketNo)}')">Open</button>`;
   if (c.status === 'PendingClosure' && cpIsManager)
-    return `<button class="cp-action-btn cp-action-btn-green" onclick="cpOpenInvestigation('${escHtml(c.TicketNo)}')">Sign Off</button>`;
+    return `<button class="cp-action-btn cp-action-btn-green" onclick="event.stopPropagation();cpOpenInvestigation('${escHtml(c.TicketNo)}')">Sign Off</button>`;
   if (c.status === 'PendingClosure' || c.status === 'Closed')
-    return `<button class="cp-action-btn" onclick="cpOpenInvestigation('${escHtml(c.TicketNo)}')">View</button>`;
+    return `<button class="cp-action-btn" onclick="event.stopPropagation();cpOpenInvestigation('${escHtml(c.TicketNo)}')">View</button>`;
   return '';
 }
 
-function cpRenderList() {
-  const me = (graphAccount?.username || '').toLowerCase();
-  let data  = cpComplaints.filter(c => {
-    if (cpActiveFilter === 'open')       return c.status === 'Open';
-    if (cpActiveFilter === 'inprogress') return c.status === 'InProgress';
-    if (cpActiveFilter === 'pending')    return c.status === 'PendingClosure';
-    if (cpActiveFilter === 'closed')     return c.status === 'Closed';
-    return true; // 'all'
-  });
-  // Non-managers see only their assigned investigations
-  if (!cpIsManager) {
-    data = data.filter(c => (c.inv?.InvestigatorEmail || '').toLowerCase() === me);
+// ─── Aggregations for KPIs / trend / hotspots / workload ─────
+function cpKpiAgg(all) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const cutoff30 = new Date(today); cutoff30.setDate(cutoff30.getDate() - 30);
+  let openUnassigned = 0, inProgress = 0, overdue = 0, closed30 = 0;
+  let resTotalDays = 0, resCount = 0;
+  for (const c of all) {
+    if (c.status === 'Open') openUnassigned++;
+    if (c.status === 'InProgress') inProgress++;
+    const sla = cpSlaBand(c);
+    if (sla.isOverdue) overdue++;
+    if (c.status === 'Closed') {
+      const closed = cpParseDmy(c.inv?.ClosedDate);
+      if (closed && closed >= cutoff30) closed30++;
+      const opened = cpParseDmy(c.OpenDate);
+      if (opened && closed) { resTotalDays += cpDayDiff(opened, closed); resCount++; }
+    }
   }
+  const avgRes = resCount ? (resTotalDays / resCount).toFixed(1) : '—';
+  return { openUnassigned, inProgress, overdue, closed30, avgRes };
+}
 
-  const tbody = document.getElementById('cp-tbody');
+function cpRenderKpis(k) {
+  const el = document.getElementById('cp-kpis');
+  if (!el) return;
+  el.innerHTML = `
+    <div class="cp-kpi ${k.openUnassigned > 0 ? 'fail' : ''}" onclick="cpQuickFilter('open')">
+      <div class="cp-kpi-top">
+        <div class="cp-kpi-icn">⚠</div>
+        <div class="cp-kpi-mid">
+          <div class="cp-kpi-num">${k.openUnassigned}<span class="unit">unassigned</span></div>
+          <div class="cp-kpi-lbl">Open · awaiting investigator</div>
+        </div>
+      </div>
+    </div>
+    <div class="cp-kpi" onclick="cpQuickFilter('inprogress')">
+      <div class="cp-kpi-top">
+        <div class="cp-kpi-icn">🔧</div>
+        <div class="cp-kpi-mid">
+          <div class="cp-kpi-num">${k.inProgress}<span class="unit">cases</span></div>
+          <div class="cp-kpi-lbl">In Progress</div>
+        </div>
+      </div>
+    </div>
+    <div class="cp-kpi ${k.overdue > 0 ? 'fail' : ''}" onclick="cpQuickFilter('overdue')">
+      <div class="cp-kpi-top">
+        <div class="cp-kpi-icn">⏱</div>
+        <div class="cp-kpi-mid">
+          <div class="cp-kpi-num">${k.overdue}<span class="unit">overdue</span></div>
+          <div class="cp-kpi-lbl">Breaching SLA bands</div>
+        </div>
+      </div>
+    </div>
+    <div class="cp-kpi navy">
+      <div class="cp-kpi-top">
+        <div class="cp-kpi-icn">📊</div>
+        <div class="cp-kpi-mid">
+          <div class="cp-kpi-num">${k.avgRes}<span class="unit">days</span></div>
+          <div class="cp-kpi-lbl">Avg resolution · 90 d</div>
+        </div>
+      </div>
+    </div>
+    <div class="cp-kpi pass" onclick="cpQuickFilter('closed')">
+      <div class="cp-kpi-top">
+        <div class="cp-kpi-icn">✓</div>
+        <div class="cp-kpi-mid">
+          <div class="cp-kpi-num">${k.closed30}<span class="unit">closed</span></div>
+          <div class="cp-kpi-lbl">Closed · last 30 d</div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function cpRenderTrend(all) {
+  const el = document.getElementById('cp-trend');
+  if (!el) return;
+  // 12 ISO weeks ending current
+  const today = new Date(); today.setHours(0,0,0,0);
+  const buckets = [];
+  for (let i = 11; i >= 0; i--) {
+    const ws = new Date(today); ws.setDate(ws.getDate() - 7*i - ((today.getDay()+6)%7));
+    const we = new Date(ws); we.setDate(we.getDate() + 7);
+    buckets.push({ start: ws, end: we, opened: 0, closed: 0, label: 'W'+isoWeekNumber(ws) });
+  }
+  for (const c of all) {
+    const o = cpParseDmy(c.OpenDate);
+    if (o) for (const b of buckets) if (o >= b.start && o < b.end) { b.opened++; break; }
+    const cl = cpParseDmy(c.inv?.ClosedDate);
+    if (cl) for (const b of buckets) if (cl >= b.start && cl < b.end) { b.closed++; break; }
+  }
+  const max = Math.max(1, ...buckets.flatMap(b => [b.opened, b.closed]));
+  el.innerHTML = buckets.map((b, i) => `
+    <div class="cp-trend-col ${i === buckets.length - 1 ? 'cur' : ''}" title="${b.label}: ${b.opened} opened, ${b.closed} closed">
+      <div class="bars">
+        <div class="bar opened" style="height:${(b.opened/max)*100}%"></div>
+        <div class="bar closed" style="height:${(b.closed/max)*100}%"></div>
+      </div>
+      <div class="lbl">${b.label}</div>
+    </div>`).join('');
+}
+
+function cpRenderHotspots(all) {
+  const el = document.getElementById('cp-hotspots');
+  if (!el) return;
+  // Cutoff: last 90d for current period, 90-180d for previous (delta)
+  const today = new Date(); today.setHours(0,0,0,0);
+  const cur90 = new Date(today); cur90.setDate(cur90.getDate() - 90);
+  const prev90 = new Date(today); prev90.setDate(prev90.getDate() - 180);
+  const cur = {}, prev = {};
+  for (const c of all) {
+    const o = cpParseDmy(c.OpenDate); if (!o) continue;
+    const meta = cpCategoryClass(c.Category);
+    if (o >= cur90)              cur[meta.label]  = (cur[meta.label]  || { cls:meta.cls, n:0 }), cur[meta.label].n++;
+    else if (o >= prev90)        prev[meta.label] = (prev[meta.label] || { cls:meta.cls, n:0 }), prev[meta.label].n++;
+  }
+  const items = Object.entries(cur).map(([label, v]) => ({
+    label, cls: v.cls, count: v.n,
+    delta: v.n - (prev[label]?.n || 0),
+  })).sort((a,b) => b.count - a.count).slice(0, 6);
+  if (!items.length) { el.innerHTML = '<div class="cp-empty" style="padding:24px">No category data yet</div>'; return; }
+  const max = items[0].count;
+  el.innerHTML = items.map((h, i) => {
+    const pct = Math.round((h.count / max) * 100);
+    const dCls = h.delta > 0 ? 'up' : h.delta < 0 ? 'down' : 'flat';
+    const dLbl = h.delta > 0 ? `▲ ${h.delta}` : h.delta < 0 ? `▼ ${-h.delta}` : '—';
+    return `<div class="cp-hotspot" onclick="cpFilterCategory('${h.cls}')">
+      <div class="cp-hot-rank">${i+1}</div>
+      <div class="cp-hot-name"><span class="cp-cat-pill ${h.cls}">${escHtml(h.label)}</span></div>
+      <div class="cp-hot-bar"><i style="width:${pct}%"></i></div>
+      <div class="cp-hot-cnt">${h.count}</div>
+      <div class="cp-hot-delta ${dCls}">${dLbl}</div>
+    </div>`;
+  }).join('');
+}
+
+function cpRenderWorkload(all) {
+  const el = document.getElementById('cp-workload');
+  if (!el) return;
+  const byInv = {};
+  for (const c of all) {
+    const inv = c.inv;
+    if (!inv?.InvestigatorEmail) continue;
+    const key = inv.InvestigatorEmail.toLowerCase();
+    if (!byInv[key]) byInv[key] = { name: inv.InvestigatorName || inv.InvestigatorEmail, email: key, open:0, prog:0, overdue:0 };
+    if (c.status === 'Open') byInv[key].open++;
+    if (c.status === 'InProgress') byInv[key].prog++;
+    if (cpSlaBand(c).isOverdue) byInv[key].overdue++;
+  }
+  const list = Object.values(byInv).sort((a,b) => b.overdue - a.overdue || (b.open + b.prog) - (a.open + a.prog));
+  document.getElementById('cp-workload-panel').style.display = list.length ? '' : 'none';
+  if (!list.length) { el.innerHTML = ''; return; }
+  el.innerHTML = list.map(p => {
+    const cap = p.open + p.prog;
+    const capPct = Math.min(100, (cap / 8) * 100);
+    const overdueCls = p.overdue > 0 ? 'over' : '';
+    return `<div class="cp-who-card ${p.overdue > 0 ? 'has-overdue' : ''}" onclick="cpFilterInvestigator('${escHtml(p.email)}')">
+      <div class="cp-who-head">
+        <div class="cp-who-av ${cpAvatarClass(p.email)}">${cpInitials(p.name)}</div>
+        <div class="cp-who-name"><b>${escHtml(p.name)}</b><span>${escHtml(cpInvestigatorRole(p.email))}</span></div>
+      </div>
+      <div class="cp-who-stats">
+        <span class="cp-who-stat open ${p.open === 0 ? 'zero' : ''}">${p.open} Open</span>
+        <span class="cp-who-stat prog ${p.prog === 0 ? 'zero' : ''}">${p.prog} In Prog</span>
+        <span class="cp-who-stat over ${p.overdue === 0 ? 'zero' : ''}">${p.overdue} Overdue</span>
+      </div>
+      <div>
+        <div class="cp-who-cap"><i class="${overdueCls}" style="width:${capPct}%"></i></div>
+        <div class="cp-who-cap-lbl">${cap} / 8 capacity</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+let cpCategoryFilter = '';
+let cpInvestigatorFilter = '';
+function cpFilterCategory(cls) {
+  cpCategoryFilter = cpCategoryFilter === cls ? '' : cls;
+  cpInvestigatorFilter = '';
+  cpRenderList();
+}
+function cpFilterInvestigator(email) {
+  cpInvestigatorFilter = cpInvestigatorFilter === email ? '' : email;
+  cpCategoryFilter = '';
+  cpRenderList();
+}
+function cpQuickFilter(name) {
+  const idx = { all:0, open:1, inprogress:2, pending:3, closed:4, overdue:5 }[name];
+  if (idx == null) return;
+  const btn = document.querySelectorAll('#cp-filter-chips .cp-chip')[idx];
+  if (btn) cpSetFilter(btn, name);
+}
+
+function cpRenderList() {
+  const me   = (graphAccount?.username || '').toLowerCase();
+  const all  = cpComplaints.filter(c => cpIsManager || (c.inv?.InvestigatorEmail || '').toLowerCase() === me);
+
+  // Top widgets always reflect the manager-scoped (or own) data
+  cpRenderKpis(cpKpiAgg(all));
+  cpRenderTrend(all);
+  cpRenderHotspots(all);
+  cpRenderWorkload(all);
+
+  // Filter the table itself
+  let data = all.slice();
+  if (cpActiveFilter === 'open')       data = data.filter(c => c.status === 'Open');
+  else if (cpActiveFilter === 'inprogress') data = data.filter(c => c.status === 'InProgress');
+  else if (cpActiveFilter === 'pending')    data = data.filter(c => c.status === 'PendingClosure');
+  else if (cpActiveFilter === 'closed')     data = data.filter(c => c.status === 'Closed');
+  else if (cpActiveFilter === 'overdue')    data = data.filter(c => cpSlaBand(c).isOverdue);
+  if (cpCategoryFilter)     data = data.filter(c => cpCategoryClass(c.Category).cls === cpCategoryFilter);
+  if (cpInvestigatorFilter) data = data.filter(c => (c.inv?.InvestigatorEmail || '').toLowerCase() === cpInvestigatorFilter);
+  const q = (document.getElementById('cp-search-input')?.value || '').toLowerCase().trim();
+  if (q) data = data.filter(c =>
+    (c.TicketNo  || '').toLowerCase().includes(q) ||
+    (c.Customer  || '').toLowerCase().includes(q) ||
+    (c.RepNo     || '').toLowerCase().includes(q) ||
+    (c.Model     || '').toLowerCase().includes(q));
+
+  // Sort by SLA worst-first (bad → warn → ok), then by age desc
+  const bandRank = { bad:0, warn:1, ok:2, neutral:3 };
+  data.sort((a,b) => {
+    const sa = cpSlaBand(a), sb = cpSlaBand(b);
+    return bandRank[sa.band] - bandRank[sb.band] || sb.days - sa.days;
+  });
+
+  // Empty states
+  const tbody     = document.getElementById('cp-tbody');
+  const emptyList = document.getElementById('cp-empty-list');
+  if (!cpIsManager && all.length === 0) {
+    if (emptyList) emptyList.classList.add('show');
+    tbody.innerHTML = '';
+    return;
+  } else if (emptyList) {
+    emptyList.classList.remove('show');
+  }
   if (!data.length) {
-    tbody.innerHTML = `<tr><td colspan="8" class="cp-empty">No complaints found</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="cp-empty">No complaints match the current filter.</td></tr>`;
     return;
   }
-  tbody.innerHTML = data.map(c => `
-    <tr>
-      <td>${escHtml(c.TicketNo)}</td>
-      <td>${escHtml(c.Customer)}</td>
-      <td>${escHtml(c.Model)}</td>
-      <td>${escHtml(c.Category)}</td>
-      <td>${escHtml(c.Action)}</td>
-      <td>${escHtml(c.OpenDate)}</td>
+
+  tbody.innerHTML = data.map(c => {
+    const sla = cpSlaBand(c);
+    const cat = cpCategoryClass(c.Category);
+    const inv = c.inv;
+    const invCell = inv?.InvestigatorName
+      ? `<span class="cp-inv-cell"><span class="cp-inv-av ${cpAvatarClass(inv.InvestigatorEmail||inv.InvestigatorName)}">${cpInitials(inv.InvestigatorName)}</span><span class="cp-inv-name">${escHtml(inv.InvestigatorName)}</span></span>`
+      : (cpIsManager
+          ? `<button class="cp-inv-unassigned" onclick="event.stopPropagation();cpOpenAssignModal('${escHtml(c.TicketNo)}')">— Assign</button>`
+          : `<span style="color:var(--cp-text3);font-size:12px;font-style:italic">unassigned</span>`);
+    return `<tr class="${sla.isOverdue ? 'overdue-row' : ''}" onclick="cpOpenInvestigation('${escHtml(c.TicketNo)}')" style="cursor:pointer">
+      <td><a class="ticket">${escHtml(c.TicketNo)}</a></td>
+      <td><span class="cust">${escHtml(c.Customer)}</span><span class="repno">${escHtml(c.RepNo||'')}</span></td>
+      <td><span class="model">${escHtml(c.Model)}</span></td>
+      <td><span class="cp-cat-pill ${cat.cls}">${escHtml(cat.label)}</span></td>
+      <td>${invCell}</td>
+      <td><span class="cp-age-chip ${sla.band}">${escHtml(sla.label)}</span></td>
       <td>${cpStatusBadge(c.status)}</td>
       <td>${cpActionBtn(c)}</td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
+
+  // Update sync state pill
+  const sync = document.getElementById('cp-sync-state');
+  if (sync) {
+    const t = new Date();
+    sync.textContent = `● Synced ${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
+  }
 }
 
 function cpSetFilter(btn, filter) {
@@ -21051,13 +21758,18 @@ async function cpOnOpen() {
   cpActiveFilter = 'all';
   document.querySelectorAll('#cp-filter-chips .cp-chip').forEach((b,i) => b.classList.toggle('active', i === 0));
   document.getElementById('cp-tbody').innerHTML =
-    '<tr><td colspan="6" class="cp-empty">Loading…</td></tr>';
+    '<tr><td colspan="8" class="cp-empty">Loading…</td></tr>';
+  // Reset transient filters
+  cpCategoryFilter = '';
+  cpInvestigatorFilter = '';
+  const search = document.getElementById('cp-search-input');
+  if (search) search.value = '';
   try {
     await cpLoadData();
   } catch (e) {
     toast('Failed to load complaints: ' + e.message, 'e');
     document.getElementById('cp-tbody').innerHTML =
-      `<tr><td colspan="6" class="cp-empty">Error loading data</td></tr>`;
+      `<tr><td colspan="8" class="cp-empty">Error loading data</td></tr>`;
     return;
   }
   cpRenderList();
@@ -21133,120 +21845,203 @@ async function cpAssignInvestigator() {
 
 function cpRenderFiveWhys(fw, editable) {
   const ro = editable ? '' : ' readonly';
-  const rows = [1,2,3,4,5].map(i => {
-    const causes = (fw.causes?.[i-1] || ['','','','']).map((cv, j) =>
-      `<td><input class="cp-why-cause" id="cp-why${i}-cause${j+1}" value="${escHtml(cv)}"${ro}></td>`
+  const QUESTIONS = [
+    'Why did the issue occur?',
+    'Why did that happen?',
+    'Why does that root cause exist?',
+    'Why does the previous level happen?',
+    'Why is the underlying process broken?',
+  ];
+  const cards = [1,2,3,4,5].map(i => {
+    const causeArr = fw.causes?.[i-1] || ['','','',''];
+    const causes = causeArr.map((cv, j) =>
+      `<input class="cp-why-cause" id="cp-why${i}-cause${j+1}" value="${escHtml(cv)}" placeholder="Probable cause ${j+1}"${ro}>`
     ).join('');
-    return `<tr>
-      <td><input class="cp-why-input" id="cp-why${i}" value="${escHtml(fw['why'+i]||'')}"${ro}></td>
-      ${causes}
-    </tr>`;
-  }).join('');
-  return `
-    <div class="cp-whys">
-      <div class="cp-whys-title">5 Whys Analysis</div>
-      <table class="cp-whys-table">
-        <thead><tr>
-          <th>Why</th>
-          <th>Probable Cause 1</th>
-          <th>Probable Cause 2</th>
-          <th>Probable Cause 3</th>
-          <th>Probable Cause 4</th>
-        </tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
+    return `<div class="cp-why-card">
+      <div class="cp-why-num">${i}</div>
+      <div class="cp-why-body">
+        <div class="cp-why-q">Why ${i} — ${escHtml(QUESTIONS[i-1])}</div>
+        <textarea class="cp-why-input" id="cp-why${i}" rows="1"${ro}>${escHtml(fw['why'+i]||'')}</textarea>
+        <div class="cp-why-causes">
+          <span class="lbl">Probable causes</span>
+          ${causes}
+        </div>
+      </div>
     </div>`;
+  }).join('');
+  return `<div class="cp-whys">${cards}</div>`;
 }
 
 function cpActionsRow(row, i, editable) {
-  const ro  = editable ? '' : ' readonly';
+  const ro    = editable ? '' : ' readonly';
+  const isDone= /done|complete|closed/i.test(row.status||'');
+  const isOver= !isDone && row.targetDate && (() => {
+    const tgt = cpParseDmy(row.targetDate);
+    return tgt && tgt < new Date(new Date().setHours(0,0,0,0)) && !row.completionDate;
+  })();
+  const cls   = ['cp-act-row', isDone ? 'done' : '', isOver ? 'over' : ''].filter(Boolean).join(' ');
   const rmBtn = editable
-    ? `<td><button class="cp-rm-row-btn" onclick="cpRemoveActionsRow(this)">✕</button></td>`
-    : '';
-  return `<tr data-row="${i}">
-    <td><input class="cp-act-input" name="initiative"     value="${escHtml(row.initiative||'')}"    ${ro}></td>
-    <td><input class="cp-act-input" name="owner"          value="${escHtml(row.owner||'')}"          ${ro}></td>
-    <td><input class="cp-act-input" name="targetDate"     value="${escHtml(row.targetDate||'')}"     ${ro}></td>
-    <td><input class="cp-act-input" name="completionDate" value="${escHtml(row.completionDate||'')}" ${ro}></td>
-    <td><input class="cp-act-input" name="status"         value="${escHtml(row.status||'')}"         ${ro}></td>
+    ? `<button class="cp-rm-row-btn" onclick="cpRemoveActionsRow(this)" title="Remove">✕</button>`
+    : '<span></span>';
+  return `<div class="${cls}" data-row="${i}">
+    <div class="cp-act-cell"><span class="lbl">Initiative</span>
+      <input class="cp-act-input ititle" name="initiative" value="${escHtml(row.initiative||'')}" placeholder="What's being done"${ro}></div>
+    <div class="cp-act-cell"><span class="lbl">Owner</span>
+      <input class="cp-act-input" name="owner" value="${escHtml(row.owner||'')}" placeholder="Name"${ro}></div>
+    <div class="cp-act-cell"><span class="lbl">Target</span>
+      <input class="cp-act-input" name="targetDate" value="${escHtml(row.targetDate||'')}" placeholder="DD/MM/YYYY"${ro}></div>
+    <div class="cp-act-cell"><span class="lbl">Completion</span>
+      <input class="cp-act-input" name="completionDate" value="${escHtml(row.completionDate||'')}" placeholder="DD/MM/YYYY"${ro}></div>
+    <div class="cp-act-cell"><span class="lbl">Status</span>
+      <input class="cp-act-input" name="status" value="${escHtml(row.status||'')}" placeholder="Open / Done"${ro}></div>
     ${rmBtn}
-  </tr>`;
+  </div>`;
 }
 
 function cpAddActionsRow() {
-  const tbody = document.getElementById('cp-actions-body');
-  const i     = tbody.rows.length;
-  const tr    = document.createElement('tr');
-  tr.dataset.row = i;
-  tr.innerHTML = `
-    <td><input class="cp-act-input" name="initiative"     value=""></td>
-    <td><input class="cp-act-input" name="owner"          value=""></td>
-    <td><input class="cp-act-input" name="targetDate"     value=""></td>
-    <td><input class="cp-act-input" name="completionDate" value=""></td>
-    <td><input class="cp-act-input" name="status"         value=""></td>
-    <td><button class="cp-rm-row-btn" onclick="cpRemoveActionsRow(this)">✕</button></td>`;
-  tbody.appendChild(tr);
+  const wrap = document.getElementById('cp-actions-body');
+  const i    = wrap.children.length;
+  const div  = document.createElement('div');
+  // Build via cpActionsRow then transplant child
+  const tmp  = document.createElement('div');
+  tmp.innerHTML = cpActionsRow({}, i, true);
+  wrap.appendChild(tmp.firstElementChild);
 }
 
 function cpRemoveActionsRow(btn) {
-  btn.closest('tr').remove();
+  btn.closest('.cp-act-row').remove();
 }
 
 function cpRenderSignatureBlocks(c, inv, me) {
   const isMyInv = (inv.InvestigatorEmail || '').toLowerCase() === me;
 
-  // Investigator block
+  // Investigator card
   let invBlock;
   if (inv.InvestigatorSignature) {
     invBlock = `
-      <div class="cp-sig-block">
-        <div class="cp-sig-label">Investigator: ${escHtml(inv.InvestigatorName||'')}</div>
+      <div class="cp-sig-block active">
+        <div class="cp-sig-label">Investigator</div>
+        <div class="cp-sig-who">${escHtml(inv.InvestigatorName||'—')}</div>
         <img class="cp-sig-img" src="${escHtml(inv.InvestigatorSignature)}" alt="Signature">
-        <div class="cp-sig-date">Signed: ${escHtml(inv.InvestigatorSignedDate||'')}</div>
+        <div class="cp-sig-date">Signed ${escHtml(inv.InvestigatorSignedDate||'')} · <span class="pass">✓ Investigation submitted</span></div>
       </div>`;
   } else if (c.status === 'InProgress' && isMyInv) {
     invBlock = `
-      <div class="cp-sig-block">
-        <div class="cp-sig-label">Draw your signature below then click Submit</div>
+      <div class="cp-sig-block active">
+        <div class="cp-sig-label">Investigator · sign &amp; submit</div>
+        <div class="cp-sig-who">${escHtml(inv.InvestigatorName||'You')}</div>
         <canvas id="cp-inv-sig-canvas" class="cp-sig-canvas" width="600" height="150"></canvas>
         <div class="cp-sig-btns">
-          <button class="cp-sig-clear"  onclick="cpClearCanvas('cp-inv-sig-canvas')">Clear</button>
+          <button class="cp-sig-clear" onclick="cpClearCanvas('cp-inv-sig-canvas')">Clear</button>
           <button class="cp-sig-submit" onclick="cpSubmitInvestigatorSignature()">Submit Investigation</button>
         </div>
       </div>`;
   } else {
-    invBlock = `<div class="cp-sig-pending">Investigator signature: Pending</div>`;
+    invBlock = `
+      <div class="cp-sig-block pending">
+        <div class="cp-sig-label">Investigator</div>
+        <div class="cp-sig-who">${escHtml(inv.InvestigatorName||'Awaiting')}</div>
+        <div class="cp-sig-pending">Investigator signature: Pending</div>
+      </div>`;
   }
 
-  // Manager block
-  let mgrBlock = '';
+  // Manager card
+  let mgrBlock;
   if (inv.ManagerSignature) {
     mgrBlock = `
-      <div class="cp-sig-block">
-        <div class="cp-sig-label">Approved by: Jonas Simonaitis</div>
+      <div class="cp-sig-block active">
+        <div class="cp-sig-label">Approved by</div>
+        <div class="cp-sig-who">Jonas Simonaitis · QHSE Manager</div>
         <img class="cp-sig-img" src="${escHtml(inv.ManagerSignature)}" alt="Signature">
-        <div class="cp-sig-date">Signed: ${escHtml(inv.ManagerSignedDate||'')}</div>
+        <div class="cp-sig-date">Signed ${escHtml(inv.ManagerSignedDate||'')} · <span class="pass">✓ Investigation closed</span></div>
       </div>`;
   } else if (c.status === 'PendingClosure' && cpIsManager) {
     mgrBlock = `
-      <div class="cp-sig-block">
+      <div class="cp-sig-block active">
         <div class="cp-sig-label">Manager sign-off</div>
+        <div class="cp-sig-who">You</div>
         <canvas id="cp-mgr-sig-canvas" class="cp-sig-canvas" width="600" height="150"></canvas>
         <div class="cp-sig-btns">
-          <button class="cp-sig-clear"                    onclick="cpClearCanvas('cp-mgr-sig-canvas')">Clear</button>
-          <button class="cp-sig-submit cp-sig-close"      onclick="cpSubmitManagerSignature()">Sign &amp; Close</button>
+          <button class="cp-sig-clear" onclick="cpClearCanvas('cp-mgr-sig-canvas')">Clear</button>
+          <button class="cp-sig-submit cp-sig-close" onclick="cpSubmitManagerSignature()">Sign &amp; Close</button>
         </div>
       </div>`;
   } else if (c.status !== 'Closed') {
-    mgrBlock = `<div class="cp-sig-pending">Manager sign-off: Pending investigator submission</div>`;
+    mgrBlock = `
+      <div class="cp-sig-block pending">
+        <div class="cp-sig-label">Manager sign-off</div>
+        <div class="cp-sig-who">Awaiting</div>
+        <div class="cp-sig-pending">Pending investigator submission</div>
+      </div>`;
+  } else {
+    mgrBlock = `
+      <div class="cp-sig-block pending">
+        <div class="cp-sig-label">Manager sign-off</div>
+        <div class="cp-sig-pending">No manager signature on file</div>
+      </div>`;
   }
 
   return `
-    <div class="cp-section cp-sig-section">
-      <div class="cp-section-title">Signatures</div>
-      ${invBlock}
-      ${mgrBlock}
+    <div class="cp-section cp-sig-section" id="sec-8">
+      <div class="cp-sec-head">
+        <span class="cp-sec-num">✍</span>
+        <h3 class="cp-section-title">Sign-off</h3>
+      </div>
+      <div class="cp-sig-grid">
+        ${invBlock}
+        ${mgrBlock}
+      </div>
     </div>`;
+}
+
+// Same-customer + same-model context for the right rail
+function cpRenderRail(c) {
+  const cust = (c.Customer || '').toLowerCase();
+  const model= (c.Model || '').toLowerCase();
+  const today= new Date(); today.setHours(0,0,0,0);
+  const cut12 = new Date(today); cut12.setMonth(cut12.getMonth() - 12);
+
+  const sameCust = cpComplaints.filter(x => x !== c && (x.Customer||'').toLowerCase() === cust && cust);
+  const sameModel = cpComplaints.filter(x => x !== c && (x.Model||'').toLowerCase() === model && model && cpParseDmy(x.OpenDate) >= cut12);
+
+  // 12-month sparkline of same-model
+  const buckets = Array(12).fill(0);
+  for (const x of sameModel) {
+    const o = cpParseDmy(x.OpenDate); if (!o) continue;
+    const monthsAgo = (today.getFullYear() - o.getFullYear()) * 12 + (today.getMonth() - o.getMonth());
+    if (monthsAgo >= 0 && monthsAgo < 12) buckets[11 - monthsAgo]++;
+  }
+  const max = Math.max(1, ...buckets);
+  const sparkBars = buckets.map(v => `<div class="b" style="height:${(v/max)*100}%"></div>`).join('');
+
+  const sameCustList = sameCust.slice(0, 3).map(x => `
+    <div class="cp-rail-row">
+      <span class="ref">${escHtml(x.TicketNo||'—')}</span>
+      <div class="desc">${escHtml(cpCategoryClass(x.Category).label)}<span class="when">${x.status === 'Closed' ? 'closed' : 'open'} · ${escHtml(x.OpenDate||'')}</span></div>
+      <span class="pill-mini ${x.status === 'Closed' ? 'closed' : 'open'}">${x.status === 'Closed' ? 'Closed' : 'Open'}</span>
+    </div>`).join('');
+
+  const mechCnt = sameModel.filter(x => cpCategoryClass(x.Category).cls === 'mech').length;
+  const mechShare = sameModel.length ? Math.round((mechCnt / sameModel.length) * 100) : 0;
+  const trendingUp = buckets[10] + buckets[11] > buckets[8] + buckets[9];
+
+  return `
+    <aside class="cp-form-rail">
+      <div class="cp-rail-card">
+        <div class="head"><h4>Same customer history</h4><div class="sub">${escHtml(c.Customer||'—')} · last 24 months</div></div>
+        <div class="body"><div class="cp-rail-num">${sameCust.length}<span class="unit">prior complaint${sameCust.length === 1 ? '' : 's'}</span></div></div>
+        ${sameCust.length ? `<div class="cp-rail-list">${sameCustList}</div>` : ''}
+      </div>
+      <div class="cp-rail-card">
+        <div class="head"><h4>Same model — ${escHtml(c.Model||'—')}</h4><div class="sub">Last 12 months</div></div>
+        <div class="body">
+          <div class="cp-rail-num">${sameModel.length}<span class="unit">complaint${sameModel.length === 1 ? '' : 's'}</span></div>
+          ${mechCnt ? `<div style="font-size:11.5px;color:var(--cp-text2);margin-bottom:4px">Mechanism issues: ${mechCnt} of ${sameModel.length} (${mechShare}%)</div>` : ''}
+          <div class="cp-rail-spark">${sparkBars}</div>
+          ${trendingUp ? '<div style="font-size:10.5px;color:var(--cp-fail);font-weight:700;margin-top:8px">⚠ Trend rising — recommend pattern review</div>' : ''}
+        </div>
+      </div>
+    </aside>`;
 }
 
 function cpRenderForm(c) {
@@ -21256,6 +22051,8 @@ function cpRenderForm(c) {
   const isMyInv  = (inv.InvestigatorEmail || '').toLowerCase() === me;
   const editable = !locked && isMyInv;
   const ro       = editable ? '' : ' readonly';
+  const sla      = cpSlaBand(c);
+  const cat      = cpCategoryClass(c.Category);
 
   // Parse stored JSON blobs
   let fiveWhys = { why1:'',why2:'',why3:'',why4:'',why5:'',
@@ -21270,67 +22067,138 @@ function cpRenderForm(c) {
     'Problem Description',
     'Immediate Response / Disposition',
     'Containment Actions',
-    'Root Cause Analysis',
+    'Root Cause Analysis · 5 Whys',
     'Escape Points',
     'Corrective Actions',
     'Preventative Actions',
   ];
 
+  // Stepper state: 5 stages. We mark a stage 'done' when the underlying section(s) have content.
+  const has = n => (inv['Section'+n] || '').trim().length > 0;
+  const stageStatus = [
+    has(1),                                // 1 Problem
+    has(2) && has(3),                      // 2 Containment
+    has(4) || has(5) || (fiveWhys.why1||''),// 3 Root Cause
+    has(6) || has(7) || actionsLog.length, // 4 Actions
+    !!inv.ManagerSignature,                // 5 Sign-off (closed)
+  ];
+  const stageActive = (() => {
+    if (c.status === 'Closed' || c.status === 'PendingClosure') return 4;
+    for (let i = 0; i < stageStatus.length; i++) if (!stageStatus[i]) return i;
+    return 4;
+  })();
+  const STAGE_LABELS = ['Problem', 'Containment', 'Root Cause', 'Actions', 'Sign-off'];
+  const stepperHtml = STAGE_LABELS.map((lbl, i) => {
+    const cls = i === stageActive ? 'active' : (stageStatus[i] || i < stageActive ? 'done' : '');
+    const dot = cls === 'done' ? '✓' : (i + 1);
+    const conn = i < STAGE_LABELS.length - 1 ? `<div class="cp-step-conn ${cls === 'done' ? 'done' : ''}"></div>` : '';
+    return `<div class="cp-step ${cls}" onclick="cpStepJump(${i+1})">
+      <div class="dot">${dot}</div>
+      <div class="label"><div class="n">Step ${i+1}</div><div class="t">${lbl}</div></div>
+    </div>${conn}`;
+  }).join('');
+
   const sectionsHtml = [1,2,3,4,5,6,7].map(n => `
-    <div class="cp-section">
-      <div class="cp-section-title">${n}. ${SECTION_LABELS[n]}</div>
-      ${n === 4 ? cpRenderFiveWhys(fiveWhys, editable) : ''}
-      <textarea class="cp-section-ta" id="cp-f-s${n}" maxlength="20000"${ro}>${escHtml(inv['Section'+n]||'')}</textarea>
+    <div class="cp-section" id="cp-sec-${n}">
+      <div class="cp-sec-head">
+        <span class="cp-sec-num">${String(n).padStart(2,'0')}</span>
+        <h3 class="cp-section-title">${escHtml(SECTION_LABELS[n])}</h3>
+      </div>
+      ${n === 4 ? cpRenderFiveWhys(fiveWhys, editable) + '<div style="margin-top:14px"></div>' : ''}
+      <textarea class="cp-section-ta" id="cp-f-s${n}" maxlength="20000" placeholder="Enter your findings…"${ro}>${escHtml(inv['Section'+n]||'')}</textarea>
     </div>`).join('');
 
-  const actionsHeader  = editable
-    ? '<th>Initiative</th><th>Owner</th><th>Target Date</th><th>Completion Date</th><th>Status</th><th></th>'
-    : '<th>Initiative</th><th>Owner</th><th>Target Date</th><th>Completion Date</th><th>Status</th>';
+  // Closure banner content (only shown when status === Closed)
+  const closureBanner = c.status === 'Closed' ? `
+    <div class="cp-closure-banner show">
+      <div class="ico">✓</div>
+      <div>
+        <b>Investigation closed</b>
+        <span class="meta">Closed ${escHtml(inv.ClosedDate||'')} · resolution time ${sla.days || '—'} d</span>
+      </div>
+    </div>` : '';
 
   document.getElementById('cp-form-inner').innerHTML = `
-    <div class="cp-form-back-row">
-      <button class="cp-back-btn" onclick="cpBackToList()">← Back</button>
-      ${editable ? `<button class="cp-save-btn" onclick="cpSaveForm()">💾 Save</button>` : ''}
-      <button class="cp-pdf-btn" onclick="cpExportPdf()">⬇ Export PDF</button>
-    </div>
-    <div class="cp-print-logo-bar" style="display:none">
-      <img src="./Repose_RGB_logo_Colour_with_strapline_1500pxW.png" alt="Repose Furniture">
-      <span>Customer Complaint Investigation</span>
-    </div>
-    <div class="cp-form-title">Issue Resolution Process — PHCIRP</div>
-    <div class="cp-form-meta">
-      <div class="cp-meta-row"><span class="cp-meta-label">IRP No</span><span>${escHtml(c.TicketNo)}</span></div>
-      <div class="cp-meta-row"><span class="cp-meta-label">Date Opened</span><span>${escHtml(c.OpenDate)}</span></div>
-      <div class="cp-meta-row"><span class="cp-meta-label">Customer</span><span>${escHtml(c.Customer)}</span></div>
-      <div class="cp-meta-row"><span class="cp-meta-label">REP No</span><span>${escHtml(c.RepNo)}</span></div>
-      <div class="cp-meta-row"><span class="cp-meta-label">Model</span><span>${escHtml(c.Model)}</span></div>
-      <div class="cp-meta-row"><span class="cp-meta-label">Concern Type</span>
-        <input class="cp-meta-input" id="cp-f-concern" value="${escHtml(inv.ConcernType||'')}"${ro}></div>
-      <div class="cp-meta-row"><span class="cp-meta-label">Reported By</span>
-        <input class="cp-meta-input" id="cp-f-reported-by" value="${escHtml(inv.ReportedBy||'')}"${ro}></div>
-      <div class="cp-meta-row cp-meta-desc"><span class="cp-meta-label">Description</span>
-        <span>${escHtml(c.Description)}</span></div>
+    ${closureBanner}
+
+    <!-- Sticky header + stepper -->
+    <div class="cp-form-stick">
+      <div class="row1">
+        <button class="cp-back-btn" onclick="cpBackToList()">← Back to list</button>
+        <span class="cp-ticket-mono">${escHtml(c.TicketNo)}</span>
+        ${cpStatusBadge(c.status)}
+        <div class="cp-form-meta-line">
+          <span><b>${escHtml(c.Customer||'—')}</b></span>
+          <span>·</span>
+          <span><b>${escHtml(c.Model||'—')}</b></span>
+          <span>·</span>
+          <span>${escHtml(c.RepNo||'—')}</span>
+          <span class="cp-cat-pill ${cat.cls}" style="margin-left:6px">${escHtml(cat.label)}</span>
+        </div>
+        <div class="right">
+          <span class="cp-age-chip ${sla.band}">⏱ ${escHtml(sla.label)}</span>
+          ${editable ? `<button class="cp-save-btn" onclick="cpSaveForm()">💾 Save</button>` : ''}
+          <button class="cp-pdf-btn" onclick="cpExportPdf()">⬇ Export PDF</button>
+        </div>
+      </div>
+      <div class="cp-stepper">${stepperHtml}</div>
     </div>
 
-    ${sectionsHtml}
+    <div class="cp-form-row">
+      <div class="cp-form-main">
 
-    <div class="cp-section">
-      <div class="cp-section-title">Actions Log</div>
-      <table class="cp-actions-table">
-        <thead><tr>${actionsHeader}</tr></thead>
-        <tbody id="cp-actions-body">
-          ${actionsLog.map((row, i) => cpActionsRow(row, i, editable)).join('')}
-        </tbody>
-      </table>
-      ${editable ? `<button class="cp-add-row-btn" onclick="cpAddActionsRow()">+ Add Row</button>` : ''}
+        <!-- Meta panel -->
+        <div class="cp-meta-card">
+          <div class="cp-form-meta">
+            <div class="cp-meta-row"><span class="cp-meta-label">IRP No</span><span class="cp-meta-val mono">${escHtml(c.TicketNo)}</span></div>
+            <div class="cp-meta-row"><span class="cp-meta-label">Date Opened</span><span class="cp-meta-val">${escHtml(c.OpenDate)}</span></div>
+            <div class="cp-meta-row"><span class="cp-meta-label">Customer</span><span class="cp-meta-val">${escHtml(c.Customer)}</span></div>
+            <div class="cp-meta-row"><span class="cp-meta-label">REP No</span><span class="cp-meta-val mono">${escHtml(c.RepNo||'')}</span></div>
+            <div class="cp-meta-row"><span class="cp-meta-label">Model</span><span class="cp-meta-val">${escHtml(c.Model||'')}</span></div>
+            <div class="cp-meta-row"><span class="cp-meta-label">Investigator</span><span class="cp-meta-val">${escHtml(inv.InvestigatorName||'— unassigned')}</span></div>
+            <div class="cp-meta-row"><span class="cp-meta-label">Concern Type</span>
+              <input class="cp-meta-input" id="cp-f-concern" value="${escHtml(inv.ConcernType||'')}" placeholder="e.g. Mechanism — motor"${ro}></div>
+            <div class="cp-meta-row"><span class="cp-meta-label">Reported By</span>
+              <input class="cp-meta-input" id="cp-f-reported-by" value="${escHtml(inv.ReportedBy||'')}" placeholder="Customer Care · phone"${ro}></div>
+            <div class="cp-meta-row cp-meta-desc">
+              <span class="cp-meta-label">Description</span>
+              <div class="cp-meta-desc-card">${escHtml(c.Description||'—')}</div>
+            </div>
+          </div>
+        </div>
+
+        ${sectionsHtml}
+
+        <!-- Actions Log -->
+        <div class="cp-section" id="cp-sec-actions">
+          <div class="cp-sec-head">
+            <span class="cp-sec-num" style="background:var(--cp-info-soft);color:var(--cp-info)">📋</span>
+            <h3 class="cp-section-title">Actions Log</h3>
+          </div>
+          <div class="cp-act-list" id="cp-actions-body">
+            ${actionsLog.map((row, i) => cpActionsRow(row, i, editable)).join('')}
+          </div>
+          ${editable ? `<button class="cp-add-row-btn" onclick="cpAddActionsRow()">＋ Add Action</button>` : ''}
+        </div>
+
+        ${cpRenderSignatureBlocks(c, inv, me)}
+
+      </div>
+
+      ${cpRenderRail(c)}
+
     </div>
-
-    ${cpRenderSignatureBlocks(c, inv, me)}
   `;
 
   // Initialise signature canvas pads after DOM is ready
   if (editable)                                     cpInitSignaturePad('cp-inv-sig-canvas');
   if (cpIsManager && c.status === 'PendingClosure') cpInitSignaturePad('cp-mgr-sig-canvas');
+}
+
+function cpStepJump(stepIdx) {
+  const map = { 1:'cp-sec-1', 2:'cp-sec-2', 3:'cp-sec-4', 4:'cp-sec-6', 5:'sec-8' };
+  const el = document.getElementById(map[stepIdx]);
+  if (el) el.scrollIntoView({ behavior:'smooth', block:'start' });
 }
 
 function cpOpenInvestigation(ticketNo) {
@@ -21567,12 +22435,56 @@ async function cpSubmitManagerSignature() {
 }
 
 function cpExportPdf() {
-  const form = document.getElementById('cp-form-view');
+  const form    = document.getElementById('cp-form-view');
+  const inner   = document.getElementById('cp-form-inner');
+  const c       = cpComplaints.find(x => x.TicketNo === cpActiveTicket) || {};
+  const inv     = c.inv || {};
   const restore = [];
   const addAfter = (ref, el) => { ref.after(el); restore.push(() => el.remove()); };
+  const prepend  = (parent, el) => { parent.prepend(el); restore.push(() => el.remove()); };
+  const append   = (parent, el) => { parent.appendChild(el); restore.push(() => el.remove()); };
   const hide     = el => { el.style.display = 'none'; restore.push(() => { el.style.display = ''; }); };
 
-  // 1. Textareas → auto-height div (no height clipping)
+  // 0. Inject cover page at the top with logo + ticket no + meta + description + timeline
+  if (inner) {
+    const cover = document.createElement('div');
+    cover.className = 'cp-print-cover';
+    const today = new Date();
+    const dStr  = `${String(today.getDate()).padStart(2,'0')}/${String(today.getMonth()+1).padStart(2,'0')}/${today.getFullYear()}`;
+    const days  = (() => { const s = cpSlaBand(c); return s.days; })();
+    const stage = (n, label, when) => `<div class="step"><div class="d ${when ? 'done' : ''}"></div>${label}<b>${escHtml(when || '—')}</b></div>`;
+    cover.innerHTML = `
+      <div class="ph">
+        <div class="logo">RepNet · <span>Repose Furniture</span></div>
+        <div class="doc-title">Customer Complaint Investigation</div>
+      </div>
+      <div class="tno">${escHtml(c.TicketNo || '—')}</div>
+      <div class="sub">
+        <span><b>Status:</b> ${escHtml(c.status || '—')}</span>
+        <span><b>Opened:</b> ${escHtml(c.OpenDate || '—')}</span>
+        <span><b>Days open:</b> ${days || '—'}</span>
+      </div>
+      <div class="meta-grid">
+        <div><div class="lbl">Customer</div><div class="v">${escHtml(c.Customer || '—')}</div></div>
+        <div><div class="lbl">REP No</div><div class="v">${escHtml(c.RepNo || '—')}</div></div>
+        <div><div class="lbl">Model</div><div class="v">${escHtml(c.Model || '—')}</div></div>
+        <div><div class="lbl">Concern Type</div><div class="v">${escHtml(inv.ConcernType || '—')}</div></div>
+        <div><div class="lbl">Reported By</div><div class="v">${escHtml(inv.ReportedBy || '—')}</div></div>
+        <div><div class="lbl">Investigator</div><div class="v">${escHtml(inv.InvestigatorName || '— unassigned')}</div></div>
+        <div><div class="lbl">Manager Approval</div><div class="v">${inv.ManagerSignature ? 'Jonas Simonaitis' : '— pending'}</div></div>
+        <div><div class="lbl">Date Closed</div><div class="v">${escHtml(inv.ClosedDate || '—')}</div></div>
+      </div>
+      <div class="desc">${escHtml(c.Description || '—')}</div>
+      <div class="timeline">
+        ${stage(1, 'Opened',     c.OpenDate || '')}
+        ${stage(2, 'Assigned',   inv.AssignedDate || '')}
+        ${stage(3, 'Submitted',  (inv.InvestigatorSignedDate||'').split(' ')[0] || '')}
+        ${stage(4, 'Closed',     inv.ClosedDate || '')}
+      </div>`;
+    prepend(inner, cover);
+  }
+
+  // 1. Section textareas → auto-height div (no height clipping)
   form.querySelectorAll('.cp-section-ta').forEach(ta => {
     const div = document.createElement('div');
     div.className = 'cp-print-ta';
@@ -21581,37 +22493,48 @@ function cpExportPdf() {
     hide(ta);
   });
 
-  // 2. Replace 5 Whys table with a 2-column print layout (Why | Causes)
-  //    The original 5-column table is too cramped on A4 portrait
-  const whysTable = form.querySelector('.cp-whys-table');
-  if (whysTable) {
-    const whysRows = Array.from(whysTable.querySelectorAll('tbody tr')).map(tr => ({
-      why:    tr.querySelector('.cp-why-input')?.value || '',
-      causes: Array.from(tr.querySelectorAll('.cp-why-cause')).map(c => c.value.trim()).filter(Boolean),
-    }));
-    const pt = document.createElement('table');
-    pt.className = 'cp-print-whys-table';
-    pt.innerHTML = `
-      <thead><tr>
-        <th class="cp-pwhy-hdr" style="width:38%">Why</th>
-        <th class="cp-pwhy-hdr" style="width:62%">Probable Causes</th>
-      </tr></thead>
-      <tbody>${whysRows.map(r => `<tr>
-        <td class="cp-pwhy-cell">${escHtml(r.why)}</td>
-        <td class="cp-pwhy-cell">${r.causes.length ? r.causes.map(c => `<div class="cp-pwhy-cause">${escHtml(c)}</div>`).join('') : ''}</td>
-      </tr>`).join('')}</tbody>`;
-    addAfter(whysTable, pt);
-    hide(whysTable);
-  }
-
-  // 3. Actions Log inputs → plain spans
-  form.querySelectorAll('.cp-act-input').forEach(inp => {
-    const span = document.createElement('span');
-    span.className = 'cp-print-val';
-    span.textContent = inp.value;
-    addAfter(inp, span);
-    hide(inp);
+  // 2. 5 Whys textareas → print divs; cause inputs → cause pills
+  form.querySelectorAll('.cp-why-card').forEach(card => {
+    const why     = card.querySelector('.cp-why-input');
+    const causes  = Array.from(card.querySelectorAll('.cp-why-cause')).map(c => c.value.trim()).filter(Boolean);
+    if (why) {
+      const div = document.createElement('div');
+      div.className = 'cp-print-why';
+      div.textContent = why.value || '—';
+      addAfter(why, div);
+    }
+    const causesEl = card.querySelector('.cp-why-causes');
+    if (causesEl && causes.length) {
+      const wrap = document.createElement('div');
+      wrap.className = 'cp-print-why-causes';
+      wrap.innerHTML = causes.map(c => `<span class="cp-print-why-cause">${escHtml(c)}</span>`).join('');
+      addAfter(causesEl, wrap);
+    }
   });
+
+  // 3. Actions Log inputs → plain spans, plus inject a header row
+  const actList = form.querySelector('.cp-act-list');
+  if (actList) {
+    if (actList.children.length) {
+      const head = document.createElement('div');
+      head.className = 'cp-act-row cp-print-act-head';
+      head.innerHTML = `
+        <div class="cp-act-cell">Initiative</div>
+        <div class="cp-act-cell">Owner</div>
+        <div class="cp-act-cell">Target</div>
+        <div class="cp-act-cell">Completion</div>
+        <div class="cp-act-cell">Status</div>
+        <div class="cp-act-cell"></div>`;
+      prepend(actList, head);
+    }
+    actList.querySelectorAll('.cp-act-input').forEach(inp => {
+      const span = document.createElement('span');
+      span.className = 'cp-print-act-val';
+      span.textContent = inp.value || '—';
+      addAfter(inp, span);
+      hide(inp);
+    });
+  }
 
   // 4. Meta inputs → plain spans
   form.querySelectorAll('.cp-meta-input').forEach(inp => {
@@ -21638,8 +22561,15 @@ function cpExportPdf() {
     } catch (e) { /* tainted canvas — skip */ }
   });
 
-  // Use afterprint event so cleanup waits for the dialog to close —
-  // setTimeout(300) can fire mid-print on mobile/WebView where print is async
+  // 6. Footer
+  if (inner) {
+    const foot = document.createElement('div');
+    foot.className = 'cp-print-foot';
+    const today = new Date();
+    foot.textContent = `Generated by RepNet · ${escHtml(c.TicketNo || '')} · ${String(today.getDate()).padStart(2,'0')}/${String(today.getMonth()+1).padStart(2,'0')}/${today.getFullYear()}`;
+    append(inner, foot);
+  }
+
   let cleanedUp = false;
   const cleanup = () => {
     if (cleanedUp) return;
@@ -21648,7 +22578,6 @@ function cpExportPdf() {
     window.removeEventListener('afterprint', cleanup);
   };
   window.addEventListener('afterprint', cleanup);
-  // Safety net: some very old browsers don't fire afterprint
   setTimeout(cleanup, 10000);
   window.print();
 }
