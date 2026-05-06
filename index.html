@@ -4671,7 +4671,7 @@ document.addEventListener('DOMContentLoaded', () => {
 <!-- Assign investigator modal -->
 <div id="cp-assign-modal" class="cp-modal-overlay" style="display:none" onclick="if(event.target===this)cpCloseAssignModal()">
   <div class="cp-modal-box">
-    <div class="cp-modal-title">Assign Investigator — <span id="cp-assign-ticket"></span></div>
+    <div class="cp-modal-title">Assign Investigator <span id="cp-assign-ticket"></span></div>
     <div class="cp-modal-field">
       <label class="cp-modal-label">Investigator Name</label>
       <input id="cp-assign-name" class="cp-modal-input" type="text" placeholder="Full name">
@@ -5103,10 +5103,12 @@ let _serviceState = {
 
 const COMPLAINTS_MANAGERS  = new Set(['jonas.simonaitis@reposefurniture.co.uk','richard.semmens@reposefurniture.co.uk']);
 
-let cpComplaints    = [];       // joined Excel + SharePoint data, populated by cpLoadData()
-let cpActiveFilter  = 'all';   // 'all' | 'open' | 'inprogress' | 'pending' | 'closed'
-let cpActiveTicket  = null;    // TicketNo of currently open investigation form
-let cpIsManager     = false;   // true when signed-in user is in COMPLAINTS_MANAGERS
+// `var` (not `let`) so devtools/tests can override these from the global scope —
+// same pattern as `var PROD` in this file. Zero behavioural difference in production.
+var cpComplaints    = [];       // joined Excel + SharePoint data, populated by cpLoadData()
+var cpActiveFilter  = 'all';   // 'all' | 'open' | 'inprogress' | 'pending' | 'closed' | 'overdue'
+var cpActiveTicket  = null;    // TicketNo of currently open investigation form
+var cpIsManager     = false;   // true when signed-in user is in COMPLAINTS_MANAGERS
 let cparCanDelete   = false;   // true only for jonas.simonaitis@reposefurniture.co.uk
 
 const OV_LOAD_PLAN_SHEET = 'Load Sheet';
@@ -21670,6 +21672,27 @@ function cpRenderList() {
   const me   = (graphAccount?.username || '').toLowerCase();
   const all  = cpComplaints.filter(c => cpIsManager || (c.inv?.InvestigatorEmail || '').toLowerCase() === me);
 
+  // Update sync state first so the indicator reflects every render path
+  const sync = document.getElementById('cp-sync-state');
+  if (sync) {
+    const t = new Date();
+    sync.textContent = `● Synced ${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
+  }
+
+  // Empty-state: non-manager with no own cases — hide every analytics panel and
+  // show only the centred empty card. Returns before any panel rendering.
+  const emptyList = document.getElementById('cp-empty-list');
+  if (!cpIsManager && all.length === 0) {
+    if (emptyList) emptyList.classList.add('show');
+    document.querySelectorAll('#cp-list-view .cp-kpis, #cp-list-view .cp-grid-12, #cp-list-view #cp-workload-panel, #cp-list-view .cp-filter-strip, #cp-list-view .cp-table-wrap')
+      .forEach(el => el.style.display = 'none');
+    return;
+  }
+  if (emptyList) emptyList.classList.remove('show');
+  // Restore panels that we may have hidden previously
+  document.querySelectorAll('#cp-list-view .cp-kpis, #cp-list-view .cp-grid-12, #cp-list-view .cp-filter-strip, #cp-list-view .cp-table-wrap')
+    .forEach(el => el.style.display = '');
+
   // Top widgets always reflect the manager-scoped (or own) data
   cpRenderKpis(cpKpiAgg(all));
   cpRenderTrend(all);
@@ -21699,16 +21722,8 @@ function cpRenderList() {
     return bandRank[sa.band] - bandRank[sb.band] || sb.days - sa.days;
   });
 
-  // Empty states
-  const tbody     = document.getElementById('cp-tbody');
-  const emptyList = document.getElementById('cp-empty-list');
-  if (!cpIsManager && all.length === 0) {
-    if (emptyList) emptyList.classList.add('show');
-    tbody.innerHTML = '';
-    return;
-  } else if (emptyList) {
-    emptyList.classList.remove('show');
-  }
+  // No-rows-after-filter (still inside the populated list — keep panels visible)
+  const tbody = document.getElementById('cp-tbody');
   if (!data.length) {
     tbody.innerHTML = `<tr><td colspan="8" class="cp-empty">No complaints match the current filter.</td></tr>`;
     return;
@@ -21734,13 +21749,6 @@ function cpRenderList() {
       <td>${cpActionBtn(c)}</td>
     </tr>`;
   }).join('');
-
-  // Update sync state pill
-  const sync = document.getElementById('cp-sync-state');
-  if (sync) {
-    const t = new Date();
-    sync.textContent = `● Synced ${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
-  }
 }
 
 function cpSetFilter(btn, filter) {
@@ -22082,16 +22090,22 @@ function cpRenderForm(c) {
     has(6) || has(7) || actionsLog.length, // 4 Actions
     !!inv.ManagerSignature,                // 5 Sign-off (closed)
   ];
+  // Closed tickets: every step shown as done (no active). PendingClosure: step 5 active.
+  // Otherwise: first incomplete stage is active.
+  const allClosed = c.status === 'Closed';
   const stageActive = (() => {
-    if (c.status === 'Closed' || c.status === 'PendingClosure') return 4;
+    if (allClosed) return -1;                     // no active step on closed forms
+    if (c.status === 'PendingClosure') return 4;
     for (let i = 0; i < stageStatus.length; i++) if (!stageStatus[i]) return i;
     return 4;
   })();
   const STAGE_LABELS = ['Problem', 'Containment', 'Root Cause', 'Actions', 'Sign-off'];
   const stepperHtml = STAGE_LABELS.map((lbl, i) => {
-    const cls = i === stageActive ? 'active' : (stageStatus[i] || i < stageActive ? 'done' : '');
-    const dot = cls === 'done' ? '✓' : (i + 1);
-    const conn = i < STAGE_LABELS.length - 1 ? `<div class="cp-step-conn ${cls === 'done' ? 'done' : ''}"></div>` : '';
+    const isDone   = allClosed || stageStatus[i] || i < stageActive;
+    const isActive = i === stageActive;
+    const cls = isActive ? 'active' : (isDone ? 'done' : '');
+    const dot = isDone && !isActive ? '✓' : (i + 1);
+    const conn = i < STAGE_LABELS.length - 1 ? `<div class="cp-step-conn ${isDone ? 'done' : ''}"></div>` : '';
     return `<div class="cp-step ${cls}" onclick="cpStepJump(${i+1})">
       <div class="dot">${dot}</div>
       <div class="label"><div class="n">Step ${i+1}</div><div class="t">${lbl}</div></div>
@@ -22209,8 +22223,11 @@ function cpOpenInvestigation(ticketNo) {
   if (!cpIsManager && !isMine) { toast('Not authorised to view this investigation', 'e'); return; }
   cpActiveTicket = ticketNo;
   document.getElementById('cp-list-view').style.display = 'none';
-  document.getElementById('cp-form-view').style.display = '';
+  const formView = document.getElementById('cp-form-view');
+  formView.style.display = '';
   cpRenderForm(c);
+  // Reset the form-wrap scroll so the closure banner / sticky header land at the top
+  formView.scrollTop = 0;
 }
 
 function cpBackToList() {
