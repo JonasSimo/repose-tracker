@@ -3066,6 +3066,15 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .svc-panel-head h2 .sub { display: block; font-family: Manrope, sans-serif; font-size: 11.5px; color: var(--text2); font-weight: 500; margin-top: 3px; }
 .svc-panel-head .right { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
 
+/* Side-by-side 50/50 row for Open Tickets + Parts in Transit (stacks below 1100px) */
+.svc-row-2col { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin-bottom: 14px; }
+@media (max-width: 1100px) { .svc-row-2col { grid-template-columns: 1fr; } }
+.svc-row-2col .svc-panel { margin-bottom: 0; }
+.svc-panel-toggle { background: transparent; border: 0; cursor: pointer; padding: 6px 10px; font-size: 14px; color: var(--text2); border-radius: 6px; font-weight: 700; transition: background .12s, transform .25s, color .12s; }
+.svc-panel-toggle:hover { background: var(--bg3); color: var(--text); }
+.svc-panel-collapsible.collapsed .svc-panel-toggle { transform: rotate(-90deg); }
+.svc-panel-collapsible.collapsed .svc-panel-body { display: none; }
+
 .svc-chips { padding: 12px 20px 4px; display: flex; flex-wrap: wrap; gap: 6px; border-bottom: 1px solid var(--border); background: var(--bg3); }
 .svc-chip { padding: 5px 11px; border-radius: 999px; border: 1px solid var(--border2); background: #fff; font-size: 11.5px; font-weight: 600; color: var(--text2); cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
 .svc-chip:hover { border-color: var(--repose-blue); color: var(--repose-blue); }
@@ -3128,10 +3137,12 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .svc-parcel-mid .stages span.done { color: var(--pass); }
 .svc-parcel-mid .stages span.now { color: var(--info); font-weight: 700; }
 .svc-parcel.delayed .svc-parcel-mid .stages span.now { color: var(--fail); }
-.svc-grid-12 { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 16px; margin-bottom: 16px; }
-@media (max-width: 1280px) { .svc-grid-12 { grid-template-columns: 1fr; } }
+.svc-grid-12 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; align-items: stretch; }
+.svc-grid-12 .svc-panel { display: flex; flex-direction: column; }
+.svc-grid-12 .svc-panel > .svc-panel-head + * { flex: 1; min-height: 240px; }
+@media (max-width: 1100px) { .svc-grid-12 { grid-template-columns: 1fr; } }
 .svc-perf-strip { padding: 16px 20px; }
-.svc-perf-grid { display: grid; grid-template-columns: repeat(13, 1fr); gap: 5px; align-items: end; height: 130px; position: relative; }
+.svc-perf-grid { display: grid; grid-template-columns: repeat(13, 1fr); gap: 5px; align-items: end; height: 162px; position: relative; }
 .svc-perf-bar { background: linear-gradient(180deg, var(--info), var(--repose-blue-dark)); border-radius: 5px 5px 0 0; cursor: pointer; transition: transform .12s; position: relative; }
 .svc-perf-bar:hover { transform: translateY(-2px); }
 .svc-perf-bar .val { position: absolute; top: -16px; left: 50%; transform: translateX(-50%); font-size: 10px; font-weight: 700; color: var(--text); }
@@ -4430,7 +4441,10 @@ let _serviceState = {
   // Period selectors — per-panel so each can be tuned independently.
   // Keys: 'mtd' | '3m' | '6m' | '12m' | 'all'
   faultPeriod: '12m',
-  customerPeriod: '12m'
+  customerPeriod: '12m',
+  // Per-panel collapse state (Open Tickets + Parts in Transit) — default expanded.
+  openTicketsCollapsed: false,
+  partsCollapsed: false
 };
 
 const COMPLAINTS_MANAGERS  = new Set(['jonas.simonaitis@reposefurniture.co.uk','richard.semmens@reposefurniture.co.uk']);
@@ -21321,45 +21335,49 @@ function _renderServiceTickets() {
   });
   const counts = _serviceTicketCounts();
   const slaRiskCount = _computeServiceSlaRisk(0.80, 999).length;
+  const collapsed = _serviceState.openTicketsCollapsed;
   c.innerHTML = `
-    <div class="svc-panel">
+    <div class="svc-panel svc-panel-collapsible${collapsed ? ' collapsed' : ''}">
       <div class="svc-panel-head">
-        <div><h2>Open Tickets <span class="sub">${counts.open} awaiting action · sorted by overdue first</span></h2></div>
-        <div class="right">
-          <input type="search" id="svc-ticket-search" class="svc-search" placeholder="🔍 Ticket / customer / REP…" value="${_escapeSvc(_serviceFilters.q)}">
+        <div style="flex:1"><h2>Open Tickets <span class="sub">${counts.open} awaiting action · sorted by overdue first</span></h2></div>
+        <button class="svc-panel-toggle" data-collapse-toggle title="${collapsed ? 'Expand' : 'Collapse'}">▼</button>
+      </div>
+      <div class="svc-panel-body">
+        <div style="padding:10px 20px 0;display:flex;align-items:center">
+          <input type="search" id="svc-ticket-search" class="svc-search" placeholder="🔍 Ticket / customer / REP…" value="${_escapeSvc(_serviceFilters.q)}" style="flex:1;max-width:none">
         </div>
-      </div>
-      <div class="svc-chips">
-        <span class="svc-chip ${!_serviceFilters.period && !_serviceFilters.wc && !_serviceFilters.overdueOnly && !_serviceFilters.slaRiskOnly ? 'on' : ''}" data-fclear>All <span class="cnt">${counts.open}</span></span>
-        <span class="svc-chip ${_serviceFilters.overdueOnly ? 'on' : ''}" data-foverdue>⚠ Overdue <span class="cnt">${counts.overdue}</span></span>
-        <span class="svc-chip ${_serviceFilters.slaRiskOnly ? 'on' : ''}" data-fsla>⏰ SLA risk <span class="cnt">${slaRiskCount}</span></span>
-        <span class="svc-chip ${_serviceFilters.period === 'in30' ? 'on' : ''}" data-fperiod="in30">Inside 30 days <span class="cnt">${counts.in30}</span></span>
-        <span class="svc-chip ${_serviceFilters.period === 'out30' ? 'on' : ''}" data-fperiod="out30">Outside 30 days <span class="cnt">${counts.out30}</span></span>
-        <span class="svc-chip ${_serviceFilters.wc === 'WARRANTY' ? 'on' : ''}" data-fwc="WARRANTY">Warranty <span class="cnt">${counts.warranty}</span></span>
-        <span class="svc-chip ${_serviceFilters.wc === 'CHARGEABLE' ? 'on' : ''}" data-fwc="CHARGEABLE">Chargeable <span class="cnt">${counts.chargeable}</span></span>
-      </div>
-      <table class="svc-t">
-        <thead>
-          <tr>
-            <th style="width:90px">Ticket</th>
-            <th>Issue · Customer</th>
-            <th style="width:70px">Type</th>
-            <th style="width:60px">Period</th>
-            <th style="width:74px">Age</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${tickets.slice(0, 50).map(_serviceTicketRowHtml).join('')}
-        </tbody>
-      </table>
-      <div class="svc-foot" style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap">
-        <span>${tickets.length > 50 ? `Showing 50 of ${tickets.length} matching · refine filters or search to narrow` : `${tickets.length} ticket${tickets.length === 1 ? '' : 's'}`}</span>
-        <span style="display:inline-flex;align-items:center;gap:10px;font-size:11px">
-          <b style="color:var(--text);font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:10px">Age key</b>
-          <span class="svc-age ok">&lt; 14 days</span>
-          <span class="svc-age warn">14–30 days</span>
-          <span class="svc-age bad">&gt; 30 days</span>
-        </span>
+        <div class="svc-chips">
+          <span class="svc-chip ${!_serviceFilters.period && !_serviceFilters.wc && !_serviceFilters.overdueOnly && !_serviceFilters.slaRiskOnly ? 'on' : ''}" data-fclear>All <span class="cnt">${counts.open}</span></span>
+          <span class="svc-chip ${_serviceFilters.overdueOnly ? 'on' : ''}" data-foverdue>⚠ Overdue <span class="cnt">${counts.overdue}</span></span>
+          <span class="svc-chip ${_serviceFilters.slaRiskOnly ? 'on' : ''}" data-fsla>⏰ SLA risk <span class="cnt">${slaRiskCount}</span></span>
+          <span class="svc-chip ${_serviceFilters.period === 'in30' ? 'on' : ''}" data-fperiod="in30">Inside 30 days <span class="cnt">${counts.in30}</span></span>
+          <span class="svc-chip ${_serviceFilters.period === 'out30' ? 'on' : ''}" data-fperiod="out30">Outside 30 days <span class="cnt">${counts.out30}</span></span>
+          <span class="svc-chip ${_serviceFilters.wc === 'WARRANTY' ? 'on' : ''}" data-fwc="WARRANTY">Warranty <span class="cnt">${counts.warranty}</span></span>
+          <span class="svc-chip ${_serviceFilters.wc === 'CHARGEABLE' ? 'on' : ''}" data-fwc="CHARGEABLE">Chargeable <span class="cnt">${counts.chargeable}</span></span>
+        </div>
+        <table class="svc-t">
+          <thead>
+            <tr>
+              <th style="width:90px">Ticket</th>
+              <th>Issue · Customer</th>
+              <th style="width:70px">Type</th>
+              <th style="width:60px">Period</th>
+              <th style="width:74px">Age</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${tickets.slice(0, 50).map(_serviceTicketRowHtml).join('')}
+          </tbody>
+        </table>
+        <div class="svc-foot" style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap">
+          <span>${tickets.length > 50 ? `Showing 50 of ${tickets.length} matching · refine filters or search to narrow` : `${tickets.length} ticket${tickets.length === 1 ? '' : 's'}`}</span>
+          <span style="display:inline-flex;align-items:center;gap:10px;font-size:11px">
+            <b style="color:var(--text);font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:10px">Age key</b>
+            <span class="svc-age ok">&lt; 14 days</span>
+            <span class="svc-age warn">14–30 days</span>
+            <span class="svc-age bad">&gt; 30 days</span>
+          </span>
+        </div>
       </div>
     </div>
   `;
@@ -21376,6 +21394,10 @@ function _renderServiceTickets() {
     }
   };
 
+  c.querySelector('[data-collapse-toggle]')?.addEventListener('click', () => {
+    _serviceState.openTicketsCollapsed = !_serviceState.openTicketsCollapsed;
+    _renderServiceTickets();
+  });
   c.querySelectorAll('[data-fclear]').forEach(el => el.addEventListener('click', () => { _serviceFilters = { q: '', period: '', wc: '', overdueOnly: false, slaRiskOnly: false }; _renderServiceTickets(); }));
   c.querySelectorAll('[data-foverdue]').forEach(el => el.addEventListener('click', () => { _serviceFilters.overdueOnly = !_serviceFilters.overdueOnly; _rerenderPreserveSearch(); }));
   c.querySelectorAll('[data-fsla]').forEach(el => el.addEventListener('click', () => { _serviceFilters.slaRiskOnly = !_serviceFilters.slaRiskOnly; _rerenderPreserveSearch(); }));
@@ -23168,19 +23190,27 @@ function _renderServiceParts() {
   if (!c) return;
   const inTransit = _serviceState.parts.filter(p => !p.isDelivered).sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0)).slice(0, 10);
   const delivered = _serviceState.parts.filter(p => p.isDelivered).sort((a, b) => (b.deliveredDate?.getTime() || 0) - (a.deliveredDate?.getTime() || 0)).slice(0, 3);
+  const collapsed = _serviceState.partsCollapsed;
   c.innerHTML = `
-    <div class="svc-panel">
+    <div class="svc-panel svc-panel-collapsible${collapsed ? ' collapsed' : ''}">
       <div class="svc-panel-head">
-        <div><h2>Parts in Transit <span class="sub">${inTransit.length} parcel${inTransit.length === 1 ? '' : 's'} · auto-tracked from FedEx · updates hourly</span></h2></div>
+        <div style="flex:1"><h2>Parts in Transit <span class="sub">${inTransit.length} parcel${inTransit.length === 1 ? '' : 's'} · auto-tracked from FedEx · updates hourly</span></h2></div>
+        <button class="svc-panel-toggle" data-collapse-toggle title="${collapsed ? 'Expand' : 'Collapse'}">▼</button>
       </div>
-      <div class="svc-parts-list">
-        ${inTransit.map(_servicePartRowHtml('transit')).join('')}
-        ${delivered.length ? `<div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--text2);font-weight:700;padding:6px 0">Recently delivered</div>` : ''}
-        ${delivered.map(_servicePartRowHtml('delivered')).join('')}
+      <div class="svc-panel-body">
+        <div class="svc-parts-list">
+          ${inTransit.map(_servicePartRowHtml('transit')).join('')}
+          ${delivered.length ? `<div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--text2);font-weight:700;padding:6px 0">Recently delivered</div>` : ''}
+          ${delivered.map(_servicePartRowHtml('delivered')).join('')}
+        </div>
+        ${(inTransit.length === 0 && delivered.length === 0) ? '<div style="padding:32px;text-align:center;color:var(--text2);font-size:12.5px">No parts dispatches recorded.</div>' : ''}
       </div>
-      ${(inTransit.length === 0 && delivered.length === 0) ? '<div style="padding:32px;text-align:center;color:var(--text2);font-size:12.5px">No parts dispatches recorded.</div>' : ''}
     </div>
   `;
+  c.querySelector('[data-collapse-toggle]')?.addEventListener('click', () => {
+    _serviceState.partsCollapsed = !_serviceState.partsCollapsed;
+    _renderServiceParts();
+  });
   // Wire up click → edit modal. Uses sheetRow attribute to identify the parcel.
   c.querySelectorAll('.svc-parcel[data-parts-rowidx]').forEach(el => {
     el.addEventListener('click', () => {
@@ -23255,23 +23285,40 @@ function _renderServiceCharts() {
       <div class="svc-panel">
         <div class="svc-panel-head"><div><h2>£ Chargeable revenue · 13-month trend <span class="sub">FY YTD £${months.reduce((a, m) => a + m.gbp, 0).toLocaleString('en-GB', {maximumFractionDigits:0})} · ${months.reduce((a, m) => a + m.gbpCount, 0)} chargeable tickets</span></h2></div></div>
         <div class="svc-perf-strip">
-          <div class="svc-gbp-bars">
-            ${months.map((m, i) => {
-              const isCurrent = i === 12;
-              const heightPct = (m.gbp / maxGbp) * 100;
-              const fmtGbp = m.gbp >= 1000 ? `£${(m.gbp / 1000).toFixed(1)}k` : `£${Math.round(m.gbp)}`;
+          ${(() => {
+            const w = 720, h = 200, pad = { l: 32, r: 24, t: 36, b: 38 };
+            const innerW = w - pad.l - pad.r, innerH = h - pad.t - pad.b;
+            const stepX = months.length > 1 ? innerW / (months.length - 1) : 0;
+            const points = months.map((m, i) => {
+              const x = pad.l + i * stepX;
+              const y = pad.t + innerH - (m.gbp / maxGbp) * innerH;
+              return { x, y, m, i };
+            });
+            const polyline = points.map(p => `${p.x},${p.y}`).join(' ');
+            const fmtGbp = v => v >= 1000 ? `£${(v / 1000).toFixed(1)}k` : `£${Math.round(v)}`;
+            const grid = [0.25, 0.5, 0.75].map(t => `<line x1="${pad.l}" y1="${pad.t + innerH * t}" x2="${pad.l + innerW}" y2="${pad.t + innerH * t}" stroke="#e5e7eb" stroke-dasharray="2,3"/>`).join('');
+            const dots = points.map((p, i) => {
+              const isCur = i === months.length - 1;
+              const r = isCur ? 5 : 3.5;
+              const labelY = p.y - 8;
+              const subY = pad.t + innerH + 18;
+              const monthY = pad.t + innerH + 32;
               return `
-                <div class="svc-gbp-bar-wrap" title="${_escapeSvc(m.label)}: ${fmtGbp} from ${m.gbpCount} chargeable ticket${m.gbpCount === 1 ? '' : 's'}">
-                  <div class="svc-gbp-val">${m.gbp > 0 ? fmtGbp : ''}</div>
-                  <div class="svc-gbp-bar ${isCurrent ? 'cur' : ''}" style="height:${Math.max(heightPct, 1)}%"></div>
-                  <div class="svc-gbp-qty">${m.gbpCount > 0 ? `n=${m.gbpCount}` : ''}</div>
-                </div>
+                <circle cx="${p.x}" cy="${p.y}" r="${r}" fill="${isCur ? '#a855f7' : '#fff'}" stroke="#a855f7" stroke-width="2"/>
+                ${p.m.gbp > 0 ? `<text x="${p.x}" y="${labelY}" text-anchor="middle" font-size="10" font-family="JetBrains Mono, monospace" fill="${isCur ? '#7e22ce' : '#6b7280'}" font-weight="${isCur ? 700 : 600}">${fmtGbp(p.m.gbp)}</text>` : ''}
+                ${p.m.gbpCount > 0 ? `<text x="${p.x}" y="${subY}" text-anchor="middle" font-size="9" fill="#9ca3af">n=${p.m.gbpCount}</text>` : ''}
+                <text x="${p.x}" y="${monthY}" text-anchor="middle" font-size="10" fill="${isCur ? '#7e22ce' : '#6b7280'}" font-weight="${isCur ? 800 : 500}">${_escapeSvc(p.m.label)}</text>
               `;
-            }).join('')}
-          </div>
-          <div class="svc-perf-labels">
-            ${months.map((m, i) => `<div${i === 12 ? ' style="color:var(--purple);font-weight:800"' : ''}>${m.label}</div>`).join('')}
-          </div>
+            }).join('');
+            return `
+              <svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet" style="width:100%;height:200px;display:block">
+                ${grid}
+                <polygon points="${pad.l},${pad.t + innerH} ${polyline} ${pad.l + innerW},${pad.t + innerH}" fill="rgba(168, 85, 247, 0.08)"/>
+                <polyline points="${polyline}" fill="none" stroke="#a855f7" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+                ${dots}
+              </svg>
+            `;
+          })()}
         </div>
         <div class="svc-foot" style="text-align:left;padding:11px 20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px">
           <span>Latest month <b style="color:var(--purple);font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:15px">£${Math.round(months[12].gbp).toLocaleString('en-GB')}</b> from <b>${months[12].gbpCount}</b> ticket${months[12].gbpCount === 1 ? '' : 's'}</span>
@@ -23787,8 +23834,10 @@ function _renderServiceShell(content) {
     <div id="svc-alerts-container"></div>
     <div id="svc-returns-container"></div>
     <div id="svc-kpi-container"></div>
-    <div id="svc-tickets-container"></div>
-    <div id="svc-parts-container"></div>
+    <div class="svc-row-2col">
+      <div id="svc-tickets-container"></div>
+      <div id="svc-parts-container"></div>
+    </div>
     <div id="svc-charts-container"></div>
     <div id="svc-forecast-container"></div>
     <div id="svc-capa-container"></div>
