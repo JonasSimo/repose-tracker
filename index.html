@@ -3070,10 +3070,6 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .svc-row-2col { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin-bottom: 14px; }
 @media (max-width: 1100px) { .svc-row-2col { grid-template-columns: 1fr; } }
 .svc-row-2col .svc-panel { margin-bottom: 0; }
-.svc-panel-toggle { background: transparent; border: 0; cursor: pointer; padding: 6px 10px; font-size: 14px; color: var(--text2); border-radius: 6px; font-weight: 700; transition: background .12s, transform .25s, color .12s; }
-.svc-panel-toggle:hover { background: var(--bg3); color: var(--text); }
-.svc-panel-collapsible.collapsed .svc-panel-toggle { transform: rotate(-90deg); }
-.svc-panel-collapsible.collapsed .svc-panel-body { display: none; }
 
 .svc-chips { padding: 12px 20px 4px; display: flex; flex-wrap: wrap; gap: 6px; border-bottom: 1px solid var(--border); background: var(--bg3); }
 .svc-chip { padding: 5px 11px; border-radius: 999px; border: 1px solid var(--border2); background: #fff; font-size: 11.5px; font-weight: 600; color: var(--text2); cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
@@ -3123,7 +3119,6 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
    Without this each panel sizes to its own content (different totals → uneven row).
    Inner scroll area flexes to fill whatever vertical space is left after head/chips/search/footer. */
 .svc-row-2col .svc-panel { display: flex; flex-direction: column; height: 720px; }
-.svc-row-2col .svc-panel-collapsible.collapsed { height: auto; }
 .svc-row-2col .svc-panel-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 .svc-row-2col .svc-table-scroll,
 .svc-row-2col .svc-parts-list { flex: 1 1 auto; max-height: none; min-height: 0; }
@@ -10821,7 +10816,6 @@ async function loadStatsData() {
   document.getElementById('stats-dash-bottom').innerHTML  = '';
   document.getElementById('stats-spinner').style.display  = 'flex';
 
-  const statsAfter = spAfterDate(400);
   let siteId, base;
   try {
     siteId = await getSpSiteId();
@@ -10836,21 +10830,22 @@ async function loadStatsData() {
   }
 
   // Each list loaded independently so one failure doesn't block others.
-  // statsAfter is ~400 days back. createdDateTime (top-level OData) is always indexed;
-  // fields/Created is NOT auto-indexed and 400s once a list crosses the SP threshold.
-  const dateFilter = `&$filter=${encodeURIComponent("createdDateTime ge " + statsAfter)}`;
+  // No server-side date filter: fields/Created isn't auto-indexed (400s past the SP
+  // list threshold) and createdDateTime filtering isn't supported on SP list items
+  // via Graph (returns generic "Invalid request"). graphGetAll paginates so we just
+  // pull every item; the user-facing period filter trims at render time.
   try {
   await Promise.allSettled([
     getListIdByName('ProductionCompletions').then(id =>
-      graphGetAll(`${base}/${id}/items?$expand=fields&$top=999${dateFilter}`)
+      graphGetAll(`${base}/${id}/items?$expand=fields&$top=999`)
     ).then(r => { STATS_COMPLETIONS = r.filter(i => i.fields?.IsComplete === true); console.log(`stats (completions): loaded ${r.length} rows, ${STATS_COMPLETIONS.length} complete`); }).catch(e => console.warn('stats (completions):', e.message)),
 
     getListIdByName('SpecAlerts').then(id =>
-      graphGetAll(`${base}/${id}/items?$expand=fields&$top=999${dateFilter}`)
+      graphGetAll(`${base}/${id}/items?$expand=fields&$top=999`)
     ).then(r => { STATS_ALERTS = r; }).catch(e => console.warn('stats (alerts):', e.message)),
 
     getListIdByName('ScrapLog').then(id =>
-      graphGetAll(`${base}/${id}/items?$expand=fields&$top=999${dateFilter}`)
+      graphGetAll(`${base}/${id}/items?$expand=fields&$top=999`)
     ).then(r => { STATS_SCRAP = r; }).catch(e => console.warn('stats (scrap):', e.message)),
 
     getListIdByName(SP_CPAR_LIST).then(id =>
@@ -15912,8 +15907,10 @@ function renderRecentRepeats() {
 // 90d still covers the active triage horizon and cuts to a few hundred rows.
 const CPAR_HISTORY_DAYS = 90;
 function _cparFilterUrl(siteId, listId) {
-  const cutoff = new Date(Date.now() - CPAR_HISTORY_DAYS * 86400000).toISOString();
-  const filter = `(fields/Status ne 'Closed' and fields/Status ne 'Archived') or createdDateTime ge ${cutoff}`;
+  // Date filter dropped: fields/Created 400s past the SP threshold and
+  // createdDateTime filtering isn't supported on SP list items via Graph.
+  // Status alone (manually indexed) — most <1y CPARs aren't closed anyway.
+  const filter = `fields/Status ne 'Closed' and fields/Status ne 'Archived'`;
   return `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items` +
          `?$expand=fields&$top=999&$filter=${encodeURIComponent(filter)}`;
 }
@@ -21352,12 +21349,10 @@ function _renderServiceTickets() {
   });
   const counts = _serviceTicketCounts();
   const slaRiskCount = _computeServiceSlaRisk(0.80, 999).length;
-  const collapsed = _serviceState.openTicketsCollapsed;
   c.innerHTML = `
-    <div class="svc-panel svc-panel-collapsible${collapsed ? ' collapsed' : ''}">
+    <div class="svc-panel">
       <div class="svc-panel-head">
         <div style="flex:1"><h2>Open Tickets <span class="sub">${counts.open} awaiting action · sorted by overdue first</span></h2></div>
-        <button class="svc-panel-toggle" data-collapse-toggle title="${collapsed ? 'Expand' : 'Collapse'}">▼</button>
       </div>
       <div class="svc-panel-body">
         <div style="padding:10px 20px 0;display:flex;align-items:center">
@@ -21413,10 +21408,6 @@ function _renderServiceTickets() {
     }
   };
 
-  c.querySelector('[data-collapse-toggle]')?.addEventListener('click', () => {
-    _serviceState.openTicketsCollapsed = !_serviceState.openTicketsCollapsed;
-    _renderServiceTickets();
-  });
   c.querySelectorAll('[data-fclear]').forEach(el => el.addEventListener('click', () => { _serviceFilters = { q: '', period: '', wc: '', overdueOnly: false, slaRiskOnly: false }; _renderServiceTickets(); }));
   c.querySelectorAll('[data-foverdue]').forEach(el => el.addEventListener('click', () => { _serviceFilters.overdueOnly = !_serviceFilters.overdueOnly; _rerenderPreserveSearch(); }));
   c.querySelectorAll('[data-fsla]').forEach(el => el.addEventListener('click', () => { _serviceFilters.slaRiskOnly = !_serviceFilters.slaRiskOnly; _rerenderPreserveSearch(); }));
@@ -23209,12 +23200,10 @@ function _renderServiceParts() {
   if (!c) return;
   const inTransit = _serviceState.parts.filter(p => !p.isDelivered).sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0)).slice(0, 10);
   const delivered = _serviceState.parts.filter(p => p.isDelivered).sort((a, b) => (b.deliveredDate?.getTime() || 0) - (a.deliveredDate?.getTime() || 0)).slice(0, 3);
-  const collapsed = _serviceState.partsCollapsed;
   c.innerHTML = `
-    <div class="svc-panel svc-panel-collapsible${collapsed ? ' collapsed' : ''}">
+    <div class="svc-panel">
       <div class="svc-panel-head">
         <div style="flex:1"><h2>Parts in Transit <span class="sub">${inTransit.length} parcel${inTransit.length === 1 ? '' : 's'} · auto-tracked from FedEx · updates hourly</span></h2></div>
-        <button class="svc-panel-toggle" data-collapse-toggle title="${collapsed ? 'Expand' : 'Collapse'}">▼</button>
       </div>
       <div class="svc-panel-body">
         <div class="svc-parts-list">
@@ -23226,10 +23215,6 @@ function _renderServiceParts() {
       </div>
     </div>
   `;
-  c.querySelector('[data-collapse-toggle]')?.addEventListener('click', () => {
-    _serviceState.partsCollapsed = !_serviceState.partsCollapsed;
-    _renderServiceParts();
-  });
   // Wire up click → edit modal. Uses sheetRow attribute to identify the parcel.
   c.querySelectorAll('.svc-parcel[data-parts-rowidx]').forEach(el => {
     el.addEventListener('click', () => {
