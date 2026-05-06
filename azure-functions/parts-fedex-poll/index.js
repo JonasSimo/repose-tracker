@@ -359,7 +359,13 @@ module.exports = async function (context, myTimer) {
       continue;
     }
     const colLetter = colIdxToLetter(deliveredIdx);
-    const cellAddr = `${colLetter}${p.sheetRow + 1}`; // +1 because data row 0 = sheet row 2
+    // sheetRow is already 1-based Excel row (i+1 in the values-loop, where
+    // values[0] is the header). Adding another +1 here was a leftover from
+    // the old tables/range(valuesOnly=true) world (values[0] = first data
+    // row) and caused every Delivered timestamp to be written to the row
+    // BELOW the matching tracking number — leaving the real row stuck as
+    // "in transit". See commit 1d93fc6 for the index-convention change.
+    const cellAddr = `${colLetter}${p.sheetRow}`;
     if (!isProd) {
       wouldUpdate++;
       log(`[DRY-RUN] ${p.trackingNumber} (${p.customer}) → ${text}${r.signedBy ? ` · signed by ${r.signedBy}` : ''} (sandbox; not written)`);
