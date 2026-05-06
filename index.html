@@ -2183,13 +2183,21 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .nm-split .v{font-family:'Bricolage Grotesque',sans-serif;font-size:24px;font-weight:800;line-height:1;letter-spacing:-.02em}
 
 /* Hotspots */
-.nm-hotspot{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
+.nm-hotspot{display:flex;align-items:center;gap:12px;padding:10px 8px;border-bottom:1px solid var(--border);border-radius:8px;cursor:pointer;transition:background .12s}
 .nm-hotspot:last-of-type{border-bottom:none}
+.nm-hotspot:hover{background:var(--bbg)}
+.nm-hotspot.active{background:var(--bbg);box-shadow:inset 3px 0 0 var(--repose-blue)}
+.nm-hotspot.active .nm-hot-name{color:var(--repose-blue)}
 .nm-hot-rank{font-family:'Bricolage Grotesque',sans-serif;font-size:14px;font-weight:800;color:var(--text3);width:20px;text-align:center}
 .nm-hot-name{flex:1;font-size:13px;font-weight:700;color:var(--repose-navy)}
 .nm-hot-bar{flex:1.2;height:7px;background:var(--grey-soft);border-radius:999px;overflow:hidden}
 .nm-hot-bar i{display:block;height:100%;background:linear-gradient(90deg,var(--info),var(--repose-blue));border-radius:999px}
-.nm-hot-cnt{font-family:'Bricolage Grotesque',sans-serif;font-size:17px;font-weight:800;color:var(--repose-navy);min-width:28px;text-align:right;cursor:pointer}
+.nm-hot-cnt{font-family:'Bricolage Grotesque',sans-serif;font-size:17px;font-weight:800;color:var(--repose-navy);min-width:28px;text-align:right}
+.nm-hotspot-clear{display:flex;align-items:center;gap:8px;padding:8px 4px 12px;border-bottom:1px solid var(--border);margin-bottom:4px;font-size:12px}
+.nm-hotspot-clear .lbl{color:var(--text2);font-weight:700;text-transform:uppercase;letter-spacing:.06em;font-size:10.5px}
+.nm-hotspot-clear .pill{background:var(--bbg);color:var(--info);border:1px solid var(--bborder);border-radius:999px;padding:3px 10px;font-weight:700;font-size:11px}
+.nm-hotspot-clear .x{margin-left:auto;padding:5px 12px;border-radius:999px;border:1px solid var(--border2);background:#fff;color:var(--text2);cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;transition:all .12s}
+.nm-hotspot-clear .x:hover{border-color:var(--red);color:var(--red);background:var(--rbg)}
 
 /* Filter strip */
 .nm-filter-strip{background:#fff;border:1px solid var(--border);border-radius:18px;padding:14px 18px;margin-bottom:14px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
@@ -3708,7 +3716,7 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
         <div class="svc-panel">
           <div class="svc-panel-head">
-            <h2>Top hotspots <span class="sub">click to filter</span></h2>
+            <h2>Top hotspots <span class="sub" id="nm-hotspot-sub">currently open · click an area to filter</span></h2>
           </div>
           <div id="nm-hotspots" style="padding:8px 20px 12px"></div>
         </div>
@@ -19799,9 +19807,18 @@ function renderNearMisses() {
   // ── Hotspots ────────────────────────────────────────────────────────
   const hotspotEntries = Object.entries(hotspotCounts).sort((a,b) => b[1]-a[1]).slice(0, 6);
   const maxHot = Math.max(1, ...hotspotEntries.map(([,n]) => n));
+  const totalOpen = allOpen.length;
+  const subEl = document.getElementById('nm-hotspot-sub');
+  if (subEl) subEl.textContent = `${totalOpen} currently open · click an area to filter`;
+  const clearBar = nmsAreaFilter
+    ? `<div class="nm-hotspot-clear">
+         <span class="lbl">Filtered:</span>
+         <span class="pill">${escHtml(nmsAreaFilter)}</span>
+         <button class="x" onclick="setNmsAreaFilter('')">✕ Clear</button>
+       </div>` : '';
   document.getElementById('nm-hotspots').innerHTML = hotspotEntries.length
-    ? hotspotEntries.map(([name, cnt], i) => `
-        <div class="nm-hotspot" onclick="setNmsAreaFilter('${escHtml(name)}')">
+    ? clearBar + hotspotEntries.map(([name, cnt], i) => `
+        <div class="nm-hotspot${nmsAreaFilter === name ? ' active' : ''}" onclick="setNmsAreaFilter(${nmsAreaFilter === name ? "''" : `'${escHtml(name)}'`})">
           <div class="nm-hot-rank">${i+1}</div>
           <div class="nm-hot-name">${escHtml(name)}</div>
           <div class="nm-hot-bar"><i style="width:${(cnt/maxHot)*100}%"></i></div>
