@@ -283,12 +283,25 @@
     let subtitle = '';
 
     if (period === 'today' || period === 'yesterday') {
-      const d = new Date(refDate);
-      if (period === 'yesterday') d.setDate(d.getDate() - 1);
-      labels.push(d.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' }));
-      planned.push(plannedFor(d));
-      done.push(doneFor(d));
-      subtitle = period === 'today' ? 'Today' : 'Yesterday';
+      // Walk back 10 working days (Mon–Fri) ending on today (today is the rightmost token).
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const days = [];
+      const cur = new Date(today);
+      while (days.length < 10) {
+        const dow = cur.getDay();
+        if (dow >= 1 && dow <= 5) days.push(new Date(cur));
+        cur.setDate(cur.getDate() - 1);
+      }
+      days.reverse(); // oldest first → today last
+      const fmt = { weekday: 'short', day: 'numeric', month: 'short' };
+      days.forEach(d => {
+        const isToday = d.getTime() === today.getTime();
+        labels.push(isToday ? 'Today' : d.toLocaleDateString('en-GB', fmt));
+        planned.push(plannedFor(d));
+        done.push(doneFor(d));
+      });
+      const start = days[0];
+      subtitle = `Last 10 working days · ${start.toLocaleDateString('en-GB', { day:'numeric', month:'short' })} → today`;
     } else if (period === 'week' || !period) {
       const mon = mondayOf(refDate);
       const dayNames = ['Mon','Tue','Wed','Thu','Fri'];
