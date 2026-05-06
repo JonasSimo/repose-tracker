@@ -19500,8 +19500,13 @@ async function submitNearMiss() {
 
   // Auto-classify before submit. Falls back gracefully if the classifier
   // hasn't loaded yet — SharePoint columns just stay blank for QHSE review.
+  // Only "trusted" classifications (confidence ≥ 0.6) are saved; weaker
+  // matches are left blank so they surface in the QHSE review panel as
+  // unmatched/needs-review instead of silently being treated as authoritative.
   let cls = { nearMissCategory: '', observationCategory: '', confidence: 0 };
   try { if (window.classifyNearMiss) cls = window.classifyNearMiss(issue) || cls; } catch {}
+  const TRUSTED_CONF = 0.6;
+  const trusted = cls.confidence >= TRUSTED_CONF;
 
   const btn = document.getElementById('nms-submit-btn');
   btn.disabled = true;
@@ -19520,8 +19525,8 @@ async function submitNearMiss() {
       NearMissclosedout_x003f_: false,
       Source:                   'RepNet',
     };
-    if (cls.nearMissCategory)    fields.NearMissCategory    = cls.nearMissCategory;
-    if (cls.observationCategory) fields.ObservationCategory = cls.observationCategory;
+    if (trusted && cls.nearMissCategory)    fields.NearMissCategory    = cls.nearMissCategory;
+    if (trusted && cls.observationCategory) fields.ObservationCategory = cls.observationCategory;
 
     const res = await fetch(
       `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${NMS_LIST_ID}/items`,
@@ -19548,9 +19553,12 @@ let NMS_ITEMS = [];
 let nmsStatusFilter = 'open';
 let nmsAreaFilter   = '';
 
+// Overdue limit aligns with the Azure Function reminder schedule (`OVERDUE_LIMIT_DAYS`).
+// If you change this, update azure-functions/nms-reminders/email.js and email.js BANDS too.
+const NM_OVERDUE_DAYS = 28;
 function calcNmsClosureRate() {
   const now = new Date();
-  const MS30 = 30 * 24 * 60 * 60 * 1000;
+  const MS_LIMIT = NM_OVERDUE_DAYS * 24 * 60 * 60 * 1000;
   let success = 0;
   const failedIds = new Set();
   NMS_ITEMS.forEach(item => {
@@ -19569,10 +19577,9 @@ function calcNmsClosureRate() {
         }
       }
       if (!closedDate || isNaN(closedDate)) return;
-      if (closedDate - raised <= MS30) success++; else failedIds.add(item.id);
+      if (closedDate - raised <= MS_LIMIT) success++; else failedIds.add(item.id);
     } else {
-      // Open items overdue (past 30 days) count as failed
-      if (now - raised > MS30) failedIds.add(item.id);
+      if (now - raised > MS_LIMIT) failedIds.add(item.id);
     }
   });
   const total = success + failedIds.size;
@@ -19673,7 +19680,8 @@ function _nmGetCategories(item) {
   if (cls && cls.observationCategory) {
     return { parent: cls.nearMissCategory, child: cls.observationCategory, conf: cls.confidence, isAuto: true };
   }
-  return { parent: stored.parent || 'At-Risk Condition', child: stored.child || '', conf: 0, isAuto: false };
+  // Genuinely no category — leave parent empty so UI shows "—" instead of a misleading pill.
+  return { parent: stored.parent || '', child: stored.child || '', conf: 0, isAuto: false };
 }
 
 function _nmParentClass(parent) {
@@ -19744,7 +19752,7 @@ function renderNearMisses() {
         <div class="svc-kpi-icn">✓</div>
         <div class="svc-kpi-mid">
           <div class="svc-kpi-num">${rate ? rate.pct + '<span class="unit">%</span>' : '—'}</div>
-          <div class="svc-kpi-lbl">${rate ? `${rate.success} of ${rate.total} closed within 30d` : 'On-time closure'}</div>
+          <div class="svc-kpi-lbl">${rate ? `${rate.success} of ${rate.total} closed within ${NM_OVERDUE_DAYS}d` : 'On-time closure'}</div>
         </div>
       </div>
     </div>
@@ -19820,9 +19828,12 @@ function renderNearMisses() {
          <span class="pill">${escHtml(nmsAreaFilter)}</span>
          <button class="x" onclick="setNmsAreaFilter('')">✕ Clear</button>
        </div>` : '';
+  // Inline-onclick args use JSON.stringify (then HTML-escape) so apostrophes
+  // in location names can never break the JS string.
+  const jsArg = s => escHtml(JSON.stringify(s));
   document.getElementById('nm-hotspots').innerHTML = hotspotEntries.length
     ? clearBar + hotspotEntries.map(([name, cnt], i) => `
-        <div class="nm-hotspot${nmsAreaFilter === name ? ' active' : ''}" onclick="setNmsAreaFilter(${nmsAreaFilter === name ? "''" : `'${escHtml(name)}'`})">
+        <div class="nm-hotspot${nmsAreaFilter === name ? ' active' : ''}" onclick="setNmsAreaFilter(${nmsAreaFilter === name ? jsArg('') : jsArg(name)})">
           <div class="nm-hot-rank">${i+1}</div>
           <div class="nm-hot-name">${escHtml(name)}</div>
           <div class="nm-hot-bar"><i style="width:${(cnt/maxHot)*100}%"></i></div>
@@ -19831,19 +19842,24 @@ function renderNearMisses() {
     : '<div style="text-align:center;color:var(--text3);padding:24px;font-size:12px">No open near misses 🎉</div>';
 
   // ── Filter strip ────────────────────────────────────────────────────
-  const allClosedCnt = NMS_ITEMS.filter(i => i.fields?.NearMissclosedout_x003f_).length;
+  // Category counts honour the active date filter so the pill numbers always
+  // match what the user can actually see in the list below.
+  const inWindow = i => { const r = _NM_DATE(i.createdDateTime); return r && r >= dateCutoff; };
+  const allClosedCnt = NMS_ITEMS.filter(i => i.fields?.NearMissclosedout_x003f_ && inWindow(i)).length;
+  const allOpenInWin = allOpen.filter(inWindow);
+  const overdueInWin = overdueOpen.filter(inWindow);
   const areas = [...new Set(NMS_ITEMS.map(i => _NM_NORM_AREA(i.fields?.Locationofissue)).filter(Boolean))].sort();
-  const areaCounts = Object.fromEntries(areas.map(a => [a, NMS_ITEMS.filter(i => _NM_NORM_AREA(i.fields?.Locationofissue) === a && !i.fields?.NearMissclosedout_x003f_).length]));
-  const condCnt = NMS_ITEMS.filter(i => _nmGetCategories(i).parent === 'At-Risk Condition' && !i.fields?.NearMissclosedout_x003f_).length;
-  const behCnt  = NMS_ITEMS.filter(i => _nmGetCategories(i).parent === 'At-Risk Behavior'  && !i.fields?.NearMissclosedout_x003f_).length;
-  const posCnt  = NMS_ITEMS.filter(i => _nmGetCategories(i).parent === 'Positive Observation' && !i.fields?.NearMissclosedout_x003f_).length;
+  const areaCounts = Object.fromEntries(areas.map(a => [a, NMS_ITEMS.filter(i => _NM_NORM_AREA(i.fields?.Locationofissue) === a && !i.fields?.NearMissclosedout_x003f_ && inWindow(i)).length]));
+  const condCnt = allOpenInWin.filter(i => _nmGetCategories(i).parent === 'At-Risk Condition').length;
+  const behCnt  = allOpenInWin.filter(i => _nmGetCategories(i).parent === 'At-Risk Behavior').length;
+  const posCnt  = allOpenInWin.filter(i => _nmGetCategories(i).parent === 'Positive Observation').length;
 
   document.getElementById('nm-filter-strip').innerHTML = `
     <div class="nm-f-grp"><span class="nm-f-lbl">Status</span>
-      <button class="nm-pill ${nmsStatusFilter==='open'?'active':''}" onclick="setNmsStatusFilter('open')">Open <span class="cnt">${allOpen.length}</span></button>
+      <button class="nm-pill ${nmsStatusFilter==='open'?'active':''}" onclick="setNmsStatusFilter('open')">Open <span class="cnt">${allOpenInWin.length}</span></button>
       <button class="nm-pill ${nmsStatusFilter==='closed'?'active':''}" onclick="setNmsStatusFilter('closed')">Closed <span class="cnt">${allClosedCnt}</span></button>
       <button class="nm-pill ${nmsStatusFilter==='all'?'active':''}" onclick="setNmsStatusFilter('all')">All</button>
-      <button class="nm-pill fail ${nmsStatusFilter==='overdue'?'active':''}" onclick="setNmsStatusFilter('overdue')">⏱ Overdue <span class="cnt">${overdueOpen.length}</span></button>
+      <button class="nm-pill fail ${nmsStatusFilter==='overdue'?'active':''}" onclick="setNmsStatusFilter('overdue')">⏱ Overdue <span class="cnt">${overdueInWin.length}</span></button>
     </div>
     <div class="nm-f-divider"></div>
     <div class="nm-f-grp"><span class="nm-f-lbl">Date</span>
@@ -19862,7 +19878,7 @@ function renderNearMisses() {
     <div class="nm-f-divider"></div>
     <div class="nm-f-grp"><span class="nm-f-lbl">Site Area</span>
       <button class="nm-pill ${nmsAreaFilter===''?'active':''}" onclick="setNmsAreaFilter('')">All</button>
-      ${areas.map(a => `<button class="nm-pill ${nmsAreaFilter===a?'active':''}" onclick="setNmsAreaFilter('${escHtml(a)}')">${escHtml(a)}${areaCounts[a] ? ` <span class="cnt">${areaCounts[a]}</span>` : ''}</button>`).join('')}
+      ${areas.map(a => `<button class="nm-pill ${nmsAreaFilter===a?'active':''}" onclick="setNmsAreaFilter(${nmsAreaFilter===a ? jsArg('') : jsArg(a)})">${escHtml(a)}${areaCounts[a] ? ` <span class="cnt">${areaCounts[a]}</span>` : ''}</button>`).join('')}
     </div>
   `;
 
@@ -19893,14 +19909,16 @@ function renderNearMisses() {
   if (nmsStatusFilter === 'overdue')items = items.filter(i => failedIds.has(i.id));
 
   // ── Group cards ─────────────────────────────────────────────────────
+  // Positive observations never go to "overdue" or "open this week" — there's no
+  // action to chase, so they get their own bucket regardless of age.
   const groups = { overdue: [], thisWeek: [], older: [], positive: [], closed: [] };
   items.forEach(i => {
     const f = i.fields || {};
     const closed = !!f.NearMissclosedout_x003f_;
     const parent = _nmGetCategories(i).parent;
     if (closed)                                 groups.closed.push(i);
-    else if (failedIds.has(i.id))               groups.overdue.push(i);
     else if (parent === 'Positive Observation') groups.positive.push(i);
+    else if (failedIds.has(i.id))               groups.overdue.push(i);
     else {
       const r = _NM_DATE(i.createdDateTime);
       const age = r ? _NM_DAYS_BETWEEN(r, now) : 0;
@@ -19918,12 +19936,15 @@ function renderNearMisses() {
     sections.push({ cls:'',       title:'Open · older',        sub:`${groups.older.length}`,    items: groups.older });
   if (groups.positive.length)
     sections.push({ cls:'pos',    title:'Positive observations',sub:`${groups.positive.length}`,items: groups.positive });
-  if (groups.closed.length)
-    sections.push({ cls:'ok',     title:'Recently closed',     sub:`${groups.closed.length}`,    items: groups.closed.slice(0, 20) });
+  if (groups.closed.length) {
+    const recent = groups.closed.slice(0, 20);
+    const sub = groups.closed.length > 20 ? `last 20 of ${groups.closed.length}` : `${groups.closed.length}`;
+    sections.push({ cls:'ok', title:'Recently closed', sub, items: recent });
+  }
 
   const html = sections.length
     ? sections.map(s => `
-        <div class="nm-section-h ${s.cls}"><span class="dot"></span>${s.title}<span class="cnt">${s.sub}</span></div>
+        <div class="nm-section-h${s.cls ? ' ' + s.cls : ''}"><span class="dot"></span>${s.title}<span class="cnt">${s.sub}</span></div>
         ${s.items.map(i => _nmRenderCard(i, failedIds, now)).join('')}`).join('')
     : '<div style="color:var(--text3);text-align:center;padding:40px">No near miss reports match the current filter.</div>';
   root.innerHTML = html;
@@ -19960,9 +19981,12 @@ function _nmRenderCard(item, failedIds, now) {
   else if (age > 7)          ageBadge = `<span class="nm2-age warn">Day ${age}</span>`;
   else                       ageBadge = `<span class="nm2-age ok">Day ${age}</span>`;
 
-  const stripeCls = closed ? 'closed' : parentCls;
-  const parentLabel = closed ? 'Closed' : cat.parent || '—';
-  const parentPillCls = closed ? 'closed' : parentCls;
+  const stripeCls = closed ? 'closed' : (cat.parent ? parentCls : '');
+  const parentPill = closed
+    ? `<span class="parent-pill closed">Closed</span>`
+    : (cat.parent
+        ? `<span class="parent-pill ${parentCls}">${escHtml(cat.parent)}</span>`
+        : `<span class="parent-pill" style="background:var(--bg3);color:var(--text3);border-color:var(--border)">Uncategorised</span>`);
   const catPill = cat.child
     ? `<span class="cat-pill"><span class="ico">${NM_CAT_ICON[cat.child] || '•'}</span>${escHtml(cat.child)}</span>`
     : '';
@@ -20000,7 +20024,7 @@ function _nmRenderCard(item, failedIds, now) {
       <div class="nm2-bd">
         <div class="nm2-row1">
           <span class="nm2-ref">${escHtml(ref)}</span>
-          <span class="parent-pill ${parentPillCls}">${escHtml(parentLabel)}</span>
+          ${parentPill}
           ${catPill}
           ${autoPill}
           ${ageBadge}
@@ -20102,6 +20126,8 @@ function _nmRenderQhsePanel(items) {
                   : cat.isAuto  ? `<span class="auto-pill">auto · ${cat.conf.toFixed(2)}</span>`
                                 : `<span class="auto-pill" style="background:var(--gbg);color:var(--green);border-color:var(--gborder)">stored</span>`;
 
+    const origParent = isUnmatched ? '' : (cat.parent || '');
+    const origChild  = isUnmatched ? '' : (cat.child  || '');
     return `
       <div class="nm-rev-row${isLow || isUnmatched ? ' low' : ''}" data-id="${item.id}">
         <div class="nm-rev-meta">
@@ -20115,11 +20141,11 @@ function _nmRenderQhsePanel(items) {
         </div>
         <div class="nm-rev-sel">
           <label>Near Miss Category</label>
-          <select onchange="_nmReviewChanged('${item.id}')" id="qhse-parent-${item.id}">${blankParent}${parentOpts}</select>
+          <select onchange="_nmReviewChanged('${item.id}')" id="qhse-parent-${item.id}" data-original="${escHtml(origParent)}">${blankParent}${parentOpts}</select>
         </div>
         <div class="nm-rev-sel">
           <label>Observation Category</label>
-          <select onchange="_nmReviewChanged('${item.id}')" id="qhse-child-${item.id}">${blankChild}${childOpts}</select>
+          <select onchange="_nmReviewChanged('${item.id}')" id="qhse-child-${item.id}" data-original="${escHtml(origChild)}">${blankChild}${childOpts}</select>
         </div>
         <div class="nm-rev-act">
           <button class="nm-rev-save${cat.isAuto ? '' : ' disabled'}" id="qhse-save-${item.id}" onclick="saveNmsClassification('${item.id}')">${cat.isAuto ? 'Save' : '✓ Stored'}</button>
@@ -20135,7 +20161,7 @@ function _nmRenderQhsePanel(items) {
       </div>
     </div>
     <div class="nm-qhse-summary">
-      <div><div class="lbl">Auto-classified</div><div class="v">${autoCount}</div></div>
+      <div><div class="lbl">Auto-classified · last ${recent.length}</div><div class="v">${autoCount}</div></div>
       <div><div class="lbl">High confidence (≥0.85)</div><div class="v pass">${highConf}</div></div>
       <div><div class="lbl">Low confidence (&lt;0.6)</div><div class="v warn">${lowConf}</div></div>
       <div><div class="lbl">Unmatched · need review</div><div class="v fail">${unmatched}</div></div>
@@ -20150,12 +20176,20 @@ function _nmReviewChanged(id) {
   const childSel  = document.getElementById(`qhse-child-${id}`);
   const saveBtn   = document.getElementById(`qhse-save-${id}`);
   if (!parentSel || !childSel || !saveBtn) return;
-  const parentChanged = parentSel.value && parentSel.value !== parentSel.dataset.original;
+  const parentChanged = parentSel.value !== (parentSel.dataset.original || '');
+  const childChanged  = childSel.value  !== (childSel.dataset.original  || '');
   parentSel.parentElement.classList.toggle('changed', parentChanged);
-  childSel.parentElement.classList.toggle('changed', !!childSel.value);
-  saveBtn.classList.remove('disabled');
-  saveBtn.classList.add('changed');
-  saveBtn.textContent = 'Save override';
+  childSel.parentElement.classList.toggle('changed',  childChanged);
+  if (parentChanged || childChanged) {
+    saveBtn.classList.remove('disabled');
+    saveBtn.classList.add('changed');
+    saveBtn.textContent = 'Save override';
+  } else {
+    // Returned to original — restore Save / ✓ Stored state.
+    saveBtn.classList.remove('changed');
+    saveBtn.classList.add('disabled');
+    saveBtn.textContent = '✓ No change';
+  }
 }
 
 async function saveNmsClassification(itemId) {
