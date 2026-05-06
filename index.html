@@ -6385,19 +6385,24 @@ function renderPrepGrid() {
   sec.style.display = 'block';
   const wkData = PROD[activeWC]||{};
   const wcStr  = wkData.wc || '';
-  const prepBtns = [1,2,3,4,5].map(p => {
-    const jobs = wkData[p]||[];
-    const servCt = jobs.filter(j => j.isService).length;
-    const newCt  = jobs.length - servCt;
-    const ctLabel = servCt
-      ? `${newCt} new · ${servCt} SERV`
-      : `${jobs.length} job${jobs.length!==1?'s':''}`;
-    return `<button class="prep-btn ${activePrep===p?'active':''}" onclick="selectPrep(${p})">
-      <span class="prep-num">${p}</span>
-      <span class="prep-day">${prepDayLabel(wcStr, p)}</span>
-      <span class="prep-ct">${ctLabel}</span>
-    </button>`;
-  });
+  const prepBtns = [1,2,3,4,5]
+    // Hide prep buttons that don't have a working day this week (bank-holiday
+    // short week) AND have no jobs. If there are jobs the button still shows
+    // with day '—' so the user can drill in and see them.
+    .filter(p => (wkData[p] && wkData[p].length > 0) || prepDayLabel(wcStr, p) !== '—')
+    .map(p => {
+      const jobs = wkData[p]||[];
+      const servCt = jobs.filter(j => j.isService).length;
+      const newCt  = jobs.length - servCt;
+      const ctLabel = servCt
+        ? `${newCt} new · ${servCt} SERV`
+        : `${jobs.length} job${jobs.length!==1?'s':''}`;
+      return `<button class="prep-btn ${activePrep===p?'active':''}" onclick="selectPrep(${p})">
+        <span class="prep-num">${p}</span>
+        <span class="prep-day">${prepDayLabel(wcStr, p)}</span>
+        <span class="prep-ct">${ctLabel}</span>
+      </button>`;
+    });
   const expJobs = wkData.express||[];
   prepBtns.push(`<button class="prep-btn ${activePrep==='express'?'active':''}" onclick="selectPrep('express')" style="border-color:${activePrep==='express'?'':'#fed7aa'};${activePrep!=='express'?'background:#fffbeb;color:#92400e':''}">
     <span class="prep-num">EXP</span>
@@ -7579,11 +7584,14 @@ function workingPrepNumber(d) {
 
 // Day-of-week label ('Mon'..'Fri') for a given prep number in a given week,
 // accounting for UK bank holidays. On wc 04/05/2026 (Mon = bank holiday)
-// prep 1 → 'Tue', prep 2 → 'Wed', etc. Falls back to the static PREP_DAYS
-// mapping if the wc is malformed or the prep doesn't fit the week.
+// prep 1 → 'Tue', prep 2 → 'Wed', etc. If the prep doesn't fit this week's
+// working days (e.g. prep 5 in a 4-day bank-holiday week) returns '—' so
+// callers don't show two "Fri" buttons. Static PREP_DAYS fallback is used
+// only when the wc itself is malformed (defensive).
 function prepDayLabel(wcDDMMYYYY, prepNum) {
-  const fallback = PREP_DAYS[Number(prepNum) - 1] || '';
-  if (!wcDDMMYYYY || !/^\d{2}\/\d{2}\/\d{4}$/.test(wcDDMMYYYY) || !prepNum) return fallback;
+  if (!wcDDMMYYYY || !/^\d{2}\/\d{2}\/\d{4}$/.test(wcDDMMYYYY) || !prepNum) {
+    return PREP_DAYS[Number(prepNum) - 1] || '';
+  }
   const [dd, mm, yyyy] = wcDDMMYYYY.split('/');
   const mon = new Date(+yyyy, +mm - 1, +dd);
   let count = 0;
@@ -7595,7 +7603,7 @@ function prepDayLabel(wcDDMMYYYY, prepNum) {
     count++;
     if (count === Number(prepNum)) return ['Mon','Tue','Wed','Thu','Fri'][dow - 1];
   }
-  return fallback;
+  return '—'; // prep doesn't fit this week's working days
 }
 
 function addWorkdays(d, n) {
