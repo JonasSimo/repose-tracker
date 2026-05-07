@@ -20238,7 +20238,9 @@ function renderNearMisses() {
   const inWindow = i => { const r = _NM_DATE(i.createdDateTime); return r && r >= dateCutoff; };
   const allClosedCnt = NMS_ITEMS.filter(i => i.fields?.NearMissclosedout_x003f_ && inWindow(i)).length;
   const allOpenInWin = allOpen.filter(inWindow);
-  const overdueInWin = overdueOpen.filter(inWindow);
+  // Overdue count ignores the date window: overdue items are by definition >28d
+  // old, so a 7d/30d window would hide them and the pill would disagree with the
+  // header KPI. Action-driven pill — show the global truth.
   const areas = [...new Set(NMS_ITEMS.map(i => _NM_NORM_AREA(i.fields?.Locationofissue)).filter(Boolean))].sort();
   const areaCounts = Object.fromEntries(areas.map(a => [a, NMS_ITEMS.filter(i => _NM_NORM_AREA(i.fields?.Locationofissue) === a && !i.fields?.NearMissclosedout_x003f_ && inWindow(i)).length]));
   const condCnt = allOpenInWin.filter(i => _nmGetCategories(i).parent === 'At-Risk Condition').length;
@@ -20250,7 +20252,7 @@ function renderNearMisses() {
       <button class="nm-pill ${nmsStatusFilter==='open'?'active':''}" onclick="setNmsStatusFilter('open')">Open <span class="cnt">${allOpenInWin.length}</span></button>
       <button class="nm-pill ${nmsStatusFilter==='closed'?'active':''}" onclick="setNmsStatusFilter('closed')">Closed <span class="cnt">${allClosedCnt}</span></button>
       <button class="nm-pill ${nmsStatusFilter==='all'?'active':''}" onclick="setNmsStatusFilter('all')">All</button>
-      <button class="nm-pill fail ${nmsStatusFilter==='overdue'?'active':''}" onclick="setNmsStatusFilter('overdue')">⏱ Overdue <span class="cnt">${overdueInWin.length}</span></button>
+      <button class="nm-pill fail ${nmsStatusFilter==='overdue'?'active':''}" onclick="setNmsStatusFilter('overdue')">⏱ Overdue <span class="cnt">${overdueOpen.length}</span></button>
     </div>
     <div class="nm-f-divider"></div>
     <div class="nm-f-grp"><span class="nm-f-lbl">Date</span>
@@ -20292,7 +20294,9 @@ function renderNearMisses() {
 
   // ── Apply filters to list items ─────────────────────────────────────
   let items = NMS_ITEMS.slice();
-  items = items.filter(i => { const r = _NM_DATE(i.createdDateTime); return r && r >= dateCutoff; });
+  // Date window doesn't apply to Overdue — those items are inherently >28d old.
+  if (nmsStatusFilter !== 'overdue')
+    items = items.filter(i => { const r = _NM_DATE(i.createdDateTime); return r && r >= dateCutoff; });
   if (nmsAreaFilter)                items = items.filter(i => _NM_NORM_AREA(i.fields?.Locationofissue) === nmsAreaFilter);
   if (nmCategoryFilter)             items = items.filter(i => _nmGetCategories(i).parent === nmCategoryFilter);
   if (nmsStatusFilter === 'open')   items = items.filter(i => !i.fields?.NearMissclosedout_x003f_);
