@@ -15095,7 +15095,7 @@ function renderIssuesIntoQuality(host) {
   const monthAgo = new Date(now.getTime() - 30 * 86400000);
   const isClosed = i => {
     const s = i.fields?.Status;
-    return s === CPAR_STATUS.CLOSED || s === CPAR_STATUS.ARCHIVED || s === 'Closed';
+    return s === CPAR_STATUS.CLOSED || s === CPAR_STATUS.ARCHIVED || s === 'Closed' || s === CPAR_STATUS.AWAITING_EFF_CHECK;
   };
   const todoCount     = items.filter(i => { const s = i.fields?.Status; return s === CPAR_STATUS.OPEN || s === CPAR_STATUS.RETURNED || (!s); }).length;
   const progressCount = items.filter(i => [CPAR_STATUS.PENDING_REVIEW, CPAR_STATUS.INVESTIGATION, CPAR_STATUS.AWAITING_SIGNOFF].includes(i.fields?.Status)).length;
@@ -15118,8 +15118,15 @@ function renderIssuesIntoQuality(host) {
   const filterMap = {
     todo: i => { const s = i.fields?.Status; return s === CPAR_STATUS.OPEN || s === CPAR_STATUS.RETURNED || (!s && true); },
     progress: i => [CPAR_STATUS.PENDING_REVIEW, CPAR_STATUS.INVESTIGATION, CPAR_STATUS.AWAITING_SIGNOFF].includes(i.fields?.Status),
-    closed: i => { const s = i.fields?.Status; if (s !== CPAR_STATUS.CLOSED && s !== 'Closed') return false; const d = parseCPARDate(i.fields?.ClosedAt); return d.getTime() && (Date.now() - d.getTime() < 30*86400000); },
-    all: i => i.fields?.Status !== CPAR_STATUS.ARCHIVED && i.fields?.Status !== CPAR_STATUS.AWAITING_EFF_CHECK,
+    closed: i => {
+      const s = i.fields?.Status;
+      // Any closed-state item with ClosedAt in the last 30 days — includes
+      // items auto-promoted to Awaiting Eff. Check or Archived since close.
+      if (s !== CPAR_STATUS.CLOSED && s !== 'Closed' && s !== CPAR_STATUS.AWAITING_EFF_CHECK && s !== CPAR_STATUS.ARCHIVED) return false;
+      const d = parseCPARDate(i.fields?.ClosedAt);
+      return d.getTime() && (Date.now() - d.getTime() < 30*86400000);
+    },
+    all: i => i.fields?.Status !== CPAR_STATUS.ARCHIVED,
     repeat: i => {
       if (i.fields?.IsRepeat !== true) return false;
       if (i.fields?.Status === CPAR_STATUS.ARCHIVED || i.fields?.Status === CPAR_STATUS.AWAITING_EFF_CHECK) return false;
@@ -16353,7 +16360,7 @@ function renderQualityDashboard(host) {
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const isClosed = i => {
     const s = i.fields?.Status;
-    return s === CPAR_STATUS.CLOSED || s === CPAR_STATUS.ARCHIVED || s === 'Closed';
+    return s === CPAR_STATUS.CLOSED || s === CPAR_STATUS.ARCHIVED || s === 'Closed' || s === CPAR_STATUS.AWAITING_EFF_CHECK;
   };
   const openCount = items.filter(i => !isClosed(i)).length;
   const closedThisMonth = items.filter(i => {
@@ -16611,10 +16618,11 @@ function renderRecentRepeats() {
 // 90d still covers the active triage horizon and cuts to a few hundred rows.
 const CPAR_HISTORY_DAYS = 90;
 function _cparFilterUrl(siteId, listId) {
-  // Date filter dropped: fields/Created 400s past the SP threshold and
-  // createdDateTime filtering isn't supported on SP list items via Graph.
-  // Status alone (manually indexed) — most <1y CPARs aren't closed anyway.
-  const filter = `fields/Status ne 'Closed' and fields/Status ne 'Archived'`;
+  // Exclude only Archived (truly done — past effectiveness check). Closed items
+  // must come through so the "Recently closed" view and stat tiles can find
+  // them; once they age past 30 days they auto-promote to Awaiting Eff. Check
+  // (already included), so this query stays small in steady state.
+  const filter = `fields/Status ne 'Archived'`;
   return `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items` +
          `?$expand=fields&$top=999&$filter=${encodeURIComponent(filter)}`;
 }
@@ -28819,6 +28827,52 @@ async function mtDeleteYearly(id) {
   function actionText(t){
     if (!t) return '—';
     return (t.description || t.action || '—').trim() || '—';
+  }
+
+  // ── chart updaters ──
+  // For "trend by week" charts (chart1 S5, chart4 S6, …): two series per chart
+  // (Series 0 = actual count, Series 1 = target line). We rewrite category
+  // labels in EVERY <c:cat>/<c:strCache> block (each series carries its own
+  // copy of the same labels) and rewrite values in only the FIRST <c:val>/
+  // <c:numCache> block (Series 0 — actual). The target series is left alone.
+  function buildPtList(values, formatStr){
+    const fmt = formatStr ? `<c:formatCode>${formatStr}</c:formatCode>` : '';
+    const pts = values.map((v, i) => `<c:pt idx="${i}"><c:v>${xmlEscape(String(v))}</c:v></c:pt>`).join('');
+    return `${fmt}<c:ptCount val="${values.length}"/>${pts}`;
+  }
+  function rewriteCategoryLabels(chartXml, labels){
+    return chartXml.replace(
+      /(<c:cat>\s*<c:strRef>[\s\S]*?<c:strCache>)[\s\S]*?(<\/c:strCache>)/g,
+      (_, open, close) => open + buildPtList(labels) + close
+    );
+  }
+  function rewriteFirstSeriesValues(chartXml, values){
+    let done = false;
+    return chartXml.replace(
+      /(<c:val>\s*<c:numRef>[\s\S]*?<c:numCache>)[\s\S]*?(<\/c:numCache>)/g,
+      (m, open, close) => {
+        if (done) return m;
+        done = true;
+        return open + buildPtList(values, 'General') + close;
+      }
+    );
+  }
+  function updateTrendChart(chartXml, weekLabels, weekCounts){
+    return rewriteFirstSeriesValues(rewriteCategoryLabels(chartXml, weekLabels), weekCounts);
+  }
+  // Counts tickets matching `predicate` per ISO week, ending at win.monday's
+  // week and going back `weeksBack` weeks. Returns { labels, counts }.
+  function countByPriorWeeks(tickets, win, weeksBack, predicate){
+    const labels = [], counts = [];
+    for (let i = weeksBack - 1; i >= 0; i--){
+      const monday = new Date(win.monday); monday.setDate(monday.getDate() - i*7);
+      const sunday = new Date(monday);     sunday.setDate(sunday.getDate() + 6);
+      sunday.setHours(23,59,59,999);
+      const wk = isoWeekOf(monday).week;
+      const c = tickets.filter(t => predicate(t) && t.openDate >= monday && t.openDate <= sunday).length;
+      labels.push(`Week ${wk}`); counts.push(c);
+    }
+    return { labels, counts };
   }
 
   // ── data gathering ──
