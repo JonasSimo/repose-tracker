@@ -28888,7 +28888,8 @@ async function mtDeleteYearly(id) {
     const inDataWeek = tickets.filter(t => t.warrantyChargeable === 'WARRANTY' && inWin(t.openDate));
     const complaints = inDataWeek.filter(t => t.period30 === 'Inside 30');
     const warranty   = inDataWeek.filter(t => t.period30 === 'Outside 30');
-    return { complaints, warranty };
+    // Pass the full ticket array through too — chart helpers need the prior 8 weeks.
+    return { complaints, warranty, allTickets: tickets };
   }
 
   // ── deck build ──
@@ -28939,6 +28940,24 @@ async function mtDeleteYearly(id) {
       }
       zip.file(sf, xml);
     }
+
+    // ── chart data updates (V1.5: trend-by-week charts only) ──
+    // chart1 = S5 Customer Complaints trend (Inside 30 + WARRANTY)
+    // chart4 = S6 Warranty Returns trend (Outside 30 + WARRANTY)
+    const tickets = data.allTickets || [];
+    const chartUpdates = [
+      { file: 'ppt/charts/chart1.xml',
+        ...countByPriorWeeks(tickets, win, 8, t => t.warrantyChargeable === 'WARRANTY' && t.period30 === 'Inside 30') },
+      { file: 'ppt/charts/chart4.xml',
+        ...countByPriorWeeks(tickets, win, 8, t => t.warrantyChargeable === 'WARRANTY' && t.period30 === 'Outside 30') },
+    ];
+    for (const u of chartUpdates) {
+      const f = zip.file(u.file);
+      if (!f) { console.warn('[QA Deck] chart not found:', u.file); continue; }
+      const xml = await f.async('string');
+      zip.file(u.file, updateTrendChart(xml, u.labels, u.counts));
+    }
+
     return await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
   }
 
