@@ -23144,14 +23144,15 @@ function _renderServiceTickets() {
   if (!c) return;
   const tickets = _serviceState.tickets.filter(_serviceTicketMatches);
   const now = new Date();
+  // Overdue = open >30 days (matches the red age badge in the row).
+  const ticketAgeDays = t => t.openDate ? Math.round((Date.now() - t.openDate.getTime()) / 86400000) : 0;
   tickets.sort((a, b) => {
-    const aOver = a.proposedCloseDate && a.proposedCloseDate < now ? 1 : 0;
-    const bOver = b.proposedCloseDate && b.proposedCloseDate < now ? 1 : 0;
+    const aOver = ticketAgeDays(a) > 30 ? 1 : 0;
+    const bOver = ticketAgeDays(b) > 30 ? 1 : 0;
     if (aOver !== bOver) return bOver - aOver;
     return (b.openDate?.getTime() || 0) - (a.openDate?.getTime() || 0);
   });
   const counts = _serviceTicketCounts();
-  const slaRiskCount = _computeServiceSlaRisk(0.80, 999).length;
   c.innerHTML = `
     <div class="svc-panel">
       <div class="svc-panel-head">
@@ -23164,7 +23165,7 @@ function _renderServiceTickets() {
         <div class="svc-chips">
           <span class="svc-chip ${!_serviceFilters.period && !_serviceFilters.wc && !_serviceFilters.overdueOnly && !_serviceFilters.slaRiskOnly ? 'on' : ''}" data-fclear>All <span class="cnt">${counts.open}</span></span>
           <span class="svc-chip ${_serviceFilters.overdueOnly ? 'on' : ''}" data-foverdue>⚠ Overdue <span class="cnt">${counts.overdue}</span></span>
-          <span class="svc-chip ${_serviceFilters.slaRiskOnly ? 'on' : ''}" data-fsla>⏰ SLA risk <span class="cnt">${slaRiskCount}</span></span>
+          <span class="svc-chip ${_serviceFilters.slaRiskOnly ? 'on' : ''}" data-fsla>⏰ SLA risk <span class="cnt">${counts.slaRisk}</span></span>
           <span class="svc-chip ${_serviceFilters.period === 'in30' ? 'on' : ''}" data-fperiod="in30">Inside 30 days <span class="cnt">${counts.in30}</span></span>
           <span class="svc-chip ${_serviceFilters.period === 'out30' ? 'on' : ''}" data-fperiod="out30">Outside 30 days <span class="cnt">${counts.out30}</span></span>
           <span class="svc-chip ${_serviceFilters.wc === 'WARRANTY' ? 'on' : ''}" data-fwc="WARRANTY">Warranty <span class="cnt">${counts.warranty}</span></span>
@@ -23231,15 +23232,15 @@ function _renderServiceTickets() {
 
 function _serviceTicketMatches(t) {
   if (t.openClosed !== 'OPEN') return false;
+  // Age-based overdue/SLA-risk so the chip definitions match the row age badges
+  // and the printed Age key (<14 ok, 14–30 warn, >30 bad). proposedCloseDate is
+  // rarely populated so the prior date-based logic always returned 0.
+  const ageDays = t.openDate ? Math.round((Date.now() - t.openDate.getTime()) / 86400000) : 0;
   if (_serviceFilters.overdueOnly) {
-    if (!t.proposedCloseDate || t.proposedCloseDate >= new Date()) return false;
+    if (!t.openDate || ageDays <= 30) return false;
   }
   if (_serviceFilters.slaRiskOnly) {
-    if (!t.openDate || !t.proposedCloseDate) return false;
-    if (t.proposedCloseDate <= new Date()) return false;
-    const total = t.proposedCloseDate.getTime() - t.openDate.getTime();
-    const elapsed = Date.now() - t.openDate.getTime();
-    if (total <= 0 || (elapsed / total) < 0.80) return false;
+    if (!t.openDate || ageDays <= 14 || ageDays > 30) return false;
   }
   if (_serviceFilters.period === 'in30' && !t.period30.toLowerCase().startsWith('inside 30')) return false;
   if (_serviceFilters.period === 'out30' && !t.period30.toLowerCase().startsWith('outside 30')) return false;
@@ -23254,10 +23255,11 @@ function _serviceTicketMatches(t) {
 
 function _serviceTicketCounts() {
   const open = _serviceState.tickets.filter(t => t.openClosed === 'OPEN');
-  const now = new Date();
+  const ageDays = t => t.openDate ? Math.round((Date.now() - t.openDate.getTime()) / 86400000) : 0;
   return {
     open: open.length,
-    overdue: open.filter(t => t.proposedCloseDate && t.proposedCloseDate < now).length,
+    overdue: open.filter(t => ageDays(t) > 30).length,
+    slaRisk: open.filter(t => { const d = ageDays(t); return d > 14 && d <= 30; }).length,
     in30: open.filter(t => t.period30.toLowerCase().startsWith('inside 30')).length,
     out30: open.filter(t => t.period30.toLowerCase().startsWith('outside 30')).length,
     warranty: open.filter(t => t.warrantyChargeable === 'WARRANTY').length,
@@ -23268,7 +23270,13 @@ function _serviceTicketCounts() {
 function _serviceTicketRowHtml(t) {
   const days = t.openDate ? Math.round((Date.now() - t.openDate.getTime()) / 86400000) : 0;
   const ageCls = days > 30 ? 'bad' : days > 14 ? 'warn' : 'ok';
-  const isOverdue = t.proposedCloseDate && t.proposedCloseDate < new Date();
+  const isOverdue = days > 30;
+  const wc = t.warrantyChargeable;
+  const wcCell = wc === 'WARRANTY'
+    ? `<span class="svc-pill warranty">Warranty</span>`
+    : wc === 'CHARGEABLE'
+      ? `<span class="svc-pill chargeable">Chargeable</span>`
+      : `<span style="color:var(--text3);font-size:11px">—</span>`;
   return `
     <tr class="row ${isOverdue ? 'urgent' : ''}" data-ticketno="${_escapeSvc(t.ticketNo)}">
       <td><span class="id">${_escapeSvc(t.ticketNo)}</span></td>
@@ -23276,7 +23284,7 @@ function _serviceTicketRowHtml(t) {
         <div class="ttl">${_escapeSvc(t.faultCode || t.description.slice(0, 60) || '—')} · ${_escapeSvc(t.model || '—')}</div>
         <div class="meta">${_escapeSvc(t.customer)} · ${_escapeSvc(t.subFault || '')} ${_chairPillHtml(t) ? ' · ' + _chairPillHtml(t) : ''}${_maxoptraPillHtml(t.maxoptraStatus) ? ' · ' + _maxoptraPillHtml(t.maxoptraStatus) : ''}</div>
       </td>
-      <td><span class="svc-pill ${t.warrantyChargeable === 'WARRANTY' ? 'warranty' : 'chargeable'}">${t.warrantyChargeable === 'WARRANTY' ? 'Warranty' : 'Chargeable'}</span></td>
+      <td>${wcCell}</td>
       <td><span class="svc-pill ${t.period30.toLowerCase().startsWith('inside 30') ? 'in30' : 'out30'}">${t.period30.toLowerCase().startsWith('inside 30') ? 'Inside 30 days' : 'Outside 30 days'}</span></td>
       <td><span class="svc-age ${ageCls}">${days}d</span></td>
     </tr>
@@ -25549,11 +25557,10 @@ function _computeServiceForecast() {
   const predictedOpens = Math.round(avgOpened * mult);
   const predictedGbp = Math.round(avgGbp * mult);
 
-  // Compare current-month forecast vs last completed month's actuals.
-  // (Comparing to month-to-date would inflate the delta early in the month.)
-  const lastMonth = stats[stats.length - 1] || { opened: 0, gbp: 0 };
-  const opensDelta = lastMonth.opened > 0 ? Math.round((predictedOpens - lastMonth.opened) / lastMonth.opened * 100) : 0;
-  const gbpDelta = lastMonth.gbp > 0 ? Math.round((predictedGbp - lastMonth.gbp) / lastMonth.gbp * 100) : 0;
+  // Compare forecast to 3-month rolling baseline (stable). One-month comparisons
+  // produced wild ratios when a single month happened to be unusually quiet.
+  const opensDelta = avgOpened > 0 ? Math.round((predictedOpens - avgOpened) / avgOpened * 100) : 0;
+  const gbpDelta = avgGbp > 0 ? Math.round((predictedGbp - avgGbp) / avgGbp * 100) : 0;
 
   // Backlog risk band: count of currently-open tickets
   const openCount = _serviceState.tickets.filter(t => t.openClosed === 'OPEN').length;
@@ -25591,12 +25598,12 @@ function _renderServiceForecast() {
         <div class="svc-forecast-cell">
           <div class="lbl">Predicted opens</div>
           <div class="v">~${f.predictedOpens}<span class="unit">tickets</span></div>
-          <div class="delta ${opensDeltaCls}">${opensArrow} ${Math.abs(f.opensDelta)}% vs last month</div>
+          <div class="delta ${opensDeltaCls}">${opensArrow} ${Math.abs(f.opensDelta)}% vs 3-month avg</div>
         </div>
         <div class="svc-forecast-cell">
           <div class="lbl">Predicted £ chargeable</div>
           <div class="v">£${f.predictedGbp.toLocaleString('en-GB')}</div>
-          <div class="delta ${gbpDeltaCls}">${gbpArrow} ${Math.abs(f.gbpDelta)}% vs last month</div>
+          <div class="delta ${gbpDeltaCls}">${gbpArrow} ${Math.abs(f.gbpDelta)}% vs 3-month avg</div>
         </div>
         <div class="svc-forecast-cell">
           <div class="lbl">Backlog risk band</div>
