@@ -5041,9 +5041,14 @@ const PARTS_BLAKE = 'blake@reposefurniture.co.uk';
 const PARTS_TRANSPORT_RECIPIENTS = ['transport@reposefurniture.co.uk', 'carrie.blakeway@reposefurniture.co.uk'];
 const PARTS_ACCOUNTS_RECIPIENT = 'accounts@reposefurniture.co.uk';
 
-// Ticket editor — only Jonas + Blake can edit existing tickets directly from
-// the drawer. Everyone else sees no Edit button.
-const TICKET_EDITORS = new Set(['jonas.simonaitis@reposefurniture.co.uk', 'blake@reposefurniture.co.uk']);
+// Ticket editor — Jonas, Blake, and Katy can edit existing tickets directly
+// from the drawer. Everyone else sees no Edit button. Raising new tickets is
+// ungated (the + New Ticket button is visible to anyone who can see the tab).
+const TICKET_EDITORS = new Set([
+  'jonas.simonaitis@reposefurniture.co.uk',
+  'blake@reposefurniture.co.uk',
+  'katy.bartlett@reposefurniture.co.uk',
+]);
 function _canEditTickets() {
   const u = (graphAccount && graphAccount.username || '').toLowerCase();
   return TICKET_EDITORS.has(u);
