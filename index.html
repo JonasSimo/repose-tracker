@@ -25517,12 +25517,12 @@ function _renderServiceCapaBridge() {
   });
 }
 
-// Compute next-month forecast from 13-month trend.
-// Algorithm v1: simple moving average over last 3 months × seasonal multiplier.
+// Compute current-month forecast from 12-month trend.
+// Algorithm v1: simple moving average over last 3 completed months × seasonal multiplier.
 // Seasonal multipliers are rough heuristics; tune after a year of data.
 function _computeServiceForecast() {
   const now = new Date();
-  const months = []; // last 12 months excluding current
+  const months = []; // last 12 completed months (excludes current)
   for (let i = 12; i >= 1; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const next = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
@@ -25543,17 +25543,17 @@ function _computeServiceForecast() {
 
   // Seasonal multipliers — rough trend (can be tuned per real Repose data later)
   const seasonal = [1.05, 1.00, 0.95, 0.91, 0.95, 1.00, 1.05, 1.10, 1.05, 1.00, 1.05, 1.15];
-  const nextMonth = (now.getMonth() + 1) % 12;
-  const mult = seasonal[nextMonth];
+  const targetMonth = now.getMonth();
+  const mult = seasonal[targetMonth];
 
   const predictedOpens = Math.round(avgOpened * mult);
   const predictedGbp = Math.round(avgGbp * mult);
 
-  // Current open count vs current month's opened (for delta direction)
-  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const currentOpened = _serviceState.tickets.filter(t => t.openDate && t.openDate >= currentMonthStart).length;
-  const opensDelta = currentOpened > 0 ? Math.round((predictedOpens - currentOpened) / currentOpened * 100) : 0;
-  const gbpDelta = avgGbp > 0 ? Math.round((predictedGbp - avgGbp) / avgGbp * 100) : 0;
+  // Compare current-month forecast vs last completed month's actuals.
+  // (Comparing to month-to-date would inflate the delta early in the month.)
+  const lastMonth = stats[stats.length - 1] || { opened: 0, gbp: 0 };
+  const opensDelta = lastMonth.opened > 0 ? Math.round((predictedOpens - lastMonth.opened) / lastMonth.opened * 100) : 0;
+  const gbpDelta = lastMonth.gbp > 0 ? Math.round((predictedGbp - lastMonth.gbp) / lastMonth.gbp * 100) : 0;
 
   // Backlog risk band: count of currently-open tickets
   const openCount = _serviceState.tickets.filter(t => t.openClosed === 'OPEN').length;
@@ -25562,7 +25562,7 @@ function _computeServiceForecast() {
   if (openCount >= 25) { bandLabel = 'Breach'; bandPct = Math.min(100, 85 + (openCount - 25) / 10 * 15); }
   else if (openCount >= 18) { bandLabel = 'Warning'; bandPct = 60 + (openCount - 18) / 7 * 25; }
 
-  const monthName = new Date(now.getFullYear(), now.getMonth() + 1, 1).toLocaleDateString('en-GB', { month: 'long' });
+  const monthName = new Date(now.getFullYear(), now.getMonth(), 1).toLocaleDateString('en-GB', { month: 'long' });
 
   return {
     monthName,
@@ -25591,12 +25591,12 @@ function _renderServiceForecast() {
         <div class="svc-forecast-cell">
           <div class="lbl">Predicted opens</div>
           <div class="v">~${f.predictedOpens}<span class="unit">tickets</span></div>
-          <div class="delta ${opensDeltaCls}">${opensArrow} ${Math.abs(f.opensDelta)}% vs this month</div>
+          <div class="delta ${opensDeltaCls}">${opensArrow} ${Math.abs(f.opensDelta)}% vs last month</div>
         </div>
         <div class="svc-forecast-cell">
           <div class="lbl">Predicted £ chargeable</div>
           <div class="v">£${f.predictedGbp.toLocaleString('en-GB')}</div>
-          <div class="delta ${gbpDeltaCls}">${gbpArrow} ${Math.abs(f.gbpDelta)}% vs avg</div>
+          <div class="delta ${gbpDeltaCls}">${gbpArrow} ${Math.abs(f.gbpDelta)}% vs last month</div>
         </div>
         <div class="svc-forecast-cell">
           <div class="lbl">Backlog risk band</div>
