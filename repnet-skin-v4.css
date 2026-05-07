@@ -805,6 +805,23 @@
   color: var(--repose-navy) !important;
 }
 
+/* QA-deck primary action — navy pill, distinct from neutral Refresh */
+.ui-v4 .stats-refresh-btn.qa-deck-btn-primary {
+  background: var(--repose-navy) !important;
+  color: #fff !important;
+  border-color: var(--repose-navy) !important;
+  box-shadow: 0 2px 8px -2px rgba(14,2,58,0.4) !important;
+}
+.ui-v4 .stats-refresh-btn.qa-deck-btn-primary:hover {
+  background: #1a0a52 !important;
+  color: #fff !important;
+  border-color: #1a0a52 !important;
+}
+.ui-v4 .stats-refresh-btn.qa-deck-btn-primary:disabled {
+  opacity: 0.55 !important;
+  cursor: progress !important;
+}
+
 /* Date nav row */
 .ui-v4 .stats-date-nav {
   padding: 14px 28px !important;

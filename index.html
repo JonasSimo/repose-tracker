@@ -1209,6 +1209,12 @@ body.tablet-mode .uh-token-icon { font-size:14px; }
   color: var(--repose-grey); font-family: inherit;
 }
 .stats-refresh-btn:hover { border-color: var(--repose-blue); color: var(--repose-blue); }
+.qa-deck-btn-primary {
+  background: var(--repose-navy) !important; color: #fff !important;
+  border-color: var(--repose-navy) !important;
+}
+.qa-deck-btn-primary:hover { opacity: 0.9; color: #fff !important; border-color: var(--repose-navy) !important; }
+.qa-deck-btn-primary:disabled { opacity: 0.5; cursor: progress; }
 
 /* Date navigator */
 .stats-date-nav {
@@ -3841,6 +3847,7 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 </style>
 <script src="/msal-browser.min.js" defer></script>
 <script src="/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
   if (typeof Chart !== 'undefined') {
@@ -4249,6 +4256,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <button class="stats-period-btn"         data-period="day"       onclick="setStatsPeriod('day',this)">Pick Day</button>
         </div>
         <button class="stats-refresh-btn" id="stats-refresh-btn" onclick="refreshStatsData()">↻ Refresh</button>
+        <button class="stats-refresh-btn qa-deck-btn-primary" id="qa-deck-btn" onclick="exportQualityDeck(this)" title="Build the weekly QA meeting deck for last completed ISO week">⤓ Export Quality Deck</button>
         <!-- Send Digest button disabled until Mail.Send admin consent is granted
         <button class="stats-refresh-btn" id="stats-digest-btn" onclick="sendDailyDigest(this)" style="background:var(--repose-navy);color:#fff;border-color:var(--repose-navy)">✉ Send Digest</button>
         -->
@@ -10411,7 +10419,7 @@ async function loadProductionFromSharePoint() {
     WEEKS.length = 0;
     newWEEKS.forEach(w => WEEKS.push(w));
     if (!activeWC || (activeWC !== 'PRIORITY' && !newWEEKS.includes(activeWC))) activeWC = `WK ${now}`;
-    activeProdWC = `WK ${now}`;
+    if (!activeProdWC || !newWEEKS.includes(activeProdWC)) activeProdWC = `WK ${now}`;
 
     // Build EXPRESS_TYPE_MAP: rep7 → 'EXP'|'MFT'
     EXPRESS_TYPE_MAP.clear();
@@ -28762,5 +28770,188 @@ async function mtDeleteYearly(id) {
 <!-- ═══ RepNet Skin v4 — flag JS (no-op unless ?ui=v4) ═══ -->
 <script src="./classify-near-miss.js"></script>
 <script src="./repnet-skin-v4.js" defer></script>
+
+<!-- ═══ Weekly QA Meeting Deck Export ═══ -->
+<script>
+(function(){
+  // V1 scope: title slide dates + week number, S5 (2 complaint rows) and S6 (1 warranty row)
+  // ticket actions tables, week-number banners on slides 5..12. Other slides inherit
+  // template content from wk 18 (visibly stale; user edits in PowerPoint after export).
+
+  // ── ISO week math ──
+  function isoWeekOf(date){
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = d.getUTCDay() || 7;          // ISO: Mon=1..Sun=7
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);  // shift to Thursday of that week
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return { week: Math.ceil(((d - yearStart) / 86400000 + 1) / 7), isoYear: d.getUTCFullYear() };
+  }
+  function getLastCompletedISOWeek(today){
+    const t = new Date(today); t.setHours(0,0,0,0);
+    const dow = t.getDay();                     // 0=Sun..6=Sat
+    const daysBack = dow === 0 ? 7 : dow;       // last Sunday (full week ago if today is Sunday)
+    const sunday = new Date(t); sunday.setDate(t.getDate() - daysBack);
+    const monday = new Date(sunday); monday.setDate(sunday.getDate() - 6);
+    sunday.setHours(23,59,59,999);
+    const { week, isoYear } = isoWeekOf(monday);
+    return { monday, sunday, week, year: isoYear };
+  }
+
+  // ── helpers ──
+  function pad2(n){ return String(n).padStart(2, '0'); }
+  function fmtUK(d){ return `${pad2(d.getDate())}/${pad2(d.getMonth()+1)}/${d.getFullYear()}`; }
+  function xmlEscape(s){
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                    .replace(/"/g,'&quot;').replace(/'/g,'&apos;');
+  }
+  function initialsOf(name){
+    if (!name) return '—';
+    const t = String(name).trim();
+    if (/^[A-Z]{1,3}$/.test(t)) return t;             // already initials
+    const parts = t.split(/\s+/);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    return t.slice(0,2).toUpperCase();
+  }
+  function formatRC(t){
+    if (!t) return '—';
+    const a = (t.faultCode || '').toUpperCase();
+    const b = (t.subFault  || '').toUpperCase();
+    if (a && b) return `${a} - ${b}`;
+    return a || b || '—';
+  }
+  function actionText(t){
+    if (!t) return '—';
+    return (t.description || t.action || '—').trim() || '—';
+  }
+
+  // ── data gathering ──
+  async function gatherWeeklyQualityData(win){
+    if (typeof loadServiceData === 'function') {
+      try { await loadServiceData(false); }
+      catch (e) { console.warn('[QA Deck] loadServiceData failed:', e); }
+    }
+    const tickets = (typeof _serviceState !== 'undefined' && _serviceState.tickets) || [];
+    const inWin = d => d && d >= win.monday && d <= win.sunday;
+
+    // Filter: WARRANTY type only (excludes Chargeable + Observation), opened in data week.
+    const inDataWeek = tickets.filter(t => t.warrantyChargeable === 'WARRANTY' && inWin(t.openDate));
+    const complaints = inDataWeek.filter(t => t.period30 === 'Inside 30');
+    const warranty   = inDataWeek.filter(t => t.period30 === 'Outside 30');
+    return { complaints, warranty };
+  }
+
+  // ── deck build ──
+  async function buildQualityDeck(data, win){
+    if (typeof JSZip === 'undefined') throw new Error('JSZip not loaded');
+    const tplResp = await fetch('./qa-meeting-template.pptx', { cache: 'no-store' });
+    if (!tplResp.ok) throw new Error('Template not found (./qa-meeting-template.pptx)');
+    const tplBuf = await tplResp.arrayBuffer();
+    const zip = await JSZip.loadAsync(tplBuf);
+
+    const today = new Date();
+    const wcDay = pad2(win.monday.getDate());
+    const wcMonth = pad2(win.monday.getMonth() + 1);
+    const wcYear = String(win.monday.getFullYear());
+    const mDay = pad2(today.getDate());
+    const mMonth = pad2(today.getMonth() + 1);
+    const mYear = String(today.getFullYear());
+
+    const c0 = data.complaints[0], c1 = data.complaints[1];
+    const w0 = data.warranty[0];
+
+    const tokens = {
+      // Title slide
+      WC_DAY1: wcDay[0],   WC_DAY2: wcDay[1],
+      WC_MONTH: wcMonth,   WC_YEAR: wcYear,
+      MEET_DAY: mDay,      MEET_MONTH: mMonth, MEET_YEAR: mYear,
+      // Week banners
+      WK_NUM: String(win.week),
+      WK_NUM_PREV: String(win.week - 1),
+      // S5 Customer Complaints (2 rows)
+      S5R1_TKT: c0 ? c0.ticketNo : '—',
+      S5R1_RC : formatRC(c0),
+      S5R1_ACTION: actionText(c0),
+      S5R2_TKT: c1 ? c1.ticketNo : '—',
+      S5R2_RC : formatRC(c1),
+      S5R2_ACTION: actionText(c1),
+      // S6 Warranty Returns (1 row)
+      S6R1_TKT: w0 ? w0.ticketNo : '—',
+      S6R1_RC : formatRC(w0),
+      S6R1_ACTION: actionText(w0),
+    };
+
+    const slideFiles = Object.keys(zip.files).filter(n => /^ppt\/slides\/slide\d+\.xml$/.test(n));
+    for (const sf of slideFiles) {
+      let xml = await zip.file(sf).async('string');
+      for (const [k, v] of Object.entries(tokens)) {
+        xml = xml.split(`{{${k}}}`).join(xmlEscape(String(v)));
+      }
+      zip.file(sf, xml);
+    }
+    return await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+  }
+
+  function downloadBlob(blob, filename){
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+  }
+
+  function qaToast(msg, kind){
+    const el = document.createElement('div');
+    el.textContent = msg;
+    Object.assign(el.style, {
+      position:'fixed', top:'16px', right:'16px', zIndex:99999, padding:'10px 14px',
+      borderRadius:'8px', fontSize:'13px', fontFamily:'inherit', maxWidth:'420px',
+      boxShadow:'0 4px 16px rgba(0,0,0,0.15)',
+      background: kind==='error' ? '#dc2626' : kind==='warn' ? '#d97706' : '#16a34a',
+      color:'#fff'
+    });
+    document.body.appendChild(el);
+    setTimeout(()=>{ el.style.opacity='0'; el.style.transition='opacity 300ms'; setTimeout(()=>el.remove(), 320); }, 4500);
+  }
+
+  // ── orchestrator + 2-click confirm ──
+  let armed = null;   // { timer, window, originalText }
+
+  window.exportQualityDeck = async function(btn){
+    if (typeof JSZip === 'undefined') { qaToast('JSZip not loaded — refresh page', 'error'); return; }
+    const win = getLastCompletedISOWeek(new Date());
+
+    if (!armed) {
+      const original = btn.textContent;
+      btn.textContent = `Click again to export Wk.${win.week} (${fmtUK(win.monday)}–${fmtUK(win.sunday)})`;
+      armed = {
+        timer: setTimeout(()=>{ if (armed) { btn.textContent = original; armed = null; } }, 5000),
+        window: win, originalText: original
+      };
+      return;
+    }
+
+    clearTimeout(armed.timer);
+    const w = armed.window, original = armed.originalText;
+    armed = null;
+    btn.disabled = true; btn.textContent = 'Building…';
+
+    try {
+      const data = await gatherWeeklyQualityData(w);
+      const blob = await buildQualityDeck(data, w);
+      const filename = `Repose QA Team Meeting ${w.year} wk ${w.week}.pptx`;
+      downloadBlob(blob, filename);
+      const note = (data.complaints.length > 2 || data.warranty.length > 1)
+        ? ` — Note: ${data.complaints.length} complaints / ${data.warranty.length} warranty in week; only first 2/1 rows populated.`
+        : '';
+      qaToast(`Exported ${filename} (${data.complaints.length} complaints, ${data.warranty.length} warranty)${note}`, note ? 'warn' : 'ok');
+    } catch (e) {
+      console.error('[QA Deck] Export failed:', e);
+      qaToast(`Export failed: ${e.message}`, 'error');
+    } finally {
+      btn.disabled = false; btn.textContent = original;
+    }
+  };
+})();
+</script>
 </body>
 </html>

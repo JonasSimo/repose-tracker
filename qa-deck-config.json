@@ -1,0 +1,6 @@
+{
+  "_comment": "CoPQ rates and targets for the weekly QA meeting deck export. Edit values here without touching index.html.",
+  "scrap":      { "ratePerInstance": 500, "weeklyTarget":  750, "monthlyTarget": 3000, "yearlyTarget": 9000 },
+  "rework":     { "ratePerInstance": 400, "weeklyTarget":  400, "monthlyTarget": 1600, "yearlyTarget": 4800 },
+  "concession": { "ratePerInstance": 500, "weeklyTarget":  500, "monthlyTarget":  500, "yearlyTarget": 6000 }
+}
