@@ -28860,6 +28860,45 @@ async function mtDeleteYearly(id) {
   function updateTrendChart(chartXml, weekLabels, weekCounts){
     return rewriteFirstSeriesValues(rewriteCategoryLabels(chartXml, weekLabels), weekCounts);
   }
+  // Pareto charts (S5 by customer, S5 by fault, S6 by customer, S6 by fault):
+  // Series 0 = count (bars), Series 1 = cumulative % line. We rewrite both.
+  function paretoFromCounts(counts){
+    const total = counts.reduce((a,b)=>a+b, 0) || 1;
+    let cum = 0;
+    return counts.map(v => { cum += v; return cum / total; });
+  }
+  function updateParetoChart(chartXml, labels, counts){
+    // Avoid empty chart — PowerPoint can choke on zero categories.
+    if (!labels.length) { labels = ['—']; counts = [0]; }
+    const pareto = paretoFromCounts(counts);
+    let xml = chartXml.replace(
+      /(<c:cat>\s*<c:strRef>[\s\S]*?<c:strCache>)[\s\S]*?(<\/c:strCache>)/g,
+      (_, open, close) => open + buildPtList(labels) + close
+    );
+    let numIdx = 0;
+    xml = xml.replace(
+      /(<c:val>\s*<c:numRef>[\s\S]*?<c:numCache>)[\s\S]*?(<\/c:numCache>)/g,
+      (m, open, close) => {
+        const i = numIdx++;
+        if (i === 0) return open + buildPtList(counts, 'General') + close;
+        if (i === 1) return open + buildPtList(pareto, '0%') + close;
+        return m;
+      }
+    );
+    return xml;
+  }
+  // Aggregate items by a key, sort descending by count, optionally cap to topN.
+  function aggregateByKey(items, keyFn, topN = 0){
+    const counts = new Map();
+    for (const it of items){
+      const k = (keyFn(it) || '').toString().trim();
+      if (!k) continue;
+      counts.set(k, (counts.get(k) || 0) + 1);
+    }
+    const arr = [...counts].sort((a,b) => b[1] - a[1]);
+    if (topN > 0) arr.length = Math.min(arr.length, topN);
+    return { labels: arr.map(([k]) => k), counts: arr.map(([,v]) => v) };
+  }
   // Counts tickets matching `predicate` per ISO week, ending at win.monday's
   // week and going back `weeksBack` weeks. Returns { labels, counts }.
   function countByPriorWeeks(tickets, win, weeksBack, predicate){
@@ -28941,21 +28980,38 @@ async function mtDeleteYearly(id) {
       zip.file(sf, xml);
     }
 
-    // ── chart data updates (V1.5: trend-by-week charts only) ──
-    // chart1 = S5 Customer Complaints trend (Inside 30 + WARRANTY)
-    // chart4 = S6 Warranty Returns trend (Outside 30 + WARRANTY)
+    // ── chart data updates ──
     const tickets = data.allTickets || [];
-    const chartUpdates = [
+    // Trend-by-week charts (S5 chart1, S6 chart4) — 8-week window ending data week
+    const trendUpdates = [
       { file: 'ppt/charts/chart1.xml',
         ...countByPriorWeeks(tickets, win, 8, t => t.warrantyChargeable === 'WARRANTY' && t.period30 === 'Inside 30') },
       { file: 'ppt/charts/chart4.xml',
         ...countByPriorWeeks(tickets, win, 8, t => t.warrantyChargeable === 'WARRANTY' && t.period30 === 'Outside 30') },
     ];
-    for (const u of chartUpdates) {
+    for (const u of trendUpdates) {
       const f = zip.file(u.file);
       if (!f) { console.warn('[QA Deck] chart not found:', u.file); continue; }
       const xml = await f.async('string');
       zip.file(u.file, updateTrendChart(xml, u.labels, u.counts));
+    }
+
+    // Pareto charts on S5 + S6 — data window scope (matches the actions table on the same slide).
+    const s5BC = aggregateByKey(data.complaints, t => t.customer, 7);
+    const s5BF = aggregateByKey(data.complaints, t => t.faultCode, 0);
+    const s6BC = aggregateByKey(data.warranty,  t => t.customer, 7);
+    const s6BF = aggregateByKey(data.warranty,  t => t.faultCode, 0);
+    const paretoUpdates = [
+      { file: 'ppt/charts/chart2.xml', ...s5BC },  // S5 by customer
+      { file: 'ppt/charts/chart3.xml', ...s5BF },  // S5 by fault code
+      { file: 'ppt/charts/chart5.xml', ...s6BC },  // S6 by customer
+      { file: 'ppt/charts/chart6.xml', ...s6BF },  // S6 by fault code
+    ];
+    for (const u of paretoUpdates) {
+      const f = zip.file(u.file);
+      if (!f) { console.warn('[QA Deck] chart not found:', u.file); continue; }
+      const xml = await f.async('string');
+      zip.file(u.file, updateParetoChart(xml, u.labels, u.counts));
     }
 
     return await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
