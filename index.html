@@ -3630,6 +3630,7 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .svc-pill { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 999px; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; }
 .svc-pill.warranty { background: var(--info-soft); color: var(--info); border: 1px solid #bae6fd; }
 .svc-pill.chargeable { background: var(--purple-soft); color: var(--purple); border: 1px solid #ddd6fe; }
+.svc-pill.observation { background: #ccfbf1; color: var(--teal); border: 1px solid #99f6e4; }
 .svc-pill.in30 { background: var(--abg); color: var(--amber); border: 1px solid var(--aborder); }
 .svc-pill.out30 { background: var(--grey-soft); color: var(--text2); border: 1px solid var(--border2); }
 .svc-age { font-family: 'JetBrains Mono', monospace; font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 6px; display: inline-block; }
@@ -22711,7 +22712,7 @@ function _mapTicketRow(row, headerRow) {
     daysToComplete: Number(row[21]) || null,
     overdueBy: Number(row[22]) || null,
     qualityIssue: String(row[23] || '').trim(),
-    warrantyChargeable: String(row[24] || '').trim().toUpperCase(), // 'WARRANTY' | 'CHARGEABLE'
+    warrantyChargeable: String(row[24] || '').trim().toUpperCase(), // 'WARRANTY' | 'CHARGEABLE' | 'OBSERVATION'
     faultCode: String(row[25] || '').trim(),
     subFault: String(row[26] || '').trim(),
     openClosed: String(row[27] || '').trim().toUpperCase(),         // 'OPEN' | 'CLOSED'
@@ -23170,6 +23171,7 @@ function _renderServiceTickets() {
           <span class="svc-chip ${_serviceFilters.period === 'out30' ? 'on' : ''}" data-fperiod="out30">Outside 30 days <span class="cnt">${counts.out30}</span></span>
           <span class="svc-chip ${_serviceFilters.wc === 'WARRANTY' ? 'on' : ''}" data-fwc="WARRANTY">Warranty <span class="cnt">${counts.warranty}</span></span>
           <span class="svc-chip ${_serviceFilters.wc === 'CHARGEABLE' ? 'on' : ''}" data-fwc="CHARGEABLE">Chargeable <span class="cnt">${counts.chargeable}</span></span>
+          <span class="svc-chip ${_serviceFilters.wc === 'OBSERVATION' ? 'on' : ''}" data-fwc="OBSERVATION">👁 Observation <span class="cnt">${counts.observation}</span></span>
         </div>
         <div class="svc-table-scroll">
           <table class="svc-t">
@@ -23263,7 +23265,8 @@ function _serviceTicketCounts() {
     in30: open.filter(t => t.period30.toLowerCase().startsWith('inside 30')).length,
     out30: open.filter(t => t.period30.toLowerCase().startsWith('outside 30')).length,
     warranty: open.filter(t => t.warrantyChargeable === 'WARRANTY').length,
-    chargeable: open.filter(t => t.warrantyChargeable === 'CHARGEABLE').length
+    chargeable: open.filter(t => t.warrantyChargeable === 'CHARGEABLE').length,
+    observation: open.filter(t => t.warrantyChargeable === 'OBSERVATION').length
   };
 }
 
@@ -23276,7 +23279,9 @@ function _serviceTicketRowHtml(t) {
     ? `<span class="svc-pill warranty">Warranty</span>`
     : wc === 'CHARGEABLE'
       ? `<span class="svc-pill chargeable">Chargeable</span>`
-      : `<span style="color:var(--text3);font-size:11px">—</span>`;
+      : wc === 'OBSERVATION'
+        ? `<span class="svc-pill observation">Observation</span>`
+        : `<span style="color:var(--text3);font-size:11px">—</span>`;
   return `
     <tr class="row ${isOverdue ? 'urgent' : ''}" data-ticketno="${_escapeSvc(t.ticketNo)}">
       <td><span class="id">${_escapeSvc(t.ticketNo)}</span></td>
@@ -23535,7 +23540,7 @@ async function openServiceTicketDrawer(ticketNo) {
           <div class="crumb">${_escapeSvc(t.ticketNo)}</div>
           <h2>${_escapeSvc(t.faultCode || t.description.slice(0, 80) || '—')} · ${_escapeSvc(t.model || '—')}</h2>
           <div class="badges">
-            <span class="svc-pill ${t.warrantyChargeable === 'WARRANTY' ? 'warranty' : 'chargeable'}">${t.warrantyChargeable === 'WARRANTY' ? 'WARRANTY' : 'CHARGEABLE'}</span>
+            <span class="svc-pill ${t.warrantyChargeable === 'WARRANTY' ? 'warranty' : t.warrantyChargeable === 'OBSERVATION' ? 'observation' : 'chargeable'}">${t.warrantyChargeable === 'WARRANTY' ? 'WARRANTY' : t.warrantyChargeable === 'OBSERVATION' ? 'OBSERVATION' : 'CHARGEABLE'}</span>
             <span class="svc-pill ${t.period30.toLowerCase().startsWith('inside 30') ? 'in30' : 'out30'}">${t.period30 || '—'}</span>
             <span class="svc-pill ${t.openClosed === 'OPEN' ? 'in30' : ''}" style="${t.openClosed === 'CLOSED' ? 'background:var(--pass-soft);color:var(--pass);border-color:var(--gborder)' : ''}">${t.openClosed}</span>
           </div>
@@ -23819,7 +23824,7 @@ function openNewServiceTicketModal() {
   const models = (dd && dd.models && dd.models.length) ? dd.models : [...new Set(_serviceState.tickets.map(t => t.model).filter(Boolean))].sort();
   const mechCodes = (dd && dd.mechCodes && dd.mechCodes.length) ? dd.mechCodes : [...new Set(_serviceState.tickets.map(t => t.mechCode).filter(Boolean))].sort();
   const faultCategories = (dd && dd.faultCategories && dd.faultCategories.length) ? dd.faultCategories : [...new Set(_serviceState.tickets.map(t => t.faultCode).filter(Boolean))].sort();
-  const wcOptions = (dd && dd.warrantyChargeable && dd.warrantyChargeable.length) ? dd.warrantyChargeable : ['WARRANTY', 'CHARGEABLE'];
+  const wcOptions = (dd && dd.warrantyChargeable && dd.warrantyChargeable.length) ? dd.warrantyChargeable : ['WARRANTY', 'CHARGEABLE', 'OBSERVATION'];
   const ownerOptions = (dd && dd.owners && dd.owners.length) ? dd.owners : ['Repose', 'Customer'];
   // "Within / Outside 30 days" column contains the strings 'Inside 30' / 'Outside 30'
   // (existing cpLoadData filter at line 19534 confirms). Hardcoded — not the
@@ -24025,7 +24030,7 @@ async function openEditTicketModal(t, drawerOverlay) {
   const models = (dd && dd.models && dd.models.length) ? dd.models : [...new Set(_serviceState.tickets.map(x => x.model).filter(Boolean))].sort();
   const mechCodes = (dd && dd.mechCodes && dd.mechCodes.length) ? dd.mechCodes : [...new Set(_serviceState.tickets.map(x => x.mechCode).filter(Boolean))].sort();
   const faultCategories = (dd && dd.faultCategories && dd.faultCategories.length) ? dd.faultCategories : [...new Set(_serviceState.tickets.map(x => x.faultCode).filter(Boolean))].sort();
-  const wcOptions = (dd && dd.warrantyChargeable && dd.warrantyChargeable.length) ? dd.warrantyChargeable : ['WARRANTY', 'CHARGEABLE'];
+  const wcOptions = (dd && dd.warrantyChargeable && dd.warrantyChargeable.length) ? dd.warrantyChargeable : ['WARRANTY', 'CHARGEABLE', 'OBSERVATION'];
   const ownerOptions = (dd && dd.owners && dd.owners.length) ? dd.owners : ['Repose', 'Customer'];
   const period30Options = ['Inside 30', 'Outside 30'];
   const faultSubFaultMap = (dd && dd.faultSubFaultMap) || {};
@@ -24955,7 +24960,7 @@ function _renderReturnsPipeline() {
       <div class="svc-rcard" data-ticketno="${_escapeSvc(t.ticketNo)}">
         <div class="rcard-top">
           ${cid ? `<span class="svc-chair-pill${cid.isReturn ? ' repeat' : ''}"><span style="font-size:9px">🪑</span>${_escapeSvc(cid.label)}</span>` : ''}
-          <span class="svc-pill ${t.warrantyChargeable === 'WARRANTY' ? 'warranty' : 'chargeable'}">${t.warrantyChargeable === 'WARRANTY' ? 'Warranty' : 'Chargeable'}</span>
+          <span class="svc-pill ${t.warrantyChargeable === 'WARRANTY' ? 'warranty' : t.warrantyChargeable === 'OBSERVATION' ? 'observation' : 'chargeable'}">${t.warrantyChargeable === 'WARRANTY' ? 'Warranty' : t.warrantyChargeable === 'OBSERVATION' ? 'Observation' : 'Chargeable'}</span>
         </div>
         <div class="rcard-meta"><b>${_escapeSvc(t.faultCode || '—')}</b> · ${_escapeSvc(t.model || '—')} · ${_escapeSvc(t.customer || '')}</div>
         <div class="rcard-meta">Ticket <b>${_escapeSvc(t.ticketNo)}</b>${t.owner ? ' · Owner ' + _escapeSvc(t.owner) : ''}</div>
