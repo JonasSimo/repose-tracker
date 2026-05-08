@@ -23242,7 +23242,19 @@ function _renderServiceTickets() {
   let st;
   search?.addEventListener('input', () => {
     clearTimeout(st);
-    st = setTimeout(() => { _serviceFilters.q = search.value.trim(); _renderServiceTickets(); }, 200);
+    st = setTimeout(() => {
+      const wasFocused = document.activeElement === search;
+      const cursorPos = search.selectionStart ?? search.value.length;
+      _serviceFilters.q = search.value.trim();
+      _renderServiceTickets();
+      if (wasFocused) {
+        const newSearch = document.getElementById('svc-ticket-search');
+        if (newSearch) {
+          newSearch.focus();
+          try { newSearch.setSelectionRange(cursorPos, cursorPos); } catch(_) {}
+        }
+      }
+    }, 200);
   });
 
   c.querySelectorAll('tbody tr').forEach(tr => {
