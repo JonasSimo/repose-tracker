@@ -1,7 +1,8 @@
 /* ═══════════════════════════════════════════════════════════════
-   RepNet Skin v4 — feature-flag JS  (hotfix: no subtree observers)
+   RepNet Skin v4 — now the default UI.
    Activates the new sidebar, team-logo SVGs, and Delivery TV View
-   button when the URL has ?ui=v4. Default (no flag) = old UI.
+   button on every load. Append ?ui=legacy to fall back to the old
+   design (escape hatch for regressions).
    ═══════════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
@@ -9,8 +10,8 @@
   // ── 0. Flag detection ─────────────────────────────────────────
   const params = new URLSearchParams(location.search);
   const flag = params.get('ui');
-  const NEW_UI = flag === 'v4';
-  if (!NEW_UI) return;
+  const LEGACY = flag === 'legacy';
+  if (LEGACY) return;
 
   document.documentElement.classList.add('ui-v4');
 
