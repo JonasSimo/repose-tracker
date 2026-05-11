@@ -24070,8 +24070,9 @@ function openNewServiceTicketModal() {
         return Object.prototype.hasOwnProperty.call(lookup, key) ? lookup[key] : null;
       });
 
-      console.log('[svc] writing ticket — table columns:', tableCols);
-      console.log('[svc] writing ticket — row payload:', row);
+      // [svc] writing ticket payload — debug log removed. Customer name,
+      // REP, fault, invoice values etc. would otherwise accumulate in the
+      // browser console history of shared kiosk tablets indefinitely.
 
       const url = `https://graph.microsoft.com/v1.0/drives/${_serviceState.ticketDriveId}/items/${_serviceState.ticketItemId}/workbook/tables('${SERVICE_TICKET_TABLE}')/rows/add`;
       const res = await _graphFetchWithRetry(url, {
@@ -24540,8 +24541,7 @@ function openNewPartsDispatchModal() {
         return Object.prototype.hasOwnProperty.call(lookup, key) ? lookup[key] : null;
       });
 
-      console.log('[svc] writing parts — table columns:', tableCols);
-      console.log('[svc] writing parts — row payload:', row);
+      // [svc] writing parts payload — debug log removed (customer + PO data).
 
       const url = `https://graph.microsoft.com/v1.0/drives/${_serviceState.partsDriveId}/items/${_serviceState.partsItemId}/workbook/tables('${PARTS_TRACKER_TABLE}')/rows/add`;
       const res = await _graphFetchWithRetry(url, {
