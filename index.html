@@ -15489,7 +15489,7 @@ function renderIssuesIntoQuality(host) {
     const isAll = t === '';
     const colour = TEAM_COLOURS[t] || 'var(--text3)';
     const count = isAll ? totalOpen : (teamCounts[t] || 0);
-    return `<button class="issues-team-chip ${isActive ? 'active' : ''} ${isAll ? 'all' : ''}${searchQ ? ' issues-team-chip-dim' : ''}" onclick="cparFilterTeam='${t}'; renderQualitySubview();">
+    return `<button class="issues-team-chip ${isActive ? 'active' : ''} ${isAll ? 'all' : ''}${searchQ ? ' issues-team-chip-dim' : ''}" onclick="cparFilterTeam='${t}'; _preserveScroll(renderQualitySubview);">
       ${isAll ? '' : `<span class="dot" style="background:${colour}"></span>`}
       ${t || 'All teams'}
       <span style="margin-left:5px;background:rgba(0,0,0,.08);padding:1px 6px;border-radius:8px;font-size:10px;font-weight:700">${count}</span>
@@ -15499,27 +15499,27 @@ function renderIssuesIntoQuality(host) {
   host.innerHTML = `
     <!-- Stat tiles -->
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:14px">
-      <div class="mt-tile pass ${cparFilterStatus==='todo'?'mt-tile-active':''}" onclick="setIssueFilter('todo'); renderQualitySubview();" style="cursor:pointer">
+      <div class="mt-tile pass ${cparFilterStatus==='todo'?'mt-tile-active':''}" onclick="setIssueFilter('todo'); _preserveScroll(renderQualitySubview);" style="cursor:pointer">
         <div class="mt-icon">📋</div>
         <div><div class="mt-num">${todoCount}</div><div class="mt-lbl">To do</div></div>
         <div class="mt-bar"></div>
       </div>
-      <div class="mt-tile ${cparFilterStatus==='progress'?'mt-tile-active':''}" onclick="setIssueFilter('progress'); renderQualitySubview();" style="cursor:pointer">
+      <div class="mt-tile ${cparFilterStatus==='progress'?'mt-tile-active':''}" onclick="setIssueFilter('progress'); _preserveScroll(renderQualitySubview);" style="cursor:pointer">
         <div class="mt-icon">⏳</div>
         <div><div class="mt-num">${progressCount}</div><div class="mt-lbl">In progress</div></div>
         <div class="mt-bar"></div>
       </div>
-      <div class="mt-tile pass ${cparFilterStatus==='closed'?'mt-tile-active':''}" onclick="setIssueFilter('closed'); renderQualitySubview();" style="cursor:pointer">
+      <div class="mt-tile pass ${cparFilterStatus==='closed'?'mt-tile-active':''}" onclick="setIssueFilter('closed'); _preserveScroll(renderQualitySubview);" style="cursor:pointer">
         <div class="mt-icon">✓</div>
         <div><div class="mt-num">${closedCount}</div><div class="mt-lbl">Closed (30d)</div></div>
         <div class="mt-bar"></div>
       </div>
-      <div class="mt-tile fail ${cparFilterStatus==='repeat'?'mt-tile-active':''}" onclick="setIssueFilter('repeat'); renderQualitySubview();" style="cursor:pointer">
+      <div class="mt-tile fail ${cparFilterStatus==='repeat'?'mt-tile-active':''}" onclick="setIssueFilter('repeat'); _preserveScroll(renderQualitySubview);" style="cursor:pointer">
         <div class="mt-icon">🔴</div>
         <div><div class="mt-num">${repeatCount}</div><div class="mt-lbl">Repeat-flagged (30d)</div></div>
         <div class="mt-bar"></div>
       </div>
-      <div class="mt-tile warn ${cparFilterStatus==='overdue'?'mt-tile-active':''}" onclick="setIssueFilter('overdue'); renderQualitySubview();" style="cursor:pointer">
+      <div class="mt-tile warn ${cparFilterStatus==='overdue'?'mt-tile-active':''}" onclick="setIssueFilter('overdue'); _preserveScroll(renderQualitySubview);" style="cursor:pointer">
         <div class="mt-icon">⚠</div>
         <div><div class="mt-num">${overdueCount}</div><div class="mt-lbl">Overdue</div></div>
         <div class="mt-bar"></div>
@@ -15533,12 +15533,12 @@ function renderIssuesIntoQuality(host) {
 
     <!-- Status chips + search -->
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
-      <button class="issues-chip ${cparFilterStatus==='todo'?'active':''}${searchQ?' issues-chip-dim':''}" onclick="setIssueFilter('todo'); renderQualitySubview();">To do</button>
-      <button class="issues-chip ${cparFilterStatus==='progress'?'active':''}${searchQ?' issues-chip-dim':''}" onclick="setIssueFilter('progress'); renderQualitySubview();">In progress</button>
-      <button class="issues-chip ${cparFilterStatus==='closed'?'active':''}${searchQ?' issues-chip-dim':''}" onclick="setIssueFilter('closed'); renderQualitySubview();">Recently closed</button>
-      <button class="issues-chip ${cparFilterStatus==='all'?'active':''}${searchQ?' issues-chip-dim':''}" onclick="setIssueFilter('all'); renderQualitySubview();">All</button>
-      <button class="issues-chip ${cparFilterStatus==='repeat'?'active':''}${searchQ?' issues-chip-dim':''}" onclick="setIssueFilter('repeat'); renderQualitySubview();" style="background:#fff1f1;color:#991b1b;border:1.5px solid #fca5a5">🔴 Repeat</button>
-      <button class="issues-chip ${cparFilterStatus==='overdue'?'active':''}${searchQ?' issues-chip-dim':''}" onclick="setIssueFilter('overdue'); renderQualitySubview();" style="background:#fff8e6;color:#d97706;border:1.5px solid #fde68a">⚠ Overdue</button>
+      <button class="issues-chip ${cparFilterStatus==='todo'?'active':''}${searchQ?' issues-chip-dim':''}" onclick="setIssueFilter('todo'); _preserveScroll(renderQualitySubview);">To do</button>
+      <button class="issues-chip ${cparFilterStatus==='progress'?'active':''}${searchQ?' issues-chip-dim':''}" onclick="setIssueFilter('progress'); _preserveScroll(renderQualitySubview);">In progress</button>
+      <button class="issues-chip ${cparFilterStatus==='closed'?'active':''}${searchQ?' issues-chip-dim':''}" onclick="setIssueFilter('closed'); _preserveScroll(renderQualitySubview);">Recently closed</button>
+      <button class="issues-chip ${cparFilterStatus==='all'?'active':''}${searchQ?' issues-chip-dim':''}" onclick="setIssueFilter('all'); _preserveScroll(renderQualitySubview);">All</button>
+      <button class="issues-chip ${cparFilterStatus==='repeat'?'active':''}${searchQ?' issues-chip-dim':''}" onclick="setIssueFilter('repeat'); _preserveScroll(renderQualitySubview);" style="background:#fff1f1;color:#991b1b;border:1.5px solid #fca5a5">🔴 Repeat</button>
+      <button class="issues-chip ${cparFilterStatus==='overdue'?'active':''}${searchQ?' issues-chip-dim':''}" onclick="setIssueFilter('overdue'); _preserveScroll(renderQualitySubview);" style="background:#fff8e6;color:#d97706;border:1.5px solid #fde68a">⚠ Overdue</button>
       <div style="position:relative;margin-left:auto;display:flex;align-items:center;gap:8px">
         <span style="position:absolute;left:8px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:12px;pointer-events:none">🔍</span>
         <input id="cpar-search-input" type="search" value="${escHtml(cparFilterSearch||'')}"
@@ -15611,7 +15611,7 @@ function qualityRowClick(event, id) {
   toggleQualityIssueRow(id);
 }
 let cparReviewFilter = 'review';
-function setQHSEFilter(k) { cparReviewFilter = k; renderQualitySubview(); }
+function setQHSEFilter(k) { cparReviewFilter = k; _preserveScroll(renderQualitySubview); }
 
 // Auto-promote Closed CPARs to Awaiting Effectiveness Check 30 days post-close.
 // Runs lazily — once per session when QHSE Review opens.
@@ -18456,8 +18456,8 @@ function _capaCardHtml(item) {
 }
 
 // ── Filter handlers ──
-function capaSetAreaFilter(area)   { capaFilterArea = area; renderActionsView(); }
-function capaSetStatusFilter(s)    { capaFilterStatus = s; renderActionsView(); }
+function capaSetAreaFilter(area)   { capaFilterArea = area; _preserveScroll(renderActionsView); }
+function capaSetStatusFilter(s)    { capaFilterStatus = s; _preserveScroll(renderActionsView); }
 
 let _capaSearchTimer = null;
 function capaSearchInput(value) {
@@ -20295,10 +20295,24 @@ let nmDateFilter     = '30d';   // '7d' | '30d' | '90d' | 'all'
 let nmCategoryFilter = '';      // '' | 'At-Risk Condition' | 'At-Risk Behavior' | 'Positive Observation'
 // nmsStatusFilter and nmsAreaFilter declared above are reused.
 
-function setNmsStatusFilter(val) { nmsStatusFilter = val; renderNearMisses(); }
-function setNmsAreaFilter(val)   { nmsAreaFilter = val;   renderNearMisses(); }
-function setNmDateFilter(val)    { nmDateFilter = val;    renderNearMisses(); }
-function setNmCategoryFilter(val){ nmCategoryFilter = val; renderNearMisses(); }
+// Wrap a re-render so the page's scroll position is preserved across the
+// full-innerHTML rebuild. Without this, every filter chip click on hot
+// views (Near Misses, CAPA, Quality) snapped the user back to the top —
+// the most user-visible jank in the app. The trace-driven, surgical
+// alternative (toggle display:none on existing cards instead of full
+// rebuild) is deferred until a real perf trace confirms it's worth the
+// rewrite risk.
+function _preserveScroll(fn) {
+  const el = document.scrollingElement || document.documentElement;
+  const top = el.scrollTop;
+  fn();
+  // Restore on next frame so the new DOM has been laid out.
+  requestAnimationFrame(() => { el.scrollTop = top; });
+}
+function setNmsStatusFilter(val) { nmsStatusFilter = val; _preserveScroll(renderNearMisses); }
+function setNmsAreaFilter(val)   { nmsAreaFilter = val;   _preserveScroll(renderNearMisses); }
+function setNmDateFilter(val)    { nmDateFilter = val;    _preserveScroll(renderNearMisses); }
+function setNmCategoryFilter(val){ nmCategoryFilter = val; _preserveScroll(renderNearMisses); }
 
 async function loadNearMisses() {
   const el = document.getElementById('safety-list');
