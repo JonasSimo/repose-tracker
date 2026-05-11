@@ -6957,10 +6957,14 @@ function renderPriorityJobsList() {
             </button>` : ''}
           </div>`;
       } else {
-        // Fallback: rep not yet loaded into PROD — show simple row
+        // Fallback: rep not yet loaded into PROD — show simple row.
+        // No tick button here: marking done in this branch can't write
+        // to SharePoint (we don't have wc/prep/ji), and the next
+        // applyStateToOvBadges() rebuilds OV_DAYS from STATE, silently
+        // wiping the in-memory mark. Users should wait for sync.
         html += `<div class="pj-job-row">
           <span class="pj-rep">${escHtml(j.repId)}</span>
-          <button class="pj-mark-btn" onclick="markPriorityJobDone(${j.dayIdx},${j.repIdx})">✓ Mark Done</button>
+          <span class="pj-pending" style="font-size:11px;color:var(--text2);font-style:italic">⏳ syncing…</span>
         </div>`;
       }
     });
@@ -6971,27 +6975,10 @@ function renderPriorityJobsList() {
   renderUndo();
 }
 
-function markPriorityJobDone(dayIdx, repIdx) {
-  const map = TEAM_OV_MAP[activeTeam];
-  if (!map) return;
-  const day = OV_DAYS[dayIdx];
-  if (!day) return;
-  if (map.hasSubs) {
-    const ss = SUB_SHORT[activeSub];
-    if (ss) {
-      if (!Array.isArray(day.reps[repIdx].s[map.key])) day.reps[repIdx].s[map.key] = [];
-      const arr = day.reps[repIdx].s[map.key];
-      if (!arr.includes(ss)) arr.push(ss);
-    }
-  } else {
-    day.reps[repIdx].s[map.key] = 1;
-  }
-  // Refresh overview state and priority list
-  renderOverview();
-  renderPriorityBtn();
-  renderJobs(); // re-renders priority list (removes done items)
-  toast(`${day.reps[repIdx].id} marked done for ${activeTeam}${activeHasSubs ? ' ' + activeSub : ''}`, 's');
-}
+// markPriorityJobDone removed — its caller (the "rep not yet in PROD"
+// fallback row in renderPriorityJobsList) silently lost ticks on every
+// refresh because it only mutated OV_DAYS in-memory and never wrote to
+// SharePoint. The fallback now shows a "syncing…" placeholder instead.
 
 // ═══════════════════════════════════════════════
 // WEEK LIST
