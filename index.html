@@ -11942,14 +11942,32 @@ const REQUIRED_COMPLETIONS = [
   ['Assembly',''],
 ];
 
+// Precomputed `${rep}|${team}|${sub}` set keyed off the completion list's
+// identity. The first call for a given completions array walks it once
+// (O(n)); subsequent calls reuse the cached set (O(1) per lookup).
+// Without this, isRepFullyComplete ran an .every-of-.some scan for every
+// REP — quadratic in completion count, and the #1 hotspot in the
+// 2026-05-11 tab-switching trace (1.1s of CPU per stats render).
+let _repCompletionIndex = { src: null, set: null };
+function _buildRepCompletionIndex(completions) {
+  if (_repCompletionIndex.src === completions) return _repCompletionIndex.set;
+  const set = new Set();
+  for (const c of completions) {
+    const f = c.fields; if (!f) continue;
+    const rep = f.REP; const team = f.Team;
+    if (!rep || !team) continue;
+    const sub = (f.SubTeam == null) ? '' : f.SubTeam;
+    set.add(rep + '|' + team + '|' + sub);
+  }
+  _repCompletionIndex = { src: completions, set };
+  return set;
+}
 function isRepFullyComplete(rep, completions) {
-  return REQUIRED_COMPLETIONS.every(([team, sub]) =>
-    completions.some(c => {
-      const f = c.fields;
-      return f.REP === rep && f.Team === team &&
-        (sub === '' ? (!f.SubTeam || f.SubTeam === '') : f.SubTeam === sub);
-    })
-  );
+  const idx = _buildRepCompletionIndex(completions);
+  for (const [team, sub] of REQUIRED_COMPLETIONS) {
+    if (!idx.has(rep + '|' + team + '|' + sub)) return false;
+  }
+  return true;
 }
 
 function statsFilteredCompletions() {
