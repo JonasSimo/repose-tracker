@@ -151,7 +151,8 @@ function parseTrackingResult(result) {
   const trackingNumber = (result.trackingNumber || '').replace(/\s+/g, '');
   const r = (result.trackResults && result.trackResults[0]) || {};
   const status = r.latestStatusDetail || {};
-  const isDelivered = status.code === 'DL' || status.derivedCode === 'DL';
+  const code = status.code || status.derivedCode || '';
+  const isDelivered = code === 'DL';
   let deliveredAt = null;
   let signedBy = null;
   if (isDelivered) {
@@ -161,14 +162,40 @@ function parseTrackingResult(result) {
       signedBy = r.deliveryDetails.receivedByName || r.deliveryDetails.signedByName || null;
     }
   }
+  // Pick the most relevant timestamp for the latest event. ACTUAL_PICKUP is
+  // the cleanest signal for PU; otherwise fall back to SHIP / ESTIMATED_DELIVERY.
+  let eventAt = null;
+  const dates = r.dateAndTimes || [];
+  const pick = (t) => dates.find(d => d.type === t);
+  const hit = pick('ACTUAL_PICKUP') || pick('SHIP') || pick('APPOINTMENT_DELIVERY');
+  if (hit && hit.dateTime) eventAt = new Date(hit.dateTime);
   return {
     trackingNumber,
     isDelivered,
     deliveredAt,
     signedBy,
-    currentStatus: status.description || status.statusByLocale || status.code || 'Unknown'
+    eventCode: code,
+    eventLabel: status.description || status.statusByLocale || code || 'Unknown',
+    eventAt,
+    currentStatus: status.description || status.statusByLocale || code || 'Unknown'
   };
 }
+
+// Friendly one-word label per FedEx event code. The UI uses the code (left of
+// the pipe) to pick the progress-bar stage; the label is shown in tooltips /
+// the parcel row hint. Anything not in this map is left as-is.
+const FEDEX_CODE_LABELS = {
+  OC: 'Label printed',
+  PU: 'Picked up',
+  IT: 'In transit',
+  AR: 'Arrived at depot',
+  DP: 'Departed depot',
+  OD: 'Out for delivery',
+  DE: 'Delivery exception',
+  SE: 'Shipment exception',
+  HL: 'Hold at location',
+  CA: 'Cancelled'
+};
 
 // Format a Date as "DD.MM.YY @ HH.mm" — the team's existing manual format.
 function fmtDeliveredText(d) {
@@ -241,9 +268,19 @@ module.exports = async function (context, myTimer) {
   const deliveredIdx = findCol('Delivered');
   const customerIdx = findCol('Customer');
   const dateIdx = findCol('Date');
+  // FedEx Status column is OPTIONAL. When present, the poll writes the latest
+  // non-delivered event code + label + timestamp into it (format:
+  // 'CODE|Human label @ DD.MM.YY HH.mm') so the RepNet UI can show accurate
+  // pickup / in-transit / OFD progress instead of guessing from elapsed days.
+  // If the column doesn't exist, this whole branch is skipped — backward
+  // compatible with workbooks that haven't been updated yet.
+  const fedexStatusIdx = findCol('FedEx Status');
   if (trackingIdx < 0 || deliveredIdx < 0) {
     log.error(`Required columns not found. Got: ${columnNames.join(', ')}`);
     return;
+  }
+  if (fedexStatusIdx < 0) {
+    log.warn('Optional FedEx Status column not found — pickup/in-transit events will not be persisted. Add a column titled "FedEx Status" to enable accurate progress bar.');
   }
 
   // Cap how far back we look. Anything older than 12 months has either
@@ -304,7 +341,8 @@ module.exports = async function (context, myTimer) {
       rowIdx: i - 1,
       sheetRow: i + 1,
       trackingNumber: tn,
-      customer: customerIdx >= 0 ? String(row[customerIdx] || '').trim() : ''
+      customer: customerIdx >= 0 ? String(row[customerIdx] || '').trim() : '',
+      currentFedexStatus: fedexStatusIdx >= 0 ? String(row[fedexStatusIdx] || '').trim() : ''
     });
   }
   log(`[parts-fedex-poll] ${inTransit.length} pollable parcels (skipped: ${skippedNonFedex} non-FedEx, ${skippedStale} older than 12 months) of ${totalCandidates} blank-Delivered rows total`);
@@ -342,6 +380,8 @@ module.exports = async function (context, myTimer) {
   const isProd = FEDEX_ENV === 'production';
   let updated = 0;
   let wouldUpdate = 0;
+  let statusUpdated = 0;
+  let statusWouldUpdate = 0;
   for (const p of inTransit) {
     const key = p.trackingNumber.replace(/\s+/g, '');
     const r = byTracking[key];
@@ -350,7 +390,37 @@ module.exports = async function (context, myTimer) {
       continue;
     }
     if (!r.isDelivered) {
+      // Non-delivered event — persist to the optional FedEx Status column so
+      // the UI can render an accurate progress bar (Picked up / In transit /
+      // Out for delivery). Skip the write if the column is missing or the
+      // encoded value hasn't changed since last poll (cheap dedupe).
       log(`· ${p.trackingNumber} (${p.customer}) — ${r.currentStatus}`);
+      if (fedexStatusIdx < 0 || !r.eventCode) continue;
+      const label = FEDEX_CODE_LABELS[r.eventCode] || r.eventLabel || r.eventCode;
+      const ts = fmtDeliveredText(r.eventAt || new Date());
+      const encoded = `${r.eventCode}|${label} @ ${ts}`;
+      // Only the bit before " @ " matters for change detection — the timestamp
+      // updates every poll. Compare the code+label prefix to skip no-ops.
+      const prefix = encoded.split(' @ ')[0];
+      const currentPrefix = (p.currentFedexStatus || '').split(' @ ')[0];
+      if (prefix === currentPrefix) continue;
+      const statusColLetter = colIdxToLetter(fedexStatusIdx);
+      const statusAddr = `${statusColLetter}${p.sheetRow}`;
+      if (!isProd) {
+        statusWouldUpdate++;
+        log(`  [DRY-RUN] ${p.trackingNumber} status → ${encoded} (sandbox; not written)`);
+        continue;
+      }
+      try {
+        await graphPatch(graphToken,
+          `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/worksheets('${encodeURIComponent(PARTS_SHEET)}')/range(address='${statusAddr}')`,
+          { values: [[encoded]] }
+        );
+        statusUpdated++;
+        log(`  ✓ ${p.trackingNumber} status → ${encoded}`);
+      } catch (e) {
+        log.warn(`  ✗ Failed to update status for ${p.trackingNumber} at ${statusAddr}: ${e.message}`);
+      }
       continue;
     }
     const text = fmtDeliveredText(r.deliveredAt);
@@ -385,8 +455,8 @@ module.exports = async function (context, myTimer) {
 
   const duration = ((Date.now() - started.getTime()) / 1000).toFixed(1);
   if (isProd) {
-    log(`[parts-fedex-poll] complete · ${updated}/${inTransit.length} parcels marked delivered · ${duration}s`);
+    log(`[parts-fedex-poll] complete · ${updated}/${inTransit.length} delivered, ${statusUpdated} status updates · ${duration}s`);
   } else {
-    log(`[parts-fedex-poll] complete · DRY-RUN (env=${FEDEX_ENV}) · ${wouldUpdate}/${inTransit.length} parcels would have been marked · no writes performed · ${duration}s`);
+    log(`[parts-fedex-poll] complete · DRY-RUN (env=${FEDEX_ENV}) · ${wouldUpdate}/${inTransit.length} would-deliver, ${statusWouldUpdate} would-status · no writes performed · ${duration}s`);
   }
 };
