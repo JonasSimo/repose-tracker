@@ -3517,9 +3517,12 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .docs-modal-body { padding: 22px 24px; }
 .docs-modal-foot { padding: 14px 24px; border-top: 1px solid var(--border); background: var(--bg3); display: flex; gap: 8px; justify-content: flex-end; }
 .docs-field { margin-bottom: 14px; }
-.docs-field label { display: block; font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--text2); font-weight: 700; margin-bottom: 6px; }
-.docs-field input, .docs-field select, .docs-field textarea { width: 100%; padding: 10px 12px; font-family: inherit; font-size: 13.5px; border: 1.5px solid var(--border); border-radius: 8px; }
-.docs-field textarea { resize: vertical; min-height: 60px; }
+.docs-field:last-child { margin-bottom: 0; }
+.docs-field > label { display: block; font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--text2); font-weight: 700; margin-bottom: 6px; }
+.docs-field > label.docs-field-label-lg { font-family: var(--body); font-size: 13.5px; font-weight: 600; color: var(--repose-navy); text-transform: none; letter-spacing: 0; margin-bottom: 4px; }
+.docs-field input, .docs-field select, .docs-field textarea { width: 100%; height: 44px; padding: 0 13px; font-family: inherit; font-size: 13.5px; font-weight: 500; border: 1.5px solid var(--border); border-radius: 10px; color: var(--repose-navy); background: #fff; }
+.docs-field textarea { height: auto; padding: 11px 13px; resize: vertical; min-height: 80px; }
+.docs-field input:focus, .docs-field select:focus, .docs-field textarea:focus { outline: none; border-color: var(--repose-blue); box-shadow: 0 0 0 3px rgba(20,161,233,.15); }
 .docs-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .docs-upload { border: 2px dashed var(--border2); border-radius: 10px; padding: 22px; text-align: center; color: var(--text2); cursor: pointer; }
 .docs-upload.has-file { border-style: solid; border-color: var(--green); background: var(--gbg); color: var(--green); text-align: left; }
@@ -3529,23 +3532,40 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .docs-checkbox-row label input { accent-color: var(--repose-blue); }
 .docs-checkbox-row label.on { background: var(--bbg); border-color: var(--bborder); color: var(--repose-blue); }
 
-/* Multi-select dropdown — used for picking approval departments.
+/* Multi-select dropdown — used for picking departments (applies-to + approvers).
    <details> open state shows the panel; click-outside closes via JS. */
 .docs-dropdown { position: relative; }
-.docs-dropdown[open] > summary::after { transform: rotate(180deg); }
-.docs-dropdown > summary { list-style: none; display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 10px 12px; font-size: 13.5px; border: 1.5px solid var(--border); border-radius: 8px; background: #fff; cursor: pointer; user-select: none; }
+.docs-dropdown > summary { list-style: none; display: flex; align-items: center; justify-content: space-between; width: 100%; height: 44px; padding: 0 13px; font-size: 13.5px; font-weight: 500; border: 1.5px solid var(--border); border-radius: 10px; background: #fff; cursor: pointer; user-select: none; color: var(--repose-navy); }
 .docs-dropdown > summary::-webkit-details-marker { display: none; }
-.docs-dropdown > summary::after { content: '▾'; color: var(--text2); transition: transform .15s ease; margin-left: 8px; font-size: 12px; }
-.docs-dropdown[open] > summary { border-color: var(--repose-blue); border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
-.docs-dropdown-panel { position: absolute; left: 0; right: 0; top: 100%; max-height: 280px; overflow-y: auto; background: #fff; border: 1.5px solid var(--repose-blue); border-top: none; border-radius: 0 0 8px 8px; box-shadow: 0 10px 24px rgba(14,2,58,.12); z-index: 10; padding: 4px 0; }
-.docs-dropdown-panel label { display: flex; align-items: center; gap: 10px; padding: 8px 12px; font-size: 13px; cursor: pointer; }
+.docs-dropdown > summary > span { display: inline-flex; align-items: center; gap: 6px; }
+.docs-dropdown > summary::after { content: '▾'; color: var(--text2); transition: transform .15s ease; font-size: 12px; }
+.docs-dropdown[open] > summary { border-color: var(--repose-blue); border-bottom-left-radius: 0; border-bottom-right-radius: 0; box-shadow: 0 0 0 3px rgba(20,161,233,.15); }
+.docs-dropdown[open] > summary::after { transform: rotate(180deg); }
+.docs-dropdown-panel { position: absolute; left: 0; right: 0; top: 100%; max-height: 280px; overflow-y: auto; background: #fff; border: 1.5px solid var(--repose-blue); border-top: none; border-radius: 0 0 10px 10px; box-shadow: 0 18px 30px rgba(14,2,58,.18); z-index: 10; }
+.docs-dropdown-panel label { display: flex; align-items: center; gap: 12px; padding: 10px 13px; font-size: 13.5px; font-weight: 500; cursor: pointer; color: var(--repose-navy); border-top: 1px solid var(--border); }
+.docs-dropdown-panel label:first-child { border-top: none; }
 .docs-dropdown-panel label:hover { background: var(--bg3); }
-.docs-dropdown-panel input { accent-color: var(--repose-blue); }
-.docs-dropdown-summary-count { color: var(--repose-blue); font-weight: 700; margin-left: 6px; }
-.docs-pill-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.docs-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 10px; font-size: 12px; background: var(--bbg); color: var(--repose-blue); border: 1px solid var(--bborder); border-radius: 999px; }
-.docs-pill button { background: transparent; border: 0; color: var(--repose-blue); cursor: pointer; font-size: 14px; line-height: 1; padding: 0 2px; }
-.docs-pill button:hover { color: var(--red); }
+.docs-dropdown-panel label .right { margin-left: auto; color: var(--text2); font-size: 12.5px; font-weight: 500; font-family: var(--body); }
+.docs-dropdown-panel label input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--repose-blue); flex-shrink: 0; }
+.docs-dropdown-summary-count { color: var(--repose-blue); font-weight: 700; }
+
+.docs-pill-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.docs-pill-row:empty { display: none; }
+.docs-pill { display: inline-flex; align-items: center; gap: 4px; padding: 6px 6px 6px 12px; font-size: 12.5px; font-weight: 600; background: var(--bbg); color: var(--repose-blue); border: 1px solid var(--bborder); border-radius: 999px; }
+.docs-pill button { background: transparent; border: 0; color: var(--repose-blue); cursor: pointer; font-size: 16px; padding: 0 4px; line-height: 1; border-radius: 999px; }
+.docs-pill button:hover { background: var(--repose-blue); color: #fff; }
+
+/* New-doc / Revise modal sections — numbered + hero per section */
+.docs-section { padding: 18px 0 4px; border-top: 1px solid var(--border); }
+.docs-section:first-of-type { border-top: none; padding-top: 0; }
+.docs-section-head { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 14px; }
+.docs-section-num { width: 36px; height: 36px; line-height: 36px; text-align: center; font-family: var(--display); font-weight: 800; font-size: 16px; background: var(--repose-blue); color: #fff; border-radius: 10px; flex-shrink: 0; box-shadow: 0 4px 10px rgba(20,161,233,.3); }
+.docs-section-body-head { flex: 1; }
+.docs-section-title { font-family: var(--display); font-weight: 700; font-size: 18px; color: var(--repose-navy); letter-spacing: -.01em; margin: 0 0 2px; line-height: 1.25; }
+.docs-section-desc { color: var(--text2); font-size: 13px; margin: 0; line-height: 1.5; }
+.docs-field-label-lg { display: block; font-family: var(--body); font-size: 13.5px; font-weight: 600; color: var(--repose-navy); margin-bottom: 4px; text-transform: none; letter-spacing: 0; }
+.docs-preview { margin-top: 10px; padding: 10px 12px; background: var(--bg3); border-radius: 8px; font-size: 12.5px; line-height: 1.55; color: var(--repose-navy); }
+.docs-preview b { color: var(--repose-blue); }
 
 /* Service Dashboard (Phase A) */
 /* Supplementary palette — maps mockup-style names to existing RepNet vars,
@@ -6128,13 +6148,8 @@ function openEditMetadataModal(doc) {
         </div>
 
         <div class="docs-field">
-          <label>Which department does this document apply to? (single — used for register filtering, not for approvals)</label>
-          <div class="docs-checkbox-row" id="m-depts">
-            ${['Cutting','Sewing','Upholstery','Woodmill','Foam','Assembly','QC','Maintenance','All / Site-wide'].map(d => {
-              const checked = (doc.departments||[]).includes(d);
-              return `<label class="${checked?'on':''}"><input type="radio" name="m-dept" value="${d}" ${checked?'checked':''}> ${d}</label>`;
-            }).join('')}
-          </div>
+          <label class="docs-field-label-lg">Applies to (multi-select &mdash; drives register filter)</label>
+          ${_appliesToDropdownHtml('m', doc.departments || [])}
         </div>
 
         <div class="docs-field-row">
@@ -6176,15 +6191,8 @@ function openEditMetadataModal(doc) {
   `;
   document.body.appendChild(overlay);
 
-  // Department chip toggling — radio behaviour, mirrors new-doc modal
-  overlay.querySelectorAll('#m-depts label').forEach(lab => {
-    lab.querySelector('input').addEventListener('change', e => {
-      if (e.target.checked) {
-        overlay.querySelectorAll('#m-depts label').forEach(l => l.classList.remove('on'));
-        lab.classList.add('on');
-      }
-    });
-  });
+  // Applies-to multi-select dropdown.
+  _wireAppliesToPicker(overlay, 'm');
 
   const close = () => overlay.remove();
   overlay.querySelector('#docs-modal-close').addEventListener('click', close);
@@ -6216,7 +6224,7 @@ async function _saveMetadata(doc, overlay) {
   const refs = overlay.querySelector('#m-refs').value.trim();
   const description = overlay.querySelector('#m-desc').value.trim();
   const reason = overlay.querySelector('#m-reason').value.trim();
-  const dept = (overlay.querySelector('#m-depts input:checked') || {}).value || '';
+  const depts = Array.from(overlay.querySelectorAll('#m-applies-dd input[data-dept]:checked')).map(i => i.dataset.dept);
 
   if (!title) throw new Error('Title is required.');
   if (!owner) throw new Error('Owner email is required.');
@@ -6236,7 +6244,9 @@ async function _saveMetadata(doc, overlay) {
     Owner: owner,
     Description: description
   };
-  if (dept) patch.Departments = dept;
+  // Always write Departments so de-selecting all clears the field; comma-join
+  // the multi-select for the single-line SP column (split back in _mapDocItem).
+  patch.Departments = depts.join(', ');
   patch.Approvers = approversRaw || '';   // explicit empty string clears the field on the SP side
   patch.References = refs || '';
 
@@ -6265,51 +6275,78 @@ function openReviseDocumentModal(doc) {
       </div>
       <div class="docs-modal-body">
 
-        <div class="docs-field">
-          <label>Upload revised file *</label>
-          <input id="r-file" type="file" accept=".pdf,.docx,.xlsx" style="display:none">
-          <div class="docs-upload" id="r-upload-zone">📎 Click to choose a file</div>
-        </div>
-
-        <div class="docs-field">
-          <label>Reason for revision * — auditor reads this</label>
-          <textarea id="r-reason"></textarea>
-        </div>
-
-        <div class="docs-field-row">
-          <div class="docs-field">
-            <label>Triggered by (optional)</label>
-            <select id="r-trig">
-              <option value="">— none —</option>
-              <option>Periodic-Review</option>
-              <option>CAPA</option>
-              <option>NCR</option>
-              <option>Internal-Audit</option>
-              <option>Group-Update</option>
-              <option>Customer-Feedback</option>
-              <option>Other</option>
-            </select>
+        <div class="docs-section">
+          <div class="docs-section-head">
+            <div class="docs-section-num">1</div>
+            <div class="docs-section-body-head">
+              <h3 class="docs-section-title">Revised file &amp; reason</h3>
+              <p class="docs-section-desc">Upload the new version and explain what changed — the auditor reads this on the revision history.</p>
+            </div>
           </div>
           <div class="docs-field">
-            <label>Triggered-by reference (e.g. CAPA-2026-012)</label>
-            <input id="r-trig-ref" placeholder="">
+            <label class="docs-field-label-lg">Upload revised file</label>
+            <input id="r-file" type="file" accept=".pdf,.docx,.xlsx" style="display:none">
+            <div class="docs-upload" id="r-upload-zone">📎 Click to choose a file</div>
+          </div>
+          <div class="docs-field">
+            <label class="docs-field-label-lg">Reason for revision</label>
+            <textarea id="r-reason" placeholder="What changed and why?"></textarea>
+          </div>
+          <div class="docs-field-row">
+            <div class="docs-field">
+              <label class="docs-field-label-lg">Triggered by (optional)</label>
+              <select id="r-trig">
+                <option value="">— none —</option>
+                <option>Periodic-Review</option>
+                <option>CAPA</option>
+                <option>NCR</option>
+                <option>Internal-Audit</option>
+                <option>Group-Update</option>
+                <option>Customer-Feedback</option>
+                <option>Other</option>
+              </select>
+            </div>
+            <div class="docs-field">
+              <label class="docs-field-label-lg">Triggered-by reference</label>
+              <input id="r-trig-ref" placeholder="e.g. CAPA-2026-012">
+            </div>
+          </div>
+          <div class="docs-field">
+            <label class="docs-field-label-lg">Review cycle (months)</label>
+            <input id="r-cycle" type="number" min="1" max="60" value="${doc.reviewCycleMonths}">
           </div>
         </div>
 
-        <div class="docs-field">
-          <label>Review cycle (months) — keep or change</label>
-          <input id="r-cycle" type="number" min="1" max="60" value="${doc.reviewCycleMonths}">
+        <div class="docs-section">
+          <div class="docs-section-head">
+            <div class="docs-section-num">2</div>
+            <div class="docs-section-body-head">
+              <h3 class="docs-section-title">Where does it apply?</h3>
+              <p class="docs-section-desc">Adjust the departments this document governs &mdash; pre-filled from the current revision.</p>
+            </div>
+          </div>
+          <div class="docs-field">
+            ${_appliesToDropdownHtml('r', doc.departments || [])}
+          </div>
         </div>
 
-        <div class="docs-field">
-          <label>Approval — departments whose managers must approve this revision</label>
-          ${_deptApprovalDropdownHtml('r', [])}
-        </div>
-
-        <div class="docs-field">
-          <label>Individual approvers (optional, comma-separated emails)</label>
-          <input id="r-approvers" value="${(doc.approverEmails||[]).join(', ')}">
-          <div id="r-appr-preview" style="margin-top:8px;font-size:12px;color:var(--text2);min-height:18px"></div>
+        <div class="docs-section">
+          <div class="docs-section-head">
+            <div class="docs-section-num">3</div>
+            <div class="docs-section-body-head">
+              <h3 class="docs-section-title">Who must approve this revision?</h3>
+              <p class="docs-section-desc">Each picked department emails its lead manager. Add individual addresses for anyone else who needs to sign off. Approvers are emailed the moment you click Submit.</p>
+            </div>
+          </div>
+          <div class="docs-field">
+            <label class="docs-field-label-lg">Approver departments</label>
+            ${_deptApprovalDropdownHtml('r', [])}
+          </div>
+          <div class="docs-field">
+            <label class="docs-field-label-lg">Individual approvers</label>
+            <input id="r-approvers" value="${(doc.approverEmails||[]).join(', ')}" placeholder="someone.else@reposefurniture.co.uk">
+          </div>
+          <div id="r-appr-preview" class="docs-preview"></div>
         </div>
 
       </div>
@@ -6332,7 +6369,8 @@ function openReviseDocumentModal(doc) {
     }
   });
 
-  // Same multi-select dropdown + pill + preview pattern as new-doc modal.
+  // Applies-to + approver multi-select dropdowns.
+  _wireAppliesToPicker(overlay, 'r');
   _wireApprovalPicker(overlay, 'r');
 
   const close = () => overlay.remove();
@@ -6367,6 +6405,8 @@ async function _saveRevision(doc, overlay) {
   const trigRef = overlay.querySelector('#r-trig-ref').value.trim();
   const cycle = parseInt(overlay.querySelector('#r-cycle').value, 10);
   const approversRaw = overlay.querySelector('#r-approvers').value.trim();
+  // Applies-to depts (multi-select); persisted as comma-joined string.
+  const appliesDepts = Array.from(overlay.querySelectorAll('#r-applies-dd input[data-dept]:checked')).map(i => i.dataset.dept);
 
   if (!file) throw new Error('A revised file is required.');
   if (!reason) throw new Error('Reason for revision is required.');
@@ -6415,6 +6455,10 @@ async function _saveRevision(doc, overlay) {
   // I4/I13: register's Description column holds 'what is this doc for', not
   // the per-revision reason — the reason lives in DocumentRevisions.ReasonForRevision below.
   registerPatch.Approvers = approversCsv;
+  // Applies-to: write the multi-select selection. Comma-joined to fit the
+  // existing single-line column; _mapDocItem splits the CSV back into an
+  // array. Always written so de-selecting depts actually clears them.
+  registerPatch.Departments = appliesDepts.join(', ');
 
   // Bulk + per-field fallback handled by helper. If the PATCH partially
   // fails, the file is already uploaded — orphaning it without an audit
@@ -6485,76 +6529,86 @@ function openNewDocumentModal() {
   overlay.innerHTML = `
     <div class="docs-modal">
       <div class="docs-modal-head">
-        <h2>New document</h2>
+        <h2>New controlled document</h2>
         <button class="docs-btn docs-btn-sec" id="docs-modal-close">×</button>
       </div>
       <div class="docs-modal-body">
-        <div class="docs-field-row">
-          <div class="docs-field">
-            <label>Document Number *</label>
-            <input id="f-docnum" placeholder="REPO-Q027">
+
+        <div class="docs-section">
+          <div class="docs-section-head">
+            <div class="docs-section-num">1</div>
+            <div class="docs-section-body-head">
+              <h3 class="docs-section-title">Identify the document</h3>
+              <p class="docs-section-desc">How will the doc be referenced and where in the register does it live?</p>
+            </div>
+          </div>
+          <div class="docs-field-row">
+            <div class="docs-field"><label class="docs-field-label-lg">Document number</label><input id="f-docnum" placeholder="REPO-Q027"></div>
+            <div class="docs-field"><label class="docs-field-label-lg">Title</label><input id="f-title" placeholder=""></div>
+          </div>
+          <div class="docs-field-row" style="grid-template-columns:1fr 1fr 1fr">
+            <div class="docs-field"><label class="docs-field-label-lg">Category</label><select id="f-cat"><option>H&amp;S</option><option>Quality</option><option>Group</option></select></div>
+            <div class="docs-field"><label class="docs-field-label-lg">Level</label><select id="f-lvl"><option>Form</option><option>Work Instruction</option><option>Procedure</option><option>Policy</option></select></div>
+            <div class="docs-field"><label class="docs-field-label-lg">Review cycle</label><select id="f-cycle-sel"><option value="12">12 months</option><option value="6">6 months</option><option value="24">24 months</option><option value="36">36 months</option></select></div>
+          </div>
+          <div class="docs-field"><label class="docs-field-label-lg">Owner email</label><input id="f-owner" type="email" value="${_escape((graphAccount && graphAccount.username) || 'jonas.simonaitis@reposefurniture.co.uk')}"></div>
+        </div>
+
+        <div class="docs-section">
+          <div class="docs-section-head">
+            <div class="docs-section-num">2</div>
+            <div class="docs-section-body-head">
+              <h3 class="docs-section-title">Where does it apply?</h3>
+              <p class="docs-section-desc">Pick every department this document governs. Drives the register filter only &mdash; separate from who approves.</p>
+            </div>
           </div>
           <div class="docs-field">
-            <label>Title *</label>
-            <input id="f-title" placeholder="">
+            ${_appliesToDropdownHtml('f', [])}
           </div>
         </div>
 
-        <div class="docs-field-row">
-          <div class="docs-field">
-            <label>Category *</label>
-            <select id="f-cat"><option>H&amp;S</option><option>Quality</option><option>Group</option></select>
-          </div>
-          <div class="docs-field">
-            <label>Level *</label>
-            <select id="f-lvl"><option>Form</option><option>Work Instruction</option><option>Procedure</option><option>Policy</option></select>
-          </div>
-        </div>
-
-        <div class="docs-field">
-          <label>Which department does this document apply to? (pick one — drives the register filter, NOT who approves)</label>
-          <div class="docs-checkbox-row" id="f-depts">
-            ${['Cutting','Sewing','Upholstery','Woodmill','Foam','Assembly','QC','Maintenance','All / Site-wide'].map(d => `<label><input type="radio" name="f-dept" value="${d}"> ${d}</label>`).join('')}
-          </div>
-        </div>
-
-        <div class="docs-field-row">
-          <div class="docs-field">
-            <label>Review cycle (months) *</label>
-            <input id="f-cycle" type="number" min="1" max="60" value="12">
+        <div class="docs-section">
+          <div class="docs-section-head">
+            <div class="docs-section-num">3</div>
+            <div class="docs-section-body-head">
+              <h3 class="docs-section-title">Who must approve it?</h3>
+              <p class="docs-section-desc">Each picked department emails its lead manager. Add individual addresses for anyone else who needs to sign off. Approvers are emailed the moment you submit.</p>
+            </div>
           </div>
           <div class="docs-field">
-            <label>Owner email *</label>
-            <input id="f-owner" type="email" value="${_escape((graphAccount && graphAccount.username) || 'jonas.simonaitis@reposefurniture.co.uk')}">
+            <label class="docs-field-label-lg">Approver departments</label>
+            ${_deptApprovalDropdownHtml('f', [])}
+          </div>
+          <div class="docs-field">
+            <label class="docs-field-label-lg">Individual approvers (optional)</label>
+            <input id="f-approvers" placeholder="someone.else@reposefurniture.co.uk">
+          </div>
+          <div id="f-appr-preview" class="docs-preview"></div>
+        </div>
+
+        <div class="docs-section">
+          <div class="docs-section-head">
+            <div class="docs-section-num">4</div>
+            <div class="docs-section-body-head">
+              <h3 class="docs-section-title">File &amp; reason</h3>
+              <p class="docs-section-desc">The actual document and a one-line reason that goes onto the auditable revision history.</p>
+            </div>
+          </div>
+          <div class="docs-field">
+            <label class="docs-field-label-lg">Reason for issuing</label>
+            <textarea id="f-desc" placeholder="New document — initial issue."></textarea>
+          </div>
+          <div class="docs-field">
+            <label class="docs-field-label-lg">References (optional, comma-separated DocNumbers)</label>
+            <input id="f-refs" placeholder="REPO-Q008, REPO-HS022">
+          </div>
+          <div class="docs-field">
+            <label class="docs-field-label-lg">Source file (PDF, DOCX or XLSX)</label>
+            <input id="f-file" type="file" accept=".pdf,.docx,.xlsx" style="display:none">
+            <div class="docs-upload" id="f-upload-zone">📎 Click to choose a file</div>
           </div>
         </div>
 
-        <div class="docs-field">
-          <label>Approval — departments whose managers must approve</label>
-          ${_deptApprovalDropdownHtml('f', [])}
-        </div>
-
-        <div class="docs-field">
-          <label>Individual approvers (optional, comma-separated emails)</label>
-          <input id="f-approvers" placeholder="someone.else@reposefurniture.co.uk">
-          <div id="f-appr-preview" style="margin-top:8px;font-size:12px;color:var(--text2);min-height:18px"></div>
-        </div>
-
-        <div class="docs-field">
-          <label>References — comma-separated DocNumbers (optional)</label>
-          <input id="f-refs" placeholder="REPO-Q008, REPO-HS022">
-        </div>
-
-        <div class="docs-field">
-          <label>Description / Reason for revision *</label>
-          <textarea id="f-desc" placeholder="New document — initial issue."></textarea>
-        </div>
-
-        <div class="docs-field">
-          <label>Source file (PDF, DOCX, or XLSX) *</label>
-          <input id="f-file" type="file" accept=".pdf,.docx,.xlsx" style="display:none">
-          <div class="docs-upload" id="f-upload-zone">📎 Click to choose a file</div>
-        </div>
       </div>
 
       <div class="docs-modal-foot">
@@ -6576,19 +6630,8 @@ function openNewDocumentModal() {
     }
   });
 
-  // Department chip toggling — radio behaviour: only one .on at a time
-  overlay.querySelectorAll('#f-depts label').forEach(lab => {
-    lab.querySelector('input').addEventListener('change', e => {
-      if (e.target.checked) {
-        overlay.querySelectorAll('#f-depts label').forEach(l => l.classList.remove('on'));
-        lab.classList.add('on');
-      }
-    });
-  });
-
-  // Approval-dept dropdown (multi-select) + individual emails + live preview.
-  // Selected departments render as removable pills below the dropdown trigger
-  // so QHSE can see and de-select without re-opening the panel.
+  // Applies-to multi-select + approver multi-select + live preview.
+  _wireAppliesToPicker(overlay, 'f');
   _wireApprovalPicker(overlay, 'f');
 
   // Close
@@ -6618,13 +6661,16 @@ async function _saveNewDocument(overlay) {
   const title = overlay.querySelector('#f-title').value.trim();
   const category = overlay.querySelector('#f-cat').value;
   const level = overlay.querySelector('#f-lvl').value;
-  const cycle = parseInt(overlay.querySelector('#f-cycle').value, 10);
+  const cycle = parseInt(overlay.querySelector('#f-cycle-sel').value, 10);
   const owner = overlay.querySelector('#f-owner').value.trim();
   const approversRaw = overlay.querySelector('#f-approvers').value.trim();
   const refs = overlay.querySelector('#f-refs').value.trim();
   const description = overlay.querySelector('#f-desc').value.trim();
   const file = overlay.querySelector('#f-file').files[0];
-  const depts = Array.from(overlay.querySelectorAll('#f-depts input:checked')).map(i => i.value);
+  // Applies-to is now multi-select via the §2 dropdown; collect every ticked
+  // dept name. Persisted as a comma-joined string so the existing single-line
+  // 'Departments' column can hold the full list without a schema change.
+  const depts = Array.from(overlay.querySelectorAll('#f-applies-dd input[data-dept]:checked')).map(i => i.dataset.dept);
 
   if (!docNumber || !title || !owner || !description) throw new Error('Doc Number, Title, Owner and Description are required.');
   if (!Number.isFinite(cycle) || cycle < 1 || cycle > 60) throw new Error('Review cycle must be a whole number between 1 and 60 months.');
@@ -6688,11 +6734,13 @@ async function _saveNewDocument(overlay) {
       submittedBy: me
     } : _emptyApprovalState())
   };
-  // Departments column is single-select Choice in SharePoint (confirmed via
-  // manual UI save inspection — stored value was a plain string "Cutting", not
-  // an array). Phase 1 persists only the first selected department; the modal
-  // still lets QHSE tick multiple, but only depts[0] is saved.
-  if (depts.length) optionalFields.Departments = depts[0];
+  // Departments — write the full multi-select selection as a comma-joined
+  // string. The SP column is technically single-select Choice but a string
+  // value is what it stores either way; _mapDocItem splits the CSV back into
+  // an array for filter logic. If SP rejects the joined value (unrecognised
+  // choice on a strict column), the per-field fallback in _patchDocWithFallback
+  // will report it without losing the rest of the patch.
+  if (depts.length) optionalFields.Departments = depts.join(', ');
   if (approversCsv) optionalFields.Approvers = approversCsv;
   if (refs) optionalFields.References = refs;
 
@@ -6820,15 +6868,23 @@ const DOC_APPROVAL_DEPTS = [
   { id: 'SeniorMgmt',  label: 'Senior Management', emails: ['mitch@reposefurniture.co.uk','richard.semmens@reposefurniture.co.uk'] }
 ];
 
-// Render the multi-select dropdown for departments. `idPrefix` namespaces the
-// element IDs so the same widget can live in both the New and Revise modals.
+// Canonical list of departments a controlled doc can apply to. Drives the
+// register filter UI and the "Applies to" picker in the new-doc / revise
+// modals. Order matches how chairs flow through the shop floor.
+const APPLIES_TO_DEPTS = [
+  'Cutting','Sewing','Upholstery','Woodmill','Foam','Assembly','QC','Stores','Maintenance','Development','All / Site-wide'
+];
+
+// Render the multi-select dropdown for APPROVER departments. `idPrefix`
+// namespaces element IDs so the same widget can live in both modals.
 // Returns the full markup: a <details> dropdown + a pill row showing the
 // current selection. The dropdown auto-closes on outside-click via JS wiring.
 function _deptApprovalDropdownHtml(idPrefix, preselectedDeptIds) {
   const sel = new Set((preselectedDeptIds || []).map(s => String(s)));
   const options = DOC_APPROVAL_DEPTS.map(d => {
     const checked = sel.has(d.id);
-    return `<label><input type="checkbox" data-dept="${d.id}" ${checked?'checked':''}> ${_escape(d.label)} <span style="margin-left:auto;color:var(--text2);font-size:11px">${d.emails.length === 1 ? _escape(d.emails[0]) : `${d.emails.length} people`}</span></label>`;
+    const hint = d.emails.length === 1 ? _escape(d.emails[0]) : `${d.emails.length} people`;
+    return `<label><input type="checkbox" data-dept="${d.id}" ${checked?'checked':''}> <span>${_escape(d.label)}</span> <span class="right">${hint}</span></label>`;
   }).join('');
   return `
     <details class="docs-dropdown" id="${idPrefix}-appr-dd">
@@ -6839,6 +6895,56 @@ function _deptApprovalDropdownHtml(idPrefix, preselectedDeptIds) {
     </details>
     <div class="docs-pill-row" id="${idPrefix}-appr-pills"></div>
   `;
+}
+
+// Render the multi-select dropdown for "APPLIES TO" departments — same widget
+// pattern as the approver dropdown but without email hints (these depts are
+// just subject metadata, no email side-effect).
+function _appliesToDropdownHtml(idPrefix, preselectedDepts) {
+  const sel = new Set((preselectedDepts || []).map(s => String(s)));
+  const options = APPLIES_TO_DEPTS.map(d => {
+    const checked = sel.has(d);
+    return `<label><input type="checkbox" data-dept="${_escape(d)}" ${checked?'checked':''}> <span>${_escape(d)}</span></label>`;
+  }).join('');
+  return `
+    <details class="docs-dropdown" id="${idPrefix}-applies-dd">
+      <summary>
+        <span id="${idPrefix}-applies-dd-label">Select departments<span class="docs-dropdown-summary-count" id="${idPrefix}-applies-dd-count" style="display:none">(0)</span></span>
+      </summary>
+      <div class="docs-dropdown-panel">${options}</div>
+    </details>
+    <div class="docs-pill-row" id="${idPrefix}-applies-pills"></div>
+  `;
+}
+
+// Wire the applies-to dropdown — same pattern as _wireApprovalPicker but
+// without email-preview side-effects. Stashes a refresh closure on overlay
+// so external code (e.g. error recovery) can re-render the pills.
+function _wireAppliesToPicker(overlay, idPrefix) {
+  const dd      = overlay.querySelector(`#${idPrefix}-applies-dd`);
+  const ddLabel = overlay.querySelector(`#${idPrefix}-applies-dd-label`);
+  const ddCount = overlay.querySelector(`#${idPrefix}-applies-dd-count`);
+  const pillRow = overlay.querySelector(`#${idPrefix}-applies-pills`);
+  if (!dd) return;
+  function getSelected() { return Array.from(dd.querySelectorAll('input[data-dept]:checked')).map(i => i.dataset.dept); }
+  function setChecked(name, on) { const cb = dd.querySelector(`input[data-dept="${name}"]`); if (cb) cb.checked = !!on; }
+  function refresh() {
+    const ids = getSelected();
+    pillRow.innerHTML = ids.map(d => `<span class="docs-pill" data-pill="${_escape(d)}">${_escape(d)}<button type="button" data-remove="${_escape(d)}" aria-label="Remove ${_escape(d)}">×</button></span>`).join('');
+    pillRow.querySelectorAll('button[data-remove]').forEach(b => b.addEventListener('click', () => { setChecked(b.dataset.remove, false); refresh(); }));
+    if (ids.length === 0) {
+      ddLabel.firstChild.nodeValue = 'Select departments';
+      ddCount.style.display = 'none';
+    } else {
+      ddLabel.firstChild.nodeValue = 'Departments selected ';
+      ddCount.textContent = `(${ids.length})`;
+      ddCount.style.display = '';
+    }
+  }
+  dd.querySelectorAll('input[data-dept]').forEach(cb => cb.addEventListener('change', refresh));
+  document.addEventListener('click', function _close(e) { if (!dd.contains(e.target)) dd.open = false; });
+  overlay[`_refreshAppliesTo_${idPrefix}`] = refresh;
+  refresh();
 }
 
 // Resolve the final, deduped approver list from (ticked depts + free-text emails),
@@ -9346,7 +9452,11 @@ function _mapDocItem(item) {
     title: f.Title || '',
     category: f.Category || '',
     level: f.Level || '',
-    departments: Array.isArray(f.Departments) ? f.Departments : (f.Departments ? [f.Departments] : []),
+    departments: Array.isArray(f.Departments)
+      ? f.Departments
+      : (f.Departments
+          ? String(f.Departments).split(',').map(s => s.trim()).filter(Boolean)
+          : []),
     status: f.Status || 'Draft',
     currentRevision: Number(f.CurrentRevision || 1),
     issueDate: f.IssueDate || null,
