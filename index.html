@@ -3693,6 +3693,15 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .svc-parcel.awaiting .svc-parcel-icn { background: #fff7ed; color: #c2410c; }
 .svc-parcel.awaiting { border-style: dashed; }
 .svc-parcel.awaiting .svc-parcel-mid .progress-fill { background: linear-gradient(90deg, #fb923c, #f97316); }
+/* Parts in Transit panel legend strip — explains the four card-state icons. */
+.svc-parts-legend { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 14px; background: linear-gradient(180deg, #fafbff, #fff); border-bottom: 1px solid var(--border); align-items: center; }
+.svc-parts-legend .lab { font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--text2); font-weight: 800; margin-right: 4px; }
+.svc-parts-legend .chip { display: inline-flex; align-items: center; gap: 5px; background: #fff; border: 1px solid var(--border); border-radius: 999px; padding: 3px 9px 3px 4px; font-size: 10.5px; color: var(--text); font-weight: 600; }
+.svc-parts-legend .chip .ic { width: 18px; height: 18px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; }
+.svc-parts-legend .chip .ic.aw { background: #fff7ed; color: #c2410c; }
+.svc-parts-legend .chip .ic.tr { background: var(--info-soft); color: var(--info); }
+.svc-parts-legend .chip .ic.dl { background: var(--fail-soft); color: var(--fail); }
+.svc-parts-legend .chip .ic.ok { background: var(--pass-soft); color: var(--pass); }
 .svc-parcel-mid { min-width: 0; }
 .svc-parcel-mid .top { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
 .svc-parcel-mid .who { font-weight: 700; font-size: 13px; color: var(--repose-navy); }
@@ -25444,6 +25453,13 @@ function _renderServiceParts() {
     <div class="svc-panel">
       <div class="svc-panel-head">
         <div style="flex:1"><h2>Parts in Transit <span class="sub">${inTransit.length} parcel${inTransit.length === 1 ? '' : 's'} · auto-tracked from FedEx · updates hourly</span></h2></div>
+      </div>
+      <div class="svc-parts-legend" title="What the icons on each parcel card mean">
+        <span class="lab">Legend</span>
+        <span class="chip"><span class="ic aw">📋</span> Awaiting dispatch</span>
+        <span class="chip"><span class="ic tr">🚚</span> In transit</span>
+        <span class="chip"><span class="ic dl">⚠</span> Delayed (5+ days)</span>
+        <span class="chip"><span class="ic ok">✓</span> Delivered</span>
       </div>
       <div class="svc-panel-body">
         <div class="svc-parts-list">
