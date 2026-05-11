@@ -8801,7 +8801,28 @@ function _restoreSnapshot() {
 const LIST_CACHE_PREFIX = 'rep_list_';
 const LIST_CACHE_MAX_AGE_MS = 24 * 3600 * 1000;
 const _listCacheSaveTimers = {};
+// Per-key "skip" flag so a list that hit quota once doesn't keep retrying
+// (spamming console with QuotaExceeded for every poll) — clears on signout
+// because graphSignOut removes the keys, which makes a future attempt
+// realistic again.
+const _listCacheSkip = new Set();
+// Trim a list down to its N most recent entries (createdDateTime desc) so
+// big lists still get a useful instant-paint cache instead of giving up.
+// 500 entries × ~1KB per fielded item ≈ 500KB, well under the 5MB quota,
+// and covers every render that filters to "last 90 days" or "open".
+const LIST_CACHE_MAX_ENTRIES = 500;
+function _trimForCache(data) {
+  if (!Array.isArray(data)) return data;
+  if (data.length <= LIST_CACHE_MAX_ENTRIES) return data;
+  // Sort newest-first by createdDateTime, then take the head.
+  return [...data]
+    .sort((a, b) => Date.parse(b.createdDateTime || 0) - Date.parse(a.createdDateTime || 0))
+    .slice(0, LIST_CACHE_MAX_ENTRIES);
+}
 function _saveListCache(key, data) {
+  // Skip lists that previously hit quota — they'll cold-load via the
+  // existing fire-and-forget Graph fetch path. Faster than retrying.
+  if (_listCacheSkip.has(key)) return;
   // Debounce per-key so a rapid sequence of writes only persists once.
   if (_listCacheSaveTimers[key]) return;
   _listCacheSaveTimers[key] = setTimeout(() => {
@@ -8812,9 +8833,15 @@ function _saveListCache(key, data) {
     // lands when the main thread has nothing better to do.
     _ric(() => {
       try {
-        localStorage.setItem(LIST_CACHE_PREFIX + key, JSON.stringify({ savedAt: Date.now(), data }));
+        const trimmed = _trimForCache(data);
+        localStorage.setItem(LIST_CACHE_PREFIX + key, JSON.stringify({ savedAt: Date.now(), data: trimmed }));
       } catch (e) {
-        console.warn(`list cache save (${key}) failed:`, e.message);
+        // Most likely QuotaExceededError — list is too big even after trim.
+        // Remove any stale partial entry, flag as skip so we stop logging
+        // on every refresh, and let the next sign-in's live fetch handle it.
+        try { localStorage.removeItem(LIST_CACHE_PREFIX + key); } catch (_) {}
+        _listCacheSkip.add(key);
+        console.warn(`list cache save (${key}) skipped — ${e.message}; future writes will be silently skipped this session`);
       }
     });
   }, 500);
