@@ -23393,9 +23393,16 @@ function _renderServiceTickets() {
 
   // Helper: re-render and preserve the search input's value (the re-render replaces
   // c.innerHTML which destroys the input element, losing what the user has typed).
+  // Critical: also flush the live input value into _serviceFilters.q BEFORE the
+  // re-render. _serviceFilters.q only updates on the 200ms debounce — if a user
+  // typed "abc" and clicked a chip within that window, the old code re-rendered
+  // with stale q='', applied the chip filter without the text filter, and then
+  // wrote "abc" back into the new input. The user saw "abc" in the box but the
+  // chip-filtered list ignored it entirely. Now we sync state to input first.
   const _rerenderPreserveSearch = () => {
     const searchEl = document.getElementById('svc-ticket-search');
     const savedValue = searchEl ? searchEl.value : '';
+    _serviceFilters.q = savedValue.trim();
     _renderServiceTickets();
     const newSearchEl = document.getElementById('svc-ticket-search');
     if (newSearchEl && savedValue && document.activeElement !== newSearchEl) {
