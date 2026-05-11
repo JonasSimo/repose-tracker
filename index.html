@@ -8811,11 +8811,35 @@ const _listCacheSkip = new Set();
 // 500 entries × ~1KB per fielded item ≈ 500KB, well under the 5MB quota,
 // and covers every render that filters to "last 90 days" or "open".
 const LIST_CACHE_MAX_ENTRIES = 500;
-function _trimForCache(data) {
+// CPARs in particular hold long free-text Description / Containment /
+// RootCause / CorrectiveAction fields that blow past the localStorage
+// quota even at 500 entries. The Quality LIST view only shows summary
+// fields; the heavy text only matters once the user opens a specific
+// CPAR — by which time the live fetch has overwritten the in-memory
+// CPAR_ITEMS with the full version anyway. So for the cache we keep
+// only the fields needed for list rendering and drop the rest.
+const CPAR_CACHE_FIELDS = new Set([
+  'Title', 'Status', 'LoggedAt', 'ClosedAt', 'RaisedByTeam', 'SourceDept',
+  'IssueCategory', 'IssueType', 'Disposition', 'IsRepeat', 'EffStatus',
+  'PrimaryREP', 'PrimaryJobNo', 'PrimaryModel', 'QTY',
+  'ClosedOutBy', 'ClosedOutAt', 'RaisedBy',
+]);
+function _thinCparForCache(item) {
+  if (!item || !item.fields) return item;
+  const thin = {};
+  for (const k of Object.keys(item.fields)) {
+    if (CPAR_CACHE_FIELDS.has(k)) thin[k] = item.fields[k];
+  }
+  return { id: item.id, createdDateTime: item.createdDateTime, fields: thin };
+}
+function _trimForCache(data, key) {
   if (!Array.isArray(data)) return data;
-  if (data.length <= LIST_CACHE_MAX_ENTRIES) return data;
+  let arr = data;
+  // CPAR-specific: also strip heavy free-text fields.
+  if (key === 'cpar') arr = arr.map(_thinCparForCache);
+  if (arr.length <= LIST_CACHE_MAX_ENTRIES) return arr;
   // Sort newest-first by createdDateTime, then take the head.
-  return [...data]
+  return [...arr]
     .sort((a, b) => Date.parse(b.createdDateTime || 0) - Date.parse(a.createdDateTime || 0))
     .slice(0, LIST_CACHE_MAX_ENTRIES);
 }
@@ -8833,7 +8857,7 @@ function _saveListCache(key, data) {
     // lands when the main thread has nothing better to do.
     _ric(() => {
       try {
-        const trimmed = _trimForCache(data);
+        const trimmed = _trimForCache(data, key);
         localStorage.setItem(LIST_CACHE_PREFIX + key, JSON.stringify({ savedAt: Date.now(), data: trimmed }));
       } catch (e) {
         // Most likely QuotaExceededError — list is too big even after trim.
@@ -9286,16 +9310,34 @@ async function writeSpecAlert(a) {
   const listId = await getListIdByName(SP_SPEC_ALERTS_LIST);
   const token  = await getGraphToken();
   const now    = new Date().toLocaleDateString('en-GB') + ' ' + new Date().toTimeString().slice(0,5);
+  // SP columns OldValue/NewValue are "Single line of text" — 255 char cap.
+  // If a spec field value exceeds that (e.g. a paragraph-long Description
+  // pasted into the spec sheet), POST returns 400. Truncate defensively
+  // and append "…" so the alert is still posted with the meaningful prefix
+  // visible. Keeps the alert pipeline working instead of failing silently.
+  const _cap = (s) => {
+    const v = String(s == null ? '' : s);
+    return v.length > 250 ? v.slice(0, 247) + '…' : v;
+  };
+  const body = { fields: {
+    Title: _cap(a.rep), JobNo: _cap(a.itemNo), Week: _cap(a.wk), Prep: _cap(a.prep),
+    FieldKey: _cap(a.fieldKey), FieldLabel: _cap(a.fieldLabel || a.fieldKey || ''),
+    OldValue: _cap(a.oldVal), NewValue: _cap(a.newVal),
+    DetectedAt: _cap(now), Status: 'unread',
+  }};
   const res = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fields: {
-      Title: a.rep, JobNo: String(a.itemNo), Week: a.wk, Prep: a.prep,
-      FieldKey: a.fieldKey, FieldLabel: a.fieldLabel,
-      OldValue: a.oldVal, NewValue: a.newVal, DetectedAt: now, Status: 'unread',
-    }})
+    body: JSON.stringify(body)
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!res.ok) {
+    // Surface SharePoint's actual error reason — without this, every 400 looked
+    // identical in the console and we couldn't tell whether it was a too-long
+    // value, missing required field, or column-type mismatch.
+    let errBody = '';
+    try { errBody = await res.text(); } catch (_) {}
+    throw new Error(`HTTP ${res.status}${errBody ? ': ' + errBody.slice(0, 300) : ''}`);
+  }
   // Only mark as sent after successful write so failed writes are retried on next sync
   SPEC_ALERT_SENT.add(a.cacheKey);
   saveSpecAlertCache();
