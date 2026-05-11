@@ -8780,6 +8780,42 @@ function _restoreSnapshot() {
   }
 }
 
+// ── Generic list cache (per-view instant-paint) ────────────────────────────
+// _saveSnapshot() above caches PROD/STATE for the team-view critical path.
+// This pair caches the other big lists (CPARs, Near Misses, CAPAs, Service)
+// each under their own key, so navigating to Quality / Safety / Actions /
+// Service on a cold open paints from the last known data immediately while
+// the live Graph fetch runs in background. Per-list keys (rather than one
+// big snapshot) keep any one list's quota failure from wiping the others.
+const LIST_CACHE_PREFIX = 'rep_list_';
+const LIST_CACHE_MAX_AGE_MS = 24 * 3600 * 1000;
+const _listCacheSaveTimers = {};
+function _saveListCache(key, data) {
+  // Debounce per-key so a rapid sequence of writes only persists once.
+  if (_listCacheSaveTimers[key]) return;
+  _listCacheSaveTimers[key] = setTimeout(() => {
+    delete _listCacheSaveTimers[key];
+    try {
+      localStorage.setItem(LIST_CACHE_PREFIX + key, JSON.stringify({ savedAt: Date.now(), data }));
+    } catch (e) {
+      console.warn(`list cache save (${key}) failed:`, e.message);
+    }
+  }, 500);
+}
+function _restoreListCache(key) {
+  try {
+    const raw = localStorage.getItem(LIST_CACHE_PREFIX + key);
+    if (!raw) return null;
+    const snap = JSON.parse(raw);
+    if (!snap || !snap.savedAt) return null;
+    if (Date.now() - snap.savedAt > LIST_CACHE_MAX_AGE_MS) return null;
+    return snap.data;
+  } catch (e) {
+    console.warn(`list cache restore (${key}) failed:`, e.message);
+    return null;
+  }
+}
+
 async function getNmsSiteId() {
   if (_idCache.nmsSiteId) return _idCache.nmsSiteId;
   const res = await graphGet(`https://graph.microsoft.com/v1.0/sites/${SP_HOST}:${NMS_SITE_PATH}`);
@@ -10219,6 +10255,18 @@ async function graphSignOut() {
     _serviceState.parts = [];
     _serviceState.lastFetch = 0;
   }
+  // Wipe per-list localStorage caches so the next person signing in on a
+  // shared kiosk doesn't see the previous user's CPARs / Near Misses /
+  // CAPAs / Service tickets paint on first Quality/Safety/etc. open.
+  // (rep_snapshot_v1 is left intact — it's shop-floor production data,
+  // not personal, and clearing it would force a full Excel reload on
+  // every shift change.)
+  try {
+    localStorage.removeItem('rep_list_cpar');
+    localStorage.removeItem('rep_list_capa');
+    localStorage.removeItem('rep_list_nms');
+    localStorage.removeItem('rep_list_svc');
+  } catch (e) {}
   updateAuthBadge();
   if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
     msalInstance.logoutRedirect({ account }).catch(console.error);
@@ -10737,6 +10785,27 @@ async function initGraph() {
       applyStateToOvBadges();
     } catch (e) { /* render may fail if a referenced DOM element isn't ready yet — non-fatal */ }
   }
+  // Hydrate the other big lists from their per-list caches so opening
+  // Quality / Safety / Actions / Service on a cold tab paints from last
+  // known data immediately instead of showing a spinner until the live
+  // Graph fetch lands. Live fetches still run; once they complete they
+  // overwrite the cached arrays via the existing loader paths.
+  try {
+    const cparCache = _restoreListCache('cpar');
+    if (Array.isArray(cparCache) && cparCache.length) { CPAR_ITEMS = cparCache; cparListLoaded = true; }
+    const capaCache = _restoreListCache('capa');
+    if (Array.isArray(capaCache) && capaCache.length) { CAPA_ITEMS = capaCache; capaListLoaded = true; }
+    const nmsCache = _restoreListCache('nms');
+    if (Array.isArray(nmsCache) && nmsCache.length) { NMS_ITEMS = nmsCache; }
+    const svcCache = _restoreListCache('svc');
+    if (svcCache && Array.isArray(svcCache.tickets)) {
+      _serviceState.tickets = svcCache.tickets;
+      _serviceState.parts = Array.isArray(svcCache.parts) ? svcCache.parts : [];
+      // lastFetch deliberately left at 0 so the next loadServiceData()
+      // call still triggers a fresh fetch — cache is for instant paint,
+      // not for serving as the canonical source.
+    }
+  } catch (e) { console.warn('list cache hydrate failed:', e.message); }
   if (!GRAPH_READY || typeof msal === 'undefined') return;
   initMSAL();
   try {
@@ -16877,6 +16946,7 @@ async function fetchCPARs() {
     CPAR_ITEMS = [...localOnly, ...items]
       .sort((a,b) => parseCPARDate(b.fields?.LoggedAt) - parseCPARDate(a.fields?.LoggedAt));
     cparListLoaded = true;
+    _saveListCache('cpar', CPAR_ITEMS);
     renderIssuesList();
     updateIssuesTabBadge();
     updateTeamCounts();
@@ -18001,6 +18071,7 @@ async function fetchCAPAs() {
     CAPA_ITEMS = [...localOnly, ...items]
       .sort((a,b) => parseCPARDate(b.fields?.RaisedAt) - parseCPARDate(a.fields?.RaisedAt));
     capaListLoaded = true;
+    _saveListCache('capa', CAPA_ITEMS);
     if (document.getElementById('view-actions')?.classList.contains('active')) renderActionsView();
   } catch(e) {
     console.warn('fetchCAPAs:', e.message);
@@ -20248,6 +20319,7 @@ async function loadNearMisses() {
     const siteId = await getNmsSiteId();
     const url = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${NMS_LIST_ID}/items?$expand=fields&$top=999&$orderby=createdDateTime desc`;
     NMS_ITEMS = await graphGetAll(url);
+    _saveListCache('nms', NMS_ITEMS);
     if (pill) pill.textContent = '● Synced just now';
     renderNearMisses();
   } catch(e) {
@@ -23174,6 +23246,11 @@ async function loadServiceData(force = false) {
     _serviceState.tickets = tickets;
     _serviceState.parts = parts;
     _serviceState.lastFetch = now;
+    // Persist tickets + parts so a cold Service tab opening paints instantly.
+    // Drive/item IDs and live caches are deliberately omitted — they're
+    // re-resolved against Graph anyway, and stale IDs would surface as
+    // weird 404s instead of a clean cache miss.
+    _saveListCache('svc', { tickets, parts });
     // Fetch the canonical dropdowns lookup separately (only first time, then cached).
     // The TicketLog drive/item IDs are populated by fetchServiceTickets above.
     if (!_serviceState.dropdowns) {
