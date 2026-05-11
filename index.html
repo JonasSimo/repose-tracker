@@ -23893,6 +23893,12 @@ async function _openMarkForReturnConfirm(t, drawerOverlay) {
 }
 
 function openNewServiceTicketModal() {
+  // Match the edit path: gate creation behind the same TICKET_EDITORS set.
+  // The "+ New Ticket" button is already hidden from non-editors, but
+  // openNewServiceTicketModal is a global function callable from the
+  // browser console. Guard at function entry so a DevTools call can't
+  // bypass the UI gate.
+  if (!_canEditTickets()) { alert('You do not have permission to create service tickets.'); return; }
   // Canonical lists from the dropdowns sheet (graceful fallback to data-derived
   // lists if the dropdowns fetch failed).
   const dd = _serviceState.dropdowns;
@@ -24447,6 +24453,11 @@ async function _graphFetchWithRetry(url, options) {
 }
 
 function openNewPartsDispatchModal() {
+  // The "+ Parts Dispatch" button is hidden unless _userPartsRoles().isBlake,
+  // but the function is global and would otherwise let any signed-in user
+  // raise a dispatch row from the console (which triggers an automated
+  // transport handoff email). Guard here too.
+  if (!_userPartsRoles().isBlake) { alert('Only Blake can create a new parts dispatch.'); return; }
   // Blake's-stage form only — collects what Blake knows when the parts ship out.
   // FedEx Tracking is added by transport later (via the edit modal); Invoice No
   // is added by accounts later. See _partsStage() for the lifecycle.
