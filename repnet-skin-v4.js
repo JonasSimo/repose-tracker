@@ -92,10 +92,32 @@
       if (!alreadyOnAView && !hasDeepLink) goHome();
     } catch (e) { console.error('[skin-v4] goHome:', e); }
     try { applyAll(); } catch (e) { console.error('[skin-v4] applyAll:', e); }
-    // Pause the periodic re-paint when the tab is hidden. Shop-floor
-    // tablets stay on this page all shift (8-9h); the 2.5s tick burns
-    // CPU + memory pressure even when nothing's visible.
-    setInterval(() => { if (!document.hidden) applyAll(); }, 2500);
+    // Previously this re-ran applyAll() every 2.5s regardless of whether
+    // anything had changed — on a shop-floor tablet open all shift that's
+    // ~12,000 ticks of DOM walking even when the page is idle.
+    //
+    // Now driven by two cheaper signals:
+    //   1. MutationObserver on <body> — fires only when something actually
+    //      mutates (new view rendered, sidebar refreshed). Debounced 250ms
+    //      so a burst of host renders coalesces into one applyAll() call.
+    //   2. A 10s safety-net interval — catches anything the observer might
+    //      miss (e.g. innerHTML replacement that swaps in cached strings
+    //      identical to the previous DOM). Still gated on !document.hidden.
+    let _v4ApplyTimer = null;
+    function _scheduleApply() {
+      if (_v4ApplyTimer) return;
+      _v4ApplyTimer = setTimeout(() => {
+        _v4ApplyTimer = null;
+        if (!document.hidden) {
+          try { applyAll(); } catch (e) { console.warn('[skin-v4] applyAll (observer):', e); }
+        }
+      }, 250);
+    }
+    try {
+      const mo = new MutationObserver(_scheduleApply);
+      mo.observe(document.body, { childList: true, subtree: true });
+    } catch (e) { console.warn('[skin-v4] MutationObserver:', e); }
+    setInterval(() => { if (!document.hidden) applyAll(); }, 10000);
     document.addEventListener('fullscreenchange', () => {
       if (!document.fullscreenElement) document.documentElement.classList.remove('tv-mode');
     });
