@@ -3864,7 +3864,7 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 </style>
 <script src="/msal-browser.min.js" defer></script>
 <script src="/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="./vendor/jszip-3.10.1.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
   if (typeof Chart !== 'undefined') {
@@ -10570,8 +10570,12 @@ async function loadProductionFromSharePoint() {
     Object.assign(PROD, newPROD);
     WEEKS.length = 0;
     newWEEKS.forEach(w => WEEKS.push(w));
-    if (!activeWC || (activeWC !== 'PRIORITY' && !newWEEKS.includes(activeWC))) activeWC = `WK ${now}`;
-    if (!activeProdWC || !newWEEKS.includes(activeProdWC)) activeProdWC = `WK ${now}`;
+    // Current ISO week sits at index 2 in weekNums (built from [-2,-1,0,1]).
+    // Previously this branch referenced an undefined `now`, throwing
+    // ReferenceError whenever activeWC/activeProdWC needed a fallback.
+    const _currentWk = weekNums[2];
+    if (!activeWC || (activeWC !== 'PRIORITY' && !newWEEKS.includes(activeWC))) activeWC = `WK ${_currentWk}`;
+    if (!activeProdWC || !newWEEKS.includes(activeProdWC)) activeProdWC = `WK ${_currentWk}`;
 
     // Build EXPRESS_TYPE_MAP: rep7 → 'EXP'|'MFT'
     EXPRESS_TYPE_MAP.clear();
@@ -14609,16 +14613,21 @@ function isEffCheckOverdue(closedAt, now=new Date()) {
   return (now - due) > 7 * 86400000;
 }
 
-// Working days between two dates (Mon–Fri only)
+// Working days between two dates (Mon–Fri only).
+// Uses UTC arithmetic so DST transitions (BST↔GMT) don't cause an extra
+// loop iteration. Previously the local-time loop overcounted by one
+// across the spring-forward boundary — Mon→Mon returned 6 instead of 5.
 function workingDaysBetween(start, end) {
   if (end <= start) return 0;
   let days = 0;
   const cur = new Date(start);
-  cur.setHours(0,0,0,0);
-  while (cur < end) {
-    const dow = cur.getDay();
+  cur.setUTCHours(0,0,0,0);
+  const endUtc = new Date(end);
+  endUtc.setUTCHours(0,0,0,0);
+  while (cur < endUtc) {
+    const dow = cur.getUTCDay();
     if (dow >= 1 && dow <= 5) days++;
-    cur.setDate(cur.getDate() + 1);
+    cur.setUTCDate(cur.getUTCDate() + 1);
   }
   return days;
 }
