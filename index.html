@@ -8837,11 +8837,16 @@ function _trimForCache(data, key) {
   let arr = data;
   // CPAR-specific: also strip heavy free-text fields.
   if (key === 'cpar') arr = arr.map(_thinCparForCache);
-  if (arr.length <= LIST_CACHE_MAX_ENTRIES) return arr;
+  // CPARs share localStorage with rep_snapshot_v1 (~2MB) and spec_snapshot
+  // (~1-3MB), leaving very little headroom. 200 is enough for the Quality
+  // list view's "last 90 days" filter — anything older only matters once
+  // the live fetch has overwritten the in-memory CPAR_ITEMS anyway.
+  const cap = (key === 'cpar') ? 200 : LIST_CACHE_MAX_ENTRIES;
+  if (arr.length <= cap) return arr;
   // Sort newest-first by createdDateTime, then take the head.
   return [...arr]
     .sort((a, b) => Date.parse(b.createdDateTime || 0) - Date.parse(a.createdDateTime || 0))
-    .slice(0, LIST_CACHE_MAX_ENTRIES);
+    .slice(0, cap);
 }
 function _saveListCache(key, data) {
   // Skip lists that previously hit quota — they'll cold-load via the
@@ -9331,12 +9336,26 @@ async function writeSpecAlert(a) {
     body: JSON.stringify(body)
   });
   if (!res.ok) {
-    // Surface SharePoint's actual error reason — without this, every 400 looked
-    // identical in the console and we couldn't tell whether it was a too-long
-    // value, missing required field, or column-type mismatch.
-    let errBody = '';
-    try { errBody = await res.text(); } catch (_) {}
-    throw new Error(`HTTP ${res.status}${errBody ? ': ' + errBody.slice(0, 300) : ''}`);
+    // Surface SharePoint's actual error reason — without this, every 400
+    // looked identical in the console and we couldn't tell whether it was
+    // a too-long value, missing required field, or column-type mismatch.
+    // Graph errors come back as JSON {"error":{"code","message"}} — try
+    // that first, fall back to raw text. Also log the failing field name
+    // and value (truncated) so a 400 immediately tells us which column.
+    let parsed = null, raw = '';
+    try {
+      raw = await res.text();
+      parsed = raw ? JSON.parse(raw) : null;
+    } catch (_) {}
+    const code = parsed && parsed.error && parsed.error.code;
+    const msg  = parsed && parsed.error && parsed.error.message;
+    const summary = code || msg
+      ? `${code || ''}${code && msg ? ' — ' : ''}${msg || ''}`
+      : (raw || 'no body');
+    // One-shot dump of the request we sent so we can see field shapes
+    // (whichever column SP rejected, you'll see the value we tried to set).
+    console.warn('[writeSpecAlert] POST body that failed:', body.fields);
+    throw new Error(`HTTP ${res.status}: ${summary.slice(0, 400)}`);
   }
   // Only mark as sent after successful write so failed writes are retried on next sync
   SPEC_ALERT_SENT.add(a.cacheKey);
