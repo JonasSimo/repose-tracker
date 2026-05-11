@@ -6796,13 +6796,25 @@ function renderTeamSidebar() {
     const isActive = t.name === activeTeam;
     const subKeys = t.hasSubs ? SUBS : ['all'];
 
-    // Count done for this team across current selection
+    // Count done for this team across current selection. In Priority
+    // view, activeWC === 'PRIORITY' and activePrep === null, neither
+    // of which exists in PROD, so the count would always be 0/0 for
+    // every team — including teams with real outstanding work. Use
+    // the current production week (WEEKS[2]) and sum across prep
+    // days so the badge still reflects meaningful progress.
     let done = 0, total = 0;
+    const isPriority = activeWC === 'PRIORITY';
+    const countWC = isPriority ? (WEEKS[2] || activeWC) : activeWC;
+    const countPreps = isPriority
+      ? Object.keys(PROD[countWC] || {})
+      : [activePrep];
     subKeys.forEach(sk => {
-      const jobs = PROD[activeWC]?.[activePrep] || [];
-      jobs.forEach((_, ji) => {
-        total++;
-        if (STATE[t.name][sk]?.[activeWC]?.[activePrep]?.[ji]?.done) done++;
+      countPreps.forEach(cp => {
+        const jobs = PROD[countWC]?.[cp] || [];
+        jobs.forEach((_, ji) => {
+          total++;
+          if (STATE[t.name][sk]?.[countWC]?.[cp]?.[ji]?.done) done++;
+        });
       });
     });
 
