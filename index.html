@@ -25301,15 +25301,23 @@ function _inferParcelStage(p) {
       pct: 8, state: 'awaiting'
     };
   }
-  // Tracking is in. Map the latest FedEx event code (if any) to a stage.
-  // fedexStatus comes from the optional Column I written by parts-fedex-poll.
-  // If the column is missing or empty, fall back to "Picked up" — the parcel
-  // has a label but FedEx hasn't reported a scan yet.
+  // Tracking is in. Map the latest FedEx event code to a stage.
+  // fedexStatus comes from the optional Column I written by parts-fedex-poll
+  // as 'CODE|Human label · DD.MM.YY @ HH.mm'. Stage mapping:
+  //   OC = "Shipment information sent to FedEx" — label exists but FedEx
+  //        hasn't physically collected the parcel yet (still in our
+  //        warehouse). Stays at "Awaiting dispatch" — advancing to "Picked up"
+  //        here would lie about where the parcel is.
+  //   PU = "Picked up" — FedEx has actually collected it.
+  //   IT / AR / DP = scans inside the FedEx network → "In transit".
+  //   OD = "Out for delivery" — on the local courier van.
+  // No event yet (column missing or empty after a fresh tracking add) stays
+  // at nowIdx=0 — never advance on a clock.
   const evtCode = String(p.fedexStatus || '').split('|')[0].trim().toUpperCase();
-  let nowIdx = 1; // default: Picked up
+  let nowIdx = 0;
   if (evtCode === 'OD') nowIdx = 3;
   else if (evtCode === 'IT' || evtCode === 'AR' || evtCode === 'DP') nowIdx = 2;
-  else if (evtCode === 'PU' || evtCode === 'OC' || evtCode === '') nowIdx = 1;
+  else if (evtCode === 'PU') nowIdx = 1;
   // Delayed flag is now only meaningful once shipped. Use days since dispatch
   // as a rough proxy — anything in transit for 5+ days warrants a warning,
   // but we cap nowIdx at 3 (don't fake OFD).
