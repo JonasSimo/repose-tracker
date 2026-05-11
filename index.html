@@ -11249,7 +11249,16 @@ window.addEventListener('load', () => initGraph().catch(console.error));
 // STATS TAB
 // ═══════════════════════════════════════════════
 
-const STATS_PASSWORD = 'Repnetiscool';
+// SHA-256 of the stats password. The plaintext used to live here in source,
+// which meant anyone who viewed-source could unlock the dashboard. Compare
+// against the hash via crypto.subtle.digest below — the plaintext never
+// appears in the bundle. Rotate by computing the new hash offline.
+const STATS_PASSWORD_HASH = 'fbaf0034028b930454ff9771810085ae9352d618553b5b4b1ea8a2dc0db7f4d1';
+async function _statsHash(plain) {
+  const buf = new TextEncoder().encode(String(plain || ''));
+  const dig = await crypto.subtle.digest('SHA-256', buf);
+  return Array.from(new Uint8Array(dig)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
 
 // Team view access — who can see all teams vs. only their own
 const TEAM_VIEW_FULL_ACCESS = new Set([
@@ -11473,9 +11482,10 @@ function openStatsView() {
   }
 }
 
-function submitStatsPassword() {
+async function submitStatsPassword() {
   const val = document.getElementById('stats-pw-input').value;
-  if (val === STATS_PASSWORD) {
+  const hash = await _statsHash(val);
+  if (hash === STATS_PASSWORD_HASH) {
     statsUnlocked = true;
     const qbtn = document.getElementById('quality-tab-btn');
     if (qbtn) qbtn.style.display = '';
