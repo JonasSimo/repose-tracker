@@ -10097,7 +10097,14 @@ async function graphSignIn() {
   if (!msalInstance) { toast('Auth library not ready — please try again', 'u'); return; }
   // iOS/Android blocks popups — use redirect; desktop always uses popup even with ?team=
   if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-    msalInstance.loginRedirect({ scopes: GRAPH_SCOPES }).catch(e => toast('Sign-in failed: ' + e.message, 'u'));
+    // Preserve the deep-link target across the Microsoft round-trip:
+    // redirectUri is bare (no query/hash), so without redirectStartPage
+    // a user clicking ?view=production&team=Sewing or #doc:REPO-Q027
+    // ends up on the default landing page after sign-in.
+    msalInstance.loginRedirect({
+      scopes: GRAPH_SCOPES,
+      redirectStartPage: window.location.href
+    }).catch(e => toast('Sign-in failed: ' + e.message, 'u'));
     return;
   }
   try {
@@ -10198,7 +10205,10 @@ async function getGraphToken() {
     if (!(e instanceof msal.InteractionRequiredAuthError)) throw e;
     if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
       try { toast('Re-authentication needed — redirecting…', 'u'); } catch {}
-      msalInstance.acquireTokenRedirect({ scopes: GRAPH_SCOPES }).catch(err => {
+      msalInstance.acquireTokenRedirect({
+        scopes: GRAPH_SCOPES,
+        redirectStartPage: window.location.href
+      }).catch(err => {
         console.error('acquireTokenRedirect failed:', err);
       });
       throw new Error('Redirecting for authentication');
