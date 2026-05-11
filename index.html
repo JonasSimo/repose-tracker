@@ -21740,6 +21740,13 @@ function cpQuickFilter(name) {
 }
 
 function cpRenderList() {
+  // If graphAccount is transiently null (MSAL silent token refresh in
+  // flight, sign-out mid-render), `me` would be '' and the non-manager
+  // filter `email === ''` matches nothing — every investigator would
+  // see "no complaints assigned" while their cases sit visible to
+  // managers. Defer the render until auth is back instead of showing
+  // a misleading empty state.
+  if (!cpIsManager && !graphAccount?.username) return;
   const me   = (graphAccount?.username || '').toLowerCase();
   const all  = cpComplaints.filter(c => cpIsManager || (c.inv?.InvestigatorEmail || '').toLowerCase() === me);
 
