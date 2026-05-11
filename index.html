@@ -3683,6 +3683,9 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .svc-parcel { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 14px; background: #fff; align-items: center; }
 .svc-parcel-icn { width: 40px; height: 40px; border-radius: 11px; background: var(--info-soft); color: var(--info); display: flex; align-items: center; justify-content: center; font-size: 19px; }
 .svc-parcel.delivered .svc-parcel-icn { background: var(--pass-soft); color: var(--pass); }
+.svc-parcel.awaiting .svc-parcel-icn { background: #fff7ed; color: #c2410c; }
+.svc-parcel.awaiting { border-style: dashed; }
+.svc-parcel.awaiting .svc-parcel-mid .progress-fill { background: linear-gradient(90deg, #fb923c, #f97316); }
 .svc-parcel-mid { min-width: 0; }
 .svc-parcel-mid .top { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
 .svc-parcel-mid .who { font-weight: 700; font-size: 13px; color: var(--repose-navy); }
@@ -22971,6 +22974,11 @@ function _mapPartsRow(row, valuesIdx) {
   // TICKET LOG which has a 6-row banner). Stash the sheet row so the edit
   // modal can PATCH the right cells via worksheets/range(address='X{row}').
   const sheetRow = (typeof valuesIdx === 'number') ? (valuesIdx + 1) : null;
+  // FedEx Status (optional Column I) — written by parts-fedex-poll as
+  // 'CODE|Human label @ DD.MM.YY HH.mm' once FedEx scans the parcel. Empty
+  // when the column doesn't exist in the workbook yet or no scan has occurred.
+  const fedexStatusRaw = row[8];
+  const fedexStatus = (fedexStatusRaw === null || fedexStatusRaw === undefined) ? '' : String(fedexStatusRaw).trim();
   return {
     date: _parseExcelDate(row[0]),
     customer: String(row[1] || '').trim(),
@@ -22981,6 +22989,7 @@ function _mapPartsRow(row, valuesIdx) {
     deliveredText,
     deliveredDate: _parseDeliveredText(deliveredText),
     comment: String(row[7] || '').trim(),
+    fedexStatus,
     isDelivered: deliveredText.length > 0,
     sheetRow
   };
@@ -24646,7 +24655,7 @@ function openNewPartsDispatchModal() {
       </div>
       <div class="svc-modal-body">
         <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:10px 14px;margin:0 0 14px;font-size:12px;color:#9a3412;line-height:1.5">
-          <b>📦 Stage 1 of 3 · Awaiting transport.</b> Add the order details now — transport will add the FedEx tracking number after pickup, and accounts will add the invoice + sales ack later.
+          <b>📦 Stage 1 of 3 · Awaiting transport.</b> Add the order details now — transport gets an email to add the FedEx tracking number after pickup, and accounts is pre-notified in parallel so they can pre-stage the invoice + sales ack.
         </div>
         <div class="svc-field-row">
           <div class="svc-field"><label>Date *</label><input type="date" id="svc-pf-date" value="${_localIsoDate(new Date())}"></div>
@@ -24730,16 +24739,27 @@ function openNewPartsDispatchModal() {
         throw new Error(`Graph Excel REST returned ${res.status} (table has ${tableCols.length} cols, sent ${row.length}): ${errText}`);
       }
 
-      // Send the transport handoff email — non-blocking. If email fails the row
-      // still saved, so we surface the failure but don't abort.
-      let emailFailed = false;
-      try {
-        const emailSent = await _sendPartsTransportHandoffEmail({ customer, po });
-        if (!emailSent) emailFailed = true;
-      } catch (mailErr) {
-        emailFailed = true;
-        console.warn('[svc] parts transport email failed:', mailErr.message);
+      // Send transport handoff (action) + finance pre-notify (informational)
+      // in parallel — both are non-blocking. Row save already succeeded, so
+      // email failures are surfaced to the user but don't abort. Transport
+      // failure is loud (manual workaround needed); finance failure is quiet
+      // (they'll still get the actionable handoff once FedEx tracking is added).
+      const salesAckTyped = get('#svc-pf-sales');
+      const commentTyped = get('#svc-pf-comment');
+      const [transportResult, financeResult] = await Promise.allSettled([
+        _sendPartsTransportHandoffEmail({ customer, po }),
+        _sendPartsFinancePreNotifyEmail({ customer, po, salesAck: salesAckTyped, comment: commentTyped })
+      ]);
+      const transportOk = transportResult.status === 'fulfilled' && transportResult.value !== false;
+      if (!transportOk) {
+        console.warn('[svc] parts transport email failed:',
+          transportResult.status === 'rejected' ? transportResult.reason?.message : 'returned false');
       }
+      if (financeResult.status === 'rejected' || financeResult.value === false) {
+        console.warn('[svc] parts finance pre-notify email failed:',
+          financeResult.status === 'rejected' ? financeResult.reason?.message : 'returned false');
+      }
+      const emailFailed = !transportOk;
 
       close();
       await loadServiceData(true);
@@ -24747,7 +24767,7 @@ function openNewPartsDispatchModal() {
       if (emailFailed) {
         alert(`Parts dispatch for ${customer} (PO ${po}) recorded. Transport email FAILED — please notify transport manually.`);
       } else {
-        alert(`Parts dispatch for ${customer} (PO ${po}) recorded. Transport has been emailed to add the FedEx tracking number.`);
+        alert(`Parts dispatch for ${customer} (PO ${po}) recorded. Transport emailed to add the FedEx tracking number; accounts pre-notified so they can pre-stage the invoice.`);
       }
     } catch (e) {
       alert(`Failed to create dispatch: ${e.message}`);
@@ -24791,6 +24811,50 @@ async function _sendPartsTransportHandoffEmail({ customer, po }) {
   const htmlBody = _docsEmailShell(innerHtml, 'Service · Parts Dispatch');
   return await _sendDocsEmail({
     to: PARTS_TRANSPORT_RECIPIENTS,
+    cc: [PARTS_BLAKE],
+    subject,
+    htmlBody
+  });
+}
+
+// Informational pre-notify to accounts at row-create time. Lets finance start
+// preparing the invoice and verifying the sales ack while transport organises
+// pickup, instead of waiting for the FedEx-handoff email (which arrives only
+// after transport adds the tracking number — sometimes days later). This is
+// NOT an action email; the actionable handoff is still _sendPartsFinanceHandoffEmail.
+async function _sendPartsFinancePreNotifyEmail({ customer, po, salesAck, comment }) {
+  const subject = `📋 Heads-up: new parts dispatch for ${customer} (PO ${po}) — invoice will be needed`;
+  const userName = (graphAccount && graphAccount.name) ? graphAccount.name :
+                   (graphAccount && graphAccount.username) ? graphAccount.username : 'RepNet user';
+  const ref = `${customer} · PO ${po}`;
+  const detailsRows = [
+    `<tr><td style="padding:7px 14px 7px 0;color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:.06em;font-weight:700;vertical-align:top">Customer</td><td style="padding:7px 0;font-size:14px;font-weight:600">${_escapeSvc(customer || '—')}</td></tr>`,
+    `<tr><td style="padding:7px 14px 7px 0;color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:.06em;font-weight:700;vertical-align:top">PO Number</td><td style="padding:7px 0;font-size:14px;font-family:'JetBrains Mono',monospace">${_escapeSvc(po || '—')}</td></tr>`,
+    salesAck ? `<tr><td style="padding:7px 14px 7px 0;color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:.06em;font-weight:700;vertical-align:top">Sales Ack</td><td style="padding:7px 0;font-size:14px;font-family:'JetBrains Mono',monospace">${_escapeSvc(salesAck)}</td></tr>` : '',
+    comment ? `<tr><td style="padding:7px 14px 7px 0;color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:.06em;font-weight:700;vertical-align:top">Comment</td><td style="padding:7px 0;font-size:13px;color:#374151">${_escapeSvc(comment)}</td></tr>` : '',
+    `<tr><td style="padding:7px 14px 7px 0;color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:.06em;font-weight:700;vertical-align:top">Logged by</td><td style="padding:7px 0;font-size:14px">${_escapeSvc(userName)} · ${new Date().toLocaleDateString('en-GB')}</td></tr>`
+  ].filter(Boolean).join('');
+
+  const innerHtml = `
+  <p style="font-size:14px;margin:0 0 18px;line-height:1.5">A new parts dispatch has just been raised on RepNet. <b>No action needed yet</b> — but it will need an invoice${salesAck ? '' : ' and sales ack'} once transport ships it. Heads-up so you can pre-stage if helpful.</p>
+
+  <div style="background:#eff6ff;border:2px solid #2563eb;border-radius:12px;padding:20px 22px;margin:0 0 22px">
+    <div style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#1e40af;font-weight:800;margin-bottom:10px">📋 Heads-up — invoice coming once shipped</div>
+    <div style="font-family:'JetBrains Mono','SF Mono',Menlo,monospace;font-size:22px;font-weight:800;color:#1e3a8a;letter-spacing:-.01em;margin-bottom:6px;word-break:break-all">${_escapeSvc(ref)}</div>
+    <div style="font-size:13px;color:#1e40af">Transport has been emailed in parallel to ship the parcel and add the FedEx tracking number.</div>
+  </div>
+
+  <table style="border-collapse:collapse;margin:0 0 22px;width:100%">${detailsRows}</table>
+
+  <div style="background:#f4f6f8;border-radius:10px;padding:14px 18px;margin:0 0 6px;font-size:13px;color:#0e023a;line-height:1.55">
+    <b style="color:#1e40af">What happens next:</b><br>
+    You'll get a separate action email titled <i>"💰 Action: invoice + sales ack needed"</i> the moment transport adds the FedEx tracking number — that's your cue to raise the invoice. This email is just a heads-up so you can pre-check the customer / sales order in advance.
+  </div>
+  `;
+
+  const htmlBody = _docsEmailShell(innerHtml, 'Service · Parts Dispatch');
+  return await _sendDocsEmail({
+    to: [PARTS_ACCOUNTS_RECIPIENT],
     cc: [PARTS_BLAKE],
     subject,
     htmlBody
@@ -25138,33 +25202,48 @@ function openEditPartsDispatchModal(p) {
   });
 }
 
-// Infer current shipment stage from elapsed days since dispatch.
-// Returns { stages: [{label, status}], pct: 0-100, state: 'transit'|'delivered'|'delayed' }
+// Infer current shipment stage.
+// Pre-FedEx: row exists but no tracking number → freeze at "Awaiting dispatch"
+// regardless of elapsed days (the parcel hasn't left the factory).
+// Post-FedEx: prefer the real event code surfaced by parts-fedex-poll into the
+// FedEx Status column (format: 'CODE|Human label @ DD.MM.YY HH.mm'). When the
+// poll hasn't seen a scan yet, stay at "Picked up" — never advance on a clock
+// alone, since the old elapsed-days inference falsely showed parcels as
+// "Out for delivery" days after Blake raised the row but before transport
+// actually shipped.
+// Returns { stages: [{label, status}], pct: 0-100, state: 'awaiting'|'transit'|'delivered'|'delayed' }
 function _inferParcelStage(p) {
-  const stages = ['Picked up', 'Transit', 'Local depot', 'Out for delivery', 'Delivered'];
+  const stages = ['Awaiting dispatch', 'Picked up', 'In transit', 'Out for delivery', 'Delivered'];
   if (p.isDelivered) {
     return { stages: stages.map(label => ({ label, status: 'done' })), pct: 100, state: 'delivered' };
   }
-  if (!p.date) {
-    // No dispatch date — show first stage only
+  if (!p.fedexTracking) {
+    // No tracking yet → "still being processed". Show only the first stage as active.
     return {
       stages: stages.map((label, i) => ({ label, status: i === 0 ? 'now' : 'pending' })),
-      pct: 10, state: 'transit'
+      pct: 8, state: 'awaiting'
     };
   }
-  const days = Math.floor((Date.now() - p.date.getTime()) / 86400000);
-  let nowIdx = 0;
-  if (days >= 4) nowIdx = 3;
-  else if (days >= 3) nowIdx = 2;
-  else if (days >= 1) nowIdx = 1;
-  // 5+ days un-delivered: classify as delayed; nowIdx caps at 3 (OFD)
-  const state = days >= 5 ? 'delayed' : 'transit';
+  // Tracking is in. Map the latest FedEx event code (if any) to a stage.
+  // fedexStatus comes from the optional Column I written by parts-fedex-poll.
+  // If the column is missing or empty, fall back to "Picked up" — the parcel
+  // has a label but FedEx hasn't reported a scan yet.
+  const evtCode = String(p.fedexStatus || '').split('|')[0].trim().toUpperCase();
+  let nowIdx = 1; // default: Picked up
+  if (evtCode === 'OD') nowIdx = 3;
+  else if (evtCode === 'IT' || evtCode === 'AR' || evtCode === 'DP') nowIdx = 2;
+  else if (evtCode === 'PU' || evtCode === 'OC' || evtCode === '') nowIdx = 1;
+  // Delayed flag is now only meaningful once shipped. Use days since dispatch
+  // as a rough proxy — anything in transit for 5+ days warrants a warning,
+  // but we cap nowIdx at 3 (don't fake OFD).
+  const days = p.date ? Math.floor((Date.now() - p.date.getTime()) / 86400000) : 0;
+  const state = (days >= 5 && nowIdx < 3) ? 'delayed' : 'transit';
   return {
     stages: stages.map((label, i) => ({
       label,
       status: i < nowIdx ? 'done' : i === nowIdx ? 'now' : 'pending'
     })),
-    pct: state === 'delayed' ? 65 : Math.min(85, (nowIdx + 1) * 22),
+    pct: state === 'delayed' ? 65 : Math.min(85, (nowIdx + 1) * 20),
     state
   };
 }
@@ -25304,8 +25383,13 @@ function _renderServiceParts() {
 function _servicePartRowHtml(state) {
   return (p) => {
     const inferred = _inferParcelStage(p);
-    const cardState = state === 'delivered' ? 'delivered' : (inferred.state === 'delayed' ? 'delayed' : 'transit');
-    const icn = state === 'delivered' ? '✓' : (inferred.state === 'delayed' ? '⚠' : '🚚');
+    const isAwaiting = inferred.state === 'awaiting';
+    const cardState = state === 'delivered' ? 'delivered' :
+                      inferred.state === 'delayed' ? 'delayed' :
+                      isAwaiting ? 'awaiting' : 'transit';
+    const icn = state === 'delivered' ? '✓' :
+                inferred.state === 'delayed' ? '⚠' :
+                isAwaiting ? '📋' : '🚚';
     const stage = _partsStage(p);
     const rowAttr = (typeof p.sheetRow === 'number') ? ` data-parts-rowidx="${p.sheetRow}"` : '';
     return `
@@ -25327,7 +25411,7 @@ function _servicePartRowHtml(state) {
           <div style="margin-bottom:4px">${_partsStagePillHtml(stage)}</div>
           ${p.isDelivered
             ? `<div class="eta"><span class="lbl">Delivered</span>${_escapeSvc(p.deliveredText)}</div>`
-            : `<div class="eta"><span class="lbl">Sent</span>${p.date ? p.date.toLocaleDateString('en-GB') : '—'}</div>`}
+            : `<div class="eta"><span class="lbl">${isAwaiting ? 'Raised' : 'Sent'}</span>${p.date ? p.date.toLocaleDateString('en-GB') : '—'}</div>`}
         </div>
       </div>
     `;
