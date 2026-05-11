@@ -3529,6 +3529,24 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 .docs-checkbox-row label input { accent-color: var(--repose-blue); }
 .docs-checkbox-row label.on { background: var(--bbg); border-color: var(--bborder); color: var(--repose-blue); }
 
+/* Multi-select dropdown — used for picking approval departments.
+   <details> open state shows the panel; click-outside closes via JS. */
+.docs-dropdown { position: relative; }
+.docs-dropdown[open] > summary::after { transform: rotate(180deg); }
+.docs-dropdown > summary { list-style: none; display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 10px 12px; font-size: 13.5px; border: 1.5px solid var(--border); border-radius: 8px; background: #fff; cursor: pointer; user-select: none; }
+.docs-dropdown > summary::-webkit-details-marker { display: none; }
+.docs-dropdown > summary::after { content: '▾'; color: var(--text2); transition: transform .15s ease; margin-left: 8px; font-size: 12px; }
+.docs-dropdown[open] > summary { border-color: var(--repose-blue); border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.docs-dropdown-panel { position: absolute; left: 0; right: 0; top: 100%; max-height: 280px; overflow-y: auto; background: #fff; border: 1.5px solid var(--repose-blue); border-top: none; border-radius: 0 0 8px 8px; box-shadow: 0 10px 24px rgba(14,2,58,.12); z-index: 10; padding: 4px 0; }
+.docs-dropdown-panel label { display: flex; align-items: center; gap: 10px; padding: 8px 12px; font-size: 13px; cursor: pointer; }
+.docs-dropdown-panel label:hover { background: var(--bg3); }
+.docs-dropdown-panel input { accent-color: var(--repose-blue); }
+.docs-dropdown-summary-count { color: var(--repose-blue); font-weight: 700; margin-left: 6px; }
+.docs-pill-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.docs-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 10px; font-size: 12px; background: var(--bbg); color: var(--repose-blue); border: 1px solid var(--bborder); border-radius: 999px; }
+.docs-pill button { background: transparent; border: 0; color: var(--repose-blue); cursor: pointer; font-size: 14px; line-height: 1; padding: 0 2px; }
+.docs-pill button:hover { color: var(--red); }
+
 /* Service Dashboard (Phase A) */
 /* Supplementary palette — maps mockup-style names to existing RepNet vars,
    plus a few new tones (purple/orange/pink) used by the Service module. */
@@ -5330,7 +5348,11 @@ async function _approveDoc(docNumber, drawerOverlay) {
   if (!confirmed) return; // user cancelled — drawer stays open
 
   const me = graphAccount.username.toLowerCase();
+  // Spread existing state first so opaque server-managed fields
+  // (e.g. `lastNudgedAt` written by the approval-reminder Azure Function)
+  // aren't clobbered when the approver acts between nudges.
   const newState = {
+    ...(doc.approvalState || {}),
     approved: [...(doc.approvalState.approved || []), me],
     rejected: doc.approvalState.rejected || [],
     submittedAt: doc.approvalState.submittedAt,
@@ -5449,7 +5471,9 @@ async function _rejectDoc(docNumber, drawerOverlay) {
   if (!reason) return; // user cancelled — drawer stays open
 
   const me = graphAccount.username.toLowerCase();
+  // Spread first so opaque server-managed fields (e.g. lastNudgedAt) survive.
   const newState = {
+    ...(doc.approvalState || {}),
     approved: doc.approvalState.approved || [],
     rejected: [...(doc.approvalState.rejected || []), me],
     submittedAt: doc.approvalState.submittedAt,
@@ -6104,7 +6128,7 @@ function openEditMetadataModal(doc) {
         </div>
 
         <div class="docs-field">
-          <label>Department (single)</label>
+          <label>Which department does this document apply to? (single — used for register filtering, not for approvals)</label>
           <div class="docs-checkbox-row" id="m-depts">
             ${['Cutting','Sewing','Upholstery','Woodmill','Foam','Assembly','QC','Maintenance','All / Site-wide'].map(d => {
               const checked = (doc.departments||[]).includes(d);
@@ -6272,15 +6296,20 @@ function openReviseDocumentModal(doc) {
           </div>
         </div>
 
-        <div class="docs-field-row">
-          <div class="docs-field">
-            <label>Review cycle (months) — keep or change</label>
-            <input id="r-cycle" type="number" min="1" max="60" value="${doc.reviewCycleMonths}">
-          </div>
-          <div class="docs-field">
-            <label>Approvers (comma-separated; blank = QHSE solo)</label>
-            <input id="r-approvers" value="${(doc.approverEmails||[]).join(', ')}">
-          </div>
+        <div class="docs-field">
+          <label>Review cycle (months) — keep or change</label>
+          <input id="r-cycle" type="number" min="1" max="60" value="${doc.reviewCycleMonths}">
+        </div>
+
+        <div class="docs-field">
+          <label>Approval — departments whose managers must approve this revision</label>
+          ${_deptApprovalDropdownHtml('r', [])}
+        </div>
+
+        <div class="docs-field">
+          <label>Individual approvers (optional, comma-separated emails)</label>
+          <input id="r-approvers" value="${(doc.approverEmails||[]).join(', ')}">
+          <div id="r-appr-preview" style="margin-top:8px;font-size:12px;color:var(--text2);min-height:18px"></div>
         </div>
 
       </div>
@@ -6303,26 +6332,8 @@ function openReviseDocumentModal(doc) {
     }
   });
 
-  // Toggle save-button label based on whether external approvers are listed.
-  // Plan 2A Task 3: distinguishes the solo-QHSE 'publish now' path from the
-  // multi-approver 'submit for approval' path so the user knows which lifecycle
-  // their click triggers.
-  const approversInput = overlay.querySelector('#r-approvers');
-  const saveBtn = overlay.querySelector('#docs-modal-save');
-  function _updateSaveLabel() {
-    const others = approversInput.value
-      .split(',').map(s => s.trim()).filter(Boolean)
-      .filter(e => e.toLowerCase() !== (graphAccount && graphAccount.username || '').toLowerCase());
-    if (others.length === 0) {
-      saveBtn.textContent = 'Approve & publish';
-      saveBtn.dataset.approversEmpty = 'true';
-    } else {
-      saveBtn.textContent = `Submit for approval (${others.length} approver${others.length === 1 ? '' : 's'})`;
-      saveBtn.dataset.approversEmpty = '';
-    }
-  }
-  approversInput.addEventListener('input', _updateSaveLabel);
-  _updateSaveLabel();
+  // Same multi-select dropdown + pill + preview pattern as new-doc modal.
+  _wireApprovalPicker(overlay, 'r');
 
   const close = () => overlay.remove();
   overlay.querySelector('#docs-modal-close').addEventListener('click', close);
@@ -6341,12 +6352,10 @@ function openReviseDocumentModal(doc) {
     } catch (e) {
       alert(`Publish failed: ${e.message}`);
       btn.disabled = false;
-      // Re-derive the label from the current approvers field instead of
-      // hard-coding "Approve & publish". With multiple approvers entered,
-      // hard-coding the solo label was misleading — the user could click
-      // again thinking they were publishing when the flow would still
-      // submit for approval.
-      _updateSaveLabel();
+      // Re-derive the save button label from current approval picker state
+      // so a retry click shows the right action ("Submit for approval (N)"
+      // vs "Approve & publish") instead of being stuck on "Publishing…".
+      if (typeof overlay._refreshApprovalPicker === 'function') overlay._refreshApprovalPicker();
     }
   });
 }
@@ -6381,10 +6390,12 @@ async function _saveRevision(doc, overlay) {
   // 'In Approval' status and emails each approver. The approver list excludes
   // the current user (QHSE submitting their own revision doesn't self-approve).
   const me = (graphAccount && graphAccount.username || '').toLowerCase();
-  const externalApprovers = approversRaw
-    .split(',').map(s => s.trim()).filter(Boolean)
-    .filter(e => e.toLowerCase() !== me);
+
+  // Resolve approver list from ticked dept chips + free-text emails.
+  const apprDeptIds = Array.from(overlay.querySelectorAll('#r-appr-dd input[data-dept]:checked')).map(i => i.dataset.dept);
+  const externalApprovers = _resolveDocApprovers(apprDeptIds, approversRaw, me);
   const isMultiApprover = externalApprovers.length > 0;
+  const approversCsv = externalApprovers.join(', ');
 
   const registerPatch = {
     CurrentRevision: newRev,
@@ -6403,7 +6414,7 @@ async function _saveRevision(doc, overlay) {
   // I15: always write Approvers so blanking the field actually clears them.
   // I4/I13: register's Description column holds 'what is this doc for', not
   // the per-revision reason — the reason lives in DocumentRevisions.ReasonForRevision below.
-  registerPatch.Approvers = approversRaw;
+  registerPatch.Approvers = approversCsv;
 
   // Bulk + per-field fallback handled by helper. If the PATCH partially
   // fails, the file is already uploaded — orphaning it without an audit
@@ -6501,7 +6512,7 @@ function openNewDocumentModal() {
         </div>
 
         <div class="docs-field">
-          <label>Department (pick one — multi-select arrives in Phase 2)</label>
+          <label>Which department does this document apply to? (pick one — drives the register filter, NOT who approves)</label>
           <div class="docs-checkbox-row" id="f-depts">
             ${['Cutting','Sewing','Upholstery','Woodmill','Foam','Assembly','QC','Maintenance','All / Site-wide'].map(d => `<label><input type="radio" name="f-dept" value="${d}"> ${d}</label>`).join('')}
           </div>
@@ -6519,8 +6530,14 @@ function openNewDocumentModal() {
         </div>
 
         <div class="docs-field">
-          <label>Additional approver emails (comma-separated, blank = QHSE solo approval)</label>
-          <input id="f-approvers" placeholder="manager@reposefurniture.co.uk">
+          <label>Approval — departments whose managers must approve</label>
+          ${_deptApprovalDropdownHtml('f', [])}
+        </div>
+
+        <div class="docs-field">
+          <label>Individual approvers (optional, comma-separated emails)</label>
+          <input id="f-approvers" placeholder="someone.else@reposefurniture.co.uk">
+          <div id="f-appr-preview" style="margin-top:8px;font-size:12px;color:var(--text2);min-height:18px"></div>
         </div>
 
         <div class="docs-field">
@@ -6569,6 +6586,11 @@ function openNewDocumentModal() {
     });
   });
 
+  // Approval-dept dropdown (multi-select) + individual emails + live preview.
+  // Selected departments render as removable pills below the dropdown trigger
+  // so QHSE can see and de-select without re-opening the panel.
+  _wireApprovalPicker(overlay, 'f');
+
   // Close
   const close = () => overlay.remove();
   overlay.querySelector('#docs-modal-close').addEventListener('click', close);
@@ -6585,7 +6607,8 @@ function openNewDocumentModal() {
       await renderDocumentsRegister();
     } catch (e) {
       alert(`Save failed: ${e.message}`);
-      btn.disabled = false; btn.textContent = 'Save & publish';
+      btn.disabled = false;
+      if (typeof overlay._refreshApprovalPicker === 'function') overlay._refreshApprovalPicker();
     }
   });
 }
@@ -6640,10 +6663,13 @@ async function _saveNewDocument(overlay) {
   // partial failures leave the row queryable so QHSE can finish in
   // SharePoint UI if anything is rejected.
   const me = (graphAccount && graphAccount.username || '').toLowerCase();
-  const externalApprovers = approversRaw
-    .split(',').map(s => s.trim()).filter(Boolean)
-    .filter(e => e.toLowerCase() !== me);
+
+  // Resolve approver list from ticked dept chips + free-text emails.
+  // _resolveDocApprovers handles dedupe, lowercase, and self-exclusion.
+  const apprDeptIds = Array.from(overlay.querySelectorAll('#f-appr-dd input[data-dept]:checked')).map(i => i.dataset.dept);
+  const externalApprovers = _resolveDocApprovers(apprDeptIds, approversRaw, me);
   const isMultiApprover = externalApprovers.length > 0;
+  const approversCsv = externalApprovers.join(', ');
 
   const optionalFields = {
     Category: category,
@@ -6667,7 +6693,7 @@ async function _saveNewDocument(overlay) {
   // an array). Phase 1 persists only the first selected department; the modal
   // still lets QHSE tick multiple, but only depts[0] is saved.
   if (depts.length) optionalFields.Departments = depts[0];
-  if (approversRaw) optionalFields.Approvers = approversRaw;
+  if (approversCsv) optionalFields.Approvers = approversCsv;
   if (refs) optionalFields.References = refs;
 
   // Bulk + per-field fallback handled by helper. Row exists either way
@@ -6683,12 +6709,34 @@ async function _saveNewDocument(overlay) {
       Revision: 1,
       IssueDate: _isoNoMs(),
       ReasonForRevision: description,
-      TriggeredBy: 'Initial issue',
+      TriggeredBy: isMultiApprover ? 'Submitted-for-approval' : 'Initial issue',
       FileLink: uploaded.webUrl,
       FileVersionId: uploaded.id
     });
   } catch (revErr) {
     throw new Error(`Document was created but revision history failed: ${revErr.message}. Please add Rev 1 manually in SharePoint.`);
+  }
+
+  // Email each approver — mirrors the Revise flow so a brand-new doc going
+  // straight into 'In Approval' actually nudges its approvers. Fire-and-forget;
+  // failure is logged but doesn't undo the SharePoint write (the doc is still
+  // recoverable from the register).
+  if (isMultiApprover) {
+    const docUrl = `${location.origin}${location.pathname}?ui=v4#doc:${encodeURIComponent(docNumber)}`;
+    const subject = `RepNet · Approval requested for ${docNumber} Rev 1`;
+    const html = _docsEmailShell(`
+      <h2 style="font-family:'Bricolage Grotesque',Manrope,sans-serif;font-weight:700;font-size:20px;color:#0e023a;margin:0 0 14px">Approval requested</h2>
+      <p style="font-size:14px;line-height:1.55"><b>${_escape(me)}</b> has submitted a new controlled document <b>${_escape(docNumber)} — ${_escape(title)}</b> for your approval.</p>
+      <table style="width:100%;font-size:13px;border-collapse:collapse;margin:18px 0">
+        <tr><td style="padding:6px 12px;background:#f8fafb;border:1px solid #e1e6eb;width:140px"><b>Document</b></td><td style="padding:6px 12px;border:1px solid #e1e6eb">${_escape(docNumber)} — ${_escape(title)}</td></tr>
+        <tr><td style="padding:6px 12px;background:#f8fafb;border:1px solid #e1e6eb"><b>Revision</b></td><td style="padding:6px 12px;border:1px solid #e1e6eb">Rev 1 (initial issue)</td></tr>
+        <tr><td style="padding:6px 12px;background:#f8fafb;border:1px solid #e1e6eb"><b>Category</b></td><td style="padding:6px 12px;border:1px solid #e1e6eb">${_escape(category)} · ${_escape(level)}</td></tr>
+        <tr><td style="padding:6px 12px;background:#f8fafb;border:1px solid #e1e6eb"><b>Reason</b></td><td style="padding:6px 12px;border:1px solid #e1e6eb">${_escape(description)}</td></tr>
+      </table>
+      <p style="font-size:14px"><a href="${docUrl}" style="display:inline-block;background:#14a1e9;color:#fff;text-decoration:none;padding:10px 20px;border-radius:999px;font-weight:600;font-size:13px">↗ Open Doc Approvals in RepNet</a></p>
+      <p style="font-size:12px;color:#706f6f;line-height:1.5">You're seeing this because you're listed as an approver for this document. Open RepNet → Doc Approvals to review and click ✓ Approve or ✗ Reject.</p>
+    `);
+    await _sendDocsEmail({ to: externalApprovers, subject, htmlBody: html });
   }
 
   return created;
@@ -6751,6 +6799,137 @@ function _isDocsAdmin() {
   const me = graphAccount && graphAccount.username && graphAccount.username.toLowerCase();
   if (!me) return false;
   return CPAR_QHSE_REVIEWERS.map(e => e.toLowerCase()).includes(me);
+}
+
+// Department -> approver emails for the doc-control approval picker.
+// Lets QHSE multi-select "Sewing, Assembly" and have the lead managers auto-added
+// to the approver list instead of typing addresses. Derived from TEAM_MANAGERS
+// but trimmed to the dept lead only — senior management is a separate option
+// so we don't force Mitch + Richard to approve every single doc.
+const DOC_APPROVAL_DEPTS = [
+  { id: 'Cutting',     label: 'Cutting',           emails: ['mark@reposefurniture.co.uk'] },
+  { id: 'Sewing',      label: 'Sewing',            emails: ['sewingroom@reposefurniture.co.uk'] },
+  { id: 'Upholstery',  label: 'Upholstery',        emails: ['daniel.seymour@reposefurniture.co.uk'] },
+  { id: 'Assembly',    label: 'Assembly',          emails: ['daniel.seymour@reposefurniture.co.uk'] },
+  { id: 'Foam',        label: 'Foam',              emails: ['foam@reposefurniture.co.uk'] },
+  { id: 'Woodmill',    label: 'Woodmill',          emails: ['paul.jenkins@reposefurniture.co.uk'] },
+  { id: 'QC',          label: 'QC',                emails: ['weronika.hathaway@reposefurniture.co.uk'] },
+  { id: 'Stores',      label: 'Stores',            emails: ['stores@reposefurniture.co.uk'] },
+  { id: 'Maintenance', label: 'Maintenance',       emails: ['mitch@reposefurniture.co.uk'] },
+  { id: 'Development', label: 'Development',       emails: ['ryan.evans@reposefurniture.co.uk'] },
+  { id: 'SeniorMgmt',  label: 'Senior Management', emails: ['mitch@reposefurniture.co.uk','richard.semmens@reposefurniture.co.uk'] }
+];
+
+// Render the multi-select dropdown for departments. `idPrefix` namespaces the
+// element IDs so the same widget can live in both the New and Revise modals.
+// Returns the full markup: a <details> dropdown + a pill row showing the
+// current selection. The dropdown auto-closes on outside-click via JS wiring.
+function _deptApprovalDropdownHtml(idPrefix, preselectedDeptIds) {
+  const sel = new Set((preselectedDeptIds || []).map(s => String(s)));
+  const options = DOC_APPROVAL_DEPTS.map(d => {
+    const checked = sel.has(d.id);
+    return `<label><input type="checkbox" data-dept="${d.id}" ${checked?'checked':''}> ${_escape(d.label)} <span style="margin-left:auto;color:var(--text2);font-size:11px">${d.emails.length === 1 ? _escape(d.emails[0]) : `${d.emails.length} people`}</span></label>`;
+  }).join('');
+  return `
+    <details class="docs-dropdown" id="${idPrefix}-appr-dd">
+      <summary>
+        <span id="${idPrefix}-appr-dd-label">Select departments<span class="docs-dropdown-summary-count" id="${idPrefix}-appr-dd-count" style="display:none">(0)</span></span>
+      </summary>
+      <div class="docs-dropdown-panel">${options}</div>
+    </details>
+    <div class="docs-pill-row" id="${idPrefix}-appr-pills"></div>
+  `;
+}
+
+// Resolve the final, deduped approver list from (ticked depts + free-text emails),
+// minus the submitter so QHSE doesn't end up self-approving. Returns lowercase.
+function _resolveDocApprovers(deptIds, freeTextEmails, selfEmail) {
+  const out = new Set();
+  const self = (selfEmail || '').toLowerCase();
+  for (const id of (deptIds || [])) {
+    const dep = DOC_APPROVAL_DEPTS.find(d => d.id === id);
+    if (!dep) continue;
+    for (const e of dep.emails) {
+      const v = String(e || '').trim().toLowerCase();
+      if (v && v !== self) out.add(v);
+    }
+  }
+  for (const raw of String(freeTextEmails || '').split(',')) {
+    const v = raw.trim().toLowerCase();
+    if (v && v !== self) out.add(v);
+  }
+  return Array.from(out);
+}
+
+// Wire the dept-dropdown + individual-emails input + live preview within a
+// modal `overlay`. `idPrefix` is 'f' for new-doc and 'r' for revise — keeps
+// the two modal forms isolated. Stashes a refresh closure on overlay so the
+// save-error handler can re-derive the action label after a failed submit.
+function _wireApprovalPicker(overlay, idPrefix) {
+  const dd       = overlay.querySelector(`#${idPrefix}-appr-dd`);
+  const ddLabel  = overlay.querySelector(`#${idPrefix}-appr-dd-label`);
+  const ddCount  = overlay.querySelector(`#${idPrefix}-appr-dd-count`);
+  const pillRow  = overlay.querySelector(`#${idPrefix}-appr-pills`);
+  const apprIn   = overlay.querySelector(`#${idPrefix}-approvers`);
+  const preview  = overlay.querySelector(`#${idPrefix}-appr-preview`);
+  const saveBtn  = overlay.querySelector('#docs-modal-save');
+  if (!dd || !apprIn || !saveBtn) return;
+
+  function getSelectedDeptIds() {
+    return Array.from(dd.querySelectorAll('input[data-dept]:checked')).map(i => i.dataset.dept);
+  }
+  function setDeptChecked(id, checked) {
+    const cb = dd.querySelector(`input[data-dept="${id}"]`);
+    if (cb) cb.checked = !!checked;
+  }
+  function renderPills() {
+    const ids = getSelectedDeptIds();
+    pillRow.innerHTML = ids.map(id => {
+      const dep = DOC_APPROVAL_DEPTS.find(d => d.id === id);
+      if (!dep) return '';
+      return `<span class="docs-pill" data-pill="${id}">${_escape(dep.label)}<button type="button" data-remove="${id}" aria-label="Remove ${_escape(dep.label)}">×</button></span>`;
+    }).join('');
+    pillRow.querySelectorAll('button[data-remove]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        setDeptChecked(btn.dataset.remove, false);
+        refresh();
+      });
+    });
+    if (ids.length === 0) {
+      ddLabel.firstChild.nodeValue = 'Select departments';
+      ddCount.style.display = 'none';
+    } else {
+      ddLabel.firstChild.nodeValue = 'Departments selected ';
+      ddCount.textContent = `(${ids.length})`;
+      ddCount.style.display = '';
+    }
+  }
+  function refresh() {
+    const me = (graphAccount && graphAccount.username || '').toLowerCase();
+    const deptIds = getSelectedDeptIds();
+    const resolved = _resolveDocApprovers(deptIds, apprIn.value, me);
+    renderPills();
+    if (resolved.length === 0) {
+      preview.innerHTML = `<span style="color:var(--text2)">No approvers selected &mdash; doc will be published immediately as solo-QHSE.</span>`;
+      saveBtn.textContent = idPrefix === 'r' ? 'Approve & publish' : 'Save & publish';
+      saveBtn.dataset.approversEmpty = 'true';
+    } else {
+      preview.innerHTML = `<b>Will email ${resolved.length} approver${resolved.length===1?'':'s'} immediately:</b> ${resolved.map(_escape).join(', ')}`;
+      saveBtn.textContent = `Submit for approval (${resolved.length})`;
+      saveBtn.dataset.approversEmpty = '';
+    }
+  }
+  dd.querySelectorAll('input[data-dept]').forEach(cb => cb.addEventListener('change', refresh));
+  apprIn.addEventListener('input', refresh);
+
+  // Close the <details> on outside-click for a more dropdown-like feel
+  // (default behaviour leaves it open until the user clicks the summary again).
+  document.addEventListener('click', function _docClickClose(e) {
+    if (!dd.contains(e.target)) dd.open = false;
+  });
+
+  overlay._refreshApprovalPicker = refresh;
+  refresh();
 }
 
 // Stricter than _isDocsAdmin: only the QHSE Manager (Jonas) can edit
