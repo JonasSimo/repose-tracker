@@ -6322,22 +6322,49 @@ async function _saveRevision(doc, overlay) {
   // the per-revision reason — the reason lives in DocumentRevisions.ReasonForRevision below.
   registerPatch.Approvers = approversRaw;
 
-  // Bulk + per-field fallback handled by helper.
-  await _patchDocWithFallback(doc.id, registerPatch, 'revise');
+  // Bulk + per-field fallback handled by helper. If the PATCH partially
+  // fails, the file is already uploaded — orphaning it without an audit
+  // row would silently break ISO 9001 cl. 7.5.3.2 (controlled-doc link
+  // must point to the latest revision). So: capture the PATCH error,
+  // still attempt the DocumentRevisions audit row (preserves traceability
+  // even if the register row is partially stale), then re-throw a
+  // recovery-friendly error that names the uploaded file URL.
+  let patchError = null;
+  try {
+    await _patchDocWithFallback(doc.id, registerPatch, 'revise');
+  } catch (e) {
+    patchError = e;
+    console.error('[docs:revise] register PATCH failed after upload', e.message, 'uploaded:', uploaded.webUrl);
+  }
 
   // Append a row to DocumentRevisions. Title (not DocNumber) per the
   // SharePoint internal name (column was renamed display-only; internal
   // name stays Title for the built-in column).
-  await createRevision({
-    Title: doc.docNumber,
-    Revision: newRev,
-    IssueDate: _isoNoMs(),
-    ReasonForRevision: reason,
-    TriggeredBy: trigKind ? (trigRef ? `${trigKind}:${trigRef}` : trigKind) : (isMultiApprover ? 'Submitted-for-approval' : 'Published-solo'),
-    FileLink: uploaded.webUrl,
-    FileVersionId: uploaded.id,
-    ChangedFromRev: doc.currentRevision
-  });
+  try {
+    await createRevision({
+      Title: doc.docNumber,
+      Revision: newRev,
+      IssueDate: _isoNoMs(),
+      ReasonForRevision: reason,
+      TriggeredBy: trigKind ? (trigRef ? `${trigKind}:${trigRef}` : trigKind) : (isMultiApprover ? 'Submitted-for-approval' : 'Published-solo'),
+      FileLink: uploaded.webUrl,
+      FileVersionId: uploaded.id,
+      ChangedFromRev: doc.currentRevision
+    });
+  } catch (e) {
+    console.error('[docs:revise] createRevision audit row failed', e.message, 'uploaded:', uploaded.webUrl);
+    // If both PATCH and audit failed, surface the combined error with
+    // the uploaded URL so QHSE can manually point the register at the
+    // already-uploaded file.
+    if (patchError) {
+      throw new Error(`${patchError.message}\n\nThe new file is uploaded at ${uploaded.webUrl} — open the document in SharePoint to finish the revision manually.`);
+    }
+    throw new Error(`Register updated but audit row missing. ${e.message}\n\nFile: ${uploaded.webUrl}`);
+  }
+
+  if (patchError) {
+    throw new Error(`${patchError.message}\n\nAudit row written. The new file is uploaded at ${uploaded.webUrl} — open the document in SharePoint to finish the partial fields.`);
+  }
 
   // Email each external approver — fire-and-forget; doesn't block the user
   if (isMultiApprover) {
