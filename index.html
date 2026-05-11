@@ -5623,7 +5623,12 @@ function _docsRowMatchesFilters(d) {
   if (f.pendingMyApproval && !_isMyTurnToApprove(d)) return false;
   if (f.dueWithin30) {
     if (!d.nextReviewDate) return false;
-    const days = (new Date(d.nextReviewDate) - new Date()) / 86400000;
+    // Use the same Math.round day count as _docsCounts so the KPI tile
+    // and the filtered table agree on "due within 30 days". Without
+    // rounding, a doc due today can have days ≈ -0.0001 (fractional
+    // hours until midnight), missing the filter while still appearing
+    // in the KPI count.
+    const days = Math.round((new Date(d.nextReviewDate) - new Date()) / 86400000);
     if (days < 0 || days > 30) return false;
   }
   if (f.q && !(`${d.docNumber} ${d.title}`.toLowerCase().includes(f.q.toLowerCase()))) return false;
@@ -5742,7 +5747,11 @@ function _toggleSetFilter(stateKey, attr) {
   _docsState.filters.pendingMyApproval = false;
   _docsState.filters.dueWithin30 = false;
   const set = _docsState.filters[stateKey] = new Set();
-  document.querySelectorAll(`input[data-${attr}]:checked`).forEach(el => set.add(el.dataset[attr]));
+  // Scope to the docs root; using `document` picks up stray checkboxes
+  // from any previous half-removed render (matching attr/name elsewhere
+  // in the app would also leak into the filter set).
+  const root = document.getElementById('docs-content') || document;
+  root.querySelectorAll(`input[data-${attr}]:checked`).forEach(el => set.add(el.dataset[attr]));
   if (hadOneShot) {
     _renderDocsShell(document.getElementById('docs-content'));
     _renderDocsTable();
