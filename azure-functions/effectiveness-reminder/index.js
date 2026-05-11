@@ -52,6 +52,7 @@ async function getListId(t, siteId) {
   const r = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists?$filter=displayName eq '${SP_CPAR_LIST}'`, { headers:{ Authorization:'Bearer '+t }});
   if (!r.ok) throw new Error('list lookup '+r.status);
   const j = await r.json();
+  if (!j.value || !j.value.length) throw new Error(`SharePoint list not found: ${SP_CPAR_LIST}`);
   return j.value[0].id;
 }
 async function fetchAll(t, url) {
@@ -100,6 +101,7 @@ const QHSE_CC = ['mitch@reposefurniture.co.uk', 'richard.semmens@reposefurniture
 const EFF_DAYS = 30;
 
 module.exports = async function (context, myTimer) {
+  try {
   const t = await token();
   const siteId = await getSiteId(t);
   const listId = await getListId(t, siteId);
@@ -124,6 +126,10 @@ module.exports = async function (context, myTimer) {
   if (!due.length && !overdue.length) { context.log('no eff checks due'); return; }
   const html = buildReminder(due, overdue);
   await sendMailCc(t, QHSE_PRIMARY, QHSE_CC, `Effectiveness re-checks due — ${due.length+overdue.length}`, html);
+  } catch (e) {
+    context.log.error('effectiveness-reminder failed:', e && e.message || e);
+    throw e;
+  }
 };
 
 function buildReminder(due, overdue) {

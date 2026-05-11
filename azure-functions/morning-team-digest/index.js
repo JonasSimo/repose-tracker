@@ -59,6 +59,7 @@ async function getListId(t, siteId) {
   const r = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists?$filter=displayName eq '${SP_CPAR_LIST}'`, { headers:{ Authorization:'Bearer '+t }});
   if (!r.ok) throw new Error('list lookup '+r.status);
   const j = await r.json();
+  if (!j.value || !j.value.length) throw new Error(`SharePoint list not found: ${SP_CPAR_LIST}`);
   return j.value[0].id;
 }
 async function fetchAll(t, url) {
@@ -218,6 +219,7 @@ function buildEmail(team, raisedYesterday, stillOpen, yest) {
 
 module.exports = async function (context, myTimer) {
   context.log('CPAR per-team digest starting');
+  try {
   const t = await token();
   const siteId = await getSiteId(t);
   const listId = await getListId(t, siteId);
@@ -276,4 +278,13 @@ module.exports = async function (context, myTimer) {
     context.log.warn(`Master digest failed: ${e.message}`);
   }
   context.log('CPAR digest done');
+  } catch (e) {
+    // Surface as a function-level failure so Azure retries on next
+    // schedule and the host-level alerting picks it up. Previously
+    // a transient Graph 503 on site/list lookup would throw out
+    // unhandled — the function logged a crash with no context,
+    // managers got no digest, and there was no monitoring signal.
+    context.log.error('CPAR digest failed:', e && e.message || e);
+    throw e;
+  }
 };

@@ -52,6 +52,7 @@ async function getListId(t, siteId) {
   const r = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists?$filter=displayName eq '${SP_CPAR_LIST}'`, { headers:{ Authorization:'Bearer '+t }});
   if (!r.ok) throw new Error('list lookup '+r.status);
   const j = await r.json();
+  if (!j.value || !j.value.length) throw new Error(`SharePoint list not found: ${SP_CPAR_LIST}`);
   return j.value[0].id;
 }
 async function fetchAll(t, url) {
@@ -126,6 +127,7 @@ async function sendMailWithAttachment(t, recipients, subject, html, filename, cs
 }
 
 module.exports = async function (context, myTimer) {
+  try {
   const t = await token();
   const siteId = await getSiteId(t);
   const listId = await getListId(t, siteId);
@@ -211,4 +213,8 @@ module.exports = async function (context, myTimer) {
   </body></html>`;
   await sendMailWithAttachment(t, KPI_RECIPIENTS, `Internal Non-Conformances KPI — ${period}`, html, filename, csv);
   context.log('KPI export sent for '+period);
+  } catch (e) {
+    context.log.error('monthly-kpi-export failed:', e && e.message || e);
+    throw e;
+  }
 };
