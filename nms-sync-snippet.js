@@ -83,6 +83,23 @@ window.nmsSync = async function(opts = {}) {
   const xlData = await xlRes.json();
   const rows = xlData.values || [];
 
+  // Header sanity check: if anyone inserted/removed a column in the
+  // Source sheet, the hard-coded indices E/H stop pointing at Near
+  // Miss / Observation Category and we'd write parent/child values
+  // to the wrong columns on apply. Refuse to run if headers drift.
+  const headerRow = rows[0] || [];
+  const header = idx => String(headerRow[idx] || '').toLowerCase();
+  const headerErrors = [];
+  if (!/reference/.test(header(EXCEL.refColIdx))) headerErrors.push(`col ${EXCEL.refColIdx + 1}: expected "Reference Number", got "${headerRow[EXCEL.refColIdx]}"`);
+  if (!/near.*miss.*categ/.test(header(EXCEL.parentColIdx))) headerErrors.push(`col ${EXCEL.parentColIdx + 1}: expected "Near Miss Category", got "${headerRow[EXCEL.parentColIdx]}"`);
+  if (!/observation.*categ/.test(header(EXCEL.childColIdx))) headerErrors.push(`col ${EXCEL.childColIdx + 1}: expected "Observation Category", got "${headerRow[EXCEL.childColIdx]}"`);
+  if (headerErrors.length) {
+    console.error('Excel header schema drift — refusing to run:');
+    headerErrors.forEach(e => console.error('  ' + e));
+    console.error('Update the EXCEL.*ColIdx constants or fix the Source sheet headers.');
+    return;
+  }
+
   const refRe = /^[A-Z]{2,}-\d+$/;
   const excelByRef = {};
   let dataRowCount = 0;
