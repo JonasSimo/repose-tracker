@@ -18071,13 +18071,18 @@ function renderActionsView() {
   }
 
   // Apply filters.
-  let filtered = items.slice();
-  if (capaFilterStatus === 'open')          filtered = filtered.filter(i => i.fields?.Status !== CAPA_STATUS.CLOSED);
-  if (capaFilterStatus === 'overdue')       filtered = filtered.filter(_capaIsOverdue);
-  if (capaFilterStatus === 'closed')        filtered = filtered.filter(i => i.fields?.Status === CAPA_STATUS.CLOSED);
-  if (capaFilterStatus === 'closed_recent') filtered = filtered.filter(_capaIsClosedRecent);
-  if (capaFilterArea)                       filtered = filtered.filter(i => i.fields?.Area === capaFilterArea);
+  // Search overrides status + area filters — matches Quality/Issues behaviour
+  // so a CAPA lookup by title/owner/source surfaces the match regardless of
+  // which tile or area chip is currently selected.
   const searchQ = (capaFilterSearch || '').trim().toLowerCase();
+  let filtered = items.slice();
+  if (!searchQ) {
+    if (capaFilterStatus === 'open')          filtered = filtered.filter(i => i.fields?.Status !== CAPA_STATUS.CLOSED);
+    if (capaFilterStatus === 'overdue')       filtered = filtered.filter(_capaIsOverdue);
+    if (capaFilterStatus === 'closed')        filtered = filtered.filter(i => i.fields?.Status === CAPA_STATUS.CLOSED);
+    if (capaFilterStatus === 'closed_recent') filtered = filtered.filter(_capaIsClosedRecent);
+    if (capaFilterArea)                       filtered = filtered.filter(i => i.fields?.Area === capaFilterArea);
+  }
   if (searchQ) {
     filtered = filtered.filter(i => {
       const f = i.fields || {};
@@ -18104,7 +18109,7 @@ function renderActionsView() {
     const count = isAll ? openCount : (areaCount[a] || 0);
     const c = isAll ? '#0e023a' : (CAPA_AREA_COLOURS[a]?.fg || '#0e023a');
     const active = capaFilterArea === a;
-    return `<button class="issues-team-chip ${active?'active':''}" onclick="capaSetAreaFilter('${a.replace(/'/g,"\\'")}')" style="--cdot:${c}">
+    return `<button class="issues-team-chip ${active?'active':''}${searchQ ? ' issues-team-chip-dim' : ''}" onclick="capaSetAreaFilter('${a.replace(/'/g,"\\'")}')" style="--cdot:${c}">
       ${isAll ? '' : `<span class="dot" style="background:${c}"></span>`}
       ${escHtml(lbl)}
       <span style="margin-left:5px;background:rgba(0,0,0,.08);padding:1px 6px;border-radius:8px;font-size:10px;font-weight:700">${count}</span>
@@ -18129,9 +18134,9 @@ function renderActionsView() {
 
     <!-- Status chips + new + search -->
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
-      <button class="issues-chip ${capaFilterStatus==='open'?'active':''}"   onclick="capaSetStatusFilter('open')">Open</button>
-      <button class="issues-chip ${capaFilterStatus==='closed'?'active':''}" onclick="capaSetStatusFilter('closed')">Closed</button>
-      <button class="issues-chip ${capaFilterStatus==='all'?'active':''}"    onclick="capaSetStatusFilter('all')">All</button>
+      <button class="issues-chip ${capaFilterStatus==='open'?'active':''}${searchQ?' issues-chip-dim':''}"   onclick="capaSetStatusFilter('open')">Open</button>
+      <button class="issues-chip ${capaFilterStatus==='closed'?'active':''}${searchQ?' issues-chip-dim':''}" onclick="capaSetStatusFilter('closed')">Closed</button>
+      <button class="issues-chip ${capaFilterStatus==='all'?'active':''}${searchQ?' issues-chip-dim':''}"    onclick="capaSetStatusFilter('all')">All</button>
       <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
         <span style="position:relative;display:inline-flex;align-items:center">
           <span style="position:absolute;left:8px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:12px;pointer-events:none">🔍</span>
