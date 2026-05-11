@@ -5775,6 +5775,16 @@ function _toggleSetFilter(stateKey, attr) {
 }
 
 function _escape(s) { return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+// Safe href: HTML-escape AND constrain the URL scheme to http(s)/mailto.
+// Without this, a doc.fileLink of "javascript:alert(document.cookie)"
+// stored in the SharePoint register (any QHSE reviewer can write it)
+// would execute under the RepNet origin when another user clicked
+// "Open current file", giving the attacker access to the MSAL token
+// cache in localStorage. _escape alone does not block the scheme.
+function _safeHref(s) {
+  const raw = String(s || '').trim();
+  return /^(https?:|mailto:)/i.test(raw) ? _escape(raw) : '#';
+}
 
 // Document Control deep-link handler — supports email links like
 // '?ui=v4#documents' and '?ui=v4#doc:REPO-Q027' (open drawer for a specific doc).
@@ -5831,7 +5841,7 @@ async function openDocumentDetail(docNumber) {
             <div><dt>Next review</dt><dd>${doc.nextReviewDate ? doc.nextReviewDate.slice(0,10) : '—'}</dd></div>
           </dl>
           <div class="docs-actions-row">
-            ${doc.fileLink ? `<a class="docs-btn docs-btn-sec" href="${_escape(doc.fileLink)}" target="_blank">↗ Open current file</a>` : ''}
+            ${doc.fileLink ? `<a class="docs-btn docs-btn-sec" href="${_safeHref(doc.fileLink)}" target="_blank" rel="noopener noreferrer">↗ Open current file</a>` : ''}
             ${(_isDocsAdmin() && doc.status !== 'Obsolete') ? `<button class="docs-btn docs-btn-pri" id="docs-revise-btn">＋ New revision</button>` : ''}
             ${(_isDocsManager() && doc.status !== 'In Approval') ? `<button class="docs-btn docs-btn-sec" id="docs-edit-meta-btn">✎ Edit metadata</button>` : ''}
             ${(_isDocsManager() && doc.status === 'In Approval') ? `<span title="Edit metadata is locked while approvals are in flight. Reject or wait for completion to edit." style="font-size:11px;color:var(--text2);padding:6px 10px">✎ Edit metadata locked (in approval)</span>` : ''}
@@ -5911,7 +5921,7 @@ async function openDocumentDetail(docNumber) {
             <span>${_escape(r.reasonForRevision || 'Initial issue')}${r.triggeredBy ? ` · <em style="color:#7c3aed">${_escape(r.triggeredBy)}</em>` : ''}</span>
             <span class="docs-tl-when">${r.issueDate ? r.issueDate.slice(0,10) : '—'}</span>
           </div>
-          <div class="docs-tl-note">Approved by: ${(r.approvedByEmails||[]).map(_escape).join(', ') || '—'}${r.fileLink ? ` · <a href="${_escape(r.fileLink)}" target="_blank">↓ PDF</a>` : ''}</div>
+          <div class="docs-tl-note">Approved by: ${(r.approvedByEmails||[]).map(_escape).join(', ') || '—'}${r.fileLink ? ` · <a href="${_safeHref(r.fileLink)}" target="_blank" rel="noopener noreferrer">↓ PDF</a>` : ''}</div>
         </div>
       </div>
     `).join('');
