@@ -5191,12 +5191,18 @@ let ppAutoSyncInterval = null;
 // ═══════════════════════════════════════════════
 const NAV_LABELS = { 'team-select':'Team View','tracker':'Team View','overview':'Load Plan','loadsheet':'Delivery','production':'Production Plan','stats':'Stats','issues':'Issues','quality':'Quality','actions':'CAPA','safety':'Safety','ordercheck':'Order Check','timing':'Job Timing','complaints':'Complaints','innovation':'Innovation Station','maintenance':'Maintenance','documents':'Documents','service':'Service Dashboard' };
 function showView(name) {
+  // Guard: an unknown view name (typo, deep-link to a removed tab)
+  // would throw TypeError on the .classList add below AFTER we'd
+  // already stripped .active from every view, leaving the app blank
+  // and unrecoverable without a reload. Bail early instead.
+  const viewEl = document.getElementById('view-' + name);
+  if (!viewEl) { console.error('[showView] unknown view:', name); return; }
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   const activeView = name === 'tracker' ? 'team-select' : name;
   document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.view === activeView));
   const lbl = document.getElementById('nav-current');
   if (lbl) lbl.textContent = NAV_LABELS[name] || name;
-  document.getElementById('view-' + name).classList.add('active');
+  viewEl.classList.add('active');
   if (name === 'overview')    { if (!ovActiveTab) ovActiveTab = 'live'; buildOvSlots(ovActiveTab==='wk1'?5:ovActiveTab==='wk2'?10:0); applyStateToOvBadges(); renderOverviewTabs(); renderOverview(); populateCustomerDropdown(); }
   if (name === 'loadsheet')   {
     renderLoadSheet();
