@@ -68,23 +68,37 @@
   }
 
   function init() {
+    // Each step wraps its own try/catch so a single failure (e.g.
+    // injectSidebar can't find .topbar) doesn't leave the skin in
+    // a half-painted state where some chrome is injected but later
+    // steps — including the setInterval that drives applyAll — never
+    // run. Previously a throw in step 3 would also skip goHome AND
+    // the interval registration, stranding users on a partially-
+    // converted view with no nav.
+    try { injectSprite();    } catch (e) { console.error('[skin-v4] injectSprite:',    e); }
+    try { injectHomeView();  } catch (e) { console.error('[skin-v4] injectHomeView:',  e); }
+    try { injectSidebar();   } catch (e) { console.error('[skin-v4] injectSidebar:',   e); }
+    try { wireNav();         } catch (e) { console.error('[skin-v4] wireNav:',         e); }
+    try { patchNavTo();      } catch (e) { console.error('[skin-v4] patchNavTo:',      e); }
+    // Don't goHome() if the host has already activated a view (e.g.
+    // deep-link from email reminder, ?view=, ?tab=, fragment handler).
+    // Previously goHome stripped .active off every view unconditionally,
+    // overriding any prior navigation and dropping the user on the home
+    // card grid even when they'd clicked a specific Documents link.
     try {
-      injectSprite();
-      injectHomeView();
-      injectSidebar();
-      wireNav();
-      patchNavTo();
-      goHome();
-      applyAll();
-      setInterval(applyAll, 2500);
-      document.addEventListener('fullscreenchange', () => {
-        if (!document.fullscreenElement) document.documentElement.classList.remove('tv-mode');
-      });
-      console.log('[skin-v4] activated. body flex-direction:',
-        getComputedStyle(document.body).flexDirection);
-    } catch (e) {
-      console.error('[skin-v4] init failed:', e);
-    }
+      const alreadyOnAView = document.querySelector('.view.active');
+      const hasDeepLink = /\b(view|tab|team)=/.test(location.search) || location.hash;
+      if (!alreadyOnAView && !hasDeepLink) goHome();
+    } catch (e) { console.error('[skin-v4] goHome:', e); }
+    try { applyAll(); } catch (e) { console.error('[skin-v4] applyAll:', e); }
+    // Pause the periodic re-paint when the tab is hidden. Shop-floor
+    // tablets stay on this page all shift (8-9h); the 2.5s tick burns
+    // CPU + memory pressure even when nothing's visible.
+    setInterval(() => { if (!document.hidden) applyAll(); }, 2500);
+    document.addEventListener('fullscreenchange', () => {
+      if (!document.fullscreenElement) document.documentElement.classList.remove('tv-mode');
+    });
+    console.log('[skin-v4] activated');
   }
 
   ready(init);
