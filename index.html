@@ -11842,15 +11842,40 @@ function parseDdmmyyyy(str) {
   return dt;
 }
 
+// statsInPeriod is called inside multiple .filter() callbacks over arrays
+// of thousands of items. statsRefDate() builds a fresh Date on every call —
+// 30k+ wasted allocations per render. Cache the ref Date and its derived
+// week/month/year values, invalidated whenever statsPeriod or statsNavOffset
+// change. _statsBumpRefCache() must be called after any reassignment.
+let _statsRefCache = null;
+function _statsGetRef() {
+  // Invalidate when statsPeriod / statsNavOffset have changed since last call.
+  // Cheaper than instrumenting every assignment site.
+  if (_statsRefCache &&
+      _statsRefCache.period === statsPeriod &&
+      _statsRefCache.offset === statsNavOffset) return _statsRefCache;
+  const d = statsRefDate();
+  _statsRefCache = {
+    date: d,
+    day: d.getDate(),
+    month: d.getMonth(),
+    year: d.getFullYear(),
+    isoWk: isoWeekNumber(d),
+    isoYr: isoWeekYear(d),
+    period: statsPeriod,
+    offset: statsNavOffset,
+  };
+  return _statsRefCache;
+}
 function statsInPeriod(dateStr) {
   const d = parseDdmmyyyy(dateStr);
   if (!d) return false;
-  const ref = statsRefDate();
-  if (statsPeriod === 'today' || statsPeriod === 'yesterday' || statsPeriod === 'day')
-    return d.getDate() === ref.getDate() && d.getMonth() === ref.getMonth() && d.getFullYear() === ref.getFullYear();
-  if (statsPeriod === 'week')  return isoWeekNumber(d) === isoWeekNumber(ref) && isoWeekYear(d) === isoWeekYear(ref);
-  if (statsPeriod === 'month') return d.getMonth() === ref.getMonth() && d.getFullYear() === ref.getFullYear();
-  return d.getFullYear() === ref.getFullYear();
+  const r = _statsGetRef();
+  if (r.period === 'today' || r.period === 'yesterday' || r.period === 'day')
+    return d.getDate() === r.day && d.getMonth() === r.month && d.getFullYear() === r.year;
+  if (r.period === 'week')  return isoWeekNumber(d) === r.isoWk && isoWeekYear(d) === r.isoYr;
+  if (r.period === 'month') return d.getMonth() === r.month && d.getFullYear() === r.year;
+  return d.getFullYear() === r.year;
 }
 
 let _statsLoadGen = 0;
@@ -12121,45 +12146,87 @@ function statsFullyCompleteReps(completions) {
 // ── Spark / chart helpers ────────────────────────
 
 function buildSparkData(comp, alerts, scrap, cpars) {
-  const ref  = statsRefDate();
+  // Previously this did 12 (year) / 4 (month) / 5 (week) separate .filter
+  // passes over each of 5 source arrays — 60×, 20×, 25× full scans. With
+  // 8000+ completions per render that's 100k+ iterations doing date parsing
+  // each time.
+  //
+  // Now bucket each source array exactly once into a per-bucket counter,
+  // then read the counters in the labels loop. Total cost: 5 single passes,
+  // each parsing each date once. ~12× faster on year view, similar gains
+  // elsewhere. The buckets vary by period:
+  //   day/today/yesterday/week → dayKey 'YYYY-M-D' (5 buckets, Mon–Fri)
+  //   month                    → week-of-month 0..3 (4 buckets)
+  //   year                     → month 0..11 (12 buckets)
+  const ref  = _statsGetRef().date;
   const qcSrc = STATS_QC;
   let labels = [], complete = [], qc = [], changes = [], scrapB = [], cparB = [];
 
-  function dayKey(dd) { return `${dd.getFullYear()}-${dd.getMonth()}-${dd.getDate()}`; }
+  const dayKey = (dd) => `${dd.getFullYear()}-${dd.getMonth()}-${dd.getDate()}`;
+
+  // Generic bucketer. Each source declares (a) how to extract its Date and
+  // (b) which already-built buckets array to receive the increment.
+  function _bucketAll(makeKey) {
+    const cMap = new Map(), qMap = new Map(), aMap = new Map(), sMap = new Map(), pMap = new Map();
+    for (const c of comp)   { const dd = parseDdmmyyyy(c.fields.CompletedDate); if (!dd) continue; const k = makeKey(dd); if (k != null) cMap.set(k, (cMap.get(k) || 0) + 1); }
+    for (const q of qcSrc)  { const dd = q.date;                                 if (!dd) continue; const k = makeKey(dd); if (k != null) qMap.set(k, (qMap.get(k) || 0) + 1); }
+    for (const a of alerts) { const dd = parseDdmmyyyy(a.fields.DetectedAt);     if (!dd) continue; const k = makeKey(dd); if (k != null) aMap.set(k, (aMap.get(k) || 0) + 1); }
+    for (const s of scrap)  { const dd = parseDdmmyyyy(s.fields.LoggedAt);       if (!dd) continue; const k = makeKey(dd); if (k != null) sMap.set(k, (sMap.get(k) || 0) + 1); }
+    for (const c of cpars)  { const dd = parseCPARDate(c.fields?.LoggedAt);      if (!dd || !dd.getTime()) continue; const k = makeKey(dd); if (k != null) pMap.set(k, (pMap.get(k) || 0) + 1); }
+    return { cMap, qMap, aMap, sMap, pMap };
+  }
 
   if (statsPeriod === 'week' || statsPeriod === 'day' || statsPeriod === 'today' || statsPeriod === 'yesterday') {
     const day = ref.getDay() || 7;
     const mon = new Date(ref); mon.setDate(mon.getDate() - (day - 1));
     labels = ['Mon','Tue','Wed','Thu','Fri'];
+    const dayKeys = [];
     for (let i = 0; i < 5; i++) {
       const d = new Date(mon); d.setDate(mon.getDate() + i);
-      const k = dayKey(d);
-      complete.push(comp.filter(c => { const dd = parseDdmmyyyy(c.fields.CompletedDate); return dd && dayKey(dd) === k; }).length);
-      qc.push(qcSrc.filter(q => q.date && dayKey(q.date) === k).length);
-      changes.push(alerts.filter(a => { const dd = parseDdmmyyyy(a.fields.DetectedAt); return dd && dayKey(dd) === k; }).length);
-      scrapB.push(scrap.filter(s => { const dd = parseDdmmyyyy(s.fields.LoggedAt); return dd && dayKey(dd) === k; }).length);
-      cparB.push(cpars.filter(c => { const dd = parseCPARDate(c.fields?.LoggedAt); return dd && dd.getTime() && dayKey(dd) === k; }).length);
+      dayKeys.push(dayKey(d));
+    }
+    const wanted = new Set(dayKeys);
+    const { cMap, qMap, aMap, sMap, pMap } = _bucketAll(dd => {
+      const k = dayKey(dd);
+      return wanted.has(k) ? k : null;
+    });
+    for (const k of dayKeys) {
+      complete.push(cMap.get(k) || 0);
+      qc.push(qMap.get(k) || 0);
+      changes.push(aMap.get(k) || 0);
+      scrapB.push(sMap.get(k) || 0);
+      cparB.push(pMap.get(k) || 0);
     }
   } else if (statsPeriod === 'month') {
     labels = ['Wk1','Wk2','Wk3','Wk4'];
     const refMon = ref.getMonth(), refYr = ref.getFullYear();
+    const { cMap, qMap, aMap, sMap, pMap } = _bucketAll(dd => {
+      if (dd.getFullYear() !== refYr || dd.getMonth() !== refMon) return null;
+      const day = dd.getDate();
+      if (day <= 7)  return 0;
+      if (day <= 14) return 1;
+      if (day <= 21) return 2;
+      return 3;
+    });
     for (let w = 0; w < 4; w++) {
-      const s = w * 7 + 1, e = w === 3 ? 31 : (w + 1) * 7;
-      complete.push(comp.filter(c => { const dd = parseDdmmyyyy(c.fields.CompletedDate); return dd && dd.getFullYear() === refYr && dd.getMonth() === refMon && dd.getDate() >= s && dd.getDate() <= e; }).length);
-      qc.push(qcSrc.filter(q => q.date && q.date.getFullYear() === refYr && q.date.getMonth() === refMon && q.date.getDate() >= s && q.date.getDate() <= e).length);
-      changes.push(alerts.filter(a => { const dd = parseDdmmyyyy(a.fields.DetectedAt); return dd && dd.getFullYear() === refYr && dd.getMonth() === refMon && dd.getDate() >= s && dd.getDate() <= e; }).length);
-      scrapB.push(scrap.filter(s2 => { const dd = parseDdmmyyyy(s2.fields.LoggedAt); return dd && dd.getFullYear() === refYr && dd.getMonth() === refMon && dd.getDate() >= s && dd.getDate() <= e; }).length);
-      cparB.push(cpars.filter(c => { const dd = parseCPARDate(c.fields?.LoggedAt); return dd && dd.getTime() && dd.getFullYear() === refYr && dd.getMonth() === refMon && dd.getDate() >= s && dd.getDate() <= e; }).length);
+      complete.push(cMap.get(w) || 0);
+      qc.push(qMap.get(w) || 0);
+      changes.push(aMap.get(w) || 0);
+      scrapB.push(sMap.get(w) || 0);
+      cparB.push(pMap.get(w) || 0);
     }
   } else {
     labels = MONTHS_SHORT;
     const refYr = ref.getFullYear();
+    const { cMap, qMap, aMap, sMap, pMap } = _bucketAll(dd => {
+      return dd.getFullYear() === refYr ? dd.getMonth() : null;
+    });
     for (let m = 0; m < 12; m++) {
-      complete.push(comp.filter(c => { const dd = parseDdmmyyyy(c.fields.CompletedDate); return dd && dd.getFullYear() === refYr && dd.getMonth() === m; }).length);
-      qc.push(qcSrc.filter(q => q.date && q.date.getFullYear() === refYr && q.date.getMonth() === m).length);
-      changes.push(alerts.filter(a => { const dd = parseDdmmyyyy(a.fields.DetectedAt); return dd && dd.getFullYear() === refYr && dd.getMonth() === m; }).length);
-      scrapB.push(scrap.filter(s => { const dd = parseDdmmyyyy(s.fields.LoggedAt); return dd && dd.getFullYear() === refYr && dd.getMonth() === m; }).length);
-      cparB.push(cpars.filter(c => { const dd = parseCPARDate(c.fields?.LoggedAt); return dd && dd.getTime() && dd.getFullYear() === refYr && dd.getMonth() === m; }).length);
+      complete.push(cMap.get(m) || 0);
+      qc.push(qMap.get(m) || 0);
+      changes.push(aMap.get(m) || 0);
+      scrapB.push(sMap.get(m) || 0);
+      cparB.push(pMap.get(m) || 0);
     }
   }
   return { labels, complete, qc, changes, scrap: scrapB, cpars: cparB };
