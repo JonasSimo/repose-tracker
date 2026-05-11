@@ -158,6 +158,7 @@ function ownerForLocation(locationOfIssue) {
 // ── Main ─────────────────────────────────────────────────────────────────
 module.exports = async function (context, myTimer) {
   const log = (...a) => context.log(...a);
+  try {
   const t = await token();
   const siteId = await getSiteId(t, NMS_SITE_PATH);
   const items = await fetchAll(t,
@@ -204,5 +205,12 @@ module.exports = async function (context, myTimer) {
   }
 
   log(`Done — sent ${sent}, failed ${failed}, missing owner ${missingOwner}`);
+  } catch (e) {
+    // Surface unhandled errors with app context so the Azure crash log shows
+    // *why* reminders didn't go out — managers can otherwise lose a day of
+    // reminders to a transient Graph 503 with no signal.
+    context.log.error('[nms-reminders] failed:', e && e.message ? e.message : e);
+    throw e;
+  }
 };
 

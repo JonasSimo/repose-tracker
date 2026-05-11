@@ -10254,8 +10254,18 @@ async function _graphFetchWithRetry(url, init, retries = 4) {
   if (typeof url === 'string' && url.includes('$filter=')) {
     init = { ...(init || {}), headers: { ...((init && init.headers) || {}), Prefer: 'HonorNonIndexedQueriesWarningMayFailRandomly' } };
   }
+  // POSTs are NOT safely retryable on gateway timeouts — a 504 may mean the
+  // server processed the request but the gateway timed out before returning,
+  // so retrying would create a duplicate row. We still retry POSTs on 429,
+  // where the server explicitly says it hasn't started ("you're rate-limited,
+  // try later") so a retry is safe.
+  const method = ((init && init.method) || 'GET').toUpperCase();
+  const isPost = method === 'POST';
   let r = await fetch(url, init);
-  while ((r.status === 429 || r.status === 503 || r.status === 504 || r.status === 502) && retries > 0) {
+  while (retries > 0) {
+    const isThrottle = r.status === 429;
+    const isGateway  = r.status === 502 || r.status === 503 || r.status === 504;
+    if (!isThrottle && !(isGateway && !isPost)) break;
     // Honour Retry-After up to 20s; default 4s when missing. Jitter prevents lockstep thunder-herd.
     const baseSec   = Math.min(20, Math.max(1, parseInt(r.headers.get('Retry-After') || '4', 10)));
     const jitterSec = Math.random() * 2;
@@ -24702,25 +24712,6 @@ function _currentFyLabel() {
   return `FY${String(fyYear + 1).slice(-2)}`; // FY runs to Mar of fyYear+1, so e.g. Apr 2026 → "FY27"
 }
 
-// Microsoft Graph's Excel REST sometimes returns 504 MaxRequestDurationExceeded
-// when the workbook is large and the cold-open recalc exceeds the gateway's
-// 30s timeout. We retry once on idempotent methods (GET, PATCH) — they're safe
-// to repeat. We do NOT retry POSTs because if the first request succeeded
-// server-side and only the gateway timed out, a retry would create a duplicate
-// row. Callers should surface the 504 to the user with a "wait and try again
-// — check the spreadsheet" warning.
-async function _graphFetchWithRetry(url, options) {
-  const res = await fetch(url, options);
-  if (res.status !== 504 && res.status !== 503 && res.status !== 408) return res;
-  const method = (options.method || 'GET').toUpperCase();
-  if (method === 'POST') {
-    // Don't retry POSTs — first attempt may have succeeded server-side.
-    return res;
-  }
-  await new Promise(r => setTimeout(r, 1500));
-  return await fetch(url, options);
-}
-
 function openNewPartsDispatchModal() {
   // The "+ Parts Dispatch" button is hidden unless _userPartsRoles().isBlake,
   // but the function is global and would otherwise let any signed-in user
@@ -25292,11 +25283,11 @@ function openEditPartsDispatchModal(p) {
 // Pre-FedEx: row exists but no tracking number → freeze at "Awaiting dispatch"
 // regardless of elapsed days (the parcel hasn't left the factory).
 // Post-FedEx: prefer the real event code surfaced by parts-fedex-poll into the
-// FedEx Status column (format: 'CODE|Human label @ DD.MM.YY HH.mm'). When the
-// poll hasn't seen a scan yet, stay at "Picked up" — never advance on a clock
-// alone, since the old elapsed-days inference falsely showed parcels as
-// "Out for delivery" days after Blake raised the row but before transport
-// actually shipped.
+// FedEx Status column (format: 'CODE|Human label · DD.MM.YY @ HH.mm'). When the
+// poll hasn't seen a scan yet (or only OC = label printed), stay at
+// "Awaiting dispatch" — never advance on a clock alone, since the old
+// elapsed-days inference falsely showed parcels as "Out for delivery" days
+// after Blake raised the row but before transport actually shipped.
 // Returns { stages: [{label, status}], pct: 0-100, state: 'awaiting'|'transit'|'delivered'|'delayed' }
 function _inferParcelStage(p) {
   const stages = ['Awaiting dispatch', 'Picked up', 'In transit', 'Out for delivery', 'Delivered'];
@@ -25331,7 +25322,14 @@ function _inferParcelStage(p) {
   // as a rough proxy — anything in transit for 5+ days warrants a warning,
   // but we cap nowIdx at 3 (don't fake OFD).
   const days = p.date ? Math.floor((Date.now() - p.date.getTime()) / 86400000) : 0;
-  const state = (days >= 5 && nowIdx < 3) ? 'delayed' : 'transit';
+  // nowIdx 0 = no scan yet (or OC = label printed) → parcel is still at
+  // Repose. Return 'awaiting' so the card icon (📋 + dashed border + "Raised"
+  // label) matches the progress-bar's "Awaiting dispatch" active stage.
+  // Previously this returned 'transit' for any tracking-added row, which
+  // gave a misleading 🚚 + "Sent" card around an "Awaiting dispatch" bar.
+  const state = nowIdx === 0
+    ? 'awaiting'
+    : (days >= 5 && nowIdx < 3) ? 'delayed' : 'transit';
   return {
     stages: stages.map((label, i) => ({
       label,
