@@ -187,7 +187,13 @@ module.exports = async function (context, myTimer) {
   for (const item of docs) {
     const f = item.fields || {};
     if (f.Status !== 'In Approval') continue;
-    const required = String(f.Approvers || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+    // Approvers is a SP multi-value column — Graph returns an array. Older
+    // rows may still be plain CSV strings, so handle both shapes.
+    const required = (Array.isArray(f.Approvers)
+      ? f.Approvers
+      : String(f.Approvers || '').split(','))
+      .map(s => String(s).trim().toLowerCase())
+      .filter(Boolean);
     if (required.length === 0) continue; // safety: status In Approval with empty approver list = nothing to chase
     const state = safeJson(f.ApprovalState, { approved: [], rejected: [], submittedAt: null, submittedBy: null, lastNudgedAt: {} });
     const approved = (state.approved || []).map(e => String(e).toLowerCase());

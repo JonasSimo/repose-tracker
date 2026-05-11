@@ -6247,7 +6247,12 @@ async function _saveMetadata(doc, overlay) {
   // Always write Departments so de-selecting all clears the field; comma-join
   // the multi-select for the single-line SP column (split back in _mapDocItem).
   patch.Departments = depts.join(', ');
-  patch.Approvers = approversRaw || '';   // explicit empty string clears the field on the SP side
+  // Approvers — write as array (SP multi-value column rejects CSV). Free-text
+  // entry from this modal is parsed into individual emails here, since the
+  // edit-metadata path has no dept dropdown of its own.
+  const approverList = String(approversRaw || '').split(',').map(s => s.trim()).filter(Boolean);
+  patch['Approvers@odata.type'] = 'Collection(Edm.String)';
+  patch.Approvers = approverList;
   patch.References = refs || '';
 
   // Bulk + per-field fallback handled by helper.
@@ -6452,9 +6457,10 @@ async function _saveRevision(doc, overlay) {
     } : _emptyApprovalState())
   };
   // I15: always write Approvers so blanking the field actually clears them.
-  // I4/I13: register's Description column holds 'what is this doc for', not
-  // the per-revision reason — the reason lives in DocumentRevisions.ReasonForRevision below.
-  registerPatch.Approvers = approversCsv;
+  // Approvers is a multi-value SP column — write as an explicit array
+  // (with @odata.type) or SP rejects any value containing a comma with 400.
+  registerPatch['Approvers@odata.type'] = 'Collection(Edm.String)';
+  registerPatch.Approvers = externalApprovers;
   // Applies-to: write the multi-select selection. Comma-joined to fit the
   // existing single-line column; _mapDocItem splits the CSV back into an
   // array. Always written so de-selecting depts actually clears them.
@@ -6741,7 +6747,14 @@ async function _saveNewDocument(overlay) {
   // choice on a strict column), the per-field fallback in _patchDocWithFallback
   // will report it without losing the rest of the patch.
   if (depts.length) optionalFields.Departments = depts.join(', ');
-  if (approversCsv) optionalFields.Approvers = approversCsv;
+  // Approvers is a SharePoint multi-value column — write as an array with
+  // the `@odata.type` annotation, otherwise SP returns 400 invalidRequest
+  // for any payload containing a comma (the CSV path that used to work for
+  // single approvers will silently fail the moment two emails are written).
+  if (externalApprovers.length) {
+    optionalFields['Approvers@odata.type'] = 'Collection(Edm.String)';
+    optionalFields.Approvers = externalApprovers;
+  }
   if (refs) optionalFields.References = refs;
 
   // Bulk + per-field fallback handled by helper. Row exists either way
@@ -9464,7 +9477,15 @@ function _mapDocItem(item) {
     reviewCycleMonths: Number(f.ReviewCycleMonths || 12),
     nextReviewDate: f.NextReviewDate || null,
     ownerEmail: f.Owner || '',
-    approverEmails: (f.Approvers || '').split(',').map(s => s.trim()).filter(Boolean),
+    // Approvers is a SP multi-value column — Graph returns an array. Older rows
+    // written before the array fix may still hold a comma-separated string, so
+    // handle both shapes here to keep the Doc Approvals view working through
+    // the migration.
+    approverEmails: Array.isArray(f.Approvers)
+      ? f.Approvers.map(e => String(e).trim()).filter(Boolean)
+      : (f.Approvers
+          ? String(f.Approvers).split(',').map(s => s.trim()).filter(Boolean)
+          : []),
     fileLink: (f.FileLink && f.FileLink.Url) || f.FileLink || '',
     references: (f.References || '').split(',').map(s => s.trim()).filter(Boolean),
     supersededBy: f.SupersededBy || '',
