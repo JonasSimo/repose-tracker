@@ -10124,6 +10124,18 @@ async function graphSignOut() {
   // and so lazy paths (`if (!cparListLoaded) fetchCPARs()`) actually re-fetch.
   if (typeof CPAR_ITEMS !== 'undefined') CPAR_ITEMS.length = 0;
   if (typeof cparListLoaded !== 'undefined') cparListLoaded = false;
+  // Same privacy concern for the other in-memory lists. Shared kiosk
+  // tablets must not leak the previous signed-in user's view data to
+  // the next signed-in user.
+  if (typeof NMS_ITEMS !== 'undefined') NMS_ITEMS.length = 0;
+  if (typeof CAPA_ITEMS !== 'undefined') CAPA_ITEMS.length = 0;
+  if (typeof ivnItems !== 'undefined') ivnItems.length = 0;
+  if (typeof cpComplaints !== 'undefined') cpComplaints.length = 0;
+  if (typeof _serviceState !== 'undefined') {
+    _serviceState.tickets = [];
+    _serviceState.parts = [];
+    _serviceState.lastFetch = 0;
+  }
   updateAuthBadge();
   if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
     msalInstance.logoutRedirect({ account }).catch(console.error);
