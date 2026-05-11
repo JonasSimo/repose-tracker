@@ -8773,6 +8773,7 @@ function _restoreSnapshot() {
     EXPRESS_TYPE_MAP.clear();
     (snap.EXPRESS_TYPE_MAP || []).forEach(([k, v]) => EXPRESS_TYPE_MAP.set(k, v));
     if (WEEKS.length && !WEEKS.includes(activeWC)) activeWC = WEEKS[0];
+    _prodVersion++; // invalidate findJobByRep index — restored a different PROD
     return true;
   } catch (e) {
     console.warn('snapshot restore failed:', e.message);
@@ -9677,17 +9678,36 @@ async function fullRefresh() {
 // ═══════════════════════════════════════════════
 
 // Find a job in PROD by its 7-digit REP code — returns {wk, prep, ji} or null
-function findJobByRep(rep7) {
-  const repStr = `REP ${rep7}`;
+// rep → {wk, prep, ji} index. PROD is mutated in place (Object.assign,
+// not reassignment), so reference-equality won't tell us when to rebuild.
+// Instead, _prodVersion is incremented every time loadProductionFromSharePoint
+// or _restoreSnapshot finishes — the cache key compares against the latest
+// version. The QC sync loops over thousands of QC rows calling findJobByRep
+// on each — the 2026-05-11 trace showed this as the #5 hotspot (~83ms self
+// plus 147ms of caller .forEach, ~230ms total). Replacing the 4-level
+// nested scan with a Map.get() drops it to flat.
+let _prodVersion = 0;
+let _findJobByRepIndex = { version: -1, map: null };
+function _buildFindJobByRepIndex() {
+  if (_findJobByRepIndex.version === _prodVersion && _findJobByRepIndex.map) {
+    return _findJobByRepIndex.map;
+  }
+  const m = new Map();
   for (const wk of WEEKS) {
+    const pblock = PROD[wk]; if (!pblock) continue;
     for (const p of [1,2,3,4,5,'express']) {
-      const jobs = PROD[wk]?.[p] || [];
+      const jobs = pblock[p]; if (!jobs) continue;
       for (let ji = 0; ji < jobs.length; ji++) {
-        if (jobs[ji].rep === repStr) return { wk, prep: p, ji };
+        const rep = jobs[ji] && jobs[ji].rep;
+        if (rep && !m.has(rep)) m.set(rep, { wk, prep: p, ji });
       }
     }
   }
-  return null;
+  _findJobByRepIndex = { version: _prodVersion, map: m };
+  return m;
+}
+function findJobByRep(rep7) {
+  return _buildFindJobByRepIndex().get(`REP ${rep7}`) || null;
 }
 
 async function autoSyncQCCompletions() {
@@ -10647,6 +10667,8 @@ async function loadProductionFromSharePoint() {
     Object.assign(PROD, newPROD);
     WEEKS.length = 0;
     newWEEKS.forEach(w => WEEKS.push(w));
+    _prodVersion++; // invalidate findJobByRep index — jobs may have moved
+
     // Current ISO week sits at index 2 in weekNums (built from [-2,-1,0,1]).
     // Previously this branch referenced an undefined `now`, throwing
     // ReferenceError whenever activeWC/activeProdWC needed a fallback.
