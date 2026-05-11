@@ -10,8 +10,15 @@
   // ── 0. Flag detection ─────────────────────────────────────────
   const params = new URLSearchParams(location.search);
   const flag = params.get('ui');
-  const LEGACY = flag === 'legacy';
+  const LEGACY = flag === 'legacy' || flag === 'old';
   if (LEGACY) return;
+
+  // Shop-floor tablet kiosk mode: the host adds html.tablet-team when
+  // ?team= or ?tab= is in the URL (and via sessionStorage on PWA reload).
+  // These tablets land directly on a single team's job-tick view; the
+  // v4 chrome (sidebar, home card grid, goHome()) would clobber that
+  // and leave operators stranded. Skip the skin entirely in kiosk mode.
+  if (document.documentElement.classList.contains('tablet-team')) return;
 
   document.documentElement.classList.add('ui-v4');
 
