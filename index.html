@@ -23136,7 +23136,14 @@ function _computeServiceKpis(period = 'mtd') {
   const open = tickets.filter(t => t.openClosed === 'OPEN');
   const openIn30  = open.filter(t => t.period30.toLowerCase().startsWith('inside 30')).length;
   const openOut30 = open.filter(t => t.period30.toLowerCase().startsWith('outside 30')).length;
-  const overdue = open.filter(t => t.proposedCloseDate && t.proposedCloseDate < now).length;
+  // Align KPI "Overdue" with the chip + banner + row badge definition
+  // (open >30 days). Previously this used proposedCloseDate which is
+  // rarely populated, so the KPI tile showed 0 even when the chip and
+  // badges flagged plenty.
+  const overdue = open.filter(t => {
+    if (!t.openDate) return false;
+    return Math.round((Date.now() - t.openDate.getTime()) / 86400000) > 30;
+  }).length;
 
   // 12-month rolling window for the close-time analytics
   const closedLast12mo = tickets.filter(t => t.closeDate && t.closeDate >= yearStart && t.closeDate <= now);
@@ -23216,10 +23223,16 @@ function _computeServiceSlaRisk(threshold = 0.80, limit = 10) {
 
 // Returns count of open tickets that are already past their proposed-close date.
 function _computeServiceOverdueCount() {
-  const now = new Date();
-  return _serviceState.tickets.filter(t =>
-    t.openClosed === 'OPEN' && t.proposedCloseDate && t.proposedCloseDate < now
-  ).length;
+  // Align with the chip/filter definition: open >30 days. Previously
+  // this used proposedCloseDate < now, but the chip and row badges
+  // both use age-based >30. Mismatched defs meant the banner said
+  // "N overdue", clicking "Show overdue" set overdueOnly=true which
+  // filtered by age, and the resulting list was empty/different.
+  return _serviceState.tickets.filter(t => {
+    if (t.openClosed !== 'OPEN' || !t.openDate) return false;
+    const ageDays = Math.round((Date.now() - t.openDate.getTime()) / 86400000);
+    return ageDays > 30;
+  }).length;
 }
 
 function _renderServiceAlerts() {
