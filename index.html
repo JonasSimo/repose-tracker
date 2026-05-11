@@ -9377,7 +9377,12 @@ async function loadCompletionsFromList() {
       url = res['@odata.nextLink'] || null;
     }
 
-    // Capture any optimistic ticks that are still in-flight (done but not yet saved to SP)
+    // Capture any optimistic ticks AND starts that are still in-flight
+    // (mutation in progress but not yet acknowledged by SP). Without
+    // the start case here, a worker pressing START gets the badge
+    // wiped by the next 60s refresh between POST and response — the
+    // "In progress" indicator vanishes mid-run until the SP record
+    // self-heals on the following sync.
     const inFlight = [];
     TEAMS_CFG.forEach(t => {
       const keys = t.hasSubs ? SUBS : ['all'];
@@ -9385,7 +9390,9 @@ async function loadCompletionsFromList() {
         WEEKS.forEach(wk => {
           for (const p of [1,2,3,4,5,'express']) {
             (STATE[t.name]?.[k]?.[wk]?.[p] || []).forEach((s, ji) => {
-              if (s.done && !s.listItemId) inFlight.push({ team:t.name, sub:k, wk, p, ji, snap:{...s} });
+              if ((s.done && !s.listItemId) || (s.started && !s.startItemId)) {
+                inFlight.push({ team:t.name, sub:k, wk, p, ji, snap:{...s} });
+              }
             });
           }
         });
