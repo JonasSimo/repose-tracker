@@ -1482,6 +1482,8 @@ details.tv-ncr-summary[open] > .tv-ncr-summary-hdr .tv-ncr-summary-chev {
 .issues-chip.active { background:var(--repose-navy); color:#fff; border-color:var(--repose-navy); }
 .issues-chip.issues-chip-dim { opacity:.45; }
 .issues-chip.issues-chip-dim.active { opacity:.7; }
+.issues-team-chip.issues-team-chip-dim { opacity:.45; }
+.issues-team-chip.issues-team-chip-dim.active { opacity:.7; }
 .issues-chip.amber.active { background:var(--amber); border-color:var(--amber); color:#fff; }
 .issues-chip.red.active { background:var(--red); border-color:var(--red); color:#fff; }
 .issues-chip.green.active { background:var(--green); border-color:var(--green); color:#fff; }
@@ -15293,10 +15295,12 @@ function renderIssuesIntoQuality(host) {
     },
   };
   const searchQ = (cparFilterSearch || '').trim().toLowerCase();
-  // When searching, bypass status filter so users can find any CPAR by REF/REP
-  // regardless of which status chip is currently selected.
+  // When searching, bypass status AND team filters so a REF/REP/Job lookup
+  // surfaces the match regardless of which chips are currently selected.
+  // Users expect "I typed the number, show me the thing" — anything else
+  // hides matches and looks like a missing record.
   let filtered = searchQ ? items.slice() : items.filter(filterMap[cparFilterStatus] || filterMap.todo);
-  if (cparFilterTeam) {
+  if (!searchQ && cparFilterTeam) {
     const tLc = cparFilterTeam.toLowerCase();
     filtered = filtered.filter(i => (i.fields?.SourceDept || i.fields?.RaisedByTeam || '').toLowerCase().includes(tLc));
   }
@@ -15352,7 +15356,7 @@ function renderIssuesIntoQuality(host) {
     const isAll = t === '';
     const colour = TEAM_COLOURS[t] || 'var(--text3)';
     const count = isAll ? totalOpen : (teamCounts[t] || 0);
-    return `<button class="issues-team-chip ${isActive ? 'active' : ''} ${isAll ? 'all' : ''}" onclick="cparFilterTeam='${t}'; renderQualitySubview();">
+    return `<button class="issues-team-chip ${isActive ? 'active' : ''} ${isAll ? 'all' : ''}${searchQ ? ' issues-team-chip-dim' : ''}" onclick="cparFilterTeam='${t}'; renderQualitySubview();">
       ${isAll ? '' : `<span class="dot" style="background:${colour}"></span>`}
       ${t || 'All teams'}
       <span style="margin-left:5px;background:rgba(0,0,0,.08);padding:1px 6px;border-radius:8px;font-size:10px;font-weight:700">${count}</span>
