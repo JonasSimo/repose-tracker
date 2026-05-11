@@ -8727,27 +8727,37 @@ function _saveIdCache() { try { localStorage.setItem(ID_CACHE_KEY, JSON.stringif
 const SNAPSHOT_KEY = 'rep_snapshot_v1';
 const SNAPSHOT_MAX_AGE_MS = 24 * 3600 * 1000;
 let _snapshotSaveTimer = null;
+// Run a callback when the main thread is idle, falling back to a plain
+// setTimeout where requestIdleCallback isn't available (older Safari).
+// JSON.stringify of PROD/STATE was a measurable click-handler blocker
+// in the 2026-05-11 trace — pushing it to idle frees the click->paint
+// path while still persisting the snapshot before the user signs out.
+const _ric = (cb) => (typeof requestIdleCallback === 'function')
+  ? requestIdleCallback(cb, { timeout: 5000 })
+  : setTimeout(cb, 500);
 function _saveSnapshot() {
   // Debounce — multiple loads landing in quick succession only write once.
   if (_snapshotSaveTimer) return;
   _snapshotSaveTimer = setTimeout(() => {
     _snapshotSaveTimer = null;
-    try {
-      const snap = {
-        savedAt: Date.now(),
-        PROD,
-        WEEKS: [...WEEKS],
-        STATE,
-        LS_RAW,
-        OV_RAW,
-        MECH_SERIALS: [...MECH_SERIALS.entries()],
-        EXPRESS_TYPE_MAP: [...EXPRESS_TYPE_MAP.entries()],
-      };
-      localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snap));
-    } catch (e) {
-      // Quota / serialisation failures are non-fatal — just skip this write.
-      console.warn('snapshot save failed:', e.message);
-    }
+    _ric(() => {
+      try {
+        const snap = {
+          savedAt: Date.now(),
+          PROD,
+          WEEKS: [...WEEKS],
+          STATE,
+          LS_RAW,
+          OV_RAW,
+          MECH_SERIALS: [...MECH_SERIALS.entries()],
+          EXPRESS_TYPE_MAP: [...EXPRESS_TYPE_MAP.entries()],
+        };
+        localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snap));
+      } catch (e) {
+        // Quota / serialisation failures are non-fatal — just skip this write.
+        console.warn('snapshot save failed:', e.message);
+      }
+    });
   }, 500);
 }
 function _restoreSnapshot() {
@@ -8796,11 +8806,17 @@ function _saveListCache(key, data) {
   if (_listCacheSaveTimers[key]) return;
   _listCacheSaveTimers[key] = setTimeout(() => {
     delete _listCacheSaveTimers[key];
-    try {
-      localStorage.setItem(LIST_CACHE_PREFIX + key, JSON.stringify({ savedAt: Date.now(), data }));
-    } catch (e) {
-      console.warn(`list cache save (${key}) failed:`, e.message);
-    }
+    // Defer the actual JSON.stringify + setItem to an idle callback so it
+    // never blocks an in-flight click handler. The 500ms debounce already
+    // coalesces bursty saves; the rIC wrapper ensures the work itself
+    // lands when the main thread has nothing better to do.
+    _ric(() => {
+      try {
+        localStorage.setItem(LIST_CACHE_PREFIX + key, JSON.stringify({ savedAt: Date.now(), data }));
+      } catch (e) {
+        console.warn(`list cache save (${key}) failed:`, e.message);
+      }
+    });
   }, 500);
 }
 function _restoreListCache(key) {
