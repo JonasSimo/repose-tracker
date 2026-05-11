@@ -5797,16 +5797,33 @@ function _handleDocsDeepLink() {
   } else if (hash.startsWith('doc:')) {
     const docNumber = decodeURIComponent(hash.slice(4));
     if (typeof navTo === 'function') navTo('documents');
-    // Open drawer once the register has loaded
-    setTimeout(() => {
-      if (typeof openDocumentDetail === 'function') openDocumentDetail(docNumber);
-    }, 800);
+    // Open drawer once the register has loaded. The previous 800 ms
+    // timeout silently failed on slow SharePoint cold-loads (Graph
+    // fetch of the full register can take 1–3 s) — users clicking
+    // approval-email deep-links would land on the doc list with no
+    // drawer open and no error. Now: poll for the doc up to 8 s and
+    // surface a toast if it never arrives.
+    let attempts = 0;
+    const tryOpen = () => {
+      attempts++;
+      if (_docsState.all.length && _docsState.all.find(d => d.docNumber === docNumber)) {
+        openDocumentDetail(docNumber);
+      } else if (attempts < 40) { // 40 × 200ms = 8s
+        setTimeout(tryOpen, 200);
+      } else if (typeof toast === 'function') {
+        toast(`Document ${docNumber} not found — it may have been renamed or deleted.`, 'e');
+      }
+    };
+    setTimeout(tryOpen, 200);
   }
 }
 
 async function openDocumentDetail(docNumber) {
   const doc = _docsState.all.find(d => d.docNumber === docNumber);
-  if (!doc) return;
+  if (!doc) {
+    if (typeof toast === 'function') toast(`Document ${docNumber} not found.`, 'e');
+    return;
+  }
   const overlay = document.createElement('div');
   overlay.className = 'docs-drawer-bg';
   overlay.innerHTML = `
