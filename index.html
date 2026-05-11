@@ -11741,20 +11741,41 @@ async function loadStatsData() {
   // No server-side date filter: fields/Created isn't auto-indexed (400s past the SP
   // list threshold) and createdDateTime filtering isn't supported on SP list items
   // via Graph (returns generic "Invalid request"). graphGetAll paginates so we just
-  // pull every item; the user-facing period filter trims at render time.
+  // pull every item, then drop rows older than the stats window IMMEDIATELY at
+  // storage time so the in-memory weight stays bounded — on a factory running for
+  // years, ProductionCompletions can be 50k+ rows × ~700B = 35MB+ in memory if
+  // nothing prunes. Render-time period filters still apply on top of this cap.
+  // 24 months retention — covers the year-view at statsNavOffset=-1 (last
+  // year) plus a buffer. Anything older is render-time-invisible on every
+  // current stats period (today/yesterday/week/month/year ± offset), so we
+  // throw it away at storage time to keep the in-memory weight bounded.
+  const STATS_RETENTION_MS = 730 * 86400000;
+  const _statsCutoff = Date.now() - STATS_RETENTION_MS;
+  const _isRecent = (i) => {
+    // Prefer top-level createdDateTime (always present); fall back to
+    // fields.Created for older rows that may pre-date the Graph response shape.
+    const raw = i.createdDateTime || (i.fields && i.fields.Created);
+    if (!raw) return true; // keep undated rows — better than dropping silently
+    const t = Date.parse(raw);
+    return isNaN(t) || t >= _statsCutoff;
+  };
   try {
   await Promise.allSettled([
     getListIdByName('ProductionCompletions').then(id =>
       graphGetAll(`${base}/${id}/items?$expand=fields&$top=999`)
-    ).then(r => { STATS_COMPLETIONS = r.filter(i => i.fields?.IsComplete === true); console.log(`stats (completions): loaded ${r.length} rows, ${STATS_COMPLETIONS.length} complete`); }).catch(e => console.warn('stats (completions):', e.message)),
+    ).then(r => {
+      const recent = r.filter(_isRecent);
+      STATS_COMPLETIONS = recent.filter(i => i.fields?.IsComplete === true);
+      console.log(`stats (completions): paginated ${r.length}, kept ${recent.length} recent, ${STATS_COMPLETIONS.length} complete`);
+    }).catch(e => console.warn('stats (completions):', e.message)),
 
     getListIdByName('SpecAlerts').then(id =>
       graphGetAll(`${base}/${id}/items?$expand=fields&$top=999`)
-    ).then(r => { STATS_ALERTS = r; }).catch(e => console.warn('stats (alerts):', e.message)),
+    ).then(r => { STATS_ALERTS = r.filter(_isRecent); }).catch(e => console.warn('stats (alerts):', e.message)),
 
     getListIdByName('ScrapLog').then(id =>
       graphGetAll(`${base}/${id}/items?$expand=fields&$top=999`)
-    ).then(r => { STATS_SCRAP = r; }).catch(e => console.warn('stats (scrap):', e.message)),
+    ).then(r => { STATS_SCRAP = r.filter(_isRecent); }).catch(e => console.warn('stats (scrap):', e.message)),
 
     getListIdByName(SP_CPAR_LIST).then(id =>
       graphGetAll(_cparFilterUrl(siteId, id))
