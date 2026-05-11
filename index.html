@@ -24130,7 +24130,43 @@ function openNewServiceTicketModal() {
     try {
       const todayIso = get('#svc-f-opendate');
       const pcloseIso = get('#svc-f-pclose');
-      const ticketNo = get('#svc-f-ticketno');
+      // Re-derive nextTicketNo from the LIVE workbook at save time. The
+      // value initially shown at modal open came from _serviceState (cached
+      // up to 5 min) — if another user creates a ticket while this modal
+      // is open, both saves would pick the same TICKET{N+1} and produce
+      // duplicates that break every ticketNo-keyed lookup in the app.
+      const _token = await getGraphToken();
+      let ticketNo;
+      try {
+        const rangeRes = await fetch(
+          `https://graph.microsoft.com/v1.0/drives/${_serviceState.ticketDriveId}/items/${_serviceState.ticketItemId}/workbook/tables('${SERVICE_TICKET_TABLE}')/range?$select=values`,
+          { headers: { Authorization: `Bearer ${_token}` } }
+        );
+        if (rangeRes.ok) {
+          const rangeData = await rangeRes.json();
+          const allValues = rangeData.values || [];
+          const headerRow = allValues[0] || [];
+          const tnIdx = headerRow.findIndex(h => String(h || '').trim().toLowerCase() === 'ticket no');
+          let liveMax = 0;
+          if (tnIdx >= 0) {
+            for (let i = 1; i < allValues.length; i++) {
+              const m = /^TICKET(\d+)$/i.exec(String(allValues[i][tnIdx] || '').trim());
+              if (m) liveMax = Math.max(liveMax, parseInt(m[1], 10));
+            }
+          }
+          ticketNo = `TICKET${liveMax + 1}`;
+        } else {
+          // Fall back to the cached value if the live read fails — at
+          // worst we land on the original race window we always had.
+          ticketNo = get('#svc-f-ticketno');
+        }
+      } catch (_) {
+        ticketNo = get('#svc-f-ticketno');
+      }
+      // Surface the chosen ticketNo in the input so the success alert
+      // and any post-save UX show the actual number that was used.
+      const tnEl = overlay.querySelector('#svc-f-ticketno');
+      if (tnEl) tnEl.value = ticketNo;
 
       // Build a values-by-column-name dictionary. Then fetch the table's
       // actual column list and map values into the table's order. This is
