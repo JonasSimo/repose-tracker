@@ -398,11 +398,14 @@ module.exports = async function (context, myTimer) {
       if (fedexStatusIdx < 0 || !r.eventCode) continue;
       const label = FEDEX_CODE_LABELS[r.eventCode] || r.eventLabel || r.eventCode;
       const ts = fmtDeliveredText(r.eventAt || new Date());
-      const encoded = `${r.eventCode}|${label} @ ${ts}`;
-      // Only the bit before " @ " matters for change detection — the timestamp
+      // Separator is " · " (middle dot) — NOT " @ " — because fmtDeliveredText
+      // already contains " @ " for the time, which would otherwise create an
+      // awkward double-@ string ("OC|Label printed @ 11.05.26 @ 15.07").
+      const encoded = `${r.eventCode}|${label} · ${ts}`;
+      // Only the bit before " · " matters for change detection — the timestamp
       // updates every poll. Compare the code+label prefix to skip no-ops.
-      const prefix = encoded.split(' @ ')[0];
-      const currentPrefix = (p.currentFedexStatus || '').split(' @ ')[0];
+      const prefix = encoded.split(' · ')[0];
+      const currentPrefix = (p.currentFedexStatus || '').split(' · ')[0];
       if (prefix === currentPrefix) continue;
       const statusColLetter = colIdxToLetter(fedexStatusIdx);
       const statusAddr = `${statusColLetter}${p.sheetRow}`;
