@@ -141,7 +141,17 @@ async function graphGet(token, url) {
 // 30s timeout. Retry once after a brief delay — the second attempt benefits
 // from a warm session and almost always succeeds.
 async function graphFetchWithRetry(url, options) {
-  const res = await fetch(url, options);
+  let res = await fetch(url, options);
+  // Graph 429 throttle: honour Retry-After (seconds) and retry once.
+  // Workbook PATCH bursts (one per cell × dozens of tickets per run)
+  // can trip the per-second cap on busy days; without this the cell
+  // writes silently 429-dropped and the pill text never updated.
+  if (res.status === 429) {
+    const retryAfter = parseInt(res.headers.get('Retry-After'), 10);
+    const waitMs = Number.isFinite(retryAfter) ? retryAfter * 1000 : 2000;
+    await new Promise(r => setTimeout(r, Math.min(waitMs, 30000)));
+    res = await fetch(url, options);
+  }
   if (res.status !== 504 && res.status !== 503 && res.status !== 408) return res;
   await new Promise(r => setTimeout(r, 1500));
   return await fetch(url, options);
