@@ -5241,7 +5241,15 @@ function showView(name) {
   if (name === 'production')  {
     renderProductionPlan();
     if (ppAutoSyncInterval) clearInterval(ppAutoSyncInterval);
-    ppAutoSyncInterval = setInterval(() => loadProductionFromSharePoint(), 60000);
+    // Skip the Graph workbook fetch when the tab is hidden or Graph is in
+    // cooldown — matches refreshCompletions / fullRefresh / autoSyncQCCompletions.
+    // Without this guard, every backgrounded RepNet tab kept hitting Graph
+    // every 60s even when nobody was looking at the production view.
+    ppAutoSyncInterval = setInterval(() => {
+      if (document.hidden) return;
+      if (typeof _isGraphThrottled === 'function' && _isGraphThrottled()) return;
+      loadProductionFromSharePoint();
+    }, 60000);
     // Same lazy-load for the Production red NCR banners.
     if (!cparListLoaded) fetchCPARs().then(() => renderProductionPlan()).catch(e => console.warn('cpars:', e.message));
   } else {
