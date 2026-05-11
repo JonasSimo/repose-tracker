@@ -78,6 +78,7 @@
     try { injectSprite();    } catch (e) { console.error('[skin-v4] injectSprite:',    e); }
     try { injectHomeView();  } catch (e) { console.error('[skin-v4] injectHomeView:',  e); }
     try { injectSidebar();   } catch (e) { console.error('[skin-v4] injectSidebar:',   e); }
+    try { injectFeedback();  } catch (e) { console.error('[skin-v4] injectFeedback:',  e); }
     try { wireNav();         } catch (e) { console.error('[skin-v4] wireNav:',         e); }
     try { patchNavTo();      } catch (e) { console.error('[skin-v4] patchNavTo:',      e); }
     // Don't goHome() if the host has already activated a view (e.g.
@@ -677,6 +678,208 @@
         }
       });
     }
+  }
+
+  // ── 2b. Feedback widget (FAB + modal) ─────────────────────────
+  // Writes to SharePoint list `RepNet_Feedback` on the main production
+  // site (same site as ProductionCompletions — reuses getSpSiteId cache).
+  // Required list columns (see docs/superpowers/specs):
+  //   Title (text), Type (choice), Description (multi-line text),
+  //   PageUrl (text), Submitter (text), SubmitterName (text),
+  //   UserAgent (text), Status (choice, default 'New').
+  function injectFeedback() {
+    if (document.getElementById('fb-fab')) return;
+
+    const html = `
+<button type="button" id="fb-fab" title="Send feedback" aria-label="Send feedback">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+  </svg>
+</button>
+<div id="fb-backdrop" role="presentation">
+  <div id="fb-modal" role="dialog" aria-modal="true" aria-labelledby="fb-title">
+    <div class="fb-head">
+      <div>
+        <h2 id="fb-title">Send feedback</h2>
+        <div class="fb-sub">help us fix &amp; improve repnet</div>
+      </div>
+      <button type="button" class="fb-close" id="fb-close" aria-label="Close">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div class="fb-body">
+      <div class="fb-label">What's this about?</div>
+      <div class="fb-types" id="fb-types" role="radiogroup" aria-label="Feedback type">
+        <button type="button" class="fb-type on" data-t="Bug"      role="radio" aria-checked="true"><span class="fb-ico">🐞</span>Bug</button>
+        <button type="button" class="fb-type"    data-t="Idea"     role="radio" aria-checked="false"><span class="fb-ico">💡</span>Idea</button>
+        <button type="button" class="fb-type"    data-t="Question" role="radio" aria-checked="false"><span class="fb-ico">❓</span>Question</button>
+      </div>
+      <div class="fb-label">Tell us what happened</div>
+      <textarea id="fb-note" placeholder="e.g. When I press 'Complete' on a ticket the screen flashes and the row disappears before the timer saves." maxlength="4000"></textarea>
+      <div class="fb-context">
+        <div class="fb-ctx-ic" aria-hidden="true">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 2l9 4-9 4-9-4 9-4zM3 10l9 4 9-4M3 14l9 4 9-4"/></svg>
+        </div>
+        <div class="fb-ctx-txt" id="fb-context-text">Auto-attached on send</div>
+      </div>
+    </div>
+    <div class="fb-foot">
+      <div class="fb-hint">Ctrl/⌘ + Enter to send</div>
+      <div class="fb-btns">
+        <button type="button" class="fb-btn ghost" id="fb-cancel">Cancel</button>
+        <button type="button" class="fb-btn primary" id="fb-send">Send feedback</button>
+      </div>
+    </div>
+  </div>
+</div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+
+    const fab     = document.getElementById('fb-fab');
+    const bd      = document.getElementById('fb-backdrop');
+    const closeB  = document.getElementById('fb-close');
+    const cancelB = document.getElementById('fb-cancel');
+    const sendB   = document.getElementById('fb-send');
+    const note    = document.getElementById('fb-note');
+    const ctx     = document.getElementById('fb-context-text');
+    const typeRow = document.getElementById('fb-types');
+    let selectedType = 'Bug';
+    let lastFocus = null;
+
+    function pageLabel() {
+      // Prefer the active view's <h2> title; fall back to the data-view name; finally URL.
+      const active = document.querySelector('.view.active');
+      if (active) {
+        const h = active.querySelector('h1, h2, h3');
+        if (h && h.textContent.trim()) return h.textContent.trim().slice(0, 80);
+        if (active.id) return active.id.replace(/^view-/, '');
+      }
+      return location.pathname + location.hash;
+    }
+    function currentUserAccount() {
+      try { return (typeof window.getCurrentUser === 'function') ? window.getCurrentUser() : null; } catch { return null; }
+    }
+    function currentUserEmail() {
+      const a = currentUserAccount();
+      return (a && a.username) || '';
+    }
+    function currentUserName() {
+      const a = currentUserAccount();
+      return (a && (a.name || a.username)) || '';
+    }
+    function refreshContextLine() {
+      const who = currentUserEmail() || '(not signed in)';
+      const when = new Date().toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
+      ctx.innerHTML = `Auto-attached: <b>${escapeHtml(pageLabel())}</b> · user <b>${escapeHtml(who)}</b> · ${escapeHtml(when)}`;
+    }
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    function open() {
+      lastFocus = document.activeElement;
+      refreshContextLine();
+      bd.classList.add('open');
+      // Defer focus so animation can start before the cursor jumps
+      setTimeout(() => note.focus(), 30);
+    }
+    function close() {
+      bd.classList.remove('open');
+      sendB.disabled = false;
+      sendB.textContent = 'Send feedback';
+      if (lastFocus && typeof lastFocus.focus === 'function') lastFocus.focus();
+    }
+
+    fab.addEventListener('click', open);
+    closeB.addEventListener('click', close);
+    cancelB.addEventListener('click', close);
+    bd.addEventListener('click', e => { if (e.target === bd) close(); });
+
+    typeRow.addEventListener('click', e => {
+      const b = e.target.closest('.fb-type'); if (!b) return;
+      selectedType = b.dataset.t || 'Bug';
+      typeRow.querySelectorAll('.fb-type').forEach(p => {
+        const on = (p === b);
+        p.classList.toggle('on', on);
+        p.setAttribute('aria-checked', on ? 'true' : 'false');
+      });
+    });
+
+    document.addEventListener('keydown', e => {
+      if (!bd.classList.contains('open')) return;
+      if (e.key === 'Escape') { e.preventDefault(); close(); }
+      else if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); sendB.click(); }
+    });
+
+    sendB.addEventListener('click', async () => {
+      const body = (note.value || '').trim();
+      if (!body) { note.focus(); return; }
+      sendB.disabled = true;
+      sendB.textContent = 'Sending…';
+      try {
+        await submitFeedback({
+          type: selectedType,
+          description: body,
+          pageLabel: pageLabel(),
+          pageUrl: location.href,
+          email: currentUserEmail(),
+          name: currentUserName(),
+        });
+        note.value = '';
+        close();
+        if (typeof window.toast === 'function') {
+          window.toast('Feedback sent — thanks!', 's');
+        }
+      } catch (err) {
+        console.error('[feedback] submit failed:', err);
+        sendB.disabled = false;
+        sendB.textContent = 'Send feedback';
+        if (typeof window.toast === 'function') {
+          window.toast('Could not send — ' + (err && err.message ? err.message : 'try again'), 'u');
+        }
+      }
+    });
+  }
+
+  async function submitFeedback(input) {
+    if (typeof window.getGraphToken !== 'function' || typeof window.getSpSiteId !== 'function') {
+      throw new Error('not ready — try again in a moment');
+    }
+    const siteId = await window.getSpSiteId();
+    let listId;
+    try {
+      listId = await window.getListIdByName('RepNet_Feedback');
+    } catch (e) {
+      throw new Error('feedback list not set up yet — ask Jonas');
+    }
+    const token = await window.getGraphToken();
+    // Title: first line of description, trimmed to 80 chars — keeps SP list scannable
+    const firstLine = input.description.split(/\r?\n/)[0].trim();
+    const title = (firstLine.length > 80 ? firstLine.slice(0, 77) + '…' : firstLine) || `${input.type} report`;
+    const fields = {
+      Title: title,
+      FeedbackType: input.type,   // 'Type' is a reserved SP internal name on lists, so we use FeedbackType
+      Description: input.description,
+      PageUrl: input.pageUrl,
+      PageLabel: input.pageLabel,
+      Submitter: input.email || '(anonymous)',
+      SubmitterName: input.name || '',
+      UserAgent: (navigator && navigator.userAgent) ? navigator.userAgent.slice(0, 255) : '',
+      Status: 'New',
+    };
+    const url = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`;
+    const fetcher = (typeof window._graphFetchWithRetry === 'function')
+      ? window._graphFetchWithRetry
+      : fetch;
+    const res = await fetcher(url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields }),
+    });
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '');
+      throw new Error(`Graph ${res.status}${txt ? ': ' + txt.slice(0, 120) : ''}`);
+    }
+    return res.json();
   }
 
   // ── 3. Wire nav ───────────────────────────────────────────────

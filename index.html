@@ -10076,6 +10076,10 @@ let graphAccount  = null;
 let _refreshInterval = null;
 let _fullRefreshInterval = null;
 
+// Expose live read of the MSAL account so external scripts (e.g. repnet-skin-v4
+// feedback widget) can read submitter identity without poking the closure var.
+window.getCurrentUser = () => graphAccount;
+
 function initMSAL() {
   if (!GRAPH_READY || typeof msal === 'undefined') return;
   msalInstance = new msal.PublicClientApplication({
