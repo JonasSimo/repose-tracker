@@ -72,8 +72,15 @@ if ('serviceWorker' in navigator) {
             banner.style.cssText = 'position:fixed;bottom:20px;right:20px;background:#0e023a;color:#fff;padding:14px 20px;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.3);z-index:9999;font-family:Inter,sans-serif;font-size:13px;display:flex;align-items:center;gap:12px';
             banner.innerHTML = '<span>🔄 New RepNet version available</span><button style="background:#14a1e9;color:#fff;border:none;padding:7px 14px;border-radius:6px;cursor:pointer;font-family:inherit;font-weight:700">Reload</button>';
             banner.querySelector('button').onclick = () => {
+              // postMessage triggers skipWaiting asynchronously. Reloading
+              // in the same tick races the activation: the new navigation
+              // can be served by the old SW from its stale cache, so the
+              // user clicks "Reload" and sees the previous version. Wait
+              // for the new SW to claim the page (controllerchange) before
+              // reloading. once:true guards against the rare double-fire.
+              navigator.serviceWorker.addEventListener('controllerchange',
+                () => location.reload(), { once: true });
               nw.postMessage({ type: 'SKIP_WAITING' });
-              location.reload();
             };
             document.body.appendChild(banner);
           }
