@@ -6285,7 +6285,13 @@ function openReviseDocumentModal(doc) {
       await renderDocumentsRegister();
     } catch (e) {
       alert(`Publish failed: ${e.message}`);
-      btn.disabled = false; btn.textContent = 'Approve & publish';
+      btn.disabled = false;
+      // Re-derive the label from the current approvers field instead of
+      // hard-coding "Approve & publish". With multiple approvers entered,
+      // hard-coding the solo label was misleading — the user could click
+      // again thinking they were publishing when the flow would still
+      // submit for approval.
+      _updateSaveLabel();
     }
   });
 }
