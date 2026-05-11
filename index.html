@@ -10149,11 +10149,13 @@ async function graphSignIn() {
       loadProductionFromSharePoint(),
       loadLoadPlanFromSharePoint().catch(e => console.warn('loadplan:', e.message)),
     ]);
-    // After production: completions and mech-serials list overlay run in parallel
-    await Promise.all([
-      loadCompletionsFromList().catch(e => console.warn('completions:', e.message)),
-      loadMechSerials().catch(e => console.warn('mechserials:', e.message)),
-    ]);
+    // Completions + mech-serials USED to block here too, adding 2-3s to the
+    // sign-in → first-paint critical path. But they're overlays — green
+    // completion ticks, mech serial codes — not the job data itself. The
+    // jobs render fine from PROD/STATE alone; the overlays fade in a moment
+    // later. Made fire-and-forget for that reason.
+    loadCompletionsFromList().catch(e => console.warn('completions:', e.message));
+    loadMechSerials().catch(e => console.warn('mechserials:', e.message));
     startQCAutoSync();
     fetchSpecAlerts().catch(console.warn);
     // MechQC populates the green QC ticks on the Delivery view. The redirect
@@ -10754,12 +10756,12 @@ async function initGraph() {
     // PROD is the team-view critical path — it builds the job grid (renderJobs runs at
     // the end of loadProductionFromSharePoint). Run it alone first so jobs paint asap.
     await loadProductionFromSharePoint();
-    // Completions (SP list) and LoadPlan (workbook) are different resources, safe to
-    // parallelise — gets ticks on the team view ~2-3s sooner than full serial.
-    await Promise.all([
-      loadCompletionsFromList().catch(e => console.warn('completions:', e.message)),
-      loadLoadPlanFromSharePoint().catch(e => console.warn('loadplan:', e.message)),
-    ]);
+    // Completions are overlays (green ticks on jobs) — fire-and-forget so they
+    // don't gate the user's first interaction with the freshly-painted grid.
+    // LoadPlan is awaited because the Delivery view shows nothing without it
+    // and mobile users land on Delivery via redirect deep-link reasonably often.
+    loadCompletionsFromList().catch(e => console.warn('completions:', e.message));
+    await loadLoadPlanFromSharePoint().catch(e => console.warn('loadplan:', e.message));
     // MechSerials, SpecAlerts and MechQC are not on the team-view critical path —
     // fire-and-forget so they don't gate any UI. MechQC populates the green QC
     // ticks on the Delivery view; previously it only ran via the 60s interval,
