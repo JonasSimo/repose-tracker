@@ -2293,6 +2293,11 @@ body.tablet-mode .spec-close     { width: 36px; height: 36px; font-size: 17px; }
 
 .nm2-close-form{margin-top:10px;padding-top:14px;border-top:1px solid var(--border);display:none;flex-direction:column;gap:10px}
 .nm2-card.expanded .nm2-close-form{display:flex}
+.nm2-catform{margin-top:10px;padding:10px 12px;border:1px dashed var(--repose-blue);background:rgba(20,161,233,0.04);border-radius:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.nm2-catform .lbl{font-size:10px;font-weight:700;letter-spacing:0.1em;color:var(--repose-blue);text-transform:uppercase;font-family:'JetBrains Mono',monospace}
+.nm2-catform select{padding:6px 10px;border-radius:8px;border:1.5px solid var(--border2);background:#fff;font-family:inherit;font-size:12px;color:var(--text);min-width:140px;flex:1 1 160px}
+.nm2-catform select:focus{outline:none;border-color:var(--repose-blue)}
+.nm2-catform .nm2-act{flex:0 0 auto}
 .nm2-cf-lbl{font-size:10.5px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px}
 .nm2-cf-input,.nm2-cf-area{width:100%;padding:10px 12px;border-radius:10px;border:1.5px solid var(--border2);background:#fff;font-family:inherit;font-size:13px;color:var(--text);box-sizing:border-box;resize:vertical;transition:border-color .12s}
 .nm2-cf-input:focus,.nm2-cf-area:focus{outline:none;border-color:var(--repose-blue)}
@@ -20586,6 +20591,26 @@ function _nmRenderCard(item, failedIds, now) {
   const closedActionsBlock = closed && f.Actionstaken
     ? `<div class="nm2-lessons"><b>Evidence of close out</b>${escHtml(f.Actionstaken)}</div>` : '';
 
+  // QHSE-only inline categoriser — shown for any open near miss missing
+  // parent or child category. Lets Jonas fix records the auto-classifier
+  // couldn't match without scrolling down to the bottom-of-page review panel.
+  const isJonas = (typeof graphAccount !== 'undefined' && graphAccount?.username?.toLowerCase() === 'jonas.simonaitis@reposefurniture.co.uk');
+  const isUncategorised = !closed && (!cat.parent || !cat.child);
+  const inlineCatForm = (isJonas && isUncategorised) ? `
+    <div class="nm2-catform">
+      <span class="lbl">⚑ QHSE · set category</span>
+      <select id="nms-cat-parent-${item.id}">
+        <option value="">— Near Miss Category —</option>
+        ${['At-Risk Condition','At-Risk Behavior','Positive Observation']
+          .map(p => `<option value="${p}"${p === cat.parent ? ' selected' : ''}>${p}</option>`).join('')}
+      </select>
+      <select id="nms-cat-child-${item.id}">
+        <option value="">— Observation Category —</option>
+        ${NM_OBS_CATEGORIES.map(o => `<option value="${o}"${o === cat.child ? ' selected' : ''}>${o}</option>`).join('')}
+      </select>
+      <button class="nm2-act primary" onclick="saveNmsCategoryFromInline('${item.id}', this)">Save</button>
+    </div>` : '';
+
   const closeForm = !closed ? `
     <div class="nm2-close-form">
       <div><div class="nm2-cf-lbl">Evidence of close out *</div><textarea class="nm2-cf-area" id="nms-actions-${item.id}" maxlength="10000" placeholder="Describe actions taken to resolve…"></textarea></div>
@@ -20618,6 +20643,7 @@ function _nmRenderCard(item, failedIds, now) {
           ${owner ? `<span class="nm2-person"><span class="role">Owner</span><span class="av" style="background:${_NM_AV_BG(owner)}">${initO}</span><b>${escHtml(owner)}</b></span>` : ''}
           ${closeToggle}
         </div>
+        ${inlineCatForm}
         ${closeForm}
         ${closedActionsBlock}
       </div>
@@ -20771,6 +20797,39 @@ function _nmReviewChanged(id) {
     saveBtn.classList.remove('changed');
     saveBtn.classList.add('disabled');
     saveBtn.textContent = '✓ No change';
+  }
+}
+
+// Inline category save — used by the per-card form for uncategorised
+// near misses. Reads from nms-cat-parent-/nms-cat-child- IDs (separate
+// from the bottom-of-page QHSE Review panel so both can render at once).
+async function saveNmsCategoryFromInline(itemId, btn) {
+  const parentVal = document.getElementById(`nms-cat-parent-${itemId}`)?.value || '';
+  const childVal  = document.getElementById(`nms-cat-child-${itemId}`)?.value || '';
+  if (!parentVal || !childVal) {
+    try { toast('Pick both Near Miss Category and Observation Category', 'u'); } catch { alert('Pick both Near Miss Category and Observation Category'); }
+    return;
+  }
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  try {
+    const siteId = await getNmsSiteId();
+    const token  = await getGraphToken();
+    const res = await fetch(
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${NMS_LIST_ID}/items/${itemId}`,
+      { method: 'PATCH', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fields: { NearMissCategory: parentVal, ObservationCategory: childVal } }) }
+    );
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const idx = NMS_ITEMS.findIndex(i => i.id === itemId);
+    if (idx >= 0) {
+      NMS_ITEMS[idx].fields.NearMissCategory = parentVal;
+      NMS_ITEMS[idx].fields.ObservationCategory = childVal;
+    }
+    try { toast('Category saved', 's'); } catch {}
+    renderNearMisses();
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
+    try { toast('Save failed — ' + e.message, 'u'); } catch { alert('Save failed: ' + e.message); }
   }
 }
 
