@@ -20055,6 +20055,15 @@ function setNmCategoryFilter(val){ nmCategoryFilter = val; renderNearMisses(); }
 async function loadNearMisses() {
   const el = document.getElementById('safety-list');
   if (!el) return;
+  // If MSAL hasn't completed auth yet (e.g. user navigated to safety
+  // before signing in), getGraphToken throws "Not authenticated" which
+  // surfaces as a permanent red error panel with no actionable Sign In
+  // button in the view. Show a friendlier placeholder and let the next
+  // post-signin refresh re-call this.
+  if (!graphAccount) {
+    el.innerHTML = '<div style="color:var(--text3);text-align:center;padding:40px">Sign in to view Near Misses.</div>';
+    return;
+  }
   el.innerHTML = '<div style="color:var(--text3);text-align:center;padding:40px">Loading…</div>';
   const pill = document.getElementById('nm-sync-pill');
   if (pill) pill.textContent = '● Loading…';
