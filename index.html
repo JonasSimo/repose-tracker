@@ -10970,6 +10970,11 @@ async function graphSignIn() {
     // Eager-load CPAR list so Team View / Delivery / Production show NCR
     // signals (top banner, red stripe, red banner) without a Quality detour.
     fetchCPARs().catch(e => console.warn('cpars:', e.message));
+    // Schema drift check — fire-and-forget, results cached in sessionStorage
+    // so only the first sign-in per tab pays for it. Admins see a high-
+    // priority toast if a SharePoint column has been renamed/retyped/deleted
+    // under us; non-admins only get the console log.
+    _validateSharePointSchema().catch(e => console.warn('schema:', e.message));
     if (!_refreshInterval)     _refreshInterval     = setInterval(refreshCompletions, 60 * 1000);
     if (!_fullRefreshInterval) _fullRefreshInterval = setInterval(fullRefresh, 10 * 60 * 1000);
   } catch(e) {
@@ -11199,6 +11204,73 @@ async function graphDelete(url) {
   if (!token) throw new Error('Not authenticated');
   const r = await _graphFetchWithRetry(url, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
   if (!r.ok) throw new Error(`Graph ${r.status}: ${await r.text()}`);
+}
+
+// SharePoint schema drift detector. SharePoint silently 400s on PATCH/POST
+// when a column we expect has been renamed, retyped or deleted — Graph
+// returns an opaque "invalidRequest" with no field detail, so an out-of-band
+// schema change (someone editing the list in SharePoint UI, an admin renaming
+// a column, etc.) historically meant chasing the wrong cause for hours.
+// This validator runs once per session right after sign-in, cross-checks
+// each critical list's actual columns against a manifest of internal names
+// we PATCH or POST, and surfaces drift as: (1) a console.error with the
+// full diff, and (2) a high-priority admin toast naming the affected list
+// and columns. Reads tolerate missing fields, so only the columns we WRITE
+// are in the manifest. Cached in sessionStorage so subsequent reloads skip
+// the Graph calls; cache key is bumped if the manifest itself changes.
+const _SCHEMA_MANIFEST_VERSION = '2026-05-12-v1';
+async function _validateSharePointSchema() {
+  const cacheKey = 'schemaValidated:' + _SCHEMA_MANIFEST_VERSION;
+  if (sessionStorage.getItem(cacheKey) === '1') return;
+
+  const targets = [
+    { siteFn: getQmsSiteId, list: QMS_REGISTER_LIST,
+      required: ['Title','Description','Status','Category','Level','Departments',
+                 'CurrentRevision','IssueDate','LastRevisedDate','ReviewCycleMonths',
+                 'NextReviewDate','Owner','Approvers','FileLink','References',
+                 'SupersededBy','ApprovalState'] },
+    { siteFn: getQmsSiteId, list: QMS_REVISIONS_LIST,
+      required: ['Title','Revision','IssueDate','ReasonForRevision','TriggeredBy',
+                 'FileLink','FileVersionId','ChangedFromRev'] },
+    { siteFn: getSpSiteId, list: SP_CPAR_LIST,
+      required: ['Title','Status','InvestigatedBy','InvestigatedAt',
+                 'InvestigationOutcome','ECRRef','CorrectiveAction','History'] },
+  ];
+
+  const issues = [];
+  for (const t of targets) {
+    try {
+      const siteId = await t.siteFn();
+      const listId = await getListIdByNameOnSite(siteId, t.list);
+      const cols = await graphGetAll(
+        `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/columns?$select=name,displayName,readOnly,hidden&$top=200`
+      );
+      const present = new Set((cols || []).map(c => c.name));
+      const missing = t.required.filter(n => !present.has(n));
+      if (missing.length) issues.push({ list: t.list, missing });
+    } catch (e) {
+      issues.push({ list: t.list, error: e.message });
+    }
+  }
+
+  if (issues.length) {
+    console.error('[schema] SharePoint schema drift detected:', issues);
+    // Toast for admins only — non-admins can't action this and shouldn't see
+    // raw schema errors. Both Doc Control admins and QHSE managers qualify.
+    const meIsAdmin =
+      (typeof _isDocsAdmin === 'function' && _isDocsAdmin()) ||
+      (typeof cparIsQHSE !== 'undefined' && cparIsQHSE);
+    if (meIsAdmin) {
+      const summary = issues
+        .map(i => i.missing ? `${i.list}: missing ${i.missing.join(', ')}` : `${i.list}: ${i.error}`)
+        .join(' · ');
+      try { toast(`SharePoint schema drift — check console: ${summary.slice(0, 180)}`, 'u'); } catch {}
+    }
+    // Don't cache a failed result — we want every reload to keep flagging
+    // until the schema is fixed (or the manifest is updated to match).
+  } else {
+    sessionStorage.setItem(cacheKey, '1');
+  }
 }
 
 async function graphGetAll(url) {
@@ -11612,6 +11684,11 @@ async function initGraph() {
     // Eager-load CPAR list so Team View / Delivery / Production show NCR
     // signals (top banner, red stripe, red banner) without a Quality detour.
     fetchCPARs().catch(e => console.warn('cpars:', e.message));
+    // Schema drift check — fire-and-forget, results cached in sessionStorage
+    // so only the first sign-in per tab pays for it. Admins see a high-
+    // priority toast if a SharePoint column has been renamed/retyped/deleted
+    // under us; non-admins only get the console log.
+    _validateSharePointSchema().catch(e => console.warn('schema:', e.message));
     // Defer QC auto-sync 15s so the initial heavy load (production workbook + lists)
     // fully settles before the QC workbook starts. 5s wasn't enough — Graph was still
     // tenant-throttling user-initiated nav requests (Near-Miss site lookup) on top.
