@@ -5970,6 +5970,7 @@ async function openDocumentDetail(docNumber) {
             ${(_isDocsManager() && doc.status !== 'In Approval') ? `<button class="docs-btn docs-btn-sec" id="docs-edit-meta-btn">✎ Edit metadata</button>` : ''}
             ${(_isDocsManager() && doc.status === 'In Approval') ? `<span title="Edit metadata is locked while approvals are in flight. Reject or wait for completion to edit." style="font-size:11px;color:var(--text2);padding:6px 10px">✎ Edit metadata locked (in approval)</span>` : ''}
             ${(_isDocsAdmin() && doc.status !== 'Obsolete') ? `<button class="docs-btn docs-btn-sec" id="docs-obsolete-btn">⌀ Mark obsolete</button>` : ''}
+            ${_isDocsDeleter() ? `<button class="docs-btn docs-btn-pri" id="docs-delete-btn" style="background:var(--red)" title="TEMPORARY — admin-only hard delete. Remove this button after cleanup.">🗑 Delete permanently</button>` : ''}
           </div>
         </div>
 
@@ -6023,6 +6024,8 @@ async function openDocumentDetail(docNumber) {
   if (reviseBtn) reviseBtn.addEventListener('click', () => openReviseDocumentModal(doc));
   const obsoleteBtn = overlay.querySelector('#docs-obsolete-btn');
   if (obsoleteBtn) obsoleteBtn.addEventListener('click', () => markDocumentObsolete(doc));
+  const deleteBtn = overlay.querySelector('#docs-delete-btn');
+  if (deleteBtn) deleteBtn.addEventListener('click', () => openDeleteDocumentModal(doc));
   const editMetaBtn = overlay.querySelector('#docs-edit-meta-btn');
   if (editMetaBtn) editMetaBtn.addEventListener('click', () => openEditMetadataModal(doc));
   const drawerApproveBtn = overlay.querySelector('#docs-drawer-approve-btn');
@@ -6138,6 +6141,183 @@ async function markDocumentObsolete(doc) {
       btn.disabled = false; btn.textContent = 'Mark obsolete';
     }
   });
+}
+
+// TEMPORARY — hard-delete a Document Control doc end-to-end (register row,
+// every matching DocumentRevisions row, and the file blob(s) in QMS-Documents).
+// Type-to-confirm gated. Items go to SharePoint Recycle Bin (~90 day retention).
+// Gated by _isDocsDeleter() so only Jonas can fire it. Remove with the rest of
+// the temporary delete code once cleanup is complete.
+async function openDeleteDocumentModal(doc) {
+  if (!_isDocsDeleter()) return; // belt + braces; button shouldn't even render
+
+  const overlay = document.createElement('div');
+  overlay.className = 'docs-modal-bg';
+  overlay.innerHTML = `
+    <div class="docs-modal">
+      <div class="docs-modal-head">
+        <h2>🗑 Permanently delete ${_escape(doc.docNumber)}?</h2>
+        <button class="docs-btn docs-btn-sec" id="docs-modal-close">×</button>
+      </div>
+      <div class="docs-modal-body">
+        <p style="margin-top:0;color:var(--red);font-size:13px;font-weight:600">This is destructive. Items go to the SharePoint Recycle Bin (~90 day retention). After that they are unrecoverable.</p>
+        <div id="docs-del-summary" style="font-size:13px;color:var(--text2);line-height:1.6;margin:14px 0;padding:12px;background:#fef2f2;border:1px solid #fecaca;border-radius:6px">Loading revision history…</div>
+        <div class="docs-field">
+          <label>Type <b>${_escape(doc.docNumber)}</b> below to enable delete</label>
+          <input id="docs-del-confirm-input" placeholder="${_escape(doc.docNumber)}" autocomplete="off">
+        </div>
+        <div id="docs-del-progress" style="font-size:12px;color:var(--text2);min-height:18px;margin-top:8px"></div>
+      </div>
+      <div class="docs-modal-foot">
+        <button class="docs-btn docs-btn-sec" id="docs-modal-cancel">Cancel</button>
+        <button class="docs-btn docs-btn-pri" id="docs-modal-delete" style="background:var(--red);opacity:.5" disabled>🗑 Delete permanently</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const close = () => overlay.remove();
+  overlay.querySelector('#docs-modal-close').addEventListener('click', close);
+  overlay.querySelector('#docs-modal-cancel').addEventListener('click', close);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+
+  // Pre-fetch revisions for honest counts in the summary.
+  let revCount = 0;
+  let revFetchError = null;
+  try {
+    const revs = await fetchRevisionsForDoc(doc.docNumber);
+    revCount = revs.length;
+  } catch (e) {
+    revFetchError = e.message;
+  }
+  const summaryEl = overlay.querySelector('#docs-del-summary');
+  if (revFetchError) {
+    summaryEl.innerHTML = `<b style="color:var(--red)">Couldn't load revision history:</b> ${_escape(revFetchError)}<br><br>You can still proceed — the delete loop will skip anything it can't find.`;
+  } else {
+    summaryEl.innerHTML = `
+      Will delete:<br>
+      • <b>1</b> register row (item #${doc.id}) in <code>${QMS_REGISTER_LIST}</code><br>
+      • <b>${revCount}</b> revision row(s) in <code>${QMS_REVISIONS_LIST}</code><br>
+      • Up to <b>${revCount + 1}</b> file(s) in <code>QMS-Documents</code>
+    `;
+  }
+
+  // Type-to-confirm gate. Trim so trailing whitespace doesn't block by accident.
+  const input = overlay.querySelector('#docs-del-confirm-input');
+  const btn = overlay.querySelector('#docs-modal-delete');
+  input.addEventListener('input', () => {
+    const match = input.value.trim() === doc.docNumber;
+    btn.disabled = !match;
+    btn.style.opacity = match ? '1' : '.5';
+  });
+
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    overlay.querySelector('#docs-modal-cancel').disabled = true;
+    const progress = overlay.querySelector('#docs-del-progress');
+    try {
+      const result = await _deleteDocumentEverywhere(doc, progress);
+      if (result.failed && result.failed.length) {
+        progress.innerHTML = `<span style="color:var(--red)"><b>Done with errors:</b></span><br>${result.failed.map(_escape).join('<br>')}<br><br>Register row is gone — the doc will disappear from the list on refresh. Check the SharePoint Recycle Bin for anything that needs to be manually purged.`;
+      } else {
+        progress.innerHTML = `<span style="color:var(--green)">✓ Deleted everything.</span>`;
+      }
+      setTimeout(async () => {
+        close();
+        document.querySelectorAll('.docs-drawer-bg').forEach(el => el.remove());
+        await renderDocumentsRegister();
+      }, (result.failed && result.failed.length) ? 4000 : 800);
+    } catch (e) {
+      progress.innerHTML = `<span style="color:var(--red)"><b>Failed:</b></span> ${_escape(e.message)}<br>The register row may still be present. Refresh and retry, or finish manually in SharePoint.`;
+      btn.disabled = false;
+      btn.style.opacity = '1';
+      overlay.querySelector('#docs-modal-cancel').disabled = false;
+    }
+  });
+}
+
+// TEMPORARY — worker for openDeleteDocumentModal. Order of operations:
+// 1. Resolve site/list/drive IDs and fetch revisions.
+// 2. Capture every FileVersionId before any DELETE so we never lose pointers.
+// 3. DELETE each revision row, then each file by FileVersionId, then a
+//    belt-and-braces delete-by-path for the current file (covers stale
+//    register rows where the matching revision row was never written).
+// 4. DELETE the register row last as the "must succeed" step — if everything
+//    else half-failed but this one succeeds, the doc disappears from the
+//    list and the rest is mop-up in the SharePoint Recycle Bin.
+// 404s on intermediate DELETEs are treated as success (already gone).
+async function _deleteDocumentEverywhere(doc, progressEl) {
+  const setStatus = (msg) => { if (progressEl) progressEl.textContent = msg; console.info('[docs:delete]', msg); };
+  const failed = [];
+
+  setStatus('Resolving SharePoint endpoints…');
+  const siteId = await getQmsSiteId();
+  const revsListId = await getListIdByNameOnSite(siteId, QMS_REVISIONS_LIST);
+  const registerListId = await getListIdByNameOnSite(siteId, QMS_REGISTER_LIST);
+  const driveId = await _getQmsDriveId();
+
+  setStatus('Fetching revision history…');
+  const revs = await fetchRevisionsForDoc(doc.docNumber);
+  const fileVersionIds = Array.from(new Set(revs.map(r => r.fileVersionId).filter(Boolean)));
+
+  // Delete revision rows
+  for (let i = 0; i < revs.length; i++) {
+    const r = revs[i];
+    setStatus(`Deleting revision row ${i+1}/${revs.length} (Rev ${r.revision})…`);
+    try {
+      await graphDelete(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${revsListId}/items/${r.id}`);
+    } catch (e) {
+      if (/\b404\b/.test(e.message)) continue; // already gone — fine
+      failed.push(`Revision row Rev${r.revision} (#${r.id}): ${e.message}`);
+    }
+  }
+
+  // Delete file blobs by FileVersionId (each Rev was uploaded as its own file)
+  for (let i = 0; i < fileVersionIds.length; i++) {
+    const id = fileVersionIds[i];
+    setStatus(`Deleting file blob ${i+1}/${fileVersionIds.length}…`);
+    try {
+      await graphDelete(`https://graph.microsoft.com/v1.0/drives/${driveId}/items/${id}`);
+    } catch (e) {
+      if (/\b404\b/.test(e.message)) continue;
+      failed.push(`File ${id}: ${e.message}`);
+    }
+  }
+
+  // Belt-and-braces: try to delete the file referenced by the register row's
+  // fileLink URL by path. Covers the rare case where a save half-failed and
+  // a file exists in the library without a matching revision row.
+  if (doc.fileLink && doc.category) {
+    const folder = ({'H&S':'HS','Quality':'Quality','Group':'Group'})[doc.category];
+    let filename = null;
+    try {
+      const u = new URL(doc.fileLink);
+      const fileQ = u.searchParams.get('file'); // old Doc.aspx?...&file= form
+      if (fileQ) {
+        filename = fileQ; // URLSearchParams already decodes
+      } else {
+        // New compact /QMS-Documents/{folder}/{name} form — take last segment
+        const segs = u.pathname.split('/').filter(Boolean);
+        if (segs.length) filename = decodeURIComponent(segs[segs.length - 1]);
+      }
+    } catch { /* malformed URL — skip belt-and-braces */ }
+    if (folder && filename) {
+      setStatus('Belt-and-braces: deleting current file by path…');
+      try {
+        await graphDelete(`https://graph.microsoft.com/v1.0/drives/${driveId}/root:/${encodeURIComponent(folder)}/${encodeURIComponent(filename)}`);
+      } catch (e) {
+        // 404 is fine — most likely already removed via the FileVersionId loop above.
+        if (!/\b404\b/.test(e.message)) failed.push(`Current file by path (${folder}/${filename}): ${e.message}`);
+      }
+    }
+  }
+
+  // Register row — must succeed. If this throws, the doc still appears in the
+  // list and the caller surfaces the raw error so manual finish is possible.
+  setStatus('Deleting register row…');
+  await graphDelete(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${registerListId}/items/${doc.id}`);
+
+  return { deletedRevs: revs.length, deletedFiles: fileVersionIds.length, failed };
 }
 
 // QHSE Manager-only "Edit metadata" — patches register-row metadata without
@@ -6904,6 +7084,16 @@ function _isDocsAdmin() {
   const me = graphAccount && graphAccount.username && graphAccount.username.toLowerCase();
   if (!me) return false;
   return CPAR_QHSE_REVIEWERS.map(e => e.toLowerCase()).includes(me);
+}
+
+// TEMPORARY admin-only gate for the hard-delete button in Document Control.
+// Hardcoded to Jonas only — intentionally NOT _isDocsAdmin() so the allowlist
+// can grow without inheriting delete rights. Remove _isDocsDeleter and every
+// reference to it (grep "_isDocsDeleter" / "docs-delete-btn") once the
+// current cleanup pass is complete.
+function _isDocsDeleter() {
+  const me = graphAccount && graphAccount.username && graphAccount.username.toLowerCase();
+  return me === 'jonas.simonaitis@reposefurniture.co.uk';
 }
 
 // Person directory — maps approver email → human-readable name + role + an
@@ -9495,7 +9685,20 @@ async function uploadDocFile(category, fileName, fileBlob) {
   });
   if (!res.ok) throw new Error(`uploadDocFile failed: ${res.status} ${await res.text()}`);
   const item = await res.json();
-  return { id: item.id, webUrl: item.webUrl, downloadUrl: item['@microsoft.graph.downloadUrl'] };
+  // For Office files, Graph returns the bloated viewer redirect
+  // (.../_layouts/15/Doc.aspx?sourcedoc={GUID}&file={NAME}&action=default&mobileredirect=true)
+  // which can blow past the 255-char single-line-text limit on FileLink when
+  // the filename is long. Rebuild a direct path-based URL — SharePoint still
+  // redirects clicks to the Office viewer, so user behavior is unchanged.
+  return { id: item.id, webUrl: _compactDocUrl(item, category, fileName), downloadUrl: item['@microsoft.graph.downloadUrl'] };
+}
+
+function _compactDocUrl(item, category, fileName) {
+  const raw = item && item.webUrl || '';
+  const viewerIdx = raw.indexOf('/_layouts/15/Doc.aspx');
+  if (viewerIdx === -1) return raw; // already a direct file URL (PDFs, images, etc.)
+  const siteUrl = raw.slice(0, viewerIdx);
+  return `${siteUrl}/${QMS_DOC_LIB_NAME}/${encodeURIComponent(category)}/${encodeURIComponent(fileName)}`;
 }
 
 // Module-level guard so the Mail.Send scope-failure alert only fires
