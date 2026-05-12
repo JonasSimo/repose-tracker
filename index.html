@@ -9660,24 +9660,30 @@ async function createRevision(payload) {
   return _mapRevItem(await res.json());
 }
 
-let _qmsDriveIdCache = null;
-async function _getQmsDriveId() {
-  if (_qmsDriveIdCache) return _qmsDriveIdCache;
+let _qmsDriveCache = null;
+async function _getQmsDrive() {
+  if (_qmsDriveCache) return _qmsDriveCache;
   const siteId = await getQmsSiteId();
   // List all drives on the Quality site and find the QMS-Documents library by name
   const drivesResp = await graphGet(`https://graph.microsoft.com/v1.0/sites/${siteId}/drives`);
   const drives = drivesResp.value || [];
   const qms = drives.find(d => d.name === QMS_DOC_LIB_NAME);
   if (!qms) throw new Error(`Document library "${QMS_DOC_LIB_NAME}" not found on the Quality site. Available drives: ${drives.map(d => d.name).join(', ')}`);
-  _qmsDriveIdCache = qms.id;
-  return _qmsDriveIdCache;
+  // Cache both the id AND the webUrl. The webUrl is the *real* library URL
+  // (e.g. https://tenant.sharepoint.com/sites/ReposeFurniture-Quality/QMS-Documents)
+  // and is the only safe way to build file links — the URL slug can differ
+  // from the library display name (QMS_DOC_LIB_NAME), and assuming they
+  // match produces 404s when users click the FileLink in the register.
+  _qmsDriveCache = { id: qms.id, webUrl: qms.webUrl };
+  return _qmsDriveCache;
 }
+async function _getQmsDriveId() { return (await _getQmsDrive()).id; }
 
 async function uploadDocFile(category, fileName, fileBlob) {
   // category = 'HS' | 'Quality' | 'Group'
-  const driveId = await _getQmsDriveId();
+  const drive = await _getQmsDrive();
   const token = await getGraphToken();
-  const url = `https://graph.microsoft.com/v1.0/drives/${driveId}/root:/${encodeURIComponent(category)}/${encodeURIComponent(fileName)}:/content`;
+  const url = `https://graph.microsoft.com/v1.0/drives/${drive.id}/root:/${encodeURIComponent(category)}/${encodeURIComponent(fileName)}:/content`;
   const res = await _graphFetchWithRetry(url, {
     method: 'PUT',
     headers: { Authorization: `Bearer ${token}` },
@@ -9685,20 +9691,17 @@ async function uploadDocFile(category, fileName, fileBlob) {
   });
   if (!res.ok) throw new Error(`uploadDocFile failed: ${res.status} ${await res.text()}`);
   const item = await res.json();
-  // For Office files, Graph returns the bloated viewer redirect
-  // (.../_layouts/15/Doc.aspx?sourcedoc={GUID}&file={NAME}&action=default&mobileredirect=true)
-  // which can blow past the 255-char single-line-text limit on FileLink when
-  // the filename is long. Rebuild a direct path-based URL — SharePoint still
-  // redirects clicks to the Office viewer, so user behavior is unchanged.
-  return { id: item.id, webUrl: _compactDocUrl(item, category, fileName), downloadUrl: item['@microsoft.graph.downloadUrl'] };
-}
-
-function _compactDocUrl(item, category, fileName) {
-  const raw = item && item.webUrl || '';
-  const viewerIdx = raw.indexOf('/_layouts/15/Doc.aspx');
-  if (viewerIdx === -1) return raw; // already a direct file URL (PDFs, images, etc.)
-  const siteUrl = raw.slice(0, viewerIdx);
-  return `${siteUrl}/${QMS_DOC_LIB_NAME}/${encodeURIComponent(category)}/${encodeURIComponent(fileName)}`;
+  // Build a compact direct-path URL from the drive's actual webUrl. This
+  // avoids two problems with the raw item.webUrl Graph returns for Office
+  // files: (1) it's the bloated `_layouts/15/Doc.aspx?sourcedoc=...&file=...`
+  // viewer redirect which can exceed the 255-char FileLink column cap when
+  // filenames are long; (2) trying to rebuild it from the QMS_DOC_LIB_NAME
+  // display-name constant breaks when the library's URL slug differs from
+  // its display name (we saw 404s on Group-folder uploads because of this).
+  // SharePoint still redirects clicks to the Office viewer, so user behavior
+  // is unchanged.
+  const compactWebUrl = `${drive.webUrl}/${encodeURIComponent(category)}/${encodeURIComponent(fileName)}`;
+  return { id: item.id, webUrl: compactWebUrl, downloadUrl: item['@microsoft.graph.downloadUrl'] };
 }
 
 // Module-level guard so the Mail.Send scope-failure alert only fires
