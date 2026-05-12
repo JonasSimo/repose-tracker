@@ -16180,14 +16180,6 @@ function _cparRecomputeManager() {
   cparIsQHSE = qhse.has(me);
   cparIsPE = pe.has(me);
   cparIsOverseer = overseer.has(me);
-  // TEMPORARY: force Jonas into active-PE mode (not overseer read-only) so the
-  // PE View can be tested end-to-end with full action buttons. QHSE flag is
-  // left intact so Document Control / QHSE Review still work as expected.
-  // Remove this block after testing (grep "TEMP-PE-IMPERSONATE").
-  if (me === 'jonas.simonaitis@reposefurniture.co.uk') { // TEMP-PE-IMPERSONATE
-    cparIsPE = true;
-    cparIsOverseer = false;
-  }
   cparIsManager = cparIsQHSE || cparIsPE || cparIsOverseer;
 }
 let cparSubview = 'issues';
