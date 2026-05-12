@@ -8549,6 +8549,16 @@ function getAssemblyBacklogRows() {
       jobs.forEach((job, ji) => {
         if (STATE['Assembly']?.['all']?.[wk]?.[p]?.[ji]?.done) return;
 
+        // QC sign-off counts as done — Assembly sometimes forgets to tick.
+        // Mirrors the canonical "is this REP QC'd?" check used at the badge
+        // logic (index.html:11881-11882) and the Outstanding panel (13745).
+        const rep7 = String(job.rep || '').replace(/\D/g,'').slice(-7);
+        const qcSigned =
+          (rep7 && (qcCompletedReps.has(rep7) || mechQCDone.has(rep7))) ||
+          (typeof isAccDelivery === 'function' && isAccDelivery(job.rep) &&
+           (accQCDone.has(accJobBase(job.rep)) || qcCompletedReps.has(accJobBase(job.rep))));
+        if (qcSigned) return;
+
         // Days late = working days between due date (exclusive) and today (inclusive).
         let daysLate = 0;
         if (p !== 'express' && wcDate) {
@@ -8564,7 +8574,6 @@ function getAssemblyBacklogRows() {
           }
         }
 
-        const rep7 = String(job.rep || '').replace(/\D/g,'').slice(-7);
         const isExpress = (p === 'express') || (rep7 && EXPRESS_TYPE_MAP.has(rep7));
 
         rows.push({
