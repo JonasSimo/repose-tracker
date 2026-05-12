@@ -5616,6 +5616,11 @@ function _renderDocsShell(root) {
 
     <div class="docs-main">
       <aside class="docs-side">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <h4 style="margin:0">Filters</h4>
+          <button type="button" id="docs-clear-filters" style="background:transparent;border:0;color:var(--repose-blue);font:600 11.5px var(--body);cursor:pointer;padding:4px 8px;border-radius:6px;letter-spacing:.02em">Clear all</button>
+        </div>
+
         <h4>Search</h4>
         <input type="search" id="docs-search" placeholder="REPO-Q…" value="${_escape(_docsState.filters.q)}">
 
@@ -5775,6 +5780,21 @@ function _bindDocsFilters() {
   const clearDue = root.querySelector('#docs-clear-due-filter');
   if (clearDue) clearDue.addEventListener('click', () => {
     _docsState.filters.dueWithin30 = false;
+    _renderDocsShell(document.getElementById('docs-content'));
+    _renderDocsTable();
+    _bindDocsFilters();
+  });
+  const clearAll = root.querySelector('#docs-clear-filters');
+  if (clearAll) clearAll.addEventListener('click', () => {
+    _docsState.filters = {
+      q: '',
+      categories: new Set(),
+      levels: new Set(),
+      depts: new Set(),
+      statuses: new Set(['Published','In Approval','In Review','Draft']),
+      pendingMyApproval: false,
+      dueWithin30: false
+    };
     _renderDocsShell(document.getElementById('docs-content'));
     _renderDocsTable();
     _bindDocsFilters();
