@@ -16222,7 +16222,7 @@ function renderQualitySubview() {
 
   if (cparSubview === 'issues')   { host.innerHTML = ''; renderIssuesIntoQuality(host); return; }
   if (cparSubview === 'review')   host.innerHTML = renderQHSEReview();
-  if (cparSubview === 'pe')       host.innerHTML = renderPEView();
+  if (cparSubview === 'pe')       { host.innerHTML = renderPEView(); _hydratePESubmitHints(host); }
   if (cparSubview === 'dash')     renderQualityDashboard(host);
   if (cparSubview === 'register') host.innerHTML = renderRegister();
 }
@@ -17102,6 +17102,7 @@ function renderPECard(item) {
           <button class="cpar-confirm-close-btn" onclick="event.stopPropagation();peSpawnCAPAFromCPAR('${item.id}')" style="background:#fff;color:var(--repose-navy);border:1.5px solid var(--repose-navy)">+ Spawn CAPA</button>
           ${_capaCountForCpar(item.id) > 0 ? `<span style="font-size:11px;color:var(--green);font-weight:700">✓ ${_capaCountForCpar(item.id)} CAPA${_capaCountForCpar(item.id)>1?'s':''} spawned</span>` : ''}
         </div>
+        <div id="pe-submit-hint-${item.id}" style="font-size:11px;color:#92400e;background:#fff8e6;border:1px solid #fde68a;border-radius:6px;padding:7px 10px;margin-top:8px;display:none"></div>
       </div>
     </div>
   </div>`;
@@ -17267,13 +17268,43 @@ function refreshPESubmitState(id) {
   const outcome = root.dataset.outcome || '';
   const liveNotes = (document.getElementById('pe-notes-'+id)?.value || '').trim();
   const notes = liveNotes || _getCparDraft(id, 'peNotes', '').trim();
-  let ok = !!outcome && !!notes;
+
+  // Build a list of what's still missing so the disabled state is self-
+  // explanatory. Without this hint PEs see a greyed-out submit button with
+  // no indication of why and assume the app is broken.
+  const missing = [];
+  if (!notes) missing.push('Investigation findings');
+  if (!outcome) missing.push('Outcome (Human Error or Template/Spec issue)');
   if (outcome === 'Template-Spec Issue') {
     const cb = document.getElementById('ecr-confirm-'+id);
     const confirmed = cb ? cb.checked : !!_peEcrConfirmedCache.get(id);
-    if (!confirmed) ok = false;
+    if (!confirmed) missing.push('Tick the ECR-submitted confirmation');
   }
+  const ok = missing.length === 0;
   root.disabled = !ok;
+
+  const hint = document.getElementById('pe-submit-hint-'+id);
+  if (hint) {
+    if (ok) {
+      hint.style.display = 'none';
+      hint.textContent = '';
+    } else {
+      hint.style.display = 'block';
+      hint.innerHTML = '⚠ <strong>Still to do before submit:</strong> ' + missing.map(m => '• ' + m).join('  ');
+    }
+  }
+}
+
+// After renderPEView injects the cards into the DOM, walk the submit buttons
+// and prime each card's "still to do" hint. Without this the hint stays
+// hidden on first render and the disabled button looks broken until the PE
+// pokes at one of the form fields.
+function _hydratePESubmitHints(host) {
+  if (!host) return;
+  host.querySelectorAll('[id^="pe-submit-"]').forEach(btn => {
+    const id = btn.id.slice('pe-submit-'.length);
+    if (id) refreshPESubmitState(id);
+  });
 }
 
 async function peSubmitInvestigation(id) {
