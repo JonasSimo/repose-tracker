@@ -9040,14 +9040,35 @@ function _saveSnapshot() {
     _snapshotSaveTimer = null;
     _ric(() => {
       try {
+        // Trim to currently-active weeks only. loadProductionFromSharePoint merges
+        // new weeks into PROD/STATE without pruning, so stale weeks accumulate and
+        // the snapshot eventually exceeds the ~5 MB localStorage quota. Live data
+        // re-populates current weeks on next load — the snapshot only needs to
+        // paint what's about to be visible.
+        const activeWeeks = new Set(WEEKS);
+        const PROD_trim = {};
+        for (const wk of WEEKS) if (PROD[wk]) PROD_trim[wk] = PROD[wk];
+        const STATE_trim = {};
+        for (const team of Object.keys(STATE)) {
+          STATE_trim[team] = {};
+          for (const sub of Object.keys(STATE[team])) {
+            STATE_trim[team][sub] = {};
+            for (const wk of Object.keys(STATE[team][sub])) {
+              if (activeWeeks.has(wk)) STATE_trim[team][sub][wk] = STATE[team][sub][wk];
+            }
+          }
+        }
+        const LS_CUTOFF = Date.now() - 30 * 86400000;
+        const LS_RAW_trim = LS_RAW.filter(col => col.date && col.date.getTime() >= LS_CUTOFF);
+
         const snap = {
           savedAt: Date.now(),
-          PROD,
-          WEEKS: [...WEEKS],
-          STATE,
-          LS_RAW,
+          PROD:   PROD_trim,
+          WEEKS:  [...WEEKS],
+          STATE:  STATE_trim,
+          LS_RAW: LS_RAW_trim,
           OV_RAW,
-          MECH_SERIALS: [...MECH_SERIALS.entries()],
+          MECH_SERIALS:     [...MECH_SERIALS.entries()],
           EXPRESS_TYPE_MAP: [...EXPRESS_TYPE_MAP.entries()],
         };
         localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snap));
