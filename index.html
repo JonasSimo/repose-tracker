@@ -6247,14 +6247,10 @@ async function _saveMetadata(doc, overlay) {
   // Always write Departments so de-selecting all clears the field; comma-join
   // the multi-select for the single-line SP column (split back in _mapDocItem).
   patch.Departments = depts.join(', ');
-  // Approvers — Single Line of Text column. Normalise the free-text input
-  // (trim individual emails, collapse separators) then guard the 255 cap.
+  // Approvers — normalise the free-text input (trim emails, collapse spaces)
+  // and write as comma-joined string. Column is "Multiple lines of text".
   const approverList = String(approversRaw || '').split(',').map(s => s.trim()).filter(Boolean);
-  const approversStr = approverList.join(', ');
-  if (approversStr.length > 255) {
-    throw new Error(`Approver list is ${approversStr.length} chars but the SharePoint column caps at 255. Trim the list.`);
-  }
-  patch.Approvers = approversStr;
+  patch.Approvers = approverList.join(', ');
   patch.References = refs || '';
 
   // Bulk + per-field fallback handled by helper.
@@ -6459,13 +6455,8 @@ async function _saveRevision(doc, overlay) {
     } : _emptyApprovalState())
   };
   // I15: always write Approvers so blanking the field actually clears them.
-  // Approvers is a Single Line of Text column — write a comma-joined string
-  // (Graph empty-string = clear). Guard against exceeding the SP 255-char cap.
-  const approversStr = externalApprovers.join(', ');
-  if (approversStr.length > 255) {
-    throw new Error(`Approver list is ${approversStr.length} chars but the SharePoint column caps at 255. Trim the list or split across two revisions.`);
-  }
-  registerPatch.Approvers = approversStr;
+  // Comma-joined string; column type is "Multiple lines of text" so no cap.
+  registerPatch.Approvers = externalApprovers.join(', ');
   // Applies-to: write the multi-select selection. Comma-joined to fit the
   // existing single-line column; _mapDocItem splits the CSV back into an
   // array. Always written so de-selecting depts actually clears them.
@@ -6752,16 +6743,12 @@ async function _saveNewDocument(overlay) {
   // choice on a strict column), the per-field fallback in _patchDocWithFallback
   // will report it without losing the rest of the patch.
   if (depts.length) optionalFields.Departments = depts.join(', ');
-  // Approvers is a Single Line of Text column in SharePoint (verified via the
-  // list's column schema). Default cap is 255 chars; check before writing so
-  // we surface a friendly error rather than a generic 400 invalidRequest.
-  if (externalApprovers.length) {
-    const approversStr = externalApprovers.join(', ');
-    if (approversStr.length > 255) {
-      throw new Error(`Approver list is ${approversStr.length} chars but the SharePoint column caps at 255. Trim the list or split across two revisions.`);
-    }
-    optionalFields.Approvers = approversStr;
-  }
+  // Approvers — write as a comma-joined string. The SharePoint column was
+  // upgraded to "Multiple lines of text" (~63KB cap) after the 255-char
+  // Single Line cap kept rejecting larger approver lists. _mapDocItem reads
+  // either shape (string from this write, array from any future column-type
+  // change) so the round-trip stays robust.
+  if (externalApprovers.length) optionalFields.Approvers = externalApprovers.join(', ');
   if (refs) optionalFields.References = refs;
 
   // Bulk + per-field fallback handled by helper. Row exists either way
