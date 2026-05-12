@@ -8631,7 +8631,7 @@ function exportAssemblyBacklogCSV() {
   a.download = `repose-assembly-backlog-${ts}.csv`;
   a.click();
   URL.revokeObjectURL(url);
-  toast(`Backlog exported (${rows.length} jobs) — open in Excel`, 's');
+  toast(`Backlog exported (${rows.length} jobs, QC-signed excluded) — open in Excel`, 's');
 }
 
 // ═══════════════════════════════════════════════
@@ -19784,7 +19784,7 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f4f8;padding:32px 16p
         <thead><tr><th>Team</th><th>Done</th><th>Target</th><th>Progress</th><th>Backlog</th><th>WTD</th><th>Status</th></tr></thead>
         <tbody>${prodRows}</tbody>
       </table>
-      <div class="stat-note">Backlog = incomplete jobs from last week + this week (excl. today) &nbsp;·&nbsp; WTD = this ISO week &nbsp;·&nbsp; Target = job count for that prep day</div>
+      <div class="stat-note">Backlog = incomplete jobs from last week + this week (excl. today, excl. QC-signed) &nbsp;·&nbsp; WTD = this ISO week &nbsp;·&nbsp; Target = job count for that prep day</div>
     </div>
 
     ${satTotalDone > 0 ? `
@@ -19800,7 +19800,7 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f4f8;padding:32px 16p
     <div class="section">
       <div class="section-title">Backlog</div>
       <div class="plan-grid">${backlogCards}${qcBacklogCard}</div>
-      <div class="stat-note">Outstanding jobs from last week + this week (today excluded) &nbsp;·&nbsp; QC = Assembly done but not yet QC'd</div>
+      <div class="stat-note">Outstanding jobs from last week + this week (today excluded, QC-signed excluded) &nbsp;·&nbsp; QC = Assembly done but not yet QC'd</div>
     </div>
 
     <div class="section">
