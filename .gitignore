@@ -5,3 +5,8 @@ DESIGN.md
 node_modules/
 azure-functions/node_modules/
 azure-functions/local.settings.json
+# Playwright E2E artefacts and captured MSAL state
+e2e/.auth/
+playwright-report/
+test-results/
+.playwright/
