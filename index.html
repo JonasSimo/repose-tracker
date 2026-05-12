@@ -6247,12 +6247,14 @@ async function _saveMetadata(doc, overlay) {
   // Always write Departments so de-selecting all clears the field; comma-join
   // the multi-select for the single-line SP column (split back in _mapDocItem).
   patch.Departments = depts.join(', ');
-  // Approvers — write as array (SP multi-value column rejects CSV). Free-text
-  // entry from this modal is parsed into individual emails here, since the
-  // edit-metadata path has no dept dropdown of its own.
+  // Approvers — Single Line of Text column. Normalise the free-text input
+  // (trim individual emails, collapse separators) then guard the 255 cap.
   const approverList = String(approversRaw || '').split(',').map(s => s.trim()).filter(Boolean);
-  patch['Approvers@odata.type'] = 'Collection(Edm.String)';
-  patch.Approvers = approverList;
+  const approversStr = approverList.join(', ');
+  if (approversStr.length > 255) {
+    throw new Error(`Approver list is ${approversStr.length} chars but the SharePoint column caps at 255. Trim the list.`);
+  }
+  patch.Approvers = approversStr;
   patch.References = refs || '';
 
   // Bulk + per-field fallback handled by helper.
@@ -6457,10 +6459,13 @@ async function _saveRevision(doc, overlay) {
     } : _emptyApprovalState())
   };
   // I15: always write Approvers so blanking the field actually clears them.
-  // Approvers is a multi-value SP column — write as an explicit array
-  // (with @odata.type) or SP rejects any value containing a comma with 400.
-  registerPatch['Approvers@odata.type'] = 'Collection(Edm.String)';
-  registerPatch.Approvers = externalApprovers;
+  // Approvers is a Single Line of Text column — write a comma-joined string
+  // (Graph empty-string = clear). Guard against exceeding the SP 255-char cap.
+  const approversStr = externalApprovers.join(', ');
+  if (approversStr.length > 255) {
+    throw new Error(`Approver list is ${approversStr.length} chars but the SharePoint column caps at 255. Trim the list or split across two revisions.`);
+  }
+  registerPatch.Approvers = approversStr;
   // Applies-to: write the multi-select selection. Comma-joined to fit the
   // existing single-line column; _mapDocItem splits the CSV back into an
   // array. Always written so de-selecting depts actually clears them.
@@ -6747,13 +6752,15 @@ async function _saveNewDocument(overlay) {
   // choice on a strict column), the per-field fallback in _patchDocWithFallback
   // will report it without losing the rest of the patch.
   if (depts.length) optionalFields.Departments = depts.join(', ');
-  // Approvers is a SharePoint multi-value column — write as an array with
-  // the `@odata.type` annotation, otherwise SP returns 400 invalidRequest
-  // for any payload containing a comma (the CSV path that used to work for
-  // single approvers will silently fail the moment two emails are written).
+  // Approvers is a Single Line of Text column in SharePoint (verified via the
+  // list's column schema). Default cap is 255 chars; check before writing so
+  // we surface a friendly error rather than a generic 400 invalidRequest.
   if (externalApprovers.length) {
-    optionalFields['Approvers@odata.type'] = 'Collection(Edm.String)';
-    optionalFields.Approvers = externalApprovers;
+    const approversStr = externalApprovers.join(', ');
+    if (approversStr.length > 255) {
+      throw new Error(`Approver list is ${approversStr.length} chars but the SharePoint column caps at 255. Trim the list or split across two revisions.`);
+    }
+    optionalFields.Approvers = approversStr;
   }
   if (refs) optionalFields.References = refs;
 
@@ -6836,13 +6843,24 @@ async function _patchDocWithFallback(itemId, patch, flowName, etag) {
     const failed = [];
     let succeeded = 0;
     for (const [k, v] of Object.entries(patch)) {
+      // Skip @odata.type annotations — they're not standalone fields, they
+      // augment the previous PATCH which already went through.
+      if (k.endsWith('@odata.type')) { succeeded++; continue; }
       try {
-        await updateDoc(itemId, { [k]: v });
+        // Build a per-field payload that carries the @odata.type annotation
+        // for this field (if one was supplied in the bulk patch) so multi-
+        // value fields are written in the right shape on retry.
+        const perField = { [k]: v };
+        if (Object.prototype.hasOwnProperty.call(patch, `${k}@odata.type`)) {
+          perField[`${k}@odata.type`] = patch[`${k}@odata.type`];
+        }
+        await updateDoc(itemId, perField);
         console.log(`[docs:${flowName}] per-field PATCH OK: ${k}`);
         succeeded++;
       } catch (e) {
+        const valStr = (typeof v === 'string') ? v : JSON.stringify(v);
         failed.push({ field: k, err: e.message });
-        console.error(`[docs:${flowName}] per-field PATCH FAILED: ${k}`, e.message);
+        console.error(`[docs:${flowName}] per-field PATCH FAILED: ${k}`, e.message, `value=${JSON.stringify(v)} (${valStr.length} chars)`);
       }
     }
     if (failed.length > 0) {
