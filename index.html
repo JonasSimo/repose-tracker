@@ -1626,6 +1626,10 @@ details.tv-ncr-summary[open] > .tv-ncr-summary-hdr .tv-ncr-summary-chev {
 .cpar-group-btn.selected { background:#7c3aed; color:#fff; border-color:#7c3aed; }
 .cpar-desc-input { width:100%; padding:9px 10px; border-radius:8px; border:1.5px solid var(--border); font-size:12px; font-family:inherit; resize:vertical; min-height:70px; background:var(--bg); color:var(--text); box-sizing:border-box; }
 .cpar-desc-input:focus { outline:none; border-color:var(--blue); }
+/* Submit-time validation highlight — applied by submitCPAR() when a required
+   field is empty, cleared on the next user change in that field. */
+.cpar-field-error { outline:2px solid #dc2626 !important; outline-offset:2px; border-radius:8px; animation: cpar-shake .22s ease-in-out; }
+@keyframes cpar-shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-3px)} 75%{transform:translateX(3px)} }
 .cpar-qty-row { display:flex; align-items:center; gap:10px; }
 .cpar-qty-input { width:70px; padding:9px 10px; border-radius:8px; border:1.5px solid var(--border); font-size:14px; font-weight:600; font-family:'JetBrains Mono',monospace; background:var(--bg); color:var(--text); text-align:center; }
 .cpar-qty-input:focus { outline:none; border-color:var(--blue); }
@@ -15830,6 +15834,11 @@ function selectCPARSource(key) {
   cparFormState.category = '';
   cparSelectedGroups = {};
 
+  // Picking a source clears the source-field error highlight from a
+  // previous failed submit attempt. The category highlight stays — the
+  // user still has to pick a category in the just-rendered sub-form.
+  document.getElementById('cpar-source-grid')?.classList.remove('cpar-field-error');
+
   const wrap = document.getElementById('cpar-cat-wrap');
   if (key === 'woodmill') {
     wrap.style.display = 'block';
@@ -15872,7 +15881,7 @@ function selectCPARSource(key) {
         ).join('')}
       </div>
       <div id="cpar-subcat-wrap" style="display:none">
-        <select class="cpar-cat-select" id="cpar-cat-select" onchange="cparFormState.category=this.value"></select>
+        <select class="cpar-cat-select" id="cpar-cat-select" onchange="cparFormState.category=this.value;document.getElementById('cpar-cat-wrap')?.classList.remove('cpar-field-error')"></select>
       </div>
       <div style="margin-top:8px;display:grid;grid-template-columns:repeat(2,1fr);gap:6px">
         ${CPAR_SEWING_DIRECT.map(d =>
@@ -15892,7 +15901,7 @@ function selectCPARSource(key) {
         ).join('')}
       </div>
       <div id="cpar-subcat-wrap" style="display:none">
-        <select class="cpar-cat-select" id="cpar-cat-select" onchange="cparFormState.category=this.value"></select>
+        <select class="cpar-cat-select" id="cpar-cat-select" onchange="cparFormState.category=this.value;document.getElementById('cpar-cat-wrap')?.classList.remove('cpar-field-error')"></select>
       </div>
       <div style="margin-top:8px;display:grid;grid-template-columns:repeat(2,1fr);gap:6px">
         ${CPAR_CUTTING_DIRECT.map(d =>
@@ -15904,7 +15913,7 @@ function selectCPARSource(key) {
 
   wrap.innerHTML = `
     <div class="cpar-field-label">Type of issue</div>
-    <select class="cpar-cat-select" id="cpar-cat-select" onchange="cparFormState.category=this.value"></select>`;
+    <select class="cpar-cat-select" id="cpar-cat-select" onchange="cparFormState.category=this.value;document.getElementById('cpar-cat-wrap')?.classList.remove('cpar-field-error')"></select>`;
   const cats = CPAR_CATEGORIES[key] || [];
   const sel = document.getElementById('cpar-cat-select');
   sel.innerHTML = '<option value="">Select category…</option>' +
@@ -15980,6 +15989,7 @@ function selectCPARDirectItem(item) {
   });
   const subcatWrap = document.getElementById('cpar-subcat-wrap');
   if (subcatWrap) subcatWrap.style.display = 'none';
+  document.getElementById('cpar-cat-wrap')?.classList.remove('cpar-field-error');
 }
 
 function toggleCPARMultiGroup(group, groupsData) {
@@ -16013,8 +16023,19 @@ function toggleCPARMultiGroup(group, groupsData) {
 }
 
 function updateCPARGroupCategory() {
-  const parts = Object.entries(cparSelectedGroups).map(([g, v]) => v ? `${g} — ${v}` : g);
+  // Only include groups whose sub-issue has been picked. A group with no
+  // sub-issue is incomplete — leaving it in the category string put
+  // bare group names like 'Bandsaw' through the submit-time non-empty
+  // check (since 'Bandsaw' is truthy) but isn't a complete classification.
+  // Filter incomplete entries so submitCPAR's existing empty-check blocks
+  // submission until every selected group is fully classified. The
+  // missing groups are reported by name in the submit toast.
+  const parts = Object.entries(cparSelectedGroups)
+    .filter(([, v]) => !!v)
+    .map(([g, v]) => `${g} — ${v}`);
   cparFormState.category = parts.join(' | ');
+  // Any progress on the category clears the error highlight.
+  document.getElementById('cpar-cat-wrap')?.classList.remove('cpar-field-error');
 }
 
 // ── Multi-job selector ───────────────────────────────────
@@ -16108,9 +16129,35 @@ function cparPhotoSelected(input) {
 
 async function submitCPAR() {
   const s = cparFormState;
-  if (!s.source) { toast('Select where the issue came from', 'u'); return; }
-  if (!(s.category||'').trim()) { toast('Select a Type of Issue category', 'u'); return; }
-  if (!(s.desc||'').trim()) { toast('Enter a description', 'u'); return; }
+  if (!s.source) {
+    const grid = document.getElementById('cpar-source-grid');
+    if (grid) { grid.classList.add('cpar-field-error'); grid.focus(); }
+    toast('Select where the issue came from', 'u');
+    return;
+  }
+  if (!(s.category||'').trim()) {
+    const wrap = document.getElementById('cpar-cat-wrap');
+    if (wrap) {
+      wrap.classList.add('cpar-field-error');
+      wrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    // If the user clicked one of the multi-group buttons (Woodmill /
+    // Upholstery) but didn't pick a specific issue from its dropdown,
+    // name the offending groups so the fix is obvious.
+    const incomplete = (typeof cparSelectedGroups !== 'undefined')
+      ? Object.entries(cparSelectedGroups).filter(([, v]) => !v).map(([g]) => g)
+      : [];
+    toast(incomplete.length
+      ? `Pick a specific issue for: ${incomplete.join(', ')}`
+      : 'Select a Type of Issue category', 'u');
+    return;
+  }
+  if (!(s.desc||'').trim()) {
+    const inp = document.getElementById('cpar-desc-input');
+    if (inp) { inp.classList.add('cpar-field-error'); inp.focus(); }
+    toast('Enter a description', 'u');
+    return;
+  }
 
   const btn = document.getElementById('cpar-submit-btn');
   btn.disabled = true; btn.textContent = 'Saving…';
@@ -22155,7 +22202,7 @@ async function closeOutNearMiss(itemId) {
       <div id="cpar-cat-wrap" style="display:none"></div>
       <div>
         <div class="cpar-field-label">Description *</div>
-        <textarea class="cpar-desc-input" id="cpar-desc-input" maxlength="10000" placeholder="Describe the issue clearly…" oninput="cparFormState.desc=this.value"></textarea>
+        <textarea class="cpar-desc-input" id="cpar-desc-input" maxlength="10000" placeholder="Describe the issue clearly…" oninput="cparFormState.desc=this.value;this.classList.remove('cpar-field-error')"></textarea>
       </div>
       <div>
         <div class="cpar-field-label">Chairs affected</div>
