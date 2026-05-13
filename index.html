@@ -29329,6 +29329,29 @@ function mtRenderDailyDrillIn() {
       <div class="mt-strip-stat"><div class="mt-strip-num warn">${missed}</div><div class="mt-strip-lab">Missed</div></div>
       <div class="mt-strip-stat"><div class="mt-strip-num">${pct}%</div><div class="mt-strip-lab">Compliance</div></div>
     </div>
+    ${team && team.id === 'development' ? (() => {
+      // Quick-actions row for the Development team. One card per machine
+      // with two one-click actions: complete the pre-use checklist
+      // (opens inspect.html in a new tab, same form the QR codes hit)
+      // and toggle "not in use today" (writes to DEVDowntime). Both
+      // visible to anyone signed in — Development is too lean to need
+      // a manager gate. Other teams keep the cell-modal UX.
+      const today = mtTodayUkStr();
+      const cards = machines.map(m => {
+        const isDtToday = !!dt[`${m.id}|${today}`];
+        return `<div style="background:var(--bg3);border:1.5px solid var(--border);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px">
+          <div style="font-weight:700;color:var(--repose-navy);font-size:13px">${escHtml(m.name)}</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button class="mt-btn" style="flex:1;min-width:120px" onclick="window.open('inspect.html?m=' + encodeURIComponent('${m.id}'), '_blank', 'noopener')">📋 Checklist</button>
+            <button class="mt-btn ${isDtToday ? 'mt-btn-active' : ''}" style="flex:1;min-width:120px" onclick="mtToggleDowntime('${m.id}','${today}')">${isDtToday ? '✓ Not in use' : 'Mark not in use'}</button>
+          </div>
+        </div>`;
+      }).join('');
+      return `<div style="background:#fafbfc;border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px">
+        <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:8px">Today's quick actions · ${escHtml(mtFormatDateUK(today))}</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">${cards}</div>
+      </div>`;
+    })() : ''}
     <div id="mt-matrix-host" class="mt-matrix-wrap">
       ${machines.length === 0
         ? '<div class="mt-empty">No machines in selection.</div>'
@@ -29409,8 +29432,19 @@ function mtOpenCellModal(machineId, dateStr) {
         </div>`).join('')
     : `<div style="color:var(--text2);font-size:13px;margin-top:10px">${isDt ? 'Marked not in use.' : 'No record for this day.'}</div>`;
 
-  const dtToggleHtml = (mtIsManager && team.downtimeList)
+  // Per-team downtime gate. Development team is open to anyone signed in
+  // (small enough scope and lean Development setup means they should be
+  // able to flag their own kit out-of-use without chasing a QHSE manager).
+  // Other teams keep the mtIsManager gate.
+  const canToggleDt = team.downtimeList && (mtIsManager || team.id === 'development');
+  const dtToggleHtml = canToggleDt
     ? `<button class="mt-btn" onclick="mtToggleDowntime('${machineId}','${dateStr}')">${isDt ? 'Clear ' : 'Mark '}not in use</button>`
+    : '';
+  // Direct link to the public inspect.html checklist (same form QR-code
+  // scans use). Anyone in the team can complete it; the cell modal opens
+  // it in a new tab pre-filled with this machine.
+  const checklistBtnHtml = team.id === 'development'
+    ? `<button class="mt-btn" onclick="window.open('inspect.html?m=' + encodeURIComponent('${machineId}'), '_blank', 'noopener')">📋 Open Checklist</button>`
     : '';
 
   const body = `
@@ -29419,7 +29453,8 @@ function mtOpenCellModal(machineId, dateStr) {
       <div style="font-size:18px;font-weight:700;color:var(--repose-navy);margin:4px 0 4px">${escHtml(machine ? machine.name : machineId)}</div>
       ${recs.length > 1 ? `<div style="font-size:11px;color:var(--text3)">${recs.length} submissions on this day</div>` : ''}
       ${recordsHtml}
-      <div style="display:flex;gap:8px;margin-top:14px">
+      <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+        ${checklistBtnHtml}
         ${dtToggleHtml}
         <button class="mt-btn" onclick="mtCloseCellModal()" style="margin-left:auto">Close</button>
       </div>
@@ -29437,8 +29472,11 @@ function mtCloseCellModal() {
 const _mtDowntimeInFlight = new Set();
 
 async function mtToggleDowntime(machineId, dateStr) {
-  if (!mtIsManager) return;
   const team = mtGetTeam(mtState.drillTeamId);
+  // Development team is open to anyone signed in (small enough scope,
+  // lets users flag their own kit out-of-use without chasing QHSE).
+  // All other teams keep the mtIsManager gate.
+  if (!mtIsManager && team?.id !== 'development') return;
   if (!team || !team.downtimeList) {
     toast('No downtime list configured for this team', 'u');
     return;
