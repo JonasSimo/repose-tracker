@@ -551,6 +551,86 @@ export function distributeIntoPreps(jobs) {
   return preps;
 }
 
+// ── Stats tab (KPI dashboard) helpers ─────────────────────────────────
+// Pure helpers from the Stats tab code path. The inline copies read the
+// module-level state vars (statsPeriod, statsNavOffset, STATS_OPERATORS,
+// STATS_NO_PER_PERSON) directly; the module versions take those as
+// explicit parameters so tests can drive them.
+
+// DD/MM/YYYY → Date with strict validation. Rejects rollover anomalies
+// (e.g. "31/02/2026" which JS would otherwise parse as 03/03/2026) and
+// out-of-range numbers. Returns null on any unparseable input.
+export function parseDdmmyyyy(str) {
+  if (!str) return null;
+  const parts = String(str).split(' ')[0].split('/');
+  if (parts.length !== 3) return null;
+  const [d, m, y] = parts.map(Number);
+  if (!Number.isFinite(d) || !Number.isFinite(m) || !Number.isFinite(y)) return null;
+  if (d < 1 || d > 31 || m < 1 || m > 12 || y < 1900 || y > 2200) return null;
+  const dt = new Date(y, m - 1, d);
+  if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== d) return null;
+  return dt;
+}
+
+// Computes the reference Date for a stats-tab period selection. Today
+// and Yesterday ignore `offset`; week/day use 7-day or 1-day chunks;
+// month uses calendar month; the default (unknown period) is the
+// year-branch — Jan 1 of (year + offset).
+export function statsRefDate(period, offset = 0, today = new Date()) {
+  if (period === 'today') return new Date(today);
+  if (period === 'yesterday') { const d = new Date(today); d.setDate(d.getDate() - 1); return d; }
+  if (period === 'week')  { const d = new Date(today); d.setDate(d.getDate() + offset * 7); return d; }
+  if (period === 'month') return new Date(today.getFullYear(), today.getMonth() + offset, 1);
+  if (period === 'day')   { const d = new Date(today); d.setDate(d.getDate() + offset); return d; }
+  return new Date(today.getFullYear() + offset, 0, 1);
+}
+
+// True when the DD/MM/YYYY string `dateStr` falls inside the current
+// stats period. `ref` is the prebuilt reference object — caller supplies
+// `{ period, day, month, year, isoWk, isoYr }` (the inline copy caches
+// this in `_statsRefCache` to avoid recomputing per-call across 30k+
+// completions). Returns false for unparseable dates.
+export function statsInPeriod(dateStr, ref) {
+  const d = parseDdmmyyyy(dateStr);
+  if (!d) return false;
+  if (ref.period === 'today' || ref.period === 'yesterday' || ref.period === 'day') {
+    return d.getDate() === ref.day && d.getMonth() === ref.month && d.getFullYear() === ref.year;
+  }
+  if (ref.period === 'week')  return isoWeekNumber(d) === ref.isoWk && isoWeekYear(d) === ref.isoYr;
+  if (ref.period === 'month') return d.getMonth() === ref.month && d.getFullYear() === ref.year;
+  return d.getFullYear() === ref.year;
+}
+
+// Tallies completions per team. Unknown / blank team falls under 'Unknown'.
+export function statsCountByTeam(completions) {
+  return (completions || []).reduce((acc, c) => {
+    const t = (c && c.fields && c.fields.Team) || 'Unknown';
+    acc[t] = (acc[t] || 0) + 1;
+    return acc;
+  }, {});
+}
+
+// Tallies completions per person, scoped per team (so 'AB' on Sewing
+// and 'AB' on Assembly are separate rows). Teams in `noPerPerson` are
+// skipped entirely — Woodmill and QC aren't tracked per-operator. The
+// optional `operators` lookup resolves initials → full name; falls back
+// to the initials themselves when no match. Output sorted by count desc.
+export function statsCountByPerson(completions, options = {}) {
+  const noPerPerson = options.noPerPerson || [];
+  const operators   = options.operators   || {};
+  const map = {};
+  (completions || []).forEach(c => {
+    const f = (c && c.fields) || {};
+    if (noPerPerson.includes(f.Team)) return;
+    const key = `${f.Team}__${f.Initials}`;
+    if (!map[key]) map[key] = { team: f.Team, initials: f.Initials, count: 0 };
+    map[key].count++;
+  });
+  return Object.values(map)
+    .map(r => ({ ...r, name: (operators[r.team] && operators[r.team][r.initials]) || r.initials }))
+    .sort((a, b) => b.count - a.count);
+}
+
 // Browser-global mirror so index.html inline scripts can reach these names
 // once the module finishes loading. No-op in Node/vitest. Names match the
 // existing inline conventions (_isoNoMs etc.) so callers stay unchanged.

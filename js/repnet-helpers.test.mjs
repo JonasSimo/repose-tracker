@@ -36,6 +36,11 @@ import {
   prepDayLabel,
   normaliseTeam,
   distributeIntoPreps,
+  parseDdmmyyyy,
+  statsRefDate,
+  statsInPeriod,
+  statsCountByTeam,
+  statsCountByPerson,
 } from './repnet-helpers.mjs';
 
 describe('isoNoMs', () => {
@@ -1225,5 +1230,259 @@ describe('distributeIntoPreps', () => {
     expect(out[2][0]).toEqual({
       itemNo: 7, rep: 'R7', spec: 'specX', expressType: null, isService: true,
     });
+  });
+});
+
+// ── Stats tab (KPI dashboard) helpers ────────────────────────────────────
+
+describe('parseDdmmyyyy', () => {
+  it('parses a valid DD/MM/YYYY string', () => {
+    const d = parseDdmmyyyy('15/05/2026');
+    expect(d.getFullYear()).toBe(2026);
+    expect(d.getMonth()).toBe(4);
+    expect(d.getDate()).toBe(15);
+  });
+
+  it('accepts a trailing time portion and ignores it', () => {
+    const d = parseDdmmyyyy('15/05/2026 14:30');
+    expect(d.getFullYear()).toBe(2026);
+    expect(d.getMonth()).toBe(4);
+    expect(d.getDate()).toBe(15);
+    expect(d.getHours()).toBe(0); // time portion ignored, midnight
+  });
+
+  it('returns null for empty/null/undefined', () => {
+    expect(parseDdmmyyyy('')).toBe(null);
+    expect(parseDdmmyyyy(null)).toBe(null);
+    expect(parseDdmmyyyy(undefined)).toBe(null);
+  });
+
+  it('returns null for malformed shapes (wrong separator count)', () => {
+    expect(parseDdmmyyyy('2026-05-15')).toBe(null);
+    expect(parseDdmmyyyy('15/5')).toBe(null);
+    expect(parseDdmmyyyy('15/05/2026/extra')).toBe(null);
+  });
+
+  it('returns null for non-numeric parts', () => {
+    expect(parseDdmmyyyy('aa/05/2026')).toBe(null);
+    expect(parseDdmmyyyy('15/bb/2026')).toBe(null);
+    expect(parseDdmmyyyy('15/05/cccc')).toBe(null);
+  });
+
+  it('returns null for out-of-range values', () => {
+    expect(parseDdmmyyyy('0/05/2026')).toBe(null);    // day 0
+    expect(parseDdmmyyyy('32/05/2026')).toBe(null);   // day 32
+    expect(parseDdmmyyyy('15/00/2026')).toBe(null);   // month 0
+    expect(parseDdmmyyyy('15/13/2026')).toBe(null);   // month 13
+    expect(parseDdmmyyyy('15/05/1899')).toBe(null);   // year too old
+    expect(parseDdmmyyyy('15/05/2201')).toBe(null);   // year too far
+  });
+
+  it('rejects rollover anomalies (31/02 would silently become 03/03)', () => {
+    expect(parseDdmmyyyy('31/02/2026')).toBe(null);
+    expect(parseDdmmyyyy('31/04/2026')).toBe(null); // April has 30 days
+    expect(parseDdmmyyyy('29/02/2025')).toBe(null); // 2025 not a leap year
+  });
+
+  it('accepts leap-day on a leap year (29/02/2024)', () => {
+    const d = parseDdmmyyyy('29/02/2024');
+    expect(d.getDate()).toBe(29);
+    expect(d.getMonth()).toBe(1);
+  });
+});
+
+describe('statsRefDate', () => {
+  const today = new Date(2026, 4, 12); // Tue 12 May 2026
+
+  it('today ignores offset and returns the input today', () => {
+    expect(statsRefDate('today', 0, today).getDate()).toBe(12);
+    expect(statsRefDate('today', -5, today).getDate()).toBe(12);
+  });
+
+  it('yesterday returns today - 1, ignoring offset', () => {
+    expect(statsRefDate('yesterday', 0, today).getDate()).toBe(11);
+    expect(statsRefDate('yesterday', -5, today).getDate()).toBe(11);
+  });
+
+  it('week steps in 7-day chunks', () => {
+    expect(statsRefDate('week', 0, today).getDate()).toBe(12);
+    expect(statsRefDate('week', -1, today).getDate()).toBe(5);    // 1 week back
+    expect(statsRefDate('week', -2, today).getDate()).toBe(28);   // 2 weeks back → 28 Apr
+  });
+
+  it('month returns the 1st of the offset calendar month', () => {
+    const ref0 = statsRefDate('month', 0, today);
+    expect(ref0.getMonth()).toBe(4);
+    expect(ref0.getDate()).toBe(1);
+    const refMinus1 = statsRefDate('month', -1, today);
+    expect(refMinus1.getMonth()).toBe(3);
+    expect(refMinus1.getDate()).toBe(1);
+  });
+
+  it('day steps in 1-day chunks', () => {
+    expect(statsRefDate('day', 0, today).getDate()).toBe(12);
+    expect(statsRefDate('day', -5, today).getDate()).toBe(7);
+    expect(statsRefDate('day', -10, today).getDate()).toBe(2);
+  });
+
+  it('year (fallback) returns Jan 1 of (year + offset)', () => {
+    const ref0 = statsRefDate('year', 0, today);
+    expect(ref0.getFullYear()).toBe(2026);
+    expect(ref0.getMonth()).toBe(0);
+    expect(ref0.getDate()).toBe(1);
+    expect(statsRefDate('year', -1, today).getFullYear()).toBe(2025);
+  });
+
+  it('does not mutate the supplied today', () => {
+    const before = today.getTime();
+    statsRefDate('week', -3, today);
+    expect(today.getTime()).toBe(before);
+  });
+});
+
+describe('statsInPeriod', () => {
+  // A ref object as the inline _statsRefCache would build it.
+  const dayRef = {
+    period: 'day',
+    day: 12, month: 4, year: 2026,
+    isoWk: 20, isoYr: 2026,
+  };
+
+  it("matches an exact day for 'today' / 'yesterday' / 'day' periods", () => {
+    expect(statsInPeriod('12/05/2026', dayRef)).toBe(true);
+    expect(statsInPeriod('11/05/2026', dayRef)).toBe(false);
+    expect(statsInPeriod('12/05/2026', { ...dayRef, period: 'today' })).toBe(true);
+    expect(statsInPeriod('12/05/2026', { ...dayRef, period: 'yesterday' })).toBe(true);
+  });
+
+  it('week matches any date inside the same ISO week+year', () => {
+    const weekRef = { period: 'week', day: 12, month: 4, year: 2026, isoWk: 20, isoYr: 2026 };
+    expect(statsInPeriod('11/05/2026', weekRef)).toBe(true);  // Mon
+    expect(statsInPeriod('15/05/2026', weekRef)).toBe(true);  // Fri
+    expect(statsInPeriod('18/05/2026', weekRef)).toBe(false); // next Mon = wk 21
+  });
+
+  it('month matches any date in the same calendar month and year', () => {
+    const monthRef = { period: 'month', day: 12, month: 4, year: 2026, isoWk: 20, isoYr: 2026 };
+    expect(statsInPeriod('01/05/2026', monthRef)).toBe(true);
+    expect(statsInPeriod('31/05/2026', monthRef)).toBe(true);
+    expect(statsInPeriod('30/04/2026', monthRef)).toBe(false);
+    expect(statsInPeriod('01/06/2026', monthRef)).toBe(false);
+  });
+
+  it('year (fallback) matches any date in the same calendar year', () => {
+    const yearRef = { period: 'year', day: 12, month: 4, year: 2026, isoWk: 20, isoYr: 2026 };
+    expect(statsInPeriod('01/01/2026', yearRef)).toBe(true);
+    expect(statsInPeriod('31/12/2026', yearRef)).toBe(true);
+    expect(statsInPeriod('31/12/2025', yearRef)).toBe(false);
+  });
+
+  it('returns false for an unparseable date string', () => {
+    expect(statsInPeriod('not a date', dayRef)).toBe(false);
+    expect(statsInPeriod('', dayRef)).toBe(false);
+    expect(statsInPeriod('31/02/2026', dayRef)).toBe(false); // rollover rejected
+  });
+});
+
+describe('statsCountByTeam', () => {
+  it('tallies completions per team', () => {
+    expect(statsCountByTeam([
+      { fields: { Team: 'Sewing' } },
+      { fields: { Team: 'Sewing' } },
+      { fields: { Team: 'Assembly' } },
+    ])).toEqual({ Sewing: 2, Assembly: 1 });
+  });
+
+  it("buckets missing or blank teams under 'Unknown'", () => {
+    expect(statsCountByTeam([
+      { fields: {} },
+      { fields: { Team: null } },
+      { fields: { Team: '' } },
+      { fields: { Team: 'Sewing' } },
+    ])).toEqual({ Unknown: 3, Sewing: 1 });
+  });
+
+  it('returns {} for an empty / null / undefined input', () => {
+    expect(statsCountByTeam([])).toEqual({});
+    expect(statsCountByTeam(null)).toEqual({});
+    expect(statsCountByTeam(undefined)).toEqual({});
+  });
+
+  it('handles items with missing fields gracefully', () => {
+    expect(statsCountByTeam([
+      {},
+      { fields: { Team: 'QC' } },
+    ])).toEqual({ Unknown: 1, QC: 1 });
+  });
+});
+
+describe('statsCountByPerson', () => {
+  const operators = {
+    Sewing:   { AB: 'Alice Brown', CD: 'Carol Davies' },
+    Assembly: { EF: 'Edward Frost' },
+  };
+
+  it('tallies completions per (team, initials) pair', () => {
+    const out = statsCountByPerson([
+      { fields: { Team: 'Sewing',   Initials: 'AB' } },
+      { fields: { Team: 'Sewing',   Initials: 'AB' } },
+      { fields: { Team: 'Sewing',   Initials: 'CD' } },
+      { fields: { Team: 'Assembly', Initials: 'EF' } },
+    ], { operators });
+    expect(out.length).toBe(3);
+    expect(out.find(r => r.initials === 'AB').count).toBe(2);
+    expect(out.find(r => r.initials === 'CD').count).toBe(1);
+    expect(out.find(r => r.initials === 'EF').count).toBe(1);
+  });
+
+  it("treats the same initials on different teams as separate rows", () => {
+    const out = statsCountByPerson([
+      { fields: { Team: 'Sewing',   Initials: 'AB' } },
+      { fields: { Team: 'Assembly', Initials: 'AB' } },
+    ]);
+    expect(out.length).toBe(2);
+  });
+
+  it('skips teams listed in noPerPerson', () => {
+    const out = statsCountByPerson([
+      { fields: { Team: 'Woodmill', Initials: 'XX' } },
+      { fields: { Team: 'QC',       Initials: 'YY' } },
+      { fields: { Team: 'Sewing',   Initials: 'AB' } },
+    ], { noPerPerson: ['Woodmill', 'QC'], operators });
+    expect(out.length).toBe(1);
+    expect(out[0].team).toBe('Sewing');
+  });
+
+  it('resolves initials → full name via operators lookup', () => {
+    const out = statsCountByPerson([
+      { fields: { Team: 'Sewing', Initials: 'AB' } },
+    ], { operators });
+    expect(out[0].name).toBe('Alice Brown');
+  });
+
+  it('falls back to initials when no name match exists', () => {
+    const out = statsCountByPerson([
+      { fields: { Team: 'Sewing', Initials: 'ZZ' } },
+    ], { operators });
+    expect(out[0].name).toBe('ZZ');
+  });
+
+  it('sorts output by count descending', () => {
+    const out = statsCountByPerson([
+      { fields: { Team: 'Sewing', Initials: 'AB' } },
+      { fields: { Team: 'Sewing', Initials: 'CD' } },
+      { fields: { Team: 'Sewing', Initials: 'CD' } },
+      { fields: { Team: 'Sewing', Initials: 'CD' } },
+    ]);
+    expect(out[0].initials).toBe('CD');
+    expect(out[0].count).toBe(3);
+    expect(out[1].initials).toBe('AB');
+    expect(out[1].count).toBe(1);
+  });
+
+  it('handles empty / null / undefined inputs safely', () => {
+    expect(statsCountByPerson([])).toEqual([]);
+    expect(statsCountByPerson(null)).toEqual([]);
+    expect(statsCountByPerson(undefined)).toEqual([]);
   });
 });
