@@ -41,6 +41,11 @@ import {
   statsInPeriod,
   statsCountByTeam,
   statsCountByPerson,
+  mtAddDays,
+  mtEnumerateDays,
+  mtFreqDays,
+  mtComputeYearlyStatus,
+  mtComputeTeamStatusToday,
 } from './repnet-helpers.mjs';
 
 describe('isoNoMs', () => {
@@ -1484,5 +1489,219 @@ describe('statsCountByPerson', () => {
     expect(statsCountByPerson([])).toEqual([]);
     expect(statsCountByPerson(null)).toEqual([]);
     expect(statsCountByPerson(undefined)).toEqual([]);
+  });
+});
+
+// ── Maintenance dashboard helpers ────────────────────────────────────────
+
+describe('mtAddDays', () => {
+  it('adds N days within the same month', () => {
+    expect(mtAddDays('2026-05-12', 3)).toBe('2026-05-15');
+    expect(mtAddDays('2026-05-12', 0)).toBe('2026-05-12');
+  });
+
+  it('rolls over to the next month', () => {
+    expect(mtAddDays('2026-05-30', 3)).toBe('2026-06-02');
+  });
+
+  it('rolls over to the next year', () => {
+    expect(mtAddDays('2026-12-30', 5)).toBe('2027-01-04');
+  });
+
+  it('handles negative offsets', () => {
+    expect(mtAddDays('2026-05-12', -1)).toBe('2026-05-11');
+    expect(mtAddDays('2026-01-01', -1)).toBe('2025-12-31');
+  });
+
+  it('survives the BST→GMT autumn transition without skipping a day', () => {
+    // Last Sun of October 2026 = 25/10. UK clocks fall back.
+    expect(mtAddDays('2026-10-24', 2)).toBe('2026-10-26');
+  });
+
+  it('survives the GMT→BST spring transition without losing a day', () => {
+    // Last Sun of March 2026 = 29/03. UK clocks spring forward.
+    expect(mtAddDays('2026-03-28', 2)).toBe('2026-03-30');
+  });
+});
+
+describe('mtEnumerateDays', () => {
+  it('returns a single day when from === to', () => {
+    expect(mtEnumerateDays('2026-05-12', '2026-05-12')).toEqual(['2026-05-12']);
+  });
+
+  it('returns the inclusive range', () => {
+    expect(mtEnumerateDays('2026-05-12', '2026-05-15'))
+      .toEqual(['2026-05-12', '2026-05-13', '2026-05-14', '2026-05-15']);
+  });
+
+  it('returns [] when to < from', () => {
+    expect(mtEnumerateDays('2026-05-15', '2026-05-12')).toEqual([]);
+  });
+
+  it('crosses month boundaries', () => {
+    expect(mtEnumerateDays('2026-04-30', '2026-05-02'))
+      .toEqual(['2026-04-30', '2026-05-01', '2026-05-02']);
+  });
+});
+
+describe('mtFreqDays', () => {
+  it('maps standard frequencies', () => {
+    expect(mtFreqDays({ Frequency: 'Annual' })).toBe(365);
+    expect(mtFreqDays({ Frequency: '6-Monthly' })).toBe(183);
+    expect(mtFreqDays({ Frequency: 'Quarterly' })).toBe(91);
+    expect(mtFreqDays({ Frequency: 'Monthly' })).toBe(30);
+  });
+
+  it('is case-insensitive on the label', () => {
+    expect(mtFreqDays({ Frequency: 'MONTHLY' })).toBe(30);
+    expect(mtFreqDays({ Frequency: 'quarterly' })).toBe(91);
+  });
+
+  it('honours FrequencyDays for custom', () => {
+    expect(mtFreqDays({ Frequency: 'Custom', FrequencyDays: 14 })).toBe(14);
+  });
+
+  it('falls back to 365 when custom has no FrequencyDays', () => {
+    expect(mtFreqDays({ Frequency: 'Custom' })).toBe(365);
+    expect(mtFreqDays({ Frequency: 'Custom', FrequencyDays: 0 })).toBe(365);
+  });
+
+  it('defaults to 365 for unknown / missing / null', () => {
+    expect(mtFreqDays({})).toBe(365);
+    expect(mtFreqDays({ Frequency: 'WhatsThis' })).toBe(365);
+    expect(mtFreqDays(null)).toBe(365);
+    expect(mtFreqDays(undefined)).toBe(365);
+  });
+});
+
+describe('mtComputeYearlyStatus', () => {
+  const today = '2026-05-12';
+
+  it("returns 'OK' for a future due date beyond 90 days", () => {
+    const s = mtComputeYearlyStatus({ LastDone: '2026-01-01', Frequency: 'Annual' }, today);
+    expect(s.cls).toBe('ok');
+    expect(s.label).toBe('OK');
+    expect(s.daysUntil).toBeGreaterThan(90);
+  });
+
+  it("returns 'Due Soon' inside the 90-day window", () => {
+    // LastDone 2025-07-01 + Annual (365d) → next due 2026-07-01 ≈ 50 days from today
+    const s = mtComputeYearlyStatus({ LastDone: '2025-07-01', Frequency: 'Annual' }, today);
+    expect(s.cls).toBe('due');
+    expect(s.label).toBe('Due Soon');
+    expect(s.daysUntil).toBeGreaterThanOrEqual(0);
+    expect(s.daysUntil).toBeLessThanOrEqual(90);
+  });
+
+  it("returns 'Overdue' for a past due date", () => {
+    const s = mtComputeYearlyStatus({ LastDone: '2025-01-01', Frequency: 'Annual' }, today);
+    expect(s.cls).toBe('overdue');
+    expect(s.daysUntil).toBeLessThan(0);
+  });
+
+  it("ScheduledFor (manual override) wins over LastDone + Frequency", () => {
+    const s = mtComputeYearlyStatus({
+      LastDone: '2026-01-01',         // would compute to ~Jan 2027 normally
+      Frequency: 'Annual',
+      ScheduledFor: '2026-06-01',     // manual override → due in ~3 weeks
+    }, today);
+    expect(s.manuallyScheduled).toBe(true);
+    expect(s.nextDueIso).toBe('2026-06-01');
+    expect(s.cls).toBe('due');
+  });
+
+  it('falls back to "Overdue today" when both ScheduledFor and LastDone are missing/malformed', () => {
+    const s = mtComputeYearlyStatus({}, today);
+    expect(s.cls).toBe('overdue');
+    expect(s.firstTime).toBe(true);
+    expect(s.nextDueIso).toBe(today);
+  });
+
+  it('respects Custom frequency days', () => {
+    const s = mtComputeYearlyStatus({
+      LastDone: '2026-05-01',
+      Frequency: 'Custom',
+      FrequencyDays: 10,
+    }, today);
+    // LastDone + 10 days = 11 May (yesterday) → overdue
+    expect(s.cls).toBe('overdue');
+  });
+});
+
+describe('mtComputeTeamStatusToday', () => {
+  const today = '2026-05-12';
+  const teamFoam = {
+    id: 'foam',
+    machines: [{ id: 'press1', name: 'Press 1' }, { id: 'press2', name: 'Press 2' }, { id: 'press3', name: 'Press 3' }],
+  };
+
+  it("returns 'No machines' for an empty team", () => {
+    const out = mtComputeTeamStatusToday({ id: 'empty', machines: [] }, { todayUkStr: today });
+    expect(out.cls).toBe('warn');
+    expect(out.label).toBe('No machines');
+    expect(out.total).toBe(0);
+  });
+
+  it("returns 'Pending' when no inspections have happened", () => {
+    const out = mtComputeTeamStatusToday(teamFoam, { todayUkStr: today, records: [], downtime: {} });
+    expect(out.cls).toBe('warn');
+    expect(out.label).toBe('Pending');
+    expect(out.checked).toBe(0);
+    expect(out.total).toBe(3);
+  });
+
+  it("returns 'Pass' when all machines checked and none failed", () => {
+    const out = mtComputeTeamStatusToday(teamFoam, {
+      todayUkStr: today,
+      records: [
+        { machineId: 'press1', dateStr: today, status: 'pass', inspectedAt: '2026-05-12T09:00:00Z' },
+        { machineId: 'press2', dateStr: today, status: 'pass', inspectedAt: '2026-05-12T09:30:00Z' },
+        { machineId: 'press3', dateStr: today, status: 'pass', inspectedAt: '2026-05-12T10:00:00Z' },
+      ],
+    });
+    expect(out.cls).toBe('pass');
+    expect(out.label).toBe('Pass');
+    expect(out.checked).toBe(3);
+    expect(out.fails).toBe(0);
+    expect(out.lastIso).toBe('2026-05-12T10:00:00Z');
+  });
+
+  it("returns 'Fail' if any machine has any failing tool row", () => {
+    // press2 has two tool rows (pass + fail) — bench-style submission. Should fail.
+    const out = mtComputeTeamStatusToday(teamFoam, {
+      todayUkStr: today,
+      records: [
+        { machineId: 'press1', dateStr: today, status: 'pass', inspectedAt: '2026-05-12T09:00:00Z' },
+        { machineId: 'press2', dateStr: today, status: 'pass', inspectedAt: '2026-05-12T09:30:00Z' },
+        { machineId: 'press2', dateStr: today, status: 'fail', inspectedAt: '2026-05-12T09:35:00Z' },
+        { machineId: 'press3', dateStr: today, status: 'pass', inspectedAt: '2026-05-12T10:00:00Z' },
+      ],
+    });
+    expect(out.cls).toBe('fail');
+    expect(out.fails).toBe(1);
+  });
+
+  it('treats a machine on downtime as satisfied without an inspection', () => {
+    const out = mtComputeTeamStatusToday(teamFoam, {
+      todayUkStr: today,
+      records: [
+        { machineId: 'press1', dateStr: today, status: 'pass', inspectedAt: '2026-05-12T09:00:00Z' },
+        { machineId: 'press2', dateStr: today, status: 'pass', inspectedAt: '2026-05-12T09:30:00Z' },
+      ],
+      downtime: { 'press3|2026-05-12': true },
+    });
+    expect(out.cls).toBe('pass');
+    expect(out.checked).toBe(3);
+  });
+
+  it("ignores records from other days", () => {
+    const out = mtComputeTeamStatusToday(teamFoam, {
+      todayUkStr: today,
+      records: [
+        { machineId: 'press1', dateStr: '2026-05-11', status: 'pass', inspectedAt: '2026-05-11T09:00:00Z' },
+      ],
+    });
+    expect(out.checked).toBe(0);
+    expect(out.cls).toBe('warn');
   });
 });

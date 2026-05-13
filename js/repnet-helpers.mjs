@@ -631,6 +631,116 @@ export function statsCountByPerson(completions, options = {}) {
     .sort((a, b) => b.count - a.count);
 }
 
+// ── Maintenance dashboard helpers ─────────────────────────────────────
+// Pure helpers from the Maintenance dashboard. The inline copies use
+// the global mtState/MT_TEAMS; module versions take state as parameters
+// so vitest can drive them with fixtures.
+
+// Add N days to a UK-day string ('YYYY-MM-DD'). UTC arithmetic — the
+// string represents a calendar day in Europe/London, but adding 1 day
+// must not double-count or skip across a DST transition.
+export function mtAddDays(ukDayStr, n) {
+  const [y, m, d] = ukDayStr.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + n);
+  const yy = dt.getUTCFullYear();
+  const mm = String(dt.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(dt.getUTCDate()).padStart(2, '0');
+  return `${yy}-${mm}-${dd}`;
+}
+
+// Inclusive day range as an array of UK-day strings. Returns [] when
+// to < from. Caller passes valid YYYY-MM-DD strings.
+export function mtEnumerateDays(fromUkStr, toUkStr) {
+  const out = [];
+  let cur = fromUkStr;
+  while (cur <= toUkStr) {
+    out.push(cur);
+    cur = mtAddDays(cur, 1);
+  }
+  return out;
+}
+
+// Days between scheduled inspections, by Frequency label. Custom
+// frequency reads `FrequencyDays` from the item; falls back to annual
+// when missing.
+export function mtFreqDays(item) {
+  const f = String((item && item.Frequency) || '').toLowerCase();
+  if (f === 'annual')    return 365;
+  if (f === '6-monthly') return 183;
+  if (f === 'quarterly') return 91;
+  if (f === 'monthly')   return 30;
+  if (f === 'custom')    return Number(item && item.FrequencyDays || 0) || 365;
+  return 365;
+}
+
+// Computes whether a yearly-maintenance item is OK / due soon / overdue.
+// ScheduledFor (manual override) wins over computed LastDone + Frequency.
+// `todayUkStr` is the UK calendar day in YYYY-MM-DD form (the inline copy
+// derives this from mtTodayUkStr()).
+export function mtComputeYearlyStatus(item, todayUkStr) {
+  const today = new Date(todayUkStr + 'T00:00:00Z').getTime();
+  const scheduledIso = String((item && item.ScheduledFor) || '').slice(0, 10);
+  let next = NaN;
+  let manuallyScheduled = false;
+  if (scheduledIso) {
+    next = new Date(scheduledIso + 'T00:00:00Z').getTime();
+    manuallyScheduled = true;
+  } else if (item && item.LastDone) {
+    const last = new Date(item.LastDone).getTime();
+    if (Number.isFinite(last)) next = last + mtFreqDays(item) * 86400000;
+  }
+  if (!Number.isFinite(next)) {
+    return { nextDueIso: todayUkStr, daysUntil: -1, cls: 'overdue', label: 'Overdue', firstTime: !(item && item.LastDone), manuallyScheduled };
+  }
+  const daysUntil = Math.round((next - today) / 86400000);
+  const nextDueIso = new Date(next).toISOString().slice(0, 10);
+  if (daysUntil < 0)   return { nextDueIso, daysUntil, cls: 'overdue', label: 'Overdue',  manuallyScheduled };
+  if (daysUntil <= 90) return { nextDueIso, daysUntil, cls: 'due',     label: 'Due Soon', manuallyScheduled };
+  return                  { nextDueIso, daysUntil, cls: 'ok',      label: 'OK',       manuallyScheduled };
+}
+
+// Computes the per-team daily pass/fail status. `state` carries the
+// team-scoped slices the inline copy pulls from mtState:
+//   - todayUkStr: today's UK day string
+//   - records: [{ machineId, dateStr, status, inspectedAt }, ...]
+//   - downtime: { 'machineId|dateStr': anyTruthyMarker } (machines on
+//     downtime today are considered satisfied without an inspection)
+// Returns { cls, label, checked, total, fails, lastIso }. A machine
+// with multiple tool rows (bench-style submissions) is failed if ANY
+// of its rows failed.
+export function mtComputeTeamStatusToday(team, state = {}) {
+  const today    = state.todayUkStr || '';
+  const records  = state.records  || [];
+  const downtime = state.downtime || {};
+  const todayRecs = records.filter(r => r.dateStr === today);
+  const aggByMachine = {};
+  for (const r of todayRecs) {
+    const a = aggByMachine[r.machineId] || (aggByMachine[r.machineId] = { hasRec: false, anyFail: false, lastIso: '' });
+    a.hasRec = true;
+    if (r.status === 'fail') a.anyFail = true;
+    if ((r.inspectedAt || '') > a.lastIso) a.lastIso = r.inspectedAt || '';
+  }
+  const machines = (team && team.machines) || [];
+  const total = machines.length;
+  let checked = 0, fails = 0, lastIso = '';
+  for (const m of machines) {
+    const isDt = !!downtime[`${m.id}|${today}`];
+    if (isDt) { checked++; continue; }
+    const a = aggByMachine[m.id];
+    if (a && a.hasRec) {
+      checked++;
+      if (a.anyFail) fails++;
+      if (a.lastIso > lastIso) lastIso = a.lastIso;
+    }
+  }
+  let cls = 'warn', label = 'Pending';
+  if (total === 0)            { cls = 'warn'; label = 'No machines'; }
+  else if (fails > 0)         { cls = 'fail'; label = 'Fail'; }
+  else if (checked === total) { cls = 'pass'; label = 'Pass'; }
+  return { cls, label, checked, total, fails, lastIso };
+}
+
 // Browser-global mirror so index.html inline scripts can reach these names
 // once the module finishes loading. No-op in Node/vitest. Names match the
 // existing inline conventions (_isoNoMs etc.) so callers stay unchanged.
