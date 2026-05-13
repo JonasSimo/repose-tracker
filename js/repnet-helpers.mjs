@@ -405,6 +405,152 @@ export function appendCAPAHistory(existing, entry) {
   return JSON.stringify(arr);
 }
 
+// ── Team Views (production tracking) helpers ──────────────────────────
+// Pure helpers from the team-view code path. Bank-holiday-aware helpers
+// take an optional `holidays` set so tests can supply fixtures; defaults
+// match the inline constants and current real-world list.
+
+// UK bank-holiday list — must stay in sync with the inline copy in
+// index.html. Format: `yyyy-mm-dd` local date strings.
+const UK_BANK_HOLIDAYS = new Set([
+  '2025-01-01', '2025-04-18', '2025-04-21', '2025-05-05', '2025-05-26', '2025-08-25', '2025-12-25', '2025-12-26',
+  '2026-01-01', '2026-04-03', '2026-04-06', '2026-05-04', '2026-05-25', '2026-08-31', '2026-12-25', '2026-12-28',
+  '2027-01-01', '2027-03-26', '2027-03-29', '2027-05-03', '2027-05-31', '2027-08-30', '2027-12-27', '2027-12-28',
+]);
+
+const PREP_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+
+const TEAM_NAME_MAP = {
+  'woodmill': 'Woodmill', 'wood mill': 'Woodmill',
+  'cutting': 'Cutting', 'cutting room': 'Cutting',
+  'sewing': 'Sewing', 'sewing room': 'Sewing',
+  'upholstery': 'Upholstery', 'upholstery room': 'Upholstery',
+  'upholstery arms': 'Upholstery Arms', 'upholstery backs': 'Upholstery Backs', 'upholstery seats': 'Upholstery Seats',
+  'assembly': 'Assembly', 'assembly room': 'Assembly',
+  'foam': 'Foam', 'foam room': 'Foam',
+  'stores': 'Stores', 'stores room': 'Stores',
+  'qc': 'QC', 'quality control': 'QC',
+  'development': 'Development',
+  'admin': 'Admin',
+};
+
+// Local yyyy-mm-dd key. Uses local date components so a BST-1am Date
+// doesn't shift to the previous day under UTC.
+export function localDateKey(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// DD/MM/YYYY string — the wc (week-commencing) format used throughout the
+// production sheet wire format.
+export function ddmmyyyy(d) {
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+}
+
+// ISO 8601 week number for a date. Thursday-of-the-week algorithm so the
+// year boundary lands on weeks 52/53/1 correctly.
+export function isoWeekNumber(d) {
+  const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  tmp.setUTCDate(tmp.getUTCDate() + 4 - (tmp.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
+  return Math.ceil((((tmp - yearStart) / 86400000) + 1) / 7);
+}
+
+// ISO 8601 week-year — the year that the *ISO week* belongs to, which
+// can differ from the calendar year around 01-Jan and 31-Dec.
+export function isoWeekYear(d) {
+  const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  tmp.setUTCDate(tmp.getUTCDate() + 4 - (tmp.getUTCDay() || 7));
+  return tmp.getUTCFullYear();
+}
+
+// Add/subtract N working days, skipping weekends and bank holidays.
+// Returns a new Date — does not mutate the input.
+export function addWorkdays(d, n, holidays = UK_BANK_HOLIDAYS) {
+  const r = new Date(d);
+  const step = n >= 0 ? 1 : -1;
+  let remaining = Math.abs(n);
+  while (remaining > 0) {
+    r.setDate(r.getDate() + step);
+    if (r.getDay() !== 0 && r.getDay() !== 6 && !holidays.has(localDateKey(r))) remaining--;
+  }
+  return r;
+}
+
+// Working-day prep number for a date: 1-based count of working days from
+// Monday-of-week through `d` inclusive, skipping weekends and bank
+// holidays. Returns 0 if `d` is itself a non-working day.
+//   Mon (normal)                   → 1
+//   Tue (after bank-holiday Mon)   → 1
+//   Wed (after bank-holiday Mon)   → 2
+export function workingPrepNumber(d, holidays = UK_BANK_HOLIDAYS) {
+  const dow = d.getDay();
+  if (dow < 1 || dow > 5) return 0;
+  if (holidays.has(localDateKey(d))) return 0;
+  const mon = new Date(d);
+  mon.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  mon.setHours(0, 0, 0, 0);
+  let count = 0;
+  for (let cur = new Date(mon); cur.getTime() <= d.getTime(); cur.setDate(cur.getDate() + 1)) {
+    const cdow = cur.getDay();
+    if (cdow >= 1 && cdow <= 5 && !holidays.has(localDateKey(cur))) count++;
+  }
+  return count;
+}
+
+// Day-of-week label ('Mon'..'Fri') for a given prep number in a given
+// week, accounting for UK bank holidays. On wc 04/05/2026 (Mon = bank
+// holiday) prep 1 → 'Tue', prep 2 → 'Wed', etc. Returns '—' when the
+// prep doesn't fit a 4-day bank-holiday week. Falls back to the static
+// PREP_DAYS list when the wc string is malformed.
+export function prepDayLabel(wcDDMMYYYY, prepNum, holidays = UK_BANK_HOLIDAYS, prepDays = PREP_DAYS) {
+  if (!wcDDMMYYYY || !/^\d{2}\/\d{2}\/\d{4}$/.test(wcDDMMYYYY) || !prepNum) {
+    return prepDays[Number(prepNum) - 1] || '';
+  }
+  const [dd, mm, yyyy] = wcDDMMYYYY.split('/');
+  const mon = new Date(+yyyy, +mm - 1, +dd);
+  let count = 0;
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(mon); d.setDate(mon.getDate() + i);
+    const dow = d.getDay();
+    if (dow < 1 || dow > 5) continue;
+    if (holidays.has(localDateKey(d))) continue;
+    count++;
+    if (count === Number(prepNum)) return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'][dow - 1];
+  }
+  return '—';
+}
+
+// Canonicalises a team name string into the in-app canonical form. Falls
+// back to the trimmed input when no mapping matches (so unknown teams
+// pass through rather than disappearing).
+export function normaliseTeam(raw, teamMap = TEAM_NAME_MAP) {
+  return teamMap[(raw || '').toLowerCase().trim()] || (raw || '').trim();
+}
+
+// Buckets jobs into prep day groups + an express bucket. If any normal
+// job has a numeric `prep` field, those values are honoured exactly
+// (null preps are skipped). If none do, the jobs are spread evenly
+// across prep days 1-5 in array order.
+export function distributeIntoPreps(jobs) {
+  const preps = { 1: [], 2: [], 3: [], 4: [], 5: [], express: [] };
+  const jo = j => ({ itemNo: j.itemNo, rep: j.rep, spec: j.spec, expressType: j.expressType || null, isService: j.isService || false });
+  (jobs || []).filter(j => j.prep === 'express').forEach(j => preps.express.push(jo(j)));
+  const normalJobs = (jobs || []).filter(j => j.prep !== 'express');
+  const hasNumericPrep = normalJobs.some(j => typeof j.prep === 'number');
+  if (hasNumericPrep) {
+    normalJobs.forEach(j => {
+      if (j.prep !== null && j.prep !== undefined) preps[j.prep].push(jo(j));
+    });
+  } else {
+    const n = normalJobs.length;
+    normalJobs.forEach((j, i) => {
+      const p = n === 0 ? 1 : Math.min(5, Math.floor(i * 5 / n) + 1);
+      preps[p].push(jo(j));
+    });
+  }
+  return preps;
+}
+
 // Browser-global mirror so index.html inline scripts can reach these names
 // once the module finishes loading. No-op in Node/vitest. Names match the
 // existing inline conventions (_isoNoMs etc.) so callers stay unchanged.

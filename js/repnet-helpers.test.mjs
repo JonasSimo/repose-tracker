@@ -27,6 +27,15 @@ import {
   capaIsOverdue,
   capaIsClosedRecent,
   appendCAPAHistory,
+  localDateKey,
+  ddmmyyyy,
+  isoWeekNumber,
+  isoWeekYear,
+  addWorkdays,
+  workingPrepNumber,
+  prepDayLabel,
+  normaliseTeam,
+  distributeIntoPreps,
 } from './repnet-helpers.mjs';
 
 describe('isoNoMs', () => {
@@ -974,5 +983,247 @@ describe('appendCAPAHistory', () => {
     expect(Array.isArray(arr)).toBe(true);
     expect(arr.length).toBe(1);
     expect(arr[0].ev).toBe('created');
+  });
+});
+
+// ── Team Views (production tracking) helpers ─────────────────────────────
+
+describe('localDateKey', () => {
+  it('formats a Date as local yyyy-mm-dd with zero-padding', () => {
+    expect(localDateKey(new Date(2026, 0, 5))).toBe('2026-01-05');
+    expect(localDateKey(new Date(2026, 11, 31))).toBe('2026-12-31');
+  });
+
+  it('uses local components, not UTC (no toISOString shift)', () => {
+    // 1am local time on a date — local says today, UTC says yesterday in summer (BST).
+    expect(localDateKey(new Date(2026, 5, 15, 1, 0, 0))).toBe('2026-06-15');
+  });
+});
+
+describe('ddmmyyyy', () => {
+  it('formats a Date as DD/MM/YYYY with zero-padding', () => {
+    expect(ddmmyyyy(new Date(2026, 0, 5))).toBe('05/01/2026');
+    expect(ddmmyyyy(new Date(2026, 11, 31))).toBe('31/12/2026');
+  });
+});
+
+describe('isoWeekNumber / isoWeekYear', () => {
+  it('returns week 1 for a Monday inside week 1', () => {
+    expect(isoWeekNumber(new Date(2026, 0, 5))).toBe(2); // 2026-01-05 is Mon of week 2
+    expect(isoWeekNumber(new Date(2026, 0, 1))).toBe(1); // 2026-01-01 (Thu) is in week 1
+  });
+
+  it('handles the ISO 53/1 boundary at year-end', () => {
+    // 2025-12-29 is Mon of week 1 of 2026 (ISO 8601 rule: week 1 contains first Thursday)
+    expect(isoWeekNumber(new Date(2025, 11, 29))).toBe(1);
+    expect(isoWeekYear(new Date(2025, 11, 29))).toBe(2026);
+  });
+
+  it('handles the ISO 1/52 boundary at year-start', () => {
+    // 2027-01-01 is a Friday → still in week 53 of 2026
+    expect(isoWeekNumber(new Date(2027, 0, 1))).toBe(53);
+    expect(isoWeekYear(new Date(2027, 0, 1))).toBe(2026);
+  });
+
+  it('agrees on week-year for a mid-year date', () => {
+    expect(isoWeekYear(new Date(2026, 5, 15))).toBe(2026);
+  });
+});
+
+describe('addWorkdays', () => {
+  it('returns the same date when n is 0', () => {
+    const d = new Date(2026, 4, 12); // Tue
+    expect(localDateKey(addWorkdays(d, 0))).toBe('2026-05-12');
+  });
+
+  it('skips Saturday and Sunday (Fri + 1 = Mon when no bank holiday)', () => {
+    const fri = new Date(2026, 4, 8); // Fri 08/05/2026, no holiday following
+    expect(localDateKey(addWorkdays(fri, 1))).toBe('2026-05-11'); // Mon
+  });
+
+  it('skips bank holidays as well as weekends (Fri 01/05/2026 + 1 → Tue 05/05/2026)', () => {
+    // Fri 01/05 + 1 working day jumps OVER both the weekend AND Mon 04/05 (May Day BH).
+    const fri = new Date(2026, 4, 1);
+    expect(localDateKey(addWorkdays(fri, 1))).toBe('2026-05-05');
+  });
+
+  it('accepts negative n to walk backwards', () => {
+    const tue = new Date(2026, 4, 5);
+    expect(localDateKey(addWorkdays(tue, -1))).toBe('2026-05-01'); // back over BH Mon to Fri
+  });
+
+  it('does not mutate the input date', () => {
+    const d = new Date(2026, 4, 12);
+    const before = d.getTime();
+    addWorkdays(d, 5);
+    expect(d.getTime()).toBe(before);
+  });
+
+  it('respects a custom holiday set', () => {
+    const customHolidays = new Set(['2026-05-12']); // a Tuesday
+    const mon = new Date(2026, 4, 11);
+    expect(localDateKey(addWorkdays(mon, 1, customHolidays))).toBe('2026-05-13');
+  });
+});
+
+describe('workingPrepNumber', () => {
+  it('returns 1 for a normal Monday', () => {
+    expect(workingPrepNumber(new Date(2026, 4, 11))).toBe(1); // Mon 11/05/2026
+  });
+
+  it('returns 5 for a normal Friday', () => {
+    expect(workingPrepNumber(new Date(2026, 4, 15))).toBe(5);
+  });
+
+  it('returns 0 for Saturday and Sunday', () => {
+    expect(workingPrepNumber(new Date(2026, 4, 16))).toBe(0); // Sat
+    expect(workingPrepNumber(new Date(2026, 4, 17))).toBe(0); // Sun
+  });
+
+  it('returns 0 for a bank-holiday Monday (May Day 04/05/2026)', () => {
+    expect(workingPrepNumber(new Date(2026, 4, 4))).toBe(0);
+  });
+
+  it('the Tuesday after a bank-holiday Monday is prep 1, not prep 2', () => {
+    expect(workingPrepNumber(new Date(2026, 4, 5))).toBe(1); // Tue 05/05/2026
+    expect(workingPrepNumber(new Date(2026, 4, 6))).toBe(2); // Wed
+    expect(workingPrepNumber(new Date(2026, 4, 8))).toBe(4); // Fri (4 working days in this week)
+  });
+
+  it('respects a custom holiday set', () => {
+    const customHolidays = new Set(['2026-05-11']); // make Mon a holiday
+    expect(workingPrepNumber(new Date(2026, 4, 12), customHolidays)).toBe(1); // Tue becomes prep 1
+  });
+});
+
+describe('prepDayLabel', () => {
+  it('returns the day-of-week label for normal preps', () => {
+    expect(prepDayLabel('11/05/2026', 1)).toBe('Mon');
+    expect(prepDayLabel('11/05/2026', 3)).toBe('Wed');
+    expect(prepDayLabel('11/05/2026', 5)).toBe('Fri');
+  });
+
+  it('shifts labels around a bank-holiday Monday (wc 04/05/2026)', () => {
+    // Mon 04/05 = bank holiday → prep 1 falls on Tue, prep 4 on Fri
+    expect(prepDayLabel('04/05/2026', 1)).toBe('Tue');
+    expect(prepDayLabel('04/05/2026', 2)).toBe('Wed');
+    expect(prepDayLabel('04/05/2026', 3)).toBe('Thu');
+    expect(prepDayLabel('04/05/2026', 4)).toBe('Fri');
+  });
+
+  it('returns "—" when the prep does not fit a 4-day bank-holiday week', () => {
+    // wc 04/05/2026 only has 4 working days, so prep 5 has nowhere to go.
+    expect(prepDayLabel('04/05/2026', 5)).toBe('—');
+  });
+
+  it('falls back to the static PREP_DAYS list when wc is malformed', () => {
+    expect(prepDayLabel('', 1)).toBe('Mon');
+    expect(prepDayLabel('not-a-date', 3)).toBe('Wed');
+    expect(prepDayLabel(null, 5)).toBe('Fri');
+  });
+
+  it('returns "" when prepNum is missing or invalid', () => {
+    expect(prepDayLabel('11/05/2026', 0)).toBe('');
+    expect(prepDayLabel('11/05/2026', null)).toBe('');
+  });
+});
+
+describe('normaliseTeam', () => {
+  it('canonicalises lowercased input', () => {
+    expect(normaliseTeam('woodmill')).toBe('Woodmill');
+    expect(normaliseTeam('sewing room')).toBe('Sewing');
+    expect(normaliseTeam('quality control')).toBe('QC');
+  });
+
+  it('handles whitespace and mixed case', () => {
+    expect(normaliseTeam('  Cutting Room  ')).toBe('Cutting');
+    expect(normaliseTeam('FOAM')).toBe('Foam');
+  });
+
+  it('canonicalises the Upholstery sub-teams separately', () => {
+    expect(normaliseTeam('Upholstery Arms')).toBe('Upholstery Arms');
+    expect(normaliseTeam('upholstery seats')).toBe('Upholstery Seats');
+  });
+
+  it('falls back to trimmed input when no mapping matches', () => {
+    expect(normaliseTeam('  Unknown Team  ')).toBe('Unknown Team');
+  });
+
+  it('handles null and undefined safely', () => {
+    expect(normaliseTeam(null)).toBe('');
+    expect(normaliseTeam(undefined)).toBe('');
+    expect(normaliseTeam('')).toBe('');
+  });
+
+  it('respects a custom team map', () => {
+    const customMap = { 'odd team': 'OddTeamCanonical' };
+    expect(normaliseTeam('Odd Team', customMap)).toBe('OddTeamCanonical');
+  });
+});
+
+describe('distributeIntoPreps', () => {
+  it('returns 6 empty buckets for an empty input', () => {
+    const out = distributeIntoPreps([]);
+    expect(Object.keys(out).sort()).toEqual(['1', '2', '3', '4', '5', 'express']);
+    expect(out.express).toEqual([]);
+    expect(out[1]).toEqual([]);
+  });
+
+  it('handles null/undefined input safely', () => {
+    expect(distributeIntoPreps(null).express).toEqual([]);
+    expect(distributeIntoPreps(undefined)[3]).toEqual([]);
+  });
+
+  it('always routes express jobs to the express bucket', () => {
+    const out = distributeIntoPreps([
+      { itemNo: 1, rep: 'R1', spec: 'A', prep: 'express', expressType: 'rush' },
+      { itemNo: 2, rep: 'R2', spec: 'B', prep: 1 },
+    ]);
+    expect(out.express.length).toBe(1);
+    expect(out.express[0].expressType).toBe('rush');
+    expect(out[1].length).toBe(1);
+  });
+
+  it('honours explicit numeric preps when any job has one', () => {
+    const out = distributeIntoPreps([
+      { rep: 'R1', prep: 1 },
+      { rep: 'R2', prep: 1 },
+      { rep: 'R3', prep: 3 },
+      { rep: 'R4', prep: 5 },
+    ]);
+    expect(out[1].map(j => j.rep)).toEqual(['R1', 'R2']);
+    expect(out[3].map(j => j.rep)).toEqual(['R3']);
+    expect(out[5].map(j => j.rep)).toEqual(['R4']);
+    expect(out[2]).toEqual([]);
+  });
+
+  it('skips jobs with null prep when other jobs have numeric preps', () => {
+    const out = distributeIntoPreps([
+      { rep: 'R1', prep: 1 },
+      { rep: 'R2', prep: null },
+    ]);
+    const totalNonExpress = out[1].length + out[2].length + out[3].length + out[4].length + out[5].length;
+    expect(totalNonExpress).toBe(1);
+    expect(out[1][0].rep).toBe('R1');
+  });
+
+  it('spreads jobs evenly across preps 1-5 when none have numeric preps', () => {
+    const jobs = Array.from({ length: 10 }, (_, i) => ({ rep: `R${i}`, prep: null }));
+    const out = distributeIntoPreps(jobs);
+    // 10 jobs across 5 preps → 2 per prep
+    expect(out[1].length).toBe(2);
+    expect(out[2].length).toBe(2);
+    expect(out[3].length).toBe(2);
+    expect(out[4].length).toBe(2);
+    expect(out[5].length).toBe(2);
+  });
+
+  it('preserves itemNo / rep / spec / isService on output', () => {
+    const out = distributeIntoPreps([
+      { itemNo: 7, rep: 'R7', spec: 'specX', prep: 2, isService: true },
+    ]);
+    expect(out[2][0]).toEqual({
+      itemNo: 7, rep: 'R7', spec: 'specX', expressType: null, isService: true,
+    });
   });
 });
