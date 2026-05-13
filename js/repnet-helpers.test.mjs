@@ -12,6 +12,14 @@ import {
   docsCounts,
   resolveDocApprovers,
   isMyTurnToApprove,
+  parseCPARDate,
+  appendCPARHistory,
+  parseCPARHistory,
+  detectRepeat,
+  effCheckDueDate,
+  isEffCheckDue,
+  isEffCheckOverdue,
+  workingDaysBetween,
 } from './repnet-helpers.mjs';
 
 describe('isoNoMs', () => {
@@ -464,5 +472,274 @@ describe('isMyTurnToApprove', () => {
   it('returns false for a null/undefined doc', () => {
     expect(isMyTurnToApprove(null, 'a@x.com')).toBe(false);
     expect(isMyTurnToApprove(undefined, 'a@x.com')).toBe(false);
+  });
+});
+
+// ── Quality tab (CPAR / Internal NCR) helpers ────────────────────────────
+
+describe('parseCPARDate', () => {
+  it('returns the epoch (Date(0)) for falsy input', () => {
+    expect(parseCPARDate('').getTime()).toBe(0);
+    expect(parseCPARDate(null).getTime()).toBe(0);
+    expect(parseCPARDate(undefined).getTime()).toBe(0);
+  });
+
+  it('parses bare ISO dates as local midnight (avoids BST off-by-one)', () => {
+    const d = parseCPARDate('2026-05-12');
+    expect(d.getFullYear()).toBe(2026);
+    expect(d.getMonth()).toBe(4);
+    expect(d.getDate()).toBe(12);
+    expect(d.getHours()).toBe(0);
+  });
+
+  it('parses ISO date-times via the native parser (UTC zulu)', () => {
+    const d = parseCPARDate('2026-05-12T14:30:00Z');
+    expect(d.toISOString()).toBe('2026-05-12T14:30:00.000Z');
+  });
+
+  it('returns epoch for an ISO-shaped but unparseable string', () => {
+    expect(parseCPARDate('2026-99-99T00:00:00Z').getTime()).toBe(0);
+  });
+
+  it('parses the app-internal DD/MM/YYYY HH:MM format', () => {
+    const d = parseCPARDate('15/01/2026 14:30');
+    expect(d.getFullYear()).toBe(2026);
+    expect(d.getMonth()).toBe(0);
+    expect(d.getDate()).toBe(15);
+    expect(d.getHours()).toBe(14);
+    expect(d.getMinutes()).toBe(30);
+  });
+
+  it('defaults time to 00:00 when DD/MM/YYYY has no time portion', () => {
+    const d = parseCPARDate('15/01/2026');
+    expect(d.getFullYear()).toBe(2026);
+    expect(d.getDate()).toBe(15);
+    expect(d.getHours()).toBe(0);
+  });
+
+  it('returns epoch for garbage with no year part', () => {
+    expect(parseCPARDate('not a date').getTime()).toBe(0);
+    expect(parseCPARDate('15').getTime()).toBe(0);
+  });
+});
+
+describe('appendCPARHistory + parseCPARHistory', () => {
+  it('appends to empty history without a leading newline', () => {
+    const out = appendCPARHistory('', { by: 'a@x.com', ev: 'raised' });
+    expect(out.includes('\n')).toBe(false);
+    expect(JSON.parse(out).ev).toBe('raised');
+  });
+
+  it('appends to existing history with a newline separator', () => {
+    const first = appendCPARHistory('', { by: 'a@x.com', ev: 'raised' });
+    const both  = appendCPARHistory(first, { by: 'a@x.com', ev: 'closed-out' });
+    expect(both.split('\n').length).toBe(2);
+  });
+
+  it('always overwrites the caller-supplied `t` with the current time', () => {
+    const out = appendCPARHistory('', { by: 'a@x.com', ev: 'raised', t: '1999-01-01' });
+    const parsed = JSON.parse(out);
+    expect(parsed.t).not.toBe('1999-01-01');
+    expect(parsed.t).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it('round-trips through parseCPARHistory in order', () => {
+    let h = appendCPARHistory('', { ev: 'raised' });
+    h = appendCPARHistory(h, { ev: 'pe-submitted' });
+    h = appendCPARHistory(h, { ev: 'closed-out' });
+    const parsed = parseCPARHistory(h);
+    expect(parsed.map(e => e.ev)).toEqual(['raised', 'pe-submitted', 'closed-out']);
+  });
+
+  it('returns [] for empty/null history', () => {
+    expect(parseCPARHistory('')).toEqual([]);
+    expect(parseCPARHistory(null)).toEqual([]);
+  });
+
+  it('preserves malformed lines as parse-error stubs (audit trail never silently drops)', () => {
+    const text = '{"ev":"good"}\n{not json}\n{"ev":"also good"}';
+    const parsed = parseCPARHistory(text);
+    expect(parsed.length).toBe(3);
+    expect(parsed[0].ev).toBe('good');
+    expect(parsed[1]).toEqual({ t: '?', ev: 'parse-error', raw: '{not json}' });
+    expect(parsed[2].ev).toBe('also good');
+  });
+
+  it('filters empty lines (e.g. trailing newline)', () => {
+    const parsed = parseCPARHistory('{"ev":"x"}\n\n');
+    expect(parsed.length).toBe(1);
+  });
+});
+
+describe('detectRepeat', () => {
+  const now = new Date('2026-04-27T10:00:00Z');
+  const make = (ref, model, cause, daysAgo) => ({
+    fields: {
+      Title: ref,
+      PrimaryModel: model,
+      CauseCode: cause,
+      LoggedAt: new Date(now.getTime() - daysAgo * 86400000).toISOString(),
+    },
+  });
+  const items = [
+    make('RP-1', 'Scroll Arm', 'Human Error', 5),
+    make('RP-2', 'Scroll Arm', 'Human Error', 12),
+    make('RP-3', 'Mocara',     'Human Error', 2),
+    make('RP-4', 'Scroll Arm', 'Material Defect', 3),
+    make('RP-5', 'Scroll Arm', 'Human Error', 45), // outside 30-day window
+  ];
+
+  it('flags a 3rd occurrence (candidate + 2 priors) as a repeat', () => {
+    const r = detectRepeat(
+      { Title: 'RP-NEW', PrimaryModel: 'Scroll Arm', CauseCode: 'Human Error' },
+      items, now,
+    );
+    expect(r.isRepeat).toBe(true);
+    expect(r.linkedRefs.sort()).toEqual(['RP-1', 'RP-2']);
+  });
+
+  it('does NOT flag a 2nd occurrence (candidate + 1 prior) as a repeat', () => {
+    const r = detectRepeat(
+      { Title: 'RP-NEW', PrimaryModel: 'Mocara', CauseCode: 'Human Error' },
+      items, now,
+    );
+    expect(r.isRepeat).toBe(false);
+  });
+
+  it('returns isRepeat:false when model is empty', () => {
+    const r = detectRepeat(
+      { Title: 'RP-NEW', PrimaryModel: '', CauseCode: 'Human Error' },
+      items, now,
+    );
+    expect(r.isRepeat).toBe(false);
+    expect(r.linkedRefs).toEqual([]);
+  });
+
+  it('returns isRepeat:false when cause is empty', () => {
+    const r = detectRepeat(
+      { Title: 'RP-NEW', PrimaryModel: 'Scroll Arm', CauseCode: '' },
+      items, now,
+    );
+    expect(r.isRepeat).toBe(false);
+  });
+
+  it('excludes priors older than the 30-day window', () => {
+    const r = detectRepeat(
+      { Title: 'RP-NEW', PrimaryModel: 'Scroll Arm', CauseCode: 'Human Error' },
+      items, now,
+    );
+    expect(r.linkedRefs).not.toContain('RP-5');
+  });
+
+  it('excludes the candidate itself when it matches by Title', () => {
+    const r = detectRepeat(
+      { Title: 'RP-1', PrimaryModel: 'Scroll Arm', CauseCode: 'Human Error' },
+      items, now,
+    );
+    expect(r.linkedRefs).not.toContain('RP-1');
+  });
+
+  it('compares model case-insensitively', () => {
+    const r = detectRepeat(
+      { Title: 'RP-NEW', PrimaryModel: 'SCROLL ARM', CauseCode: 'Human Error' },
+      items, now,
+    );
+    expect(r.linkedRefs.sort()).toEqual(['RP-1', 'RP-2']);
+  });
+
+  it('handles a null/undefined item list', () => {
+    const r = detectRepeat(
+      { Title: 'RP-NEW', PrimaryModel: 'Scroll Arm', CauseCode: 'Human Error' },
+      null, now,
+    );
+    expect(r.isRepeat).toBe(false);
+  });
+});
+
+describe('effCheckDueDate / isEffCheckDue / isEffCheckOverdue', () => {
+  it('returns null when closedAt is missing or unparseable', () => {
+    expect(effCheckDueDate('')).toBe(null);
+    expect(effCheckDueDate(null)).toBe(null);
+    expect(effCheckDueDate('not a date')).toBe(null);
+  });
+
+  it('returns a date exactly 30 days after closure', () => {
+    const due = effCheckDueDate('2026-04-01T10:00:00Z');
+    expect(due.toISOString().slice(0, 10)).toBe('2026-05-01');
+  });
+
+  it('isEffCheckDue returns false before the 30-day mark', () => {
+    const closed = '2026-04-01T10:00:00Z';
+    expect(isEffCheckDue(closed, new Date('2026-04-15T10:00:00Z'))).toBe(false);
+  });
+
+  it('isEffCheckDue returns true at or after the 30-day mark', () => {
+    const closed = '2026-04-01T10:00:00Z';
+    expect(isEffCheckDue(closed, new Date('2026-05-01T10:00:00Z'))).toBe(true);
+    expect(isEffCheckDue(closed, new Date('2026-05-02T10:00:00Z'))).toBe(true);
+  });
+
+  it('isEffCheckDue returns false when closedAt is missing', () => {
+    expect(isEffCheckDue('', new Date())).toBe(false);
+  });
+
+  it('isEffCheckOverdue returns false within 7 days of the due date', () => {
+    const closed = '2026-04-01T10:00:00Z';
+    expect(isEffCheckOverdue(closed, new Date('2026-05-04T10:00:00Z'))).toBe(false); // 33 days
+    expect(isEffCheckOverdue(closed, new Date('2026-05-08T10:00:00Z'))).toBe(false); // 37 days exactly
+  });
+
+  it('isEffCheckOverdue returns true more than 7 days past due', () => {
+    const closed = '2026-04-01T10:00:00Z';
+    expect(isEffCheckOverdue(closed, new Date('2026-05-09T10:00:00Z'))).toBe(true); // 38 days
+  });
+
+  it('isEffCheckOverdue returns false when closedAt is missing', () => {
+    expect(isEffCheckOverdue('', new Date())).toBe(false);
+  });
+});
+
+describe('workingDaysBetween', () => {
+  it('returns 0 when end <= start', () => {
+    expect(workingDaysBetween(new Date('2026-05-12'), new Date('2026-05-12'))).toBe(0);
+    expect(workingDaysBetween(new Date('2026-05-12'), new Date('2026-05-10'))).toBe(0);
+  });
+
+  it('counts Mon→Mon as 5 working days', () => {
+    expect(workingDaysBetween(
+      new Date('2026-04-27T00:00:00Z'), // Monday
+      new Date('2026-05-04T00:00:00Z'), // Monday
+    )).toBe(5);
+  });
+
+  it('counts Mon→Tue as 1 working day', () => {
+    expect(workingDaysBetween(
+      new Date('2026-04-27T00:00:00Z'),
+      new Date('2026-04-28T00:00:00Z'),
+    )).toBe(1);
+  });
+
+  it('skips the weekend (Fri→Mon = 1)', () => {
+    expect(workingDaysBetween(
+      new Date('2026-05-01T00:00:00Z'), // Friday
+      new Date('2026-05-04T00:00:00Z'), // Monday
+    )).toBe(1);
+  });
+
+  it('survives the BST→GMT autumn rollback', () => {
+    // 2026-10-25 is the last Sunday of October. Span the boundary; the
+    // count should not gain or lose a day.
+    expect(workingDaysBetween(
+      new Date('2026-10-23T00:00:00Z'), // Friday before fallback
+      new Date('2026-10-26T00:00:00Z'), // Monday after fallback
+    )).toBe(1);
+  });
+
+  it('survives the GMT→BST spring-forward', () => {
+    // 2026-03-29 spring forward. Mon→Mon should still be 5.
+    expect(workingDaysBetween(
+      new Date('2026-03-23T00:00:00Z'),
+      new Date('2026-03-30T00:00:00Z'),
+    )).toBe(5);
   });
 });

@@ -180,6 +180,119 @@ export function isMyTurnToApprove(doc, meEmail) {
   return !approved.includes(me) && !rejected.includes(me);
 }
 
+// ── Quality tab (CPAR / Internal NCR) helpers ─────────────────────────
+// Mirrors of the CPAR pure helpers in index.html. The inline copies have
+// `console.assert` self-tests that run at module load; these vitest tests
+// supersede them but the inline assertions are left in place per the
+// "keep parallel copies" pattern. As before: logic must match, signatures
+// may differ for testability. These constants match the inline values:
+const CPAR_REPEAT_WINDOW_DAYS = 30;
+const CPAR_REPEAT_THRESHOLD = 3;   // 3rd or later occurrence triggers repeat flag
+const CPAR_EFF_CHECK_DAYS = 30;
+
+// Parses the three date string shapes used by the CPAR list. Returns
+// `new Date(0)` (epoch) for falsy/unparseable input — callers test
+// `.getTime() === 0` to detect "no date".
+//   - "2024-01-15"            → local midnight (avoids BST off-by-one)
+//   - "2024-01-15T10:00:00Z"  → native UTC parse
+//   - "15/01/2024 14:30"      → local time (app-internal format)
+//   - "15/01/2024"            → local midnight (time defaults to "00:00")
+export function parseCPARDate(str) {
+  if (!str) return new Date(0);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    const [y, m, d] = str.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
+  if (/^\d{4}-\d{2}-\d{2}T/.test(str)) {
+    const d = new Date(str);
+    return isNaN(d) ? new Date(0) : d;
+  }
+  const [datePart, timePart = '00:00'] = String(str).split(' ');
+  const [d, m, y] = datePart.split('/');
+  if (!y) return new Date(0);
+  return new Date(`${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}T${timePart}:00`);
+}
+
+// Appends one event to the JSON-lines history string stored in CPAR's
+// History column. Always overwrites `t` with the current time so callers
+// can't backdate entries.
+export function appendCPARHistory(currentHistory, event) {
+  const line = JSON.stringify({ ...event, t: new Date().toISOString() });
+  return currentHistory ? currentHistory + '\n' + line : line;
+}
+
+// Reads the JSON-lines history string back into an array. Unparseable
+// lines become `{ t:'?', ev:'parse-error', raw: <line> }` so the audit
+// trail never silently drops content.
+export function parseCPARHistory(historyText) {
+  if (!historyText) return [];
+  return historyText.split('\n').filter(Boolean).map(l => {
+    try { return JSON.parse(l); } catch { return { t: '?', ev: 'parse-error', raw: l }; }
+  });
+}
+
+// Detects a repeat issue: same PrimaryModel + CauseCode appearing
+// CPAR_REPEAT_THRESHOLD times within CPAR_REPEAT_WINDOW_DAYS days. The
+// candidate excludes itself from the count. Returns `{ isRepeat, linkedRefs }`.
+export function detectRepeat(candidate, allItems, now = new Date()) {
+  const model = (candidate.PrimaryModel || '').trim().toLowerCase();
+  const cause = (candidate.CauseCode || '').trim();
+  if (!model || !cause) return { isRepeat: false, linkedRefs: [] };
+  const cutoff = new Date(now.getTime() - CPAR_REPEAT_WINDOW_DAYS * 86400000);
+  const matches = (allItems || []).filter(i => {
+    const f = i.fields || {};
+    if (f.Title === candidate.Title) return false;
+    if ((f.PrimaryModel || '').trim().toLowerCase() !== model) return false;
+    if ((f.CauseCode || '').trim() !== cause) return false;
+    const d = parseCPARDate(f.LoggedAt);
+    return d.getTime() && d >= cutoff;
+  });
+  const isRepeat = matches.length >= (CPAR_REPEAT_THRESHOLD - 1);
+  const linkedRefs = matches.map(i => i.fields.Title).filter(Boolean);
+  return { isRepeat, linkedRefs };
+}
+
+// Effectiveness re-check is due CPAR_EFF_CHECK_DAYS after the CPAR was
+// closed. Returns null when the closure date is missing/unparseable.
+export function effCheckDueDate(closedAt) {
+  const d = parseCPARDate(closedAt);
+  if (!d.getTime()) return null;
+  const due = new Date(d);
+  due.setDate(due.getDate() + CPAR_EFF_CHECK_DAYS);
+  return due;
+}
+
+// True once we're at or past the effectiveness re-check due date.
+export function isEffCheckDue(closedAt, now = new Date()) {
+  const due = effCheckDueDate(closedAt);
+  return !!(due && due <= now);
+}
+
+// True more than a week past the effectiveness re-check due date.
+export function isEffCheckOverdue(closedAt, now = new Date()) {
+  const due = effCheckDueDate(closedAt);
+  if (!due) return false;
+  return (now - due) > 7 * 86400000;
+}
+
+// Working days (Mon-Fri) between two dates. Uses UTC arithmetic to avoid
+// a +1 drift across BST/GMT transitions (the previous local-time loop
+// returned 6 instead of 5 for Mon→Mon if it spanned spring-forward).
+export function workingDaysBetween(start, end) {
+  if (end <= start) return 0;
+  let days = 0;
+  const cur = new Date(start);
+  cur.setUTCHours(0, 0, 0, 0);
+  const endUtc = new Date(end);
+  endUtc.setUTCHours(0, 0, 0, 0);
+  while (cur < endUtc) {
+    const dow = cur.getUTCDay();
+    if (dow >= 1 && dow <= 5) days++;
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+  return days;
+}
+
 // Browser-global mirror so index.html inline scripts can reach these names
 // once the module finishes loading. No-op in Node/vitest. Names match the
 // existing inline conventions (_isoNoMs etc.) so callers stay unchanged.
