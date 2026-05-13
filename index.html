@@ -16367,6 +16367,7 @@ function renderIssuesIntoQuality(host) {
   };
   const todoCount     = items.filter(i => { const s = i.fields?.Status; return s === CPAR_STATUS.OPEN || s === CPAR_STATUS.RETURNED || (!s); }).length;
   const progressCount = items.filter(i => [CPAR_STATUS.PENDING_REVIEW, CPAR_STATUS.INVESTIGATION, CPAR_STATUS.AWAITING_SIGNOFF].includes(i.fields?.Status)).length;
+  const peCount       = items.filter(i => i.fields?.Status === CPAR_STATUS.INVESTIGATION).length;
   const closedCount   = items.filter(i => isClosed(i) && parseCPARDate(i.fields?.ClosedAt) >= monthAgo).length;
   const repeatCount   = items.filter(i => i.fields?.IsRepeat === true && parseCPARDate(i.fields?.LoggedAt) >= monthAgo).length;
   const overdueCount  = items.filter(i => {
@@ -16386,6 +16387,11 @@ function renderIssuesIntoQuality(host) {
   const filterMap = {
     todo: i => { const s = i.fields?.Status; return s === CPAR_STATUS.OPEN || s === CPAR_STATUS.RETURNED || (!s && true); },
     progress: i => [CPAR_STATUS.PENDING_REVIEW, CPAR_STATUS.INVESTIGATION, CPAR_STATUS.AWAITING_SIGNOFF].includes(i.fields?.Status),
+    // 'pe' is a strict subset of 'progress' — only NCRs currently assigned
+    // to a Process Engineer for investigation (not QHSE review queue, not
+    // awaiting final sign-off). Lets QHSE see "what's actually with PE
+    // right now" without the rest of the in-progress mix.
+    pe: i => i.fields?.Status === CPAR_STATUS.INVESTIGATION,
     closed: i => {
       const s = i.fields?.Status;
       // Any closed-state item with ClosedAt in the last 30 days — includes
@@ -16487,6 +16493,11 @@ function renderIssuesIntoQuality(host) {
         <div><div class="mt-num">${progressCount}</div><div class="mt-lbl">In progress</div></div>
         <div class="mt-bar"></div>
       </div>
+      <div class="mt-tile ${cparFilterStatus==='pe'?'mt-tile-active':''}" onclick="setIssueFilter('pe'); _preserveScroll(renderQualitySubview);" style="cursor:pointer">
+        <div class="mt-icon">🛠</div>
+        <div><div class="mt-num">${peCount}</div><div class="mt-lbl">With PE</div></div>
+        <div class="mt-bar"></div>
+      </div>
       <div class="mt-tile pass ${cparFilterStatus==='closed'?'mt-tile-active':''}" onclick="setIssueFilter('closed'); _preserveScroll(renderQualitySubview);" style="cursor:pointer">
         <div class="mt-icon">✓</div>
         <div><div class="mt-num">${closedCount}</div><div class="mt-lbl">Closed (30d)</div></div>
@@ -16513,6 +16524,7 @@ function renderIssuesIntoQuality(host) {
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
       <button class="issues-chip ${cparFilterStatus==='todo'?'active':''}${searchQ?' issues-chip-dim':''}" onclick="setIssueFilter('todo'); _preserveScroll(renderQualitySubview);">To do</button>
       <button class="issues-chip ${cparFilterStatus==='progress'?'active':''}${searchQ?' issues-chip-dim':''}" onclick="setIssueFilter('progress'); _preserveScroll(renderQualitySubview);">In progress</button>
+      <button class="issues-chip ${cparFilterStatus==='pe'?'active':''}${searchQ?' issues-chip-dim':''}" onclick="setIssueFilter('pe'); _preserveScroll(renderQualitySubview);">🛠 With PE</button>
       <button class="issues-chip ${cparFilterStatus==='closed'?'active':''}${searchQ?' issues-chip-dim':''}" onclick="setIssueFilter('closed'); _preserveScroll(renderQualitySubview);">Recently closed</button>
       <button class="issues-chip ${cparFilterStatus==='all'?'active':''}${searchQ?' issues-chip-dim':''}" onclick="setIssueFilter('all'); _preserveScroll(renderQualitySubview);">All</button>
       <button class="issues-chip ${cparFilterStatus==='repeat'?'active':''}${searchQ?' issues-chip-dim':''}" onclick="setIssueFilter('repeat'); _preserveScroll(renderQualitySubview);" style="background:#fff1f1;color:#991b1b;border:1.5px solid #fca5a5">🔴 Repeat</button>
