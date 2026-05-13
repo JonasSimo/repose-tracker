@@ -40,7 +40,14 @@ function _normaliseLoggedAtDay(la) {
   if (/^\d{4}-\d{2}-\d{2}/.test(la)) return la.slice(0,10);
   // DD/MM/YYYY → YYYY-MM-DD
   const [d, m, y] = String(la).split(/[/ ]/);
-  return y ? `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}` : '';
+  if (!y) return '';
+  const dn = Number(d), mn = Number(m), yn = Number(y);
+  // Reject non-numeric parts. Without this guard, an input like
+  // 'not a date' templated back garbage ('date-0a-not'), which silently
+  // dropped the affected CPAR from the morning digest's "raised
+  // yesterday" filter — pinned by the matching vitest spec.
+  if (!Number.isFinite(dn) || !Number.isFinite(mn) || !Number.isFinite(yn)) return '';
+  return `${yn}-${String(mn).padStart(2,'0')}-${String(dn).padStart(2,'0')}`;
 }
 
 const cca = new ConfidentialClientApplication({

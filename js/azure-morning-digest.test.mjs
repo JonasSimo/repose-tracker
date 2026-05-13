@@ -29,12 +29,16 @@ function parseCPARDate(str) {
 
 // Mirror of _normaliseLoggedAtDay (line ~38). Normalises a LoggedAt
 // string into YYYY-MM-DD regardless of source format. Returns '' on
-// unparseable input.
+// unparseable input. Includes the Number.isFinite guard added after
+// this test surfaced the 'not a date' → 'date-0a-not' silent-drop bug.
 function _normaliseLoggedAtDay(la) {
   if (!la) return '';
   if (/^\d{4}-\d{2}-\d{2}/.test(la)) return la.slice(0, 10);
   const [d, m, y] = String(la).split(/[/ ]/);
-  return y ? `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}` : '';
+  if (!y) return '';
+  const dn = Number(d), mn = Number(m), yn = Number(y);
+  if (!Number.isFinite(dn) || !Number.isFinite(mn) || !Number.isFinite(yn)) return '';
+  return `${yn}-${String(mn).padStart(2, '0')}-${String(dn).padStart(2, '0')}`;
 }
 
 // Mirror of lastWorkingDay (line ~126). "Yesterday" but skips back to
@@ -83,17 +87,14 @@ describe('_normaliseLoggedAtDay', () => {
     expect(_normaliseLoggedAtDay('123')).toBe('');
   });
 
-  // ── KNOWN BUG flagged by this test ──────────────────────────────────────
-  // `_normaliseLoggedAtDay('not a date')` does NOT return ''. The split on
-  // `/` and ` ` produces ['not','a','date'], the third part is truthy, so
-  // the function happily templates them back as `date-0a-not`. It should
-  // validate that d/m/y are numeric before formatting. The downstream
-  // consumer (a SharePoint filter clause) silently filters nothing in
-  // this case, so the bug has been masked in production. Fix on the
-  // production side; this test pins the current behaviour to prevent
-  // accidental "fix" while QHSE decides the right shape.
-  it('[KNOWN BUG] templates garbage when split produces 3 non-numeric parts', () => {
-    expect(_normaliseLoggedAtDay('not a date')).toBe('date-0a-not');
+  // Previously this case templated back 'date-0a-not' — the function
+  // split 'not a date' on space/slash, got ['not','a','date'], and
+  // padStarted the strings without checking they were numeric. That
+  // bug silently dropped the affected CPAR from the morning digest's
+  // "raised yesterday" filter. Fixed by adding Number.isFinite guards.
+  it("returns '' when split parts are non-numeric (regression guard)", () => {
+    expect(_normaliseLoggedAtDay('not a date')).toBe('');
+    expect(_normaliseLoggedAtDay('aa/bb/cccc')).toBe('');
   });
 });
 
