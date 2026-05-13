@@ -1006,6 +1006,120 @@ export function cpKpiAgg(all, now = new Date()) {
   return { openUnassigned, inProgress, overdue, closed30, avgRes };
 }
 
+// ── HSE / NCR / working-hours helpers ─────────────────────────────────
+// A grab-bag of pure helpers used across the Quality + Near-Miss +
+// Production-tracking flows. Mirrors the inline copies in index.html.
+
+// CPAR_STATUS values referenced by the NCR predicates below — must
+// match the inline `CPAR_STATUS` constant exactly.
+const CPAR_STATUS = {
+  OPEN:               'Open',
+  PENDING_REVIEW:     'Pending QHSE Review',
+  RETURNED:           'Returned to Area Manager',
+  INVESTIGATION:      'Investigation',
+  AWAITING_SIGNOFF:   'Awaiting Final Sign-Off',
+  CLOSED:             'Closed',
+  AWAITING_EFF_CHECK: 'Awaiting Effectiveness Check',
+  ARCHIVED:           'Archived',
+};
+
+// Working hours between two Dates, using Repose's actual factory hours:
+// Mon-Thu 07:00-16:00 (9h/day), Fri 07:00-12:00 (5h/day), no Sat/Sun.
+// 41 working hours per full week. Returns a fractional number of hours.
+export function workingHoursBetween(start, end) {
+  if (end <= start) return 0;
+  let total = 0;
+  const cur = new Date(start);
+  cur.setSeconds(0, 0);
+  while (cur < end) {
+    const dow = cur.getDay();
+    let workStartHr = null, workEndHr = null;
+    if (dow >= 1 && dow <= 4)      { workStartHr = 7; workEndHr = 16; }
+    else if (dow === 5)            { workStartHr = 7; workEndHr = 12; }
+    if (workStartHr !== null) {
+      const dayStart = new Date(cur); dayStart.setHours(workStartHr, 0, 0, 0);
+      const dayEnd   = new Date(cur); dayEnd.setHours(workEndHr,   0, 0, 0);
+      const windowStart = cur < dayStart ? dayStart : cur;
+      const windowEnd   = end < dayEnd   ? end      : dayEnd;
+      if (windowEnd > windowStart) total += (windowEnd - windowStart) / 3600000;
+    }
+    cur.setDate(cur.getDate() + 1);
+    cur.setHours(0, 0, 0, 0);
+  }
+  return total;
+}
+
+// True if a CPAR is in a state requiring area-manager action: Open or
+// Returned. Used by Team View banners to flag visibly-blocked items.
+export function isOpenNCR(item) {
+  const f = (item && item.fields) || {};
+  return f.Status === CPAR_STATUS.OPEN || f.Status === CPAR_STATUS.RETURNED;
+}
+
+// True if a CPAR is an open QC-raised NCR sitting with an area manager
+// (i.e. raised by QC, not yet closed-out to QHSE). Drives the red
+// stripe + banner in the Delivery / Team views. Tolerates legacy team
+// strings ('qc', ' QC ') via normaliseTeam.
+export function isOpenQCNCR(item) {
+  const f = (item && item.fields) || {};
+  if (normaliseTeam(f.RaisedByTeam || '') !== 'QC') return false;
+  return isOpenNCR(item);
+}
+
+// Extracts a 7-digit REP number from strings like 'REP 1234567' or
+// 'REP1234567'. Returns '' when no 7-digit run is found. Used to key
+// CPAR.PrimaryREP rows against Delivery view items.
+export function extractRep7(repStr) {
+  const m = String(repStr == null ? '' : repStr).match(/(\d{7})/);
+  return m ? m[1] : '';
+}
+
+// Calculates the Near-Miss closure rate. Items closed within
+// `overdueDays` (default 28) count as success; items still open past
+// that threshold count as failed; items lacking a usable close date
+// are skipped. Tolerates the legacy DD/MM/YYYY Forms format for
+// `Actionclosedon` (older items pre-date the Graph ISO response shape).
+// Returns null when nothing is countable, otherwise
+// `{ pct, success, failed, total, failedIds }`.
+export function calcNmsClosureRate(items, options = {}) {
+  const overdueDays = options.overdueDays != null ? options.overdueDays : 28;
+  const now = options.now || new Date();
+  const MS_LIMIT = overdueDays * 86400000;
+  let success = 0;
+  const failedIds = new Set();
+  for (const item of (items || [])) {
+    if (!item) continue;
+    const f = item.fields || {};
+    const raised = new Date(item.createdDateTime);
+    if (isNaN(raised)) continue;
+    const isClosed = !!f.NearMissclosedout_x003f_;
+    if (isClosed) {
+      if (!f.Actionclosedon) continue;
+      let closedDate = new Date(f.Actionclosedon);
+      if (isNaN(closedDate)) {
+        const p = String(f.Actionclosedon).split('/');
+        if (p.length === 3) {
+          const dd = parseInt(p[0], 10), mm = parseInt(p[1], 10), yy = parseInt(p[2], 10);
+          if (dd > 0 && mm >= 1 && mm <= 12 && yy > 0) closedDate = new Date(yy, mm - 1, dd);
+        }
+      }
+      if (!closedDate || isNaN(closedDate)) continue;
+      if (closedDate - raised <= MS_LIMIT) success++;
+      else failedIds.add(item.id);
+    } else {
+      if (now - raised > MS_LIMIT) failedIds.add(item.id);
+    }
+  }
+  const total = success + failedIds.size;
+  return total === 0 ? null : {
+    pct: Math.round(success / total * 100),
+    success,
+    failed: failedIds.size,
+    total,
+    failedIds,
+  };
+}
+
 // Browser-global mirror so index.html inline scripts can reach these names
 // once the module finishes loading. No-op in Node/vitest. Names match the
 // existing inline conventions (_isoNoMs etc.) so callers stay unchanged.

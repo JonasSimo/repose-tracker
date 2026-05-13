@@ -58,6 +58,11 @@ import {
   cpCategoryClass,
   cpSlaBand,
   cpKpiAgg,
+  workingHoursBetween,
+  isOpenNCR,
+  isOpenQCNCR,
+  extractRep7,
+  calcNmsClosureRate,
 } from './repnet-helpers.mjs';
 
 describe('isoNoMs', () => {
@@ -2211,5 +2216,215 @@ describe('cpKpiAgg', () => {
   it('handles null entries in the list safely', () => {
     const k = cpKpiAgg([null, { status: 'Open', OpenDate: '01/05/2026' }, undefined], now);
     expect(k.openUnassigned).toBe(1);
+  });
+});
+
+// ── HSE / NCR / working-hours helpers ────────────────────────────────────
+
+describe('workingHoursBetween', () => {
+  it('returns 0 when end <= start', () => {
+    const d = new Date('2026-05-12T10:00:00');
+    expect(workingHoursBetween(d, d)).toBe(0);
+    expect(workingHoursBetween(new Date('2026-05-12T10:00:00'), new Date('2026-05-12T09:00:00'))).toBe(0);
+  });
+
+  it('counts hours within a single Mon-Thu working day', () => {
+    expect(workingHoursBetween(
+      new Date('2026-05-12T07:00:00'),  // Tue
+      new Date('2026-05-12T16:00:00'),
+    )).toBe(9);
+  });
+
+  it('clips the window to factory hours (07:00-16:00 Mon-Thu)', () => {
+    // Starts at 06:00, factory opens at 07:00 — only 9h counted.
+    expect(workingHoursBetween(
+      new Date('2026-05-12T06:00:00'),
+      new Date('2026-05-12T17:00:00'),
+    )).toBe(9);
+  });
+
+  it('returns 5h for a full Friday (07:00-12:00 only)', () => {
+    expect(workingHoursBetween(
+      new Date('2026-05-15T00:00:00'),  // Fri
+      new Date('2026-05-15T23:59:00'),
+    )).toBe(5);
+  });
+
+  it('returns 0 for full weekend days', () => {
+    expect(workingHoursBetween(
+      new Date('2026-05-16T00:00:00'),  // Sat
+      new Date('2026-05-17T23:59:00'),  // Sun
+    )).toBe(0);
+  });
+
+  it('spans a full week (Mon-Fri) = 41 working hours', () => {
+    expect(workingHoursBetween(
+      new Date('2026-05-11T07:00:00'),  // Mon
+      new Date('2026-05-15T12:00:00'),  // Fri end of working day
+    )).toBe(41);
+  });
+
+  it('mid-window weekends are skipped silently', () => {
+    // Fri 11:00 → Mon 08:00 = 1h (Fri) + 0 (Sat) + 0 (Sun) + 1h (Mon 07-08) = 2h
+    expect(workingHoursBetween(
+      new Date('2026-05-15T11:00:00'),  // Fri
+      new Date('2026-05-18T08:00:00'),  // Mon
+    )).toBe(2);
+  });
+});
+
+describe('isOpenNCR', () => {
+  it('returns true for Status=Open', () => {
+    expect(isOpenNCR({ fields: { Status: 'Open' } })).toBe(true);
+  });
+
+  it('returns true for Status=Returned to Area Manager', () => {
+    expect(isOpenNCR({ fields: { Status: 'Returned to Area Manager' } })).toBe(true);
+  });
+
+  it('returns false for other statuses', () => {
+    expect(isOpenNCR({ fields: { Status: 'Closed' } })).toBe(false);
+    expect(isOpenNCR({ fields: { Status: 'Pending QHSE Review' } })).toBe(false);
+    expect(isOpenNCR({ fields: { Status: 'Investigation' } })).toBe(false);
+  });
+
+  it('handles null/undefined item or fields safely', () => {
+    expect(isOpenNCR(null)).toBe(false);
+    expect(isOpenNCR({})).toBe(false);
+    expect(isOpenNCR({ fields: {} })).toBe(false);
+  });
+});
+
+describe('isOpenQCNCR', () => {
+  it('returns true when RaisedByTeam canonicalises to QC and status is open', () => {
+    expect(isOpenQCNCR({ fields: { Status: 'Open', RaisedByTeam: 'QC' } })).toBe(true);
+    expect(isOpenQCNCR({ fields: { Status: 'Returned to Area Manager', RaisedByTeam: 'QC' } })).toBe(true);
+  });
+
+  it('canonicalises legacy / casing variants of QC', () => {
+    expect(isOpenQCNCR({ fields: { Status: 'Open', RaisedByTeam: 'qc' } })).toBe(true);
+    expect(isOpenQCNCR({ fields: { Status: 'Open', RaisedByTeam: ' QC ' } })).toBe(true);
+    expect(isOpenQCNCR({ fields: { Status: 'Open', RaisedByTeam: 'quality control' } })).toBe(true);
+  });
+
+  it('returns false when raised by a non-QC team', () => {
+    expect(isOpenQCNCR({ fields: { Status: 'Open', RaisedByTeam: 'Sewing' } })).toBe(false);
+  });
+
+  it('returns false when QC raised but not in an open state', () => {
+    expect(isOpenQCNCR({ fields: { Status: 'Closed', RaisedByTeam: 'QC' } })).toBe(false);
+  });
+
+  it('handles missing fields safely', () => {
+    expect(isOpenQCNCR({})).toBe(false);
+    expect(isOpenQCNCR(null)).toBe(false);
+  });
+});
+
+describe('extractRep7', () => {
+  it('extracts the 7-digit run from a typical REP string', () => {
+    expect(extractRep7('REP 1234567')).toBe('1234567');
+    expect(extractRep7('REP1234567')).toBe('1234567');
+  });
+
+  it('returns the first 7-digit run when there are extra digits', () => {
+    expect(extractRep7('REP 12345678')).toBe('1234567'); // greedy on first 7
+  });
+
+  it("returns '' when no 7-digit run exists", () => {
+    expect(extractRep7('REP 123456')).toBe('');
+    expect(extractRep7('REP')).toBe('');
+    expect(extractRep7('')).toBe('');
+    expect(extractRep7(null)).toBe('');
+    expect(extractRep7(undefined)).toBe('');
+  });
+
+  it('handles numeric input (defensive coercion to string)', () => {
+    expect(extractRep7(1234567)).toBe('1234567');
+  });
+});
+
+describe('calcNmsClosureRate', () => {
+  const now = new Date('2026-05-12T12:00:00Z');
+  const mkAge = days => new Date(now.getTime() - days * 86400000).toISOString();
+
+  it('returns null when nothing is countable', () => {
+    expect(calcNmsClosureRate([], { now })).toBe(null);
+    expect(calcNmsClosureRate(null, { now })).toBe(null);
+  });
+
+  it('counts a closed-within-28-days item as a success', () => {
+    const items = [{
+      id: '1',
+      createdDateTime: mkAge(20),
+      fields: { NearMissclosedout_x003f_: true, Actionclosedon: mkAge(0) },
+    }];
+    const r = calcNmsClosureRate(items, { now });
+    expect(r.success).toBe(1);
+    expect(r.failed).toBe(0);
+    expect(r.pct).toBe(100);
+  });
+
+  it('counts a closed-after-28-days item as a failure', () => {
+    const items = [{
+      id: '1',
+      createdDateTime: mkAge(40),
+      fields: { NearMissclosedout_x003f_: true, Actionclosedon: mkAge(0) },
+    }];
+    const r = calcNmsClosureRate(items, { now });
+    expect(r.success).toBe(0);
+    expect(r.failed).toBe(1);
+    expect(r.pct).toBe(0);
+  });
+
+  it('counts an open item still inside the 28-day window as nothing yet', () => {
+    // Not closed, not yet overdue → skipped (neither success nor failed)
+    const items = [{ id: '1', createdDateTime: mkAge(10), fields: {} }];
+    expect(calcNmsClosureRate(items, { now })).toBe(null);
+  });
+
+  it('counts an open item past 28 days as a failure', () => {
+    const items = [{ id: '1', createdDateTime: mkAge(40), fields: {} }];
+    const r = calcNmsClosureRate(items, { now });
+    expect(r.failed).toBe(1);
+    expect(r.pct).toBe(0);
+  });
+
+  it('accepts legacy DD/MM/YYYY Actionclosedon fallback', () => {
+    // close 10 days ago via legacy Forms format
+    const items = [{
+      id: '1',
+      createdDateTime: mkAge(20),
+      fields: { NearMissclosedout_x003f_: true, Actionclosedon: '02/05/2026' },
+    }];
+    const r = calcNmsClosureRate(items, { now });
+    expect(r.success).toBe(1);
+  });
+
+  it('skips closed items missing a close date entirely (old Forms artefact)', () => {
+    const items = [
+      { id: '1', createdDateTime: mkAge(20), fields: { NearMissclosedout_x003f_: true } },
+      { id: '2', createdDateTime: mkAge(20), fields: { NearMissclosedout_x003f_: true, Actionclosedon: mkAge(0) } },
+    ];
+    const r = calcNmsClosureRate(items, { now });
+    expect(r.total).toBe(1);
+    expect(r.success).toBe(1);
+  });
+
+  it('respects a custom overdueDays threshold', () => {
+    const items = [{ id: '1', createdDateTime: mkAge(15), fields: {} }];
+    expect(calcNmsClosureRate(items, { now, overdueDays: 28 })).toBe(null); // not yet overdue
+    expect(calcNmsClosureRate(items, { now, overdueDays: 10 }).failed).toBe(1); // overdue at 10d
+  });
+
+  it('rounds the pct to the nearest integer', () => {
+    // 1 success, 2 failures → 33.33% → 33
+    const items = [
+      { id: '1', createdDateTime: mkAge(20), fields: { NearMissclosedout_x003f_: true, Actionclosedon: mkAge(5) } },
+      { id: '2', createdDateTime: mkAge(40), fields: {} },
+      { id: '3', createdDateTime: mkAge(40), fields: {} },
+    ];
+    const r = calcNmsClosureRate(items, { now });
+    expect(r.pct).toBe(33);
   });
 });
