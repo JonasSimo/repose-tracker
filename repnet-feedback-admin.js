@@ -4,7 +4,7 @@
    Self-contained IIFE. Side-effects only when isAdmin() == true.
    Depends ONLY on globals already exposed by index.html:
      window.getCurrentUser, window.getGraphToken,
-     window.getSpSiteId, window.getListIdByName,
+     window.getQmsSiteId, window.getListIdByNameOnSite,
      window._graphFetchWithRetry, window.toast, window.navTo
    Wrapped in try/catch at every event boundary so any failure here
    cannot leave the rest of the app in a broken state.
@@ -52,8 +52,8 @@
   }
   function depsReady() {
     return typeof window.getGraphToken === 'function'
-        && typeof window.getSpSiteId === 'function'
-        && typeof window.getListIdByName === 'function';
+        && typeof window.getQmsSiteId === 'function'
+        && typeof window.getListIdByNameOnSite === 'function';
   }
   function escapeHtml(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, c => (
@@ -85,8 +85,8 @@
   async function listItems(force) {
     if (!force && Date.now() - cachedAt < CACHE_MS && items.length) return items;
     if (!depsReady()) throw new Error('Graph helpers not ready');
-    const siteId = await window.getSpSiteId();
-    const listId = await window.getListIdByName(LIST_NAME);
+    const siteId = await window.getQmsSiteId();
+    const listId = await window.getListIdByNameOnSite(siteId, LIST_NAME);
     const token  = await window.getGraphToken();
     const url = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`
               + `?$expand=fields&$orderby=createdDateTime desc&$top=200`;
@@ -113,8 +113,8 @@
 
   async function patchFields(itemId, fields) {
     if (!depsReady()) throw new Error('Graph helpers not ready');
-    const siteId = await window.getSpSiteId();
-    const listId = await window.getListIdByName(LIST_NAME);
+    const siteId = await window.getQmsSiteId();
+    const listId = await window.getListIdByNameOnSite(siteId, LIST_NAME);
     const token  = await window.getGraphToken();
     const url = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${itemId}/fields`;
     const fetcher = window._graphFetchWithRetry || fetch;
@@ -129,8 +129,8 @@
 
   async function deleteOne(itemId) {
     if (!depsReady()) throw new Error('Graph helpers not ready');
-    const siteId = await window.getSpSiteId();
-    const listId = await window.getListIdByName(LIST_NAME);
+    const siteId = await window.getQmsSiteId();
+    const listId = await window.getListIdByNameOnSite(siteId, LIST_NAME);
     const token  = await window.getGraphToken();
     const url = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${itemId}`;
     const fetcher = window._graphFetchWithRetry || fetch;

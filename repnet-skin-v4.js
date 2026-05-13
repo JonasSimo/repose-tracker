@@ -703,8 +703,9 @@
   }
 
   // ── 2b. Feedback widget (FAB + modal) ─────────────────────────
-  // Writes to SharePoint list `RepNet_Feedback` on the main production
-  // site (same site as ProductionCompletions — reuses getSpSiteId cache).
+  // Writes to SharePoint list `RepNet_Feedback` on the Quality site
+  // (ReposeFurniture-Quality — same site as the QMS doc-control lists,
+  // so list-level permissions can be managed by Jonas as site owner).
   // Required list columns (see docs/superpowers/specs):
   //   Title (text), Type (choice), Description (multi-line text),
   //   PageUrl (text), Submitter (text), SubmitterName (text),
@@ -863,13 +864,13 @@
   }
 
   async function submitFeedback(input) {
-    if (typeof window.getGraphToken !== 'function' || typeof window.getSpSiteId !== 'function') {
+    if (typeof window.getGraphToken !== 'function' || typeof window.getQmsSiteId !== 'function') {
       throw new Error('not ready — try again in a moment');
     }
-    const siteId = await window.getSpSiteId();
+    const siteId = await window.getQmsSiteId();
     let listId;
     try {
-      listId = await window.getListIdByName('RepNet_Feedback');
+      listId = await window.getListIdByNameOnSite(siteId, 'RepNet_Feedback');
     } catch (e) {
       throw new Error('feedback list not set up yet — ask Jonas');
     }
