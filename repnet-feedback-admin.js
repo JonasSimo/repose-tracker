@@ -81,12 +81,43 @@
     return String(email).split('@')[0].replace(/[._-]+/g, ' ');
   }
 
+  // Resilient lookup that tolerates the SP display-name-vs-URL-slug
+  // mismatch (a UI rename can leave the slug as `RepNet_Feedback` while
+  // the display name becomes `RepNet Feedback` etc.). Falls back to
+  // enumerating site lists and matching by either field, case-insensitive.
+  // Cached so subsequent calls don't re-enumerate.
+  let _cachedFbListId = null;
+  async function resolveFbListId(siteId) {
+    if (_cachedFbListId) return _cachedFbListId;
+    try {
+      _cachedFbListId = await window.getListIdByNameOnSite(siteId, LIST_NAME);
+      return _cachedFbListId;
+    } catch (e) { /* fall through */ }
+    const token = await window.getGraphToken();
+    const r = await (window._graphFetchWithRetry || fetch)(
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists?$select=id,name,displayName&$top=200`,
+      { headers: { Authorization: 'Bearer ' + token } }
+    );
+    if (!r.ok) throw new Error('feedback list lookup failed — Graph ' + r.status);
+    const data = await r.json();
+    const target = String(LIST_NAME).toLowerCase();
+    const altTarget = target.replace(/_/g, ' ');
+    const hit = (data.value || []).find(l => {
+      const nm = String(l.name || '').toLowerCase();
+      const dn = String(l.displayName || '').toLowerCase();
+      return nm === target || nm === altTarget || dn === target || dn === altTarget;
+    });
+    if (!hit) throw new Error(`feedback list "${LIST_NAME}" not found on Quality site`);
+    _cachedFbListId = hit.id;
+    return _cachedFbListId;
+  }
+
   // ── Graph CRUD ─────────────────────────────────────────────
   async function listItems(force) {
     if (!force && Date.now() - cachedAt < CACHE_MS && items.length) return items;
     if (!depsReady()) throw new Error('Graph helpers not ready');
     const siteId = await window.getQmsSiteId();
-    const listId = await window.getListIdByNameOnSite(siteId, LIST_NAME);
+    const listId = await resolveFbListId(siteId);
     const token  = await window.getGraphToken();
     const url = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`
               + `?$expand=fields&$orderby=createdDateTime desc&$top=200`;
@@ -114,7 +145,7 @@
   async function patchFields(itemId, fields) {
     if (!depsReady()) throw new Error('Graph helpers not ready');
     const siteId = await window.getQmsSiteId();
-    const listId = await window.getListIdByNameOnSite(siteId, LIST_NAME);
+    const listId = await resolveFbListId(siteId);
     const token  = await window.getGraphToken();
     const url = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${itemId}/fields`;
     const fetcher = window._graphFetchWithRetry || fetch;
@@ -130,7 +161,7 @@
   async function deleteOne(itemId) {
     if (!depsReady()) throw new Error('Graph helpers not ready');
     const siteId = await window.getQmsSiteId();
-    const listId = await window.getListIdByNameOnSite(siteId, LIST_NAME);
+    const listId = await resolveFbListId(siteId);
     const token  = await window.getGraphToken();
     const url = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${itemId}`;
     const fetcher = window._graphFetchWithRetry || fetch;

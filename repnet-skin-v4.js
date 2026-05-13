@@ -863,6 +863,41 @@
     });
   }
 
+  // Resolves the RepNet_Feedback list id on the Quality site. Tries the
+  // cheap display-name lookup first; if that 404s (common when SharePoint's
+  // display name diverges from the URL slug — e.g. UI rename creates
+  // "RepNet Feedback" with a space while the slug stays underscored),
+  // falls back to enumerating site lists and matching by either the SP
+  // `name` field (URL slug) or `displayName`, case-insensitive, also
+  // tolerating the space-vs-underscore variant. Cached in-module so we
+  // only enumerate once per session.
+  let _cachedFbListId = null;
+  async function resolveFeedbackListId(siteId) {
+    if (_cachedFbListId) return _cachedFbListId;
+    if (typeof window.getListIdByNameOnSite === 'function') {
+      try {
+        _cachedFbListId = await window.getListIdByNameOnSite(siteId, 'RepNet_Feedback');
+        return _cachedFbListId;
+      } catch (e) { /* fall through to enumeration */ }
+    }
+    const token = await window.getGraphToken();
+    const r = await fetch(
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists?$select=id,name,displayName&$top=200`,
+      { headers: { Authorization: 'Bearer ' + token } }
+    );
+    if (!r.ok) throw new Error(`feedback list lookup failed — Graph ${r.status}`);
+    const data = await r.json();
+    const hit = (data.value || []).find(l => {
+      const nm = String(l.name || '').toLowerCase();
+      const dn = String(l.displayName || '').toLowerCase();
+      return nm === 'repnet_feedback' || nm === 'repnet feedback'
+          || dn === 'repnet_feedback' || dn === 'repnet feedback';
+    });
+    if (!hit) throw new Error('feedback list not set up yet — ask Jonas');
+    _cachedFbListId = hit.id;
+    return _cachedFbListId;
+  }
+
   async function submitFeedback(input) {
     if (typeof window.getGraphToken !== 'function' || typeof window.getQmsSiteId !== 'function') {
       throw new Error('not ready — try again in a moment');
@@ -870,9 +905,9 @@
     const siteId = await window.getQmsSiteId();
     let listId;
     try {
-      listId = await window.getListIdByNameOnSite(siteId, 'RepNet_Feedback');
+      listId = await resolveFeedbackListId(siteId);
     } catch (e) {
-      throw new Error('feedback list not set up yet — ask Jonas');
+      throw new Error(e.message || 'feedback list not set up yet — ask Jonas');
     }
     const token = await window.getGraphToken();
     // Title: first line of description, trimmed to 80 chars — keeps SP list scannable
