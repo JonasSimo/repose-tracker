@@ -20,6 +20,13 @@ import {
   isEffCheckDue,
   isEffCheckOverdue,
   workingDaysBetween,
+  capaFieldsFromSP,
+  capaFieldsToSP,
+  capaDayDiff,
+  capaDueClass,
+  capaIsOverdue,
+  capaIsClosedRecent,
+  appendCAPAHistory,
 } from './repnet-helpers.mjs';
 
 describe('isoNoMs', () => {
@@ -741,5 +748,231 @@ describe('workingDaysBetween', () => {
       new Date('2026-03-23T00:00:00Z'),
       new Date('2026-03-30T00:00:00Z'),
     )).toBe(5);
+  });
+});
+
+// ── CAPA (Corrective & Preventive Actions) helpers ───────────────────────
+
+describe('capaFieldsFromSP', () => {
+  it('returns the input as-is for null/undefined', () => {
+    expect(capaFieldsFromSP(null)).toBe(null);
+    expect(capaFieldsFromSP(undefined)).toBe(undefined);
+  });
+
+  it('returns an empty object for {}', () => {
+    expect(capaFieldsFromSP({})).toEqual({});
+  });
+
+  it('adds JS-cased aliases for known SP-cased columns', () => {
+    const out = capaFieldsFromSP({ Owneremail: 'a@x.com', Duedate: '2026-06-01' });
+    expect(out.OwnerEmail).toBe('a@x.com');
+    expect(out.DueDate).toBe('2026-06-01');
+  });
+
+  it('RETAINS the original SP-cased keys alongside the JS aliases', () => {
+    const out = capaFieldsFromSP({ Owneremail: 'a@x.com' });
+    expect(out.Owneremail).toBe('a@x.com');
+    expect(out.OwnerEmail).toBe('a@x.com');
+  });
+
+  it('passes unmapped columns through unchanged', () => {
+    const out = capaFieldsFromSP({ Title: 'CAPA-26-001', Status: 'Open', Area: 'Quality' });
+    expect(out).toEqual({ Title: 'CAPA-26-001', Status: 'Open', Area: 'Quality' });
+  });
+
+  it('does not mutate the input object', () => {
+    const input = { Owneremail: 'a@x.com' };
+    capaFieldsFromSP(input);
+    expect(input).toEqual({ Owneremail: 'a@x.com' });
+  });
+});
+
+describe('capaFieldsToSP', () => {
+  it('returns {} for null/undefined input', () => {
+    expect(capaFieldsToSP(null)).toEqual({});
+    expect(capaFieldsToSP(undefined)).toEqual({});
+  });
+
+  it('renames JS-side keys to SP-internal names', () => {
+    expect(capaFieldsToSP({ OwnerEmail: 'a@x.com', DueDate: '2026-06-01' }))
+      .toEqual({ Owneremail: 'a@x.com', Duedate: '2026-06-01' });
+  });
+
+  it('passes unmapped keys (Title, Status, Area) through unchanged', () => {
+    expect(capaFieldsToSP({ Title: 'CAPA-26-001', Status: 'Open' }))
+      .toEqual({ Title: 'CAPA-26-001', Status: 'Open' });
+  });
+
+  it('round-trips with capaFieldsFromSP for the JS-cased subset', () => {
+    const js = { OwnerEmail: 'a@x.com', DueDate: '2026-06-01', Title: 'CAPA-26-001' };
+    const sp = capaFieldsToSP(js);
+    const back = capaFieldsFromSP(sp);
+    expect(back.OwnerEmail).toBe('a@x.com');
+    expect(back.DueDate).toBe('2026-06-01');
+    expect(back.Title).toBe('CAPA-26-001');
+  });
+});
+
+describe('capaDayDiff', () => {
+  it('returns 0 for the same date', () => {
+    expect(capaDayDiff('2026-05-12', '2026-05-12')).toBe(0);
+  });
+
+  it('returns a positive count when A is later than B', () => {
+    expect(capaDayDiff('2026-05-15', '2026-05-12')).toBe(3);
+  });
+
+  it('returns a negative count when A is earlier than B', () => {
+    expect(capaDayDiff('2026-05-10', '2026-05-12')).toBe(-2);
+  });
+
+  it('zeroes out the time component (23:59 → 00:01 next day = 1 day)', () => {
+    expect(capaDayDiff('2026-05-13T00:01:00', '2026-05-12T23:59:00')).toBe(1);
+  });
+
+  it('accepts Date objects on either side', () => {
+    expect(capaDayDiff(new Date('2026-05-15'), new Date('2026-05-12'))).toBe(3);
+  });
+});
+
+describe('capaDueClass', () => {
+  const now = new Date('2026-05-12T12:00:00');
+
+  it("returns 'green' for any Closed CAPA, even if past due", () => {
+    expect(capaDueClass('2026-04-01', 'Closed', now)).toBe('green');
+    expect(capaDueClass(null, 'Closed', now)).toBe('green');
+  });
+
+  it("returns '' for Awaiting Verify (owner has handed off)", () => {
+    expect(capaDueClass('2026-04-01', 'Awaiting Verify', now)).toBe('');
+  });
+
+  it("returns '' when DueDate is missing on an open CAPA", () => {
+    expect(capaDueClass(null, 'Open', now)).toBe('');
+    expect(capaDueClass('', 'In Progress', now)).toBe('');
+  });
+
+  it("returns 'red' when past due on an open CAPA", () => {
+    expect(capaDueClass('2026-05-10', 'Open', now)).toBe('red');
+  });
+
+  it("returns 'amber' within 3 days of due (boundary inclusive)", () => {
+    expect(capaDueClass('2026-05-12', 'Open', now)).toBe('amber'); // today
+    expect(capaDueClass('2026-05-15', 'Open', now)).toBe('amber'); // 3 days
+  });
+
+  it("returns 'green' when more than 3 days away", () => {
+    expect(capaDueClass('2026-05-16', 'Open', now)).toBe('green');
+    expect(capaDueClass('2026-06-12', 'Open', now)).toBe('green');
+  });
+});
+
+describe('capaIsOverdue', () => {
+  const now = new Date('2026-05-12T12:00:00');
+
+  it('returns false for a Closed CAPA, even with a past DueDate', () => {
+    expect(capaIsOverdue({ fields: { Status: 'Closed', DueDate: '2026-04-01' } }, now)).toBe(false);
+  });
+
+  it('returns false for an Awaiting Verify CAPA (owner has handed off)', () => {
+    expect(capaIsOverdue({ fields: { Status: 'Awaiting Verify', DueDate: '2026-04-01' } }, now)).toBe(false);
+  });
+
+  it('returns false when DueDate is missing', () => {
+    expect(capaIsOverdue({ fields: { Status: 'Open' } }, now)).toBe(false);
+  });
+
+  it('returns true when an open CAPA is past its DueDate', () => {
+    expect(capaIsOverdue({ fields: { Status: 'Open', DueDate: '2026-05-10' } }, now)).toBe(true);
+    expect(capaIsOverdue({ fields: { Status: 'In Progress', DueDate: '2026-05-11' } }, now)).toBe(true);
+  });
+
+  it('returns false when an open CAPA is due today or in the future', () => {
+    expect(capaIsOverdue({ fields: { Status: 'Open', DueDate: '2026-05-12' } }, now)).toBe(false);
+    expect(capaIsOverdue({ fields: { Status: 'Open', DueDate: '2026-05-20' } }, now)).toBe(false);
+  });
+
+  it('handles a null/undefined item without throwing', () => {
+    expect(capaIsOverdue(null, now)).toBe(false);
+    expect(capaIsOverdue(undefined, now)).toBe(false);
+    expect(capaIsOverdue({}, now)).toBe(false);
+  });
+});
+
+describe('capaIsClosedRecent', () => {
+  const now = new Date('2026-05-12T12:00:00Z');
+
+  it('returns false when status is not Closed', () => {
+    expect(capaIsClosedRecent({ fields: { Status: 'Open', VerifiedAt: '2026-05-01T10:00:00Z' } }, 30, now)).toBe(false);
+    expect(capaIsClosedRecent({ fields: { Status: 'Awaiting Verify', VerifiedAt: '2026-05-01T10:00:00Z' } }, 30, now)).toBe(false);
+  });
+
+  it('returns false when there is no usable date', () => {
+    expect(capaIsClosedRecent({ fields: { Status: 'Closed' } }, 30, now)).toBe(false);
+    expect(capaIsClosedRecent({ fields: { Status: 'Closed', VerifiedAt: 'not a date' } }, 30, now)).toBe(false);
+  });
+
+  it('returns true when VerifiedAt is within the window', () => {
+    expect(capaIsClosedRecent({ fields: { Status: 'Closed', VerifiedAt: '2026-05-01T10:00:00Z' } }, 30, now)).toBe(true);
+  });
+
+  it('falls back to DoneAt when VerifiedAt is missing', () => {
+    expect(capaIsClosedRecent({ fields: { Status: 'Closed', DoneAt: '2026-05-01T10:00:00Z' } }, 30, now)).toBe(true);
+  });
+
+  it('returns false when the closure is older than the window', () => {
+    expect(capaIsClosedRecent({ fields: { Status: 'Closed', VerifiedAt: '2026-03-01T10:00:00Z' } }, 30, now)).toBe(false);
+  });
+
+  it('honours a non-default window size', () => {
+    // 60 days back; default 30 says no, 90 says yes
+    const item = { fields: { Status: 'Closed', VerifiedAt: '2026-03-13T12:00:00Z' } };
+    expect(capaIsClosedRecent(item, 30, now)).toBe(false);
+    expect(capaIsClosedRecent(item, 90, now)).toBe(true);
+  });
+
+  it('handles a null/undefined item without throwing', () => {
+    expect(capaIsClosedRecent(null, 30, now)).toBe(false);
+    expect(capaIsClosedRecent({}, 30, now)).toBe(false);
+  });
+});
+
+describe('appendCAPAHistory', () => {
+  it('starts a new JSON array for empty/null existing history', () => {
+    const out = appendCAPAHistory('', { by: 'a@x.com', ev: 'created' });
+    const arr = JSON.parse(out);
+    expect(Array.isArray(arr)).toBe(true);
+    expect(arr.length).toBe(1);
+    expect(arr[0].ev).toBe('created');
+  });
+
+  it('appends to an existing array (not JSON-lines like CPAR)', () => {
+    const first = appendCAPAHistory('', { ev: 'created' });
+    const both  = appendCAPAHistory(first, { ev: 'done' });
+    const arr = JSON.parse(both);
+    expect(arr.length).toBe(2);
+    expect(arr.map(e => e.ev)).toEqual(['created', 'done']);
+  });
+
+  it('always overwrites the caller-supplied `at` with the current time', () => {
+    const out = appendCAPAHistory('', { ev: 'created', at: '1999-01-01' });
+    const arr = JSON.parse(out);
+    expect(arr[0].at).not.toBe('1999-01-01');
+    expect(arr[0].at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it('recovers when existing is malformed JSON (treats as empty)', () => {
+    const out = appendCAPAHistory('{not json}', { ev: 'created' });
+    const arr = JSON.parse(out);
+    expect(arr.length).toBe(1);
+  });
+
+  it('recovers when existing is valid JSON but not an array', () => {
+    // Rare manual SP edit — guard at line 19049 in index.html.
+    const out = appendCAPAHistory('{"ev":"single object"}', { ev: 'created' });
+    const arr = JSON.parse(out);
+    expect(Array.isArray(arr)).toBe(true);
+    expect(arr.length).toBe(1);
+    expect(arr[0].ev).toBe('created');
   });
 });

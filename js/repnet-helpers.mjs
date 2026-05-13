@@ -293,6 +293,118 @@ export function workingDaysBetween(start, end) {
   return days;
 }
 
+// ── CAPA (Corrective & Preventive Actions) helpers ────────────────────
+// Mirrors the inline _capa* helpers in index.html. CAPA's list-on-Quality-
+// site sits next to CPAR, but the helpers diverge from CPAR's: history is
+// stored as a JSON *array* (not JSON-lines), date diffs zero out the time
+// component, and SP column names are camelCased differently to JS-side
+// names due to a SharePoint "Internal Name" normalisation quirk on first
+// list creation.
+
+// Status enum matching the inline `CAPA_STATUS` object.
+const CAPA_STATUS = { OPEN: 'Open', PROGRESS: 'In Progress', VERIFY: 'Awaiting Verify', CLOSED: 'Closed' };
+
+// SP internal column names diverge from the JS-side names. When a display
+// name had a space ("Owner email"), SP normalised it to one word with the
+// second word lowercased ("Owneremail"). Translate at the wire boundary.
+const CAPA_SP_TO_JS = {
+  Owneremail:    'OwnerEmail',
+  Ownername:     'OwnerName',
+  Ownerteam:     'OwnerTeam',
+  Duedate:       'DueDate',
+  Effectiveness: 'EffectivenessYN',
+  Raisedby:      'RaisedBy',
+  Raisedat:      'RaisedAt',
+  Doneby:        'DoneBy',
+  Doneat:        'DoneAt',
+  Verifiedby:    'VerifiedBy',
+  Verifiedat:    'VerifiedAt',
+  Actionstaken:  'ActionsTaken',
+};
+const CAPA_JS_TO_SP = Object.fromEntries(
+  Object.entries(CAPA_SP_TO_JS).map(([sp, js]) => [js, sp])
+);
+
+// Returns spFields with JS-friendly aliases added. NOTE: the original SP-
+// cased keys are RETAINED alongside the new JS-cased aliases — callers
+// rely on this; don't "clean up" by deleting the SP keys.
+export function capaFieldsFromSP(spFields) {
+  if (!spFields) return spFields;
+  const out = { ...spFields };
+  for (const [sp, js] of Object.entries(CAPA_SP_TO_JS)) {
+    if (sp in out) out[js] = out[sp];
+  }
+  return out;
+}
+
+// Renames JS-side keys to their SP-internal equivalents. Unmapped keys
+// (e.g. Title, Status, Area) pass through unchanged.
+export function capaFieldsToSP(jsFields) {
+  const out = {};
+  for (const [k, v] of Object.entries(jsFields || {})) {
+    out[CAPA_JS_TO_SP[k] || k] = v;
+  }
+  return out;
+}
+
+// Days between two dates ignoring the time component (so 23:59 Mon → 00:01
+// Tue counts as 1 day, not 0).
+export function capaDayDiff(a, b) {
+  const A = new Date(a); A.setHours(0, 0, 0, 0);
+  const B = new Date(b); B.setHours(0, 0, 0, 0);
+  return Math.round((A.getTime() - B.getTime()) / 86400000);
+}
+
+// CSS class for the due-date cell colour in the CAPA table:
+//   Closed              → 'green'
+//   Awaiting Verify     → '' (owner has handed off — due no longer applies)
+//   No DueDate          → ''
+//   Past due            → 'red'
+//   Within 3 days       → 'amber'
+//   Else                → 'green'
+export function capaDueClass(dueIso, status, now = new Date()) {
+  if (status === CAPA_STATUS.CLOSED) return 'green';
+  if (status === CAPA_STATUS.VERIFY) return '';
+  if (!dueIso) return '';
+  const diff = capaDayDiff(dueIso, now);
+  if (diff < 0) return 'red';
+  if (diff <= 3) return 'amber';
+  return 'green';
+}
+
+// True iff the CAPA is past its DueDate AND still actionable by the owner
+// (i.e. not Closed and not yet handed off to QHSE for verification).
+export function capaIsOverdue(item, now = new Date()) {
+  const f = (item && item.fields) || {};
+  if (f.Status === CAPA_STATUS.CLOSED) return false;
+  if (f.Status === CAPA_STATUS.VERIFY) return false;
+  if (!f.DueDate) return false;
+  return capaDayDiff(f.DueDate, now) < 0;
+}
+
+// True iff the CAPA was Closed within the last `days` days. Uses the
+// VerifiedAt timestamp when present, falls back to DoneAt. Both are
+// parsed via parseCPARDate to handle all three CPAR-list date shapes.
+export function capaIsClosedRecent(item, days = 30, now = new Date()) {
+  const f = (item && item.fields) || {};
+  if (f.Status !== CAPA_STATUS.CLOSED) return false;
+  const at = parseCPARDate(f.VerifiedAt || f.DoneAt);
+  if (!at.getTime()) return false;
+  return (now.getTime() - at.getTime()) <= days * 86400000;
+}
+
+// Appends an entry to CAPA's History column. Unlike CPAR (JSON-lines),
+// CAPA stores history as a JSON-stringified array. Always overwrites
+// `at` with the current time so callers can't backdate entries. Resilient
+// to non-array existing values (rare manual SP edits).
+export function appendCAPAHistory(existing, entry) {
+  let arr = [];
+  try { arr = existing ? JSON.parse(existing) : []; } catch { arr = []; }
+  if (!Array.isArray(arr)) arr = [];
+  arr.push({ ...entry, at: new Date().toISOString() });
+  return JSON.stringify(arr);
+}
+
 // Browser-global mirror so index.html inline scripts can reach these names
 // once the module finishes loading. No-op in Node/vitest. Names match the
 // existing inline conventions (_isoNoMs etc.) so callers stay unchanged.
