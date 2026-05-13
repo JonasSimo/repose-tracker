@@ -9,56 +9,86 @@
  * request) for speed across ~3000 items.
  *
  * HOW TO RUN
- *   1. Open a terminal in this repo's root.
- *   2. Install deps once:           npm install --no-save @azure/msal-node node-fetch@2
- *      (node-fetch v2 because v3 is ESM-only; the existing Azure Functions
- *      use v2 too — see azure-functions/package.json.)
- *   3. Set the same four env vars the Function App uses. From PowerShell:
- *        $env:TENANT_ID     = '<your tenant guid>'
- *        $env:CLIENT_ID     = '<RepNet AAD app client id>'
- *        $env:CLIENT_SECRET = '<RepNet AAD app client secret>'
- *        $env:VERIFIED_BY   = 'jonas.simonaitis@reposefurniture.co.uk'
- *   4. Run:                          node bulk-verify-effectiveness.js
- *   5. The script will:
- *        a. Fetch every Awaiting-Effectiveness-Check CPAR
- *        b. Print the count + 10-item preview
- *        c. Prompt 'Type YES to apply, anything else to cancel:'
- *        d. On YES: batch-PATCH in groups of 20, print progress
- *        e. Write bulk-verify-effectiveness.log.csv (timestamped) so
- *           you have an audit trail of every Title/id touched.
+ *   1. Open a terminal in this repo's root (cd C:\Users\jonas.simonaitis\.local\bin)
+ *   2. node bulk-verify-effectiveness.js
+ *
+ *   That's it. The script will:
+ *     - Auto-install its two dependencies the first time (one-off ~30s)
+ *     - Look for CLIENT_SECRET in: env var → azure-functions/local.settings.json → prompt
+ *     - Fetch every Awaiting-Effectiveness-Check CPAR + show a preview
+ *     - Wait for you to type literally YES (anything else cancels)
+ *     - Batch-PATCH in groups of 20 with a progress line
+ *     - Drop a timestamped CSV audit log next to the script
+ *
+ * GETTING THE SECRET
+ *   Azure portal → Function App 'repnet-daily-report' → Settings →
+ *   Environment variables → CLIENT_SECRET → click the eye icon → copy.
+ *   Paste when prompted. (Alternatively, drop it in
+ *   azure-functions/local.settings.json under Values.CLIENT_SECRET
+ *   and the script will pick it up automatically next time.)
  *
  * SAFETY
  *   - Dry-run first. Nothing writes until you type YES.
  *   - Per-item History entry: 'bulk-effectiveness-verified' so the audit
  *     trail shows this was a sweep, not a manual sign-off per item.
- *   - Failures are logged but don't stop the run; you get a final
- *     success/failure tally and the CSV log lets you retry the failures.
+ *   - Failures are logged but don't stop the run; final tally + CSV log
+ *     means you can re-run to retry just the failures (idempotent —
+ *     already-archived items drop out of the $filter).
  */
 
-const fs = require('fs');
-const path = require('path');
+const fs       = require('fs');
+const path     = require('path');
 const readline = require('readline');
+const { execSync } = require('child_process');
 
-// ── Module resolution ────────────────────────────────────────────────
-// Try the local node_modules first; fall back to azure-functions/node_modules
-// so the script Just Works if the user installed deps there.
+// ── Bootstrap: ensure deps are installed ─────────────────────────────
+// Tries the repo root and azure-functions/node_modules first. If neither
+// has the deps, runs `npm install --no-save` to fetch them on the fly
+// so the user never has to install manually.
 function tryRequire(name) {
   try { return require(name); }
   catch { try { return require(path.join(__dirname, 'azure-functions', 'node_modules', name)); } catch (e) { return null; } }
 }
-const msal  = tryRequire('@azure/msal-node');
-const fetch = tryRequire('node-fetch');
+let msal  = tryRequire('@azure/msal-node');
+let fetch = tryRequire('node-fetch');
 if (!msal || !fetch) {
-  console.error('Missing deps. Run:');
-  console.error('  npm install --no-save @azure/msal-node node-fetch@2');
-  process.exit(1);
+  console.log('First-run setup: installing two npm packages (one-off, ~30 seconds)…');
+  try {
+    execSync('npm install --no-save "@azure/msal-node" "node-fetch@2"', { cwd: __dirname, stdio: 'inherit' });
+    msal  = require('@azure/msal-node');
+    fetch = require('node-fetch');
+  } catch (e) {
+    console.error('');
+    console.error('Auto-install failed. Run this manually then re-run the script:');
+    console.error('  npm install --no-save "@azure/msal-node" "node-fetch@2"');
+    process.exit(1);
+  }
+  console.log('');
 }
 
 // ── Config ───────────────────────────────────────────────────────────
-const TENANT_ID     = process.env.TENANT_ID;
-const CLIENT_ID     = process.env.CLIENT_ID;
-const CLIENT_SECRET = process.env.CLIENT_SECRET;
-const VERIFIED_BY   = process.env.VERIFIED_BY || 'jonas.simonaitis@reposefurniture.co.uk';
+// Defaults match azure-functions/local.settings.json.example. Only
+// CLIENT_SECRET is sensitive; the others are non-secret tenant/app IDs.
+const TENANT_ID   = process.env.TENANT_ID   || 'ef6548a3-2d0d-4c08-b052-ffc7b491d08e';
+const CLIENT_ID   = process.env.CLIENT_ID   || '2f8cdb1e-93da-4815-942b-c7c8d1a29ca5';
+const VERIFIED_BY = process.env.VERIFIED_BY || 'jonas.simonaitis@reposefurniture.co.uk';
+let   CLIENT_SECRET = process.env.CLIENT_SECRET;
+
+// Fallback 1: read from azure-functions/local.settings.json (gitignored,
+// holds real secrets when the Function App is run locally).
+if (!CLIENT_SECRET) {
+  const lsPath = path.join(__dirname, 'azure-functions', 'local.settings.json');
+  if (fs.existsSync(lsPath)) {
+    try {
+      const ls = JSON.parse(fs.readFileSync(lsPath, 'utf8'));
+      const s = ls && ls.Values && ls.Values.CLIENT_SECRET;
+      if (s && !s.startsWith('<')) {
+        CLIENT_SECRET = s;
+        console.log('Loaded CLIENT_SECRET from azure-functions/local.settings.json');
+      }
+    } catch (e) { /* fall through to prompt */ }
+  }
+}
 
 const SP_HOST       = 'reposefurniturelimited.sharepoint.com';
 const SP_SITE_PATH  = '/sites/ReposeFurniture-PlanningRepose';
@@ -68,11 +98,6 @@ const TARGET_STATUS = 'Awaiting Effectiveness Check';
 const ARCHIVED      = 'Archived';
 const BATCH_SIZE    = 20;          // Graph $batch limit
 const PAUSE_BETWEEN_BATCHES_MS = 250;  // gentle on throttling
-
-if (!TENANT_ID || !CLIENT_ID || !CLIENT_SECRET) {
-  console.error('Missing env: TENANT_ID / CLIENT_ID / CLIENT_SECRET required.');
-  process.exit(1);
-}
 
 // ── Graph plumbing ───────────────────────────────────────────────────
 const cca = new msal.ConfidentialClientApplication({

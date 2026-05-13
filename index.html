@@ -16679,7 +16679,23 @@ function renderQHSEReview() {
     ? filtered.map(renderQHSEReviewCard).join('')
     : '<div style="padding:24px;text-align:center;color:var(--text3)">No CPARs in this queue.</div>';
 
+  // TEMP one-off bulk cleanup banner — only shown when there's a backlog
+  // at Awaiting Effectiveness Check. Marked TEMP because the user plans
+  // to remove this banner + bulkVerifyAllEffectiveness() in a follow-up
+  // commit after the sweep is done.
+  const bulkBanner = (cparIsQHSE && counts.effchk > 0) ? `
+    <div style="background:#fff8e6;border:1.5px dashed #d97706;border-radius:10px;padding:14px 16px;margin-bottom:14px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <div style="font-size:22px">🧹</div>
+      <div style="flex:1;min-width:200px">
+        <div style="font-size:13px;font-weight:700;color:#92400e">One-off cleanup — ${counts.effchk} CPARs awaiting effectiveness check</div>
+        <div style="font-size:11px;color:#a16207;margin-top:2px">Bulk-marks every one as verified-effective and archives. Dry-run preview shown first. <strong>TEMP</strong> — this button will be removed once the sweep is done.</div>
+      </div>
+      <button id="bulk-eff-btn" onclick="bulkVerifyAllEffectiveness()" style="padding:10px 16px;border-radius:8px;border:1.5px solid #d97706;background:#d97706;color:#fff;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer">🧹 Bulk-verify all (TEMP)</button>
+    </div>
+  ` : '';
+
   return `
+    ${bulkBanner}
     <div class="quality-tiles">
       ${tile('review','To Review',counts.review,'review')}
       ${tile('invest','Investigating',counts.invest,'invest')}
@@ -17102,6 +17118,96 @@ function effVerifyOpen(id) {
   const note = prompt('Briefly describe the recurrence (what came back, where, when):');
   if (!note || !note.trim()) return;
   effVerify(id, false, note.trim());
+}
+
+// ── TEMP: bulk-verify all CPARs at AWAITING_EFF_CHECK ──────────────────
+// One-off cleanup for the ~3k backlog accumulated when effectiveness
+// checks weren't being closed out. Mirrors the per-item effVerify(true)
+// PATCH payload exactly (Status → Archived, EffectivenessVerified=true,
+// EffectivenessVerifiedAt/By set, History entry tagged
+// 'bulk-effectiveness-verified' so an auditor can tell these apart from
+// manual sign-offs). Graph $batch 20-per-request for speed.
+// REMOVE this function + the button in renderQHSEReview once the sweep
+// is done — see commit message for the follow-up.
+async function bulkVerifyAllEffectiveness() {
+  if (!cparIsQHSE) { toast('Only QHSE can take this action', 'u'); return; }
+  const btn = document.getElementById('bulk-eff-btn');
+  if (btn && btn.disabled) return;
+
+  try {
+    if (btn) { btn.disabled = true; btn.textContent = 'Loading candidates…'; }
+    const siteId = await getSpSiteId();
+    const listId = await getListIdByName(SP_CPAR_LIST);
+    const items = await graphGetAll(
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items` +
+      `?$expand=fields($select=Title,Status,History,ClosedAt)&$top=999` +
+      `&$filter=fields/Status eq '${encodeURIComponent(CPAR_STATUS.AWAITING_EFF_CHECK)}'`
+    );
+    const candidates = items.filter(i => i.fields && i.fields.Status === CPAR_STATUS.AWAITING_EFF_CHECK);
+    if (!candidates.length) {
+      toast('Nothing to verify — no CPARs currently at "Awaiting Effectiveness Check"', 'i');
+      return;
+    }
+    const preview = candidates.slice(0, 5).map(c => c.fields.Title).join(', ');
+    const tail = candidates.length > 5 ? `, …and ${candidates.length - 5} more` : '';
+    if (!confirm(
+      `Mark ALL ${candidates.length} CPARs awaiting effectiveness check as verified-effective and archive?\n\n` +
+      `Preview: ${preview}${tail}\n\n` +
+      `This cannot be undone (you'd have to manually re-open each from Archive). Click OK to proceed.`
+    )) return;
+
+    const me = (msalInstance.getAllAccounts()[0]?.username || 'system');
+    const nowIso = new Date().toISOString();
+    const token = await getGraphToken();
+    const BATCH = 20;
+    let ok = 0, fail = 0;
+    for (let i = 0; i < candidates.length; i += BATCH) {
+      const slice = candidates.slice(i, i + BATCH);
+      const requests = slice.map((c, idx) => ({
+        id: String(idx + 1),
+        method: 'PATCH',
+        url: `/sites/${siteId}/lists/${listId}/items/${c.id}/fields`,
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          Status:                  CPAR_STATUS.ARCHIVED,
+          EffectivenessVerified:   true,
+          EffectivenessVerifiedAt: nowIso,
+          EffectivenessVerifiedBy: me,
+          History: appendCPARHistory((c.fields && c.fields.History) || '', {
+            by: me, ev: 'bulk-effectiveness-verified', verified: true,
+          }),
+        },
+      }));
+      try {
+        const r = await fetch('https://graph.microsoft.com/v1.0/$batch', {
+          method: 'POST',
+          headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ requests }),
+        });
+        const data = await r.json();
+        for (const resp of (data.responses || [])) {
+          if (resp.status >= 200 && resp.status < 300) ok++; else fail++;
+        }
+      } catch (e) {
+        fail += slice.length;
+        console.warn('batch failed:', e.message);
+      }
+      const done = Math.min(i + BATCH, candidates.length);
+      if (btn) btn.textContent = `Verifying ${done}/${candidates.length}…  (ok=${ok}, fail=${fail})`;
+      // Brief pause between batches — gentle on Graph throttle.
+      if (i + BATCH < candidates.length) await new Promise(r => setTimeout(r, 200));
+    }
+
+    toast(`Done — ${ok} archived, ${fail} failed`, fail ? 'u' : 's');
+    // Refresh CPAR cache so the UI reflects the archive moves
+    await fetchCPARs();
+    renderQualitySubview();
+  } catch (e) {
+    console.error('bulkVerifyAllEffectiveness:', e);
+    toast('Bulk verify failed — ' + (e.message || 'unknown'), 'u');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🧹 Bulk-verify all (TEMP)'; }
+  }
 }
 
 async function effCreateRecurrence(originalItem, recurrenceNote) {
