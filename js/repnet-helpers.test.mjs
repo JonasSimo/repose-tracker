@@ -51,6 +51,13 @@ import {
   computeServiceSlaRisk,
   computeServiceOverdueCount,
   computeServiceKpis,
+  cpParseDmy,
+  cpDayDiff,
+  cpInitials,
+  cpInvestigatorRole,
+  cpCategoryClass,
+  cpSlaBand,
+  cpKpiAgg,
 } from './repnet-helpers.mjs';
 
 describe('isoNoMs', () => {
@@ -1977,5 +1984,232 @@ describe('computeServiceKpis', () => {
       { openClosed: 'OPEN', openDate: mkAge(1),  faultCode: 'FRAME' },
     ], [], { now });
     expect(k.topFault).toBe('FOAM');
+  });
+});
+
+// ── Complaints helpers ───────────────────────────────────────────────────
+
+describe('cpParseDmy', () => {
+  it('parses D/M/YYYY and DD/MM/YYYY', () => {
+    expect(cpParseDmy('5/3/2026').getDate()).toBe(5);
+    expect(cpParseDmy('15/05/2026').getMonth()).toBe(4);
+  });
+
+  it('ignores anything after the date portion', () => {
+    expect(cpParseDmy('15/05/2026 14:30').getDate()).toBe(15);
+  });
+
+  it('returns null for null/empty/malformed', () => {
+    expect(cpParseDmy(null)).toBe(null);
+    expect(cpParseDmy('')).toBe(null);
+    expect(cpParseDmy('not a date')).toBe(null);
+    expect(cpParseDmy('2026-05-15')).toBe(null); // wrong shape
+  });
+
+  it("does NOT reject rollovers (unlike parseDdmmyyyy — looser parser)", () => {
+    // cpParseDmy is the laxer Excel-source parser; 31/02 silently rolls to 03/03.
+    const d = cpParseDmy('31/02/2026');
+    expect(d).not.toBe(null);
+    expect(d.getMonth()).toBe(2); // March, not February — documented quirk
+  });
+});
+
+describe('cpDayDiff', () => {
+  it('returns whole days, floored', () => {
+    expect(cpDayDiff(new Date('2026-05-12'), new Date('2026-05-15'))).toBe(3);
+  });
+
+  it('returns 0 for the same day', () => {
+    const d = new Date('2026-05-12');
+    expect(cpDayDiff(d, d)).toBe(0);
+  });
+
+  it('returns negative when d2 < d1', () => {
+    expect(cpDayDiff(new Date('2026-05-15'), new Date('2026-05-12'))).toBe(-3);
+  });
+
+  it('floors fractional-day differences', () => {
+    expect(cpDayDiff(
+      new Date('2026-05-12T00:00:00Z'),
+      new Date('2026-05-13T22:00:00Z'),
+    )).toBe(1); // 1.91 days → 1
+  });
+});
+
+describe('cpInitials', () => {
+  it('returns first initial + last initial uppercased', () => {
+    expect(cpInitials('Alice Brown')).toBe('AB');
+    expect(cpInitials('jonas simonaitis')).toBe('JS');
+  });
+
+  it('handles single-word names', () => {
+    expect(cpInitials('Madonna')).toBe('M');
+  });
+
+  it("uses the first two words when more than two are given", () => {
+    expect(cpInitials('Mary Anne Jenkins')).toBe('MA');
+  });
+
+  it("collapses runs of whitespace and trims", () => {
+    expect(cpInitials('  Alice    Brown  ')).toBe('AB');
+  });
+
+  it("returns '?' for null / undefined / empty", () => {
+    expect(cpInitials(null)).toBe('?');
+    expect(cpInitials(undefined)).toBe('?');
+    expect(cpInitials('')).toBe('?');
+    expect(cpInitials('   ')).toBe('?');
+  });
+});
+
+describe('cpInvestigatorRole', () => {
+  const roleMap = {
+    'jonas.simonaitis@reposefurniture.co.uk': 'QHSE Manager',
+    'richard.semmens@reposefurniture.co.uk':  'Operations',
+  };
+
+  it('returns the mapped role for a known email', () => {
+    expect(cpInvestigatorRole('jonas.simonaitis@reposefurniture.co.uk', roleMap)).toBe('QHSE Manager');
+  });
+
+  it('is case-insensitive on the lookup key', () => {
+    expect(cpInvestigatorRole('JONAS.SIMONAITIS@reposefurniture.co.uk', roleMap)).toBe('QHSE Manager');
+  });
+
+  it("falls back to 'Investigator' for unmapped emails", () => {
+    expect(cpInvestigatorRole('someone@other.com', roleMap)).toBe('Investigator');
+  });
+
+  it("falls back to 'Investigator' for null/empty email", () => {
+    expect(cpInvestigatorRole(null, roleMap)).toBe('Investigator');
+    expect(cpInvestigatorRole('', roleMap)).toBe('Investigator');
+  });
+});
+
+describe('cpCategoryClass', () => {
+  it('classifies mechanism keywords', () => {
+    expect(cpCategoryClass('Motor not working').cls).toBe('mech');
+    expect(cpCategoryClass('Recline issue').label).toBe('Mechanism');
+    expect(cpCategoryClass('Handset fault').cls).toBe('mech');
+  });
+
+  it('classifies fabric keywords', () => {
+    expect(cpCategoryClass('Cover ripped').cls).toBe('fab');
+    expect(cpCategoryClass('Leather scuff').label).toBe('Fabric');
+  });
+
+  it('classifies frame keywords', () => {
+    expect(cpCategoryClass('Wooden rail cracked').cls).toBe('frame');
+    expect(cpCategoryClass('Joint loose').label).toBe('Frame');
+  });
+
+  it('classifies foam, stitching, delivery keywords', () => {
+    expect(cpCategoryClass('Foam compressed').cls).toBe('foam');
+    expect(cpCategoryClass('Seam stitch failed').cls).toBe('stitch');
+    expect(cpCategoryClass('Damaged in delivery').cls).toBe('deliv');
+  });
+
+  it("returns 'other' with the original category as label when nothing matches", () => {
+    expect(cpCategoryClass('Mystery complaint')).toEqual({ cls: 'other', label: 'Mystery complaint' });
+  });
+
+  it("returns 'Other' label for empty / null input", () => {
+    expect(cpCategoryClass('')).toEqual({ cls: 'other', label: 'Other' });
+    expect(cpCategoryClass(null)).toEqual({ cls: 'other', label: 'Other' });
+  });
+});
+
+describe('cpSlaBand', () => {
+  const now = new Date('2026-05-12T12:00:00');
+
+  it("flags an Open complaint as 'bad' once unassigned >3 days", () => {
+    const out = cpSlaBand({ status: 'Open', OpenDate: '01/05/2026' }, now);
+    expect(out.band).toBe('bad');
+    expect(out.isOverdue).toBe(true);
+    expect(out.label).toContain('Unassigned');
+  });
+
+  it("keeps an Open complaint 'ok' while unassigned <=3 days", () => {
+    const out = cpSlaBand({ status: 'Open', OpenDate: '10/05/2026' }, now);
+    expect(out.band).toBe('ok');
+    expect(out.isOverdue).toBe(false);
+  });
+
+  it("InProgress: ok <=21d, warn 22-35d, bad >35d", () => {
+    expect(cpSlaBand({ status: 'InProgress', OpenDate: '01/05/2026' }, now).band).toBe('ok');   // 11d
+    expect(cpSlaBand({ status: 'InProgress', OpenDate: '15/04/2026' }, now).band).toBe('warn'); // 27d
+    expect(cpSlaBand({ status: 'InProgress', OpenDate: '01/04/2026' }, now).band).toBe('bad');  // 41d
+  });
+
+  it("PendingClosure: warns when >7 days since investigator signed", () => {
+    const out = cpSlaBand({
+      status: 'PendingClosure', OpenDate: '15/04/2026',
+      inv: { InvestigatorSignedDate: '01/05/2026 14:30' },
+    }, now);
+    expect(out.band).toBe('warn'); // 11d since signed
+  });
+
+  it("Closed: returns elapsed days neutrally", () => {
+    const out = cpSlaBand({
+      status: 'Closed', OpenDate: '01/05/2026',
+      inv: { ClosedDate: '10/05/2026' },
+    }, now);
+    expect(out.band).toBe('neutral');
+    expect(out.days).toBe(9);
+    expect(out.label).toBe('Closed · 9d');
+  });
+
+  it("returns neutral '—' when OpenDate is missing or unparseable", () => {
+    expect(cpSlaBand({ status: 'Open' }, now).label).toBe('—');
+    expect(cpSlaBand({ status: 'Open', OpenDate: 'garbage' }, now).label).toBe('—');
+  });
+
+  it("handles null / undefined complaint safely", () => {
+    expect(cpSlaBand(null).band).toBe('neutral');
+    expect(cpSlaBand(undefined).label).toBe('—');
+  });
+});
+
+describe('cpKpiAgg', () => {
+  const now = new Date('2026-05-12T12:00:00');
+
+  it('returns zero-state for empty input', () => {
+    expect(cpKpiAgg([], now)).toEqual({
+      openUnassigned: 0, inProgress: 0, overdue: 0, closed30: 0, avgRes: '—',
+    });
+  });
+
+  it('counts open/inProgress and overdues', () => {
+    const k = cpKpiAgg([
+      { status: 'Open',       OpenDate: '01/05/2026' },   // overdue (>3d unassigned)
+      { status: 'Open',       OpenDate: '10/05/2026' },   // not yet overdue
+      { status: 'InProgress', OpenDate: '01/04/2026' },   // overdue (>35d)
+      { status: 'InProgress', OpenDate: '05/05/2026' },
+    ], now);
+    expect(k.openUnassigned).toBe(2);
+    expect(k.inProgress).toBe(2);
+    expect(k.overdue).toBe(2);
+  });
+
+  it('closed30 counts complaints closed within the last 30 days', () => {
+    const k = cpKpiAgg([
+      { status: 'Closed', OpenDate: '01/04/2026', inv: { ClosedDate: '01/05/2026' } },   // in window
+      { status: 'Closed', OpenDate: '01/03/2026', inv: { ClosedDate: '01/04/2026' } },   // >30d ago — out
+      { status: 'Closed', OpenDate: '01/05/2026', inv: { ClosedDate: '10/05/2026' } },   // in window
+    ], now);
+    expect(k.closed30).toBe(2);
+  });
+
+  it('avgRes averages resolution days for all closed complaints (one decimal)', () => {
+    const k = cpKpiAgg([
+      { status: 'Closed', OpenDate: '01/05/2026', inv: { ClosedDate: '06/05/2026' } }, // 5d
+      { status: 'Closed', OpenDate: '01/05/2026', inv: { ClosedDate: '11/05/2026' } }, // 10d
+    ], now);
+    expect(k.avgRes).toBe('7.5');
+  });
+
+  it('handles null entries in the list safely', () => {
+    const k = cpKpiAgg([null, { status: 'Open', OpenDate: '01/05/2026' }, undefined], now);
+    expect(k.openUnassigned).toBe(1);
   });
 });

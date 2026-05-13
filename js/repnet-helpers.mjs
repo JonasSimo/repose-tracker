@@ -889,6 +889,123 @@ export function computeServiceKpis(tickets, parts, options = {}) {
   };
 }
 
+// ── Complaints helpers ────────────────────────────────────────────────
+// Pure helpers from the Complaints tab. The inline copies use a global
+// `today = new Date()` and a const `CP_INVESTIGATOR_ROLE` lookup; module
+// versions take `now` and `roleMap` as explicit parameters.
+
+// DD/MM/YYYY parser — looser than parseDdmmyyyy (no rollover validation,
+// accepts 1-or-2-digit day/month). Returns null for falsy or unparseable.
+export function cpParseDmy(s) {
+  if (!s) return null;
+  const m = String(s).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (!m) return null;
+  const d = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+  return isNaN(d) ? null : d;
+}
+
+// Whole days from d1 to d2 (floor — so 1.9 days returns 1).
+export function cpDayDiff(d1, d2) {
+  return Math.floor((d2 - d1) / 86400000);
+}
+
+// 2-letter uppercase initials from a name. Handles missing surname,
+// extra whitespace, and empty input ('?' sentinel).
+export function cpInitials(name) {
+  const parts = String(name || '?').trim().split(/\s+/);
+  if (!parts[0]) return '?';
+  return ((parts[0][0] || '') + ((parts[1] && parts[1][0]) || '')).toUpperCase();
+}
+
+// Email → human-friendly investigator role label. Falls back to
+// 'Investigator' for unmapped emails. roleMap defaults to {}
+// (production passes the real CP_INVESTIGATOR_ROLE constant).
+export function cpInvestigatorRole(email, roleMap = {}) {
+  return roleMap[(email || '').toLowerCase()] || 'Investigator';
+}
+
+// Free-text category → pill class + display label. Pattern matching
+// is intentionally permissive to absorb the messy free-text Category
+// column from the Excel source.
+export function cpCategoryClass(cat) {
+  const s = String(cat || '').toLowerCase();
+  if (/mech|motor|recline|handset|electric/.test(s)) return { cls: 'mech',   label: 'Mechanism' };
+  if (/fab|cover|cushion|cloth|leather|colour/.test(s)) return { cls: 'fab', label: 'Fabric' };
+  if (/frame|wood|joint|crack|rail/.test(s))         return { cls: 'frame',  label: 'Frame' };
+  if (/foam|filling|seat pad|comfort/.test(s))       return { cls: 'foam',   label: 'Foam' };
+  if (/stitch|seam|piping|sewn/.test(s))             return { cls: 'stitch', label: 'Stitching' };
+  if (/deliv|transit|damage|scuff|trans/.test(s))    return { cls: 'deliv',  label: 'Delivery' };
+  return { cls: 'other', label: cat || 'Other' };
+}
+
+// Status-aware SLA classification for a complaint. Returns
+// `{ band, days, label, isOverdue }` with:
+//   - Open     >3d  → bad (overdue), else ok
+//   - InProgress >35d → bad, 21-35d → warn, else ok
+//   - PendingClosure >7d since investigator signed → warn, else ok
+//   - Closed → neutral, days = open→closed elapsed
+export function cpSlaBand(c, now = new Date()) {
+  const today = new Date(now); today.setHours(0, 0, 0, 0);
+  if (!c) return { band: 'neutral', days: 0, label: '—', isOverdue: false };
+  if (c.status === 'Closed') {
+    const opened = cpParseDmy(c.OpenDate);
+    const closed = cpParseDmy(c.inv && c.inv.ClosedDate);
+    if (opened && closed) {
+      const d = cpDayDiff(opened, closed);
+      return { band: 'neutral', days: d, label: `Closed · ${d}d`, isOverdue: false };
+    }
+    return { band: 'neutral', days: 0, label: 'Closed', isOverdue: false };
+  }
+  const opened = cpParseDmy(c.OpenDate);
+  if (!opened) return { band: 'neutral', days: 0, label: '—', isOverdue: false };
+  const days = cpDayDiff(opened, today);
+  if (c.status === 'Open') {
+    return days > 3
+      ? { band: 'bad', days, label: `Unassigned ${days}d`, isOverdue: true }
+      : { band: 'ok',  days, label: `Unassigned ${days}d`, isOverdue: false };
+  }
+  if (c.status === 'InProgress') {
+    if (days > 35) return { band: 'bad',  days, label: `In progress ${days}d`, isOverdue: true };
+    if (days > 21) return { band: 'warn', days, label: `In progress ${days}d`, isOverdue: false };
+    return            { band: 'ok',   days, label: `In progress ${days}d`, isOverdue: false };
+  }
+  if (c.status === 'PendingClosure') {
+    const subRaw = c.inv && c.inv.InvestigatorSignedDate;
+    const subDate = (subRaw && cpParseDmy(String(subRaw).split(' ')[0])) || opened;
+    const pendDays = cpDayDiff(subDate, today);
+    return pendDays > 7
+      ? { band: 'warn', days: pendDays, label: `Pending ${pendDays}d`, isOverdue: false }
+      : { band: 'ok',   days: pendDays, label: `Pending ${pendDays}d`, isOverdue: false };
+  }
+  return { band: 'neutral', days, label: `${days}d`, isOverdue: false };
+}
+
+// Aggregates the Complaints KPI tiles: openUnassigned, inProgress,
+// overdue, closed-in-last-30-days, average resolution time. avgRes is
+// returned as a string with one decimal place ('5.4') or '—' when no
+// closures.
+export function cpKpiAgg(all, now = new Date()) {
+  const today = new Date(now); today.setHours(0, 0, 0, 0);
+  const cutoff30 = new Date(today); cutoff30.setDate(cutoff30.getDate() - 30);
+  let openUnassigned = 0, inProgress = 0, overdue = 0, closed30 = 0;
+  let resTotalDays = 0, resCount = 0;
+  for (const c of (all || [])) {
+    if (!c) continue;
+    if (c.status === 'Open') openUnassigned++;
+    if (c.status === 'InProgress') inProgress++;
+    const sla = cpSlaBand(c, now);
+    if (sla.isOverdue) overdue++;
+    if (c.status === 'Closed') {
+      const closed = cpParseDmy(c.inv && c.inv.ClosedDate);
+      if (closed && closed >= cutoff30) closed30++;
+      const opened = cpParseDmy(c.OpenDate);
+      if (opened && closed) { resTotalDays += cpDayDiff(opened, closed); resCount++; }
+    }
+  }
+  const avgRes = resCount ? (resTotalDays / resCount).toFixed(1) : '—';
+  return { openUnassigned, inProgress, overdue, closed30, avgRes };
+}
+
 // Browser-global mirror so index.html inline scripts can reach these names
 // once the module finishes loading. No-op in Node/vitest. Names match the
 // existing inline conventions (_isoNoMs etc.) so callers stay unchanged.
