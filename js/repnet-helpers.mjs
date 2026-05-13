@@ -741,6 +741,154 @@ export function mtComputeTeamStatusToday(team, state = {}) {
   return { cls, label, checked, total, fails, lastIso };
 }
 
+// ── Service dashboard helpers ─────────────────────────────────────────
+// Pure helpers from the Service (Maxoptra) dashboard. The inline copies
+// read `_serviceState`, `_serviceFilters`, `Date.now()`; module versions
+// take state, filters, and `now` as explicit parameters.
+
+// Service-ticket "age in days" helper, shared between the predicates
+// below. Tickets without an openDate are treated as age 0.
+function _svcAgeDays(t, now) {
+  if (!t || !t.openDate) return 0;
+  return Math.round((now.getTime() - t.openDate.getTime()) / 86400000);
+}
+
+// True when a ticket matches the current Service filters. Definitions:
+//   - overdueOnly  → open >30 days (age-based, not proposedCloseDate)
+//   - slaRiskOnly  → open 15–30 days
+//   - period in30  → period30 string starts with 'inside 30'
+//   - period out30 → starts with 'outside 30'
+//   - wc           → warrantyChargeable bucket
+//   - q            → substring across ticketNo/customer/rep/description/fault
+export function serviceTicketMatches(ticket, filters = {}, now = new Date()) {
+  if (!ticket || ticket.openClosed !== 'OPEN') return false;
+  const ageDays = _svcAgeDays(ticket, now);
+  if (filters.overdueOnly && (!ticket.openDate || ageDays <= 30)) return false;
+  if (filters.slaRiskOnly && (!ticket.openDate || ageDays <= 14 || ageDays > 30)) return false;
+  if (filters.period === 'in30'  && !String(ticket.period30 || '').toLowerCase().startsWith('inside 30')) return false;
+  if (filters.period === 'out30' && !String(ticket.period30 || '').toLowerCase().startsWith('outside 30')) return false;
+  if (filters.wc && ticket.warrantyChargeable !== filters.wc) return false;
+  if (filters.q) {
+    const q = String(filters.q).toLowerCase();
+    const hay = `${ticket.ticketNo} ${ticket.customer} ${ticket.repNo} ${ticket.description} ${ticket.faultCode} ${ticket.subFault}`.toLowerCase();
+    if (!hay.includes(q)) return false;
+  }
+  return true;
+}
+
+// Chip-row counts for the Service tickets table. All scoped to open
+// tickets; age-based for overdue/slaRisk to match the row badges.
+export function serviceTicketCounts(tickets, now = new Date()) {
+  const open = (tickets || []).filter(t => t && t.openClosed === 'OPEN');
+  const age = t => _svcAgeDays(t, now);
+  return {
+    open: open.length,
+    overdue: open.filter(t => age(t) > 30).length,
+    slaRisk: open.filter(t => { const d = age(t); return d > 14 && d <= 30; }).length,
+    in30:  open.filter(t => String(t.period30 || '').toLowerCase().startsWith('inside 30')).length,
+    out30: open.filter(t => String(t.period30 || '').toLowerCase().startsWith('outside 30')).length,
+    warranty:    open.filter(t => t.warrantyChargeable === 'WARRANTY').length,
+    chargeable:  open.filter(t => t.warrantyChargeable === 'CHARGEABLE').length,
+    observation: open.filter(t => t.warrantyChargeable === 'OBSERVATION').length,
+  };
+}
+
+// Returns open tickets at risk of an SLA breach: % of close-window
+// elapsed is >= threshold (default 80%) AND not already past
+// proposedCloseDate (overdue gets its own treatment). Sorted by % desc.
+export function computeServiceSlaRisk(tickets, options = {}) {
+  const threshold = options.threshold != null ? options.threshold : 0.80;
+  const limit     = options.limit     != null ? options.limit     : 10;
+  const now       = options.now || new Date();
+  const at = [];
+  for (const t of (tickets || [])) {
+    if (!t || t.openClosed !== 'OPEN') continue;
+    if (!t.openDate || !t.proposedCloseDate) continue;
+    if (t.proposedCloseDate <= now) continue;
+    const total = t.proposedCloseDate.getTime() - t.openDate.getTime();
+    if (total <= 0) continue;
+    const elapsed = now.getTime() - t.openDate.getTime();
+    const pct = elapsed / total;
+    if (pct >= threshold) at.push({ ticket: t, pct: Math.round(pct * 100) });
+  }
+  at.sort((a, b) => b.pct - a.pct);
+  return at.slice(0, limit);
+}
+
+// Count of open tickets older than 30 days. Aligns with the chip + row
+// badge "overdue" definition (was previously proposedCloseDate-based,
+// which mismatched the visible age badges).
+export function computeServiceOverdueCount(tickets, now = new Date()) {
+  return (tickets || []).filter(t => {
+    if (!t || t.openClosed !== 'OPEN' || !t.openDate) return false;
+    return Math.round((now.getTime() - t.openDate.getTime()) / 86400000) > 30;
+  }).length;
+}
+
+// Full Service KPI suite. Returned shape mirrors what the dashboard
+// tiles render — see the inline _computeServiceKpis for the consumer
+// side. Close-time analytics (avgDaysClose, withinTarget) use a rolling
+// 12-month window; "this month" / "this week" KPIs stay short-window.
+export function computeServiceKpis(tickets, parts, options = {}) {
+  const now = options.now || new Date();
+  const ts = tickets || [];
+  const ps = parts || [];
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const weekStart = (() => {
+    const d = new Date(now);
+    const day = d.getDay() || 7;
+    d.setDate(d.getDate() - day + 1);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  })();
+  const yearStart = (() => { const d = new Date(now); d.setMonth(d.getMonth() - 12); return d; })();
+
+  const open      = ts.filter(t => t.openClosed === 'OPEN');
+  const openIn30  = open.filter(t => String(t.period30 || '').toLowerCase().startsWith('inside 30')).length;
+  const openOut30 = open.filter(t => String(t.period30 || '').toLowerCase().startsWith('outside 30')).length;
+  const overdue   = open.filter(t => {
+    if (!t.openDate) return false;
+    return Math.round((now.getTime() - t.openDate.getTime()) / 86400000) > 30;
+  }).length;
+
+  const closedLast12mo = ts.filter(t => t.closeDate && t.closeDate >= yearStart && t.closeDate <= now);
+  const closedWithDays = closedLast12mo.filter(t => t.daysToComplete > 0);
+
+  const avg = list => list.length === 0 ? 0 : Math.round(list.reduce((a, t) => a + t.daysToComplete, 0) / list.length);
+  const avgDaysClose       = avg(closedWithDays);
+  const avgWarrantyClose   = avg(closedWithDays.filter(t => t.warrantyChargeable === 'WARRANTY'));
+  const avgChargeableClose = avg(closedWithDays.filter(t => t.warrantyChargeable === 'CHARGEABLE'));
+
+  const partsInTransit = ps.filter(p => !p.isDelivered);
+  const partsDelivered = ps.filter(p => p.isDelivered);
+
+  const withinTarget = closedWithDays.length === 0 ? 0
+    : Math.round(closedWithDays.filter(t => t.daysToComplete <= 30).length / closedWithDays.length * 100);
+
+  const closedThisMonth = ts.filter(t => t.closeDate && t.closeDate >= monthStart && t.closeDate <= now);
+  const openedThisWeek  = ts.filter(t => t.openDate  && t.openDate  >= weekStart).length;
+  const closedThisWeek  = ts.filter(t => t.closeDate && t.closeDate >= weekStart).length;
+  const gbpMtd = closedThisMonth
+    .filter(t => t.warrantyChargeable === 'CHARGEABLE')
+    .reduce((a, t) => a + (t.gbp || 0) + (t.gbpDel || 0), 0);
+
+  const faultCounts = {};
+  for (const t of ts.filter(t => t.openDate && t.openDate >= monthStart)) {
+    const k = t.faultCode || '—';
+    faultCounts[k] = (faultCounts[k] || 0) + 1;
+  }
+  const topFault = Object.entries(faultCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
+
+  return {
+    open: open.length, openIn30, openOut30, overdue,
+    avgDaysClose, avgWarrantyClose, avgChargeableClose,
+    partsInTransit: partsInTransit.length, partsDelivered: partsDelivered.length,
+    withinTarget, openedThisWeek, closedThisWeek, gbpMtd, topFault,
+    closedLast12moCount: closedLast12mo.length,
+    closedThisMonthCount: closedThisMonth.length,
+  };
+}
+
 // Browser-global mirror so index.html inline scripts can reach these names
 // once the module finishes loading. No-op in Node/vitest. Names match the
 // existing inline conventions (_isoNoMs etc.) so callers stay unchanged.

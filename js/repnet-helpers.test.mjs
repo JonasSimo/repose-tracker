@@ -46,6 +46,11 @@ import {
   mtFreqDays,
   mtComputeYearlyStatus,
   mtComputeTeamStatusToday,
+  serviceTicketMatches,
+  serviceTicketCounts,
+  computeServiceSlaRisk,
+  computeServiceOverdueCount,
+  computeServiceKpis,
 } from './repnet-helpers.mjs';
 
 describe('isoNoMs', () => {
@@ -1703,5 +1708,274 @@ describe('mtComputeTeamStatusToday', () => {
     });
     expect(out.checked).toBe(0);
     expect(out.cls).toBe('warn');
+  });
+});
+
+// ── Service dashboard helpers ────────────────────────────────────────────
+
+describe('serviceTicketMatches', () => {
+  const now = new Date('2026-05-12T12:00:00Z');
+  const mkAge = days => new Date(now.getTime() - days * 86400000);
+
+  const baseTicket = {
+    ticketNo: 'SRV-001', customer: 'Smith', repNo: 'R-100',
+    description: 'frame creak', faultCode: 'FRM', subFault: '',
+    openClosed: 'OPEN', openDate: mkAge(10),
+    period30: 'Inside 30 days', warrantyChargeable: 'WARRANTY',
+  };
+
+  it('returns false for closed tickets regardless of other filters', () => {
+    expect(serviceTicketMatches({ ...baseTicket, openClosed: 'CLOSED' }, {}, now)).toBe(false);
+  });
+
+  it('with no filters set, an open ticket matches', () => {
+    expect(serviceTicketMatches(baseTicket, {}, now)).toBe(true);
+  });
+
+  it('overdueOnly filter: keeps tickets older than 30 days', () => {
+    expect(serviceTicketMatches({ ...baseTicket, openDate: mkAge(35) }, { overdueOnly: true }, now)).toBe(true);
+    expect(serviceTicketMatches({ ...baseTicket, openDate: mkAge(20) }, { overdueOnly: true }, now)).toBe(false);
+    expect(serviceTicketMatches({ ...baseTicket, openDate: mkAge(30) }, { overdueOnly: true }, now)).toBe(false);
+  });
+
+  it('slaRiskOnly filter: keeps tickets aged 15-30 days', () => {
+    expect(serviceTicketMatches({ ...baseTicket, openDate: mkAge(20) }, { slaRiskOnly: true }, now)).toBe(true);
+    expect(serviceTicketMatches({ ...baseTicket, openDate: mkAge(10) }, { slaRiskOnly: true }, now)).toBe(false);
+    expect(serviceTicketMatches({ ...baseTicket, openDate: mkAge(35) }, { slaRiskOnly: true }, now)).toBe(false);
+  });
+
+  it('period filter narrows by period30 prefix', () => {
+    expect(serviceTicketMatches({ ...baseTicket, period30: 'Inside 30 days' }, { period: 'in30'  }, now)).toBe(true);
+    expect(serviceTicketMatches({ ...baseTicket, period30: 'Outside 30 days' }, { period: 'in30'  }, now)).toBe(false);
+    expect(serviceTicketMatches({ ...baseTicket, period30: 'Outside 30 days' }, { period: 'out30' }, now)).toBe(true);
+  });
+
+  it('wc filter narrows by warrantyChargeable bucket', () => {
+    expect(serviceTicketMatches({ ...baseTicket, warrantyChargeable: 'WARRANTY' },   { wc: 'WARRANTY'   }, now)).toBe(true);
+    expect(serviceTicketMatches({ ...baseTicket, warrantyChargeable: 'CHARGEABLE' }, { wc: 'WARRANTY'   }, now)).toBe(false);
+    expect(serviceTicketMatches({ ...baseTicket, warrantyChargeable: 'CHARGEABLE' }, { wc: 'CHARGEABLE' }, now)).toBe(true);
+  });
+
+  it('q filter substring-matches across many fields, case-insensitive', () => {
+    expect(serviceTicketMatches(baseTicket, { q: 'SMITH' }, now)).toBe(true);
+    expect(serviceTicketMatches(baseTicket, { q: 'r-100' }, now)).toBe(true);
+    expect(serviceTicketMatches(baseTicket, { q: 'creak' }, now)).toBe(true);
+    expect(serviceTicketMatches(baseTicket, { q: 'nothing-here' }, now)).toBe(false);
+  });
+
+  it('combines multiple filters with AND semantics', () => {
+    expect(serviceTicketMatches(
+      { ...baseTicket, openDate: mkAge(35), warrantyChargeable: 'WARRANTY' },
+      { overdueOnly: true, wc: 'WARRANTY' }, now,
+    )).toBe(true);
+    expect(serviceTicketMatches(
+      { ...baseTicket, openDate: mkAge(35), warrantyChargeable: 'CHARGEABLE' },
+      { overdueOnly: true, wc: 'WARRANTY' }, now,
+    )).toBe(false);
+  });
+});
+
+describe('serviceTicketCounts', () => {
+  const now = new Date('2026-05-12T12:00:00Z');
+  const mkAge = days => new Date(now.getTime() - days * 86400000);
+
+  it('returns zeros for an empty list', () => {
+    expect(serviceTicketCounts([], now)).toEqual({
+      open: 0, overdue: 0, slaRisk: 0, in30: 0, out30: 0,
+      warranty: 0, chargeable: 0, observation: 0,
+    });
+  });
+
+  it('counts only open tickets', () => {
+    const counts = serviceTicketCounts([
+      { openClosed: 'OPEN',   openDate: mkAge(10), warrantyChargeable: 'WARRANTY',   period30: 'Inside 30 days' },
+      { openClosed: 'CLOSED', openDate: mkAge(5),  warrantyChargeable: 'CHARGEABLE', period30: 'Inside 30 days' },
+    ], now);
+    expect(counts.open).toBe(1);
+    expect(counts.warranty).toBe(1);
+    expect(counts.chargeable).toBe(0);
+  });
+
+  it('overdue=age>30, slaRisk=age 15-30', () => {
+    const counts = serviceTicketCounts([
+      { openClosed: 'OPEN', openDate: mkAge(35), warrantyChargeable: 'W', period30: 'Inside 30 days' },
+      { openClosed: 'OPEN', openDate: mkAge(20), warrantyChargeable: 'W', period30: 'Inside 30 days' },
+      { openClosed: 'OPEN', openDate: mkAge(10), warrantyChargeable: 'W', period30: 'Inside 30 days' },
+    ], now);
+    expect(counts.overdue).toBe(1);
+    expect(counts.slaRisk).toBe(1);
+  });
+
+  it('groups by inside30 / outside30 from period30 prefix', () => {
+    const counts = serviceTicketCounts([
+      { openClosed: 'OPEN', openDate: mkAge(5), warrantyChargeable: 'W', period30: 'Inside 30 days' },
+      { openClosed: 'OPEN', openDate: mkAge(5), warrantyChargeable: 'W', period30: 'Outside 30 days' },
+      { openClosed: 'OPEN', openDate: mkAge(5), warrantyChargeable: 'W', period30: 'Outside 30 days' },
+    ], now);
+    expect(counts.in30).toBe(1);
+    expect(counts.out30).toBe(2);
+  });
+});
+
+describe('computeServiceSlaRisk', () => {
+  const now = new Date('2026-05-12T12:00:00Z');
+  const days = n => n * 86400000;
+
+  it('returns [] for an empty list', () => {
+    expect(computeServiceSlaRisk([], { now })).toEqual([]);
+  });
+
+  it('returns tickets with elapsed% >= threshold', () => {
+    // open 10 days ago, closes in 1 day → 10/11 elapsed = 90.9% → at risk @ 80%
+    const ticket = {
+      openClosed: 'OPEN',
+      openDate: new Date(now.getTime() - days(10)),
+      proposedCloseDate: new Date(now.getTime() + days(1)),
+    };
+    const out = computeServiceSlaRisk([ticket], { now });
+    expect(out.length).toBe(1);
+    expect(out[0].pct).toBeGreaterThanOrEqual(80);
+  });
+
+  it('excludes tickets already past proposedCloseDate (overdue, not at-risk)', () => {
+    const ticket = {
+      openClosed: 'OPEN',
+      openDate: new Date(now.getTime() - days(10)),
+      proposedCloseDate: new Date(now.getTime() - days(1)),
+    };
+    expect(computeServiceSlaRisk([ticket], { now })).toEqual([]);
+  });
+
+  it('excludes closed tickets', () => {
+    const ticket = {
+      openClosed: 'CLOSED',
+      openDate: new Date(now.getTime() - days(10)),
+      proposedCloseDate: new Date(now.getTime() + days(1)),
+    };
+    expect(computeServiceSlaRisk([ticket], { now })).toEqual([]);
+  });
+
+  it('sorts by pct descending and respects limit', () => {
+    const mk = (open, close) => ({
+      openClosed: 'OPEN',
+      openDate: new Date(now.getTime() - days(open)),
+      proposedCloseDate: new Date(now.getTime() + days(close)),
+    });
+    const out = computeServiceSlaRisk([
+      mk(9, 1),   // 90%
+      mk(8, 2),   // 80%
+      mk(7, 3),   // 70% — below default threshold
+      mk(19, 1),  // 95%
+    ], { now });
+    expect(out.length).toBe(3);
+    expect(out[0].pct).toBeGreaterThanOrEqual(out[1].pct);
+    expect(out[1].pct).toBeGreaterThanOrEqual(out[2].pct);
+
+    const limited = computeServiceSlaRisk([mk(9, 1), mk(19, 1), mk(8, 2)], { now, limit: 2 });
+    expect(limited.length).toBe(2);
+  });
+
+  it('respects a custom threshold', () => {
+    const ticket = {
+      openClosed: 'OPEN',
+      openDate: new Date(now.getTime() - days(5)),
+      proposedCloseDate: new Date(now.getTime() + days(5)),
+    };
+    // 50% elapsed
+    expect(computeServiceSlaRisk([ticket], { now, threshold: 0.40 }).length).toBe(1);
+    expect(computeServiceSlaRisk([ticket], { now, threshold: 0.80 }).length).toBe(0);
+  });
+});
+
+describe('computeServiceOverdueCount', () => {
+  const now = new Date('2026-05-12T12:00:00Z');
+  const mkAge = days => new Date(now.getTime() - days * 86400000);
+
+  it('returns 0 for an empty list', () => {
+    expect(computeServiceOverdueCount([], now)).toBe(0);
+  });
+
+  it('counts open tickets older than 30 days', () => {
+    expect(computeServiceOverdueCount([
+      { openClosed: 'OPEN', openDate: mkAge(35) },
+      { openClosed: 'OPEN', openDate: mkAge(31) },
+      { openClosed: 'OPEN', openDate: mkAge(30) },
+      { openClosed: 'OPEN', openDate: mkAge(10) },
+    ], now)).toBe(2);
+  });
+
+  it('ignores closed tickets and missing openDate', () => {
+    expect(computeServiceOverdueCount([
+      { openClosed: 'CLOSED', openDate: mkAge(100) },
+      { openClosed: 'OPEN' },
+      { openClosed: 'OPEN', openDate: mkAge(35) },
+    ], now)).toBe(1);
+  });
+});
+
+describe('computeServiceKpis', () => {
+  const now = new Date('2026-05-12T12:00:00Z');
+  const mkAge = days => new Date(now.getTime() - days * 86400000);
+
+  it('returns a zero KPI suite for empty tickets + parts', () => {
+    const k = computeServiceKpis([], [], { now });
+    expect(k.open).toBe(0);
+    expect(k.overdue).toBe(0);
+    expect(k.avgDaysClose).toBe(0);
+    expect(k.partsInTransit).toBe(0);
+    expect(k.withinTarget).toBe(0);
+    expect(k.topFault).toBe('—');
+  });
+
+  it('counts open/openIn30/openOut30/overdue', () => {
+    const k = computeServiceKpis([
+      { openClosed: 'OPEN', openDate: mkAge(5),  period30: 'Inside 30 days' },
+      { openClosed: 'OPEN', openDate: mkAge(40), period30: 'Outside 30 days' },
+      { openClosed: 'OPEN', openDate: mkAge(35), period30: 'Inside 30 days' },
+    ], [], { now });
+    expect(k.open).toBe(3);
+    expect(k.openIn30).toBe(2);
+    expect(k.openOut30).toBe(1);
+    expect(k.overdue).toBe(2);
+  });
+
+  it('avgDaysClose averages closed tickets within the 12-month window with daysToComplete > 0', () => {
+    const k = computeServiceKpis([
+      { openClosed: 'CLOSED', closeDate: mkAge(30), daysToComplete: 10, warrantyChargeable: 'WARRANTY' },
+      { openClosed: 'CLOSED', closeDate: mkAge(60), daysToComplete: 20, warrantyChargeable: 'CHARGEABLE' },
+      { openClosed: 'CLOSED', closeDate: mkAge(90), daysToComplete: 0,  warrantyChargeable: 'WARRANTY' }, // excluded (0 days)
+    ], [], { now });
+    expect(k.avgDaysClose).toBe(15);
+    expect(k.avgWarrantyClose).toBe(10);
+    expect(k.avgChargeableClose).toBe(20);
+  });
+
+  it('withinTarget is the % of closed tickets with daysToComplete <= 30', () => {
+    const k = computeServiceKpis([
+      { openClosed: 'CLOSED', closeDate: mkAge(10), daysToComplete: 10 },
+      { openClosed: 'CLOSED', closeDate: mkAge(20), daysToComplete: 25 },
+      { openClosed: 'CLOSED', closeDate: mkAge(30), daysToComplete: 45 }, // out of target
+      { openClosed: 'CLOSED', closeDate: mkAge(40), daysToComplete: 60 }, // out of target
+    ], [], { now });
+    expect(k.withinTarget).toBe(50);
+  });
+
+  it('partsInTransit vs partsDelivered counts', () => {
+    const k = computeServiceKpis([], [
+      { isDelivered: false },
+      { isDelivered: false },
+      { isDelivered: true },
+    ], { now });
+    expect(k.partsInTransit).toBe(2);
+    expect(k.partsDelivered).toBe(1);
+  });
+
+  it('topFault is the most common fault among tickets opened this month', () => {
+    const k = computeServiceKpis([
+      { openClosed: 'OPEN', openDate: mkAge(5),  faultCode: 'FOAM' },
+      { openClosed: 'OPEN', openDate: mkAge(2),  faultCode: 'FOAM' },
+      { openClosed: 'OPEN', openDate: mkAge(1),  faultCode: 'FRAME' },
+    ], [], { now });
+    expect(k.topFault).toBe('FOAM');
   });
 });
