@@ -5002,8 +5002,8 @@ var PROD = {
   },
 };
 
-// Ordered: last 2 weeks, current, next — matches the 4-week window
-const WEEKS = ['WK 10', 'WK 11', 'WK 12', 'WK 13'];
+// Ordered: last 3 weeks, current, next — matches the 5-week window
+const WEEKS = ['WK 10', 'WK 11', 'WK 12', 'WK 13', 'WK 14'];
 
 // Teams where multiple people can complete a single job together
 const MULTI_SELECT_TEAMS = new Set(['Sewing']);
@@ -7377,7 +7377,7 @@ function openTeam(name, hasSubs) {
   activeTeam = name;
   activeHasSubs = hasSubs;
   activeSub = hasSubs ? 'Arms' : 'all';
-  activeWC = WEEKS[2] || WEEKS[1] || WEEKS[0]; // default to current week (index 2 in 4-week window)
+  activeWC = WEEKS[3] || WEEKS[2] || WEEKS[1] || WEEKS[0]; // default to current week (index 3 in 5-week window)
   activePrep = 1;
   showView('tracker');
   renderTeamSidebar();
@@ -11433,13 +11433,8 @@ async function loadProductionFromSharePoint() {
     PROD_DRIVE_ID = driveId;
     PROD_ITEM_ID  = itemId;
 
-    // 2. Determine 4-week window. Shift by days rather than by raw
-    // week number so weeks wrap correctly across the year boundary:
-    // in early January, naive `now - 2` produces -1 / 0 (no such
-    // sheet); in late December, `now + 1` produces 53 in a 52-week
-    // year (also no such sheet). Reading currentISOWeek for the
-    // shifted date returns the correct ISO week for that calendar
-    // position (e.g. 51, 52, 1, 2 around the new year).
+    // 2. Determine 5-week window. Shift by days rather than by raw
+    // week number so weeks wrap correctly across the year boundary.
     const _isoWeekOfDate = d => {
       const x = new Date(d); x.setHours(0,0,0,0);
       x.setDate(x.getDate() + 3 - (x.getDay()+6)%7);
@@ -11447,7 +11442,7 @@ async function loadProductionFromSharePoint() {
       return 1 + Math.round(((x-w1)/86400000 - 3 + (w1.getDay()+6)%7) / 7);
     };
     const _today = new Date(); _today.setHours(0,0,0,0);
-    const weekNums = [-2,-1,0,1].map(delta => {
+    const weekNums = [-3,-2,-1,0,1].map(delta => {
       const d = new Date(_today);
       d.setDate(d.getDate() + delta * 7);
       return _isoWeekOfDate(d);
@@ -11494,10 +11489,8 @@ async function loadProductionFromSharePoint() {
     newWEEKS.forEach(w => WEEKS.push(w));
     _prodVersion++; // invalidate findJobByRep index — jobs may have moved
 
-    // Current ISO week sits at index 2 in weekNums (built from [-2,-1,0,1]).
-    // Previously this branch referenced an undefined `now`, throwing
-    // ReferenceError whenever activeWC/activeProdWC needed a fallback.
-    const _currentWk = weekNums[2];
+    // Current ISO week sits at index 3 in weekNums (built from [-3,-2,-1,0,1]).
+    const _currentWk = weekNums[3];
     if (!activeWC || (activeWC !== 'PRIORITY' && !newWEEKS.includes(activeWC))) activeWC = `WK ${_currentWk}`;
     if (!activeProdWC || !newWEEKS.includes(activeProdWC)) activeProdWC = `WK ${_currentWk}`;
 
