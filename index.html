@@ -30636,16 +30636,34 @@ async function mtDeleteYearly(id) {
   // CPARLog is empty would otherwise understate reality).
   function countCparsByPriorWeeks(cpars, win, weeksBack, historical){
     const labels = [], counts = [];
+    // Diagnostic — first run we want to know exactly what the chart sees.
+    // Reads CPAR_ITEMS by reference so the row count here matches the pool
+    // the rest of the deck builder uses. Console-only; no UI side-effect.
+    const diag = [];
     for (let i = weeksBack - 1; i >= 0; i--){
       const monday = new Date(win.monday); monday.setDate(monday.getDate() - i*7);
       const sunday = new Date(monday);     sunday.setDate(sunday.getDate() + 6);
       sunday.setHours(23,59,59,999);
       const iso = isoWeekOf(monday);
-      const live = cpars.filter(x => { const d = cparLoggedAt(x); return d && d >= monday && d <= sunday; }).length;
+      const inWk = cpars.filter(x => { const d = cparLoggedAt(x); return d && d >= monday && d <= sunday; });
+      const live = inWk.length;
       const hist = historical?.[String(iso.isoYear)]?.[String(iso.week)];
       const c = Number.isFinite(hist) ? hist : live;
       labels.push(`Week ${iso.week}`); counts.push(c);
+      diag.push({
+        wk: iso.week, year: iso.isoYear,
+        mon: monday.toISOString().slice(0,10), sun: sunday.toISOString().slice(0,10),
+        live, hist: Number.isFinite(hist) ? hist : null, used: c,
+        sample: inWk.slice(0, 3).map(x => ({
+          ref: x.fields?.Title, loggedAt: x.fields?.LoggedAt, status: x.fields?.Status
+        })),
+      });
     }
+    console.group('[QA Deck] chart9 (S7 Total Internal Faults) trend breakdown');
+    console.log(`Total CPAR_ITEMS in pool: ${cpars.length}`);
+    console.table(diag.map(d => ({ week: d.wk, year: d.year, range: `${d.mon}…${d.sun}`, live: d.live, hist: d.hist, used: d.used })));
+    diag.forEach(d => { if (d.sample.length) console.log(`  wk${d.wk} sample:`, d.sample); });
+    console.groupEnd();
     return { labels, counts };
   }
   // Rolling-window subset: `weeksBack` ISO weeks ENDING at win.sunday (inclusive
