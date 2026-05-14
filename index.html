@@ -30629,6 +30629,29 @@ async function mtDeleteYearly(id) {
     }
     return { labels, counts };
   }
+  // Same shape but for CPARs (LoggedAt instead of openDate).
+  function countCparsByPriorWeeks(cpars, win, weeksBack){
+    const labels = [], counts = [];
+    for (let i = weeksBack - 1; i >= 0; i--){
+      const monday = new Date(win.monday); monday.setDate(monday.getDate() - i*7);
+      const sunday = new Date(monday);     sunday.setDate(sunday.getDate() + 6);
+      sunday.setHours(23,59,59,999);
+      const wk = isoWeekOf(monday).week;
+      const c = cpars.filter(x => { const d = cparLoggedAt(x); return d && d >= monday && d <= sunday; }).length;
+      labels.push(`Week ${wk}`); counts.push(c);
+    }
+    return { labels, counts };
+  }
+  // Rolling-window subset: `weeksBack` ISO weeks ENDING at win.sunday (inclusive
+  // of data week). Used by 6-week pareto charts on S5/S6/S7.
+  function ticketsInPriorWeeks(tickets, win, weeksBack, predicate){
+    const startMonday = new Date(win.monday); startMonday.setDate(startMonday.getDate() - (weeksBack - 1)*7);
+    return tickets.filter(t => predicate(t) && t.openDate >= startMonday && t.openDate <= win.sunday);
+  }
+  function cparsInPriorWeeks(cpars, win, weeksBack){
+    const startMonday = new Date(win.monday); startMonday.setDate(startMonday.getDate() - (weeksBack - 1)*7);
+    return cpars.filter(c => { const d = cparLoggedAt(c); return d && d >= startMonday && d <= win.sunday; });
+  }
 
   // ── data gathering ──
   async function gatherWeeklyQualityData(win){
@@ -30726,14 +30749,18 @@ async function mtDeleteYearly(id) {
     };
     addActionRowTokens(tokens, 'S5', 2, data.complaints);
     addActionRowTokens(tokens, 'S6', 1, data.warranty);
-    addCparRowTokens (tokens, 'S7', 2, data.internalCpars);
+    // S7 actions table stays entirely BLANK — user fills it manually during
+    // the meeting from the internal NCR list. Filling the row tokens (incl.
+    // OWNER) with empty strings clears the template-default '-' / 'JS' placeholders.
+    tokens.S7R1_TKT = ''; tokens.S7R1_RC = ''; tokens.S7R1_ACTION = ''; tokens.S7R1_OWNER = '';
+    tokens.S7R2_TKT = ''; tokens.S7R2_RC = ''; tokens.S7R2_ACTION = ''; tokens.S7R2_OWNER = '';
 
-    // Pre-process slides 5/6/7 — clone rows if more items than template capacity.
+    // Pre-process slides 5/6 — clone rows if more items than template capacity.
     // MUST run before global token replacement so cloned-row tokens exist in XML.
+    // S7 deliberately NOT expanded — its actions table stays at 2 blank rows.
     const expansions = [
       { slide: 'ppt/slides/slide5.xml', prefix: 'S5', cap: 2, n: data.complaints.length },
       { slide: 'ppt/slides/slide6.xml', prefix: 'S6', cap: 1, n: data.warranty.length },
-      { slide: 'ppt/slides/slide7.xml', prefix: 'S7', cap: 2, n: data.internalCpars.length },
     ];
     for (const e of expansions) {
       const f = zip.file(e.slide); if (!f) continue;
@@ -30752,13 +30779,15 @@ async function mtDeleteYearly(id) {
 
     // ── chart data updates ──
     const tickets = data.allTickets || [];
-    // Trend-by-week charts (S5 chart1, S6 chart4) — 8-week window ending data week.
-    // Same permissive period-30 matcher as the actions tables.
+    // Trend-by-week (S5 chart1, S6 chart4, S7 chart9) — 8-week window
+    // ENDING data week. Same permissive period-30 matcher as the actions tables.
     const trendUpdates = [
       { file: 'ppt/charts/chart1.xml',
         ...countByPriorWeeks(tickets, win, 8, t => t.warrantyChargeable === 'WARRANTY' && isInside30(t)) },
       { file: 'ppt/charts/chart4.xml',
         ...countByPriorWeeks(tickets, win, 8, t => t.warrantyChargeable === 'WARRANTY' && isOutside30(t)) },
+      { file: 'ppt/charts/chart9.xml',
+        ...countCparsByPriorWeeks(cpars, win, 8) },
     ];
     for (const u of trendUpdates) {
       const f = zip.file(u.file);
@@ -30767,16 +30796,26 @@ async function mtDeleteYearly(id) {
       zip.file(u.file, updateTrendChart(xml, u.labels, u.counts));
     }
 
-    // Pareto charts on S5 + S6 — data window scope (matches the actions table on the same slide).
-    const s5BC = aggregateByKey(data.complaints, t => t.customer, 7);
-    const s5BF = aggregateByKey(data.complaints, t => t.faultCode, 0);
-    const s6BC = aggregateByKey(data.warranty,  t => t.customer, 7);
-    const s6BF = aggregateByKey(data.warranty,  t => t.faultCode, 0);
+    // ── Pareto charts on S5/S6/S7 — 6-week rolling window ENDING data week. ──
+    // Larger window than the actions tables on purpose: the pareto is meant
+    // to show pattern context, not just the single week being reported.
+    const PARETO_WEEKS = 6;
+    const s5Pool = ticketsInPriorWeeks(tickets, win, PARETO_WEEKS,
+      t => t.warrantyChargeable === 'WARRANTY' && isInside30(t));
+    const s6Pool = ticketsInPriorWeeks(tickets, win, PARETO_WEEKS,
+      t => t.warrantyChargeable === 'WARRANTY' && isOutside30(t));
+    const s7Pool = cparsInPriorWeeks(cpars, win, PARETO_WEEKS);
+
     const paretoUpdates = [
-      { file: 'ppt/charts/chart2.xml', ...s5BC },  // S5 by customer
-      { file: 'ppt/charts/chart3.xml', ...s5BF },  // S5 by fault code
-      { file: 'ppt/charts/chart5.xml', ...s6BC },  // S6 by customer
-      { file: 'ppt/charts/chart6.xml', ...s6BF },  // S6 by fault code
+      // S5 top-right + bottom-left
+      { file: 'ppt/charts/chart2.xml', ...aggregateByKey(s5Pool, t => t.customer,  7) },
+      { file: 'ppt/charts/chart3.xml', ...aggregateByKey(s5Pool, t => t.faultCode, 0) },
+      // S6 top-right + bottom-left
+      { file: 'ppt/charts/chart5.xml', ...aggregateByKey(s6Pool, t => t.customer,  7) },
+      { file: 'ppt/charts/chart6.xml', ...aggregateByKey(s6Pool, t => t.faultCode, 0) },
+      // S7 top-right "By Chair model" (PrimaryModel) + bottom-left "By Team" (SourceDept)
+      { file: 'ppt/charts/chart7.xml', ...aggregateByKey(s7Pool, c => c.fields?.PrimaryModel, 7) },
+      { file: 'ppt/charts/chart8.xml', ...aggregateByKey(s7Pool, c => c.fields?.SourceDept,   7) },
     ];
     for (const u of paretoUpdates) {
       const f = zip.file(u.file);

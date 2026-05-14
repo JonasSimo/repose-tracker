@@ -75,6 +75,9 @@ const patches = [
   { slide: 7, find: '-', replace: '{{S7R1_RC}}' },
   { slide: 7, find: '-', replace: '{{S7R2_TKT}}' },
   { slide: 7, find: '-', replace: '{{S7R2_RC}}' },
+  // Owner cells on S7 — tokenise so the actions table can be wiped completely.
+  { slide: 7, find: 'JS', replace: '{{S7R1_OWNER}}' },
+  { slide: 7, find: 'JS', replace: '{{S7R2_OWNER}}' },
 
   // ── S10 CoPQ totals — three sections (scrap → rework → concession),
   //    weekly + monthly each. Sequential single-replace handles duplicates.

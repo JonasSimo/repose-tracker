@@ -166,12 +166,13 @@ function addCparRowTokens(tokens, prefix, capacity, cpars){
   };
   addActionRowTokens(tokens, 'S5', 2, data.complaints);
   addActionRowTokens(tokens, 'S6', 1, data.warranty);
-  addCparRowTokens (tokens, 'S7', 2, data.internalCpars);
+  // S7 actions table stays entirely blank — user fills manually during the meeting.
+  tokens.S7R1_TKT = ''; tokens.S7R1_RC = ''; tokens.S7R1_ACTION = ''; tokens.S7R1_OWNER = '';
+  tokens.S7R2_TKT = ''; tokens.S7R2_RC = ''; tokens.S7R2_ACTION = ''; tokens.S7R2_OWNER = '';
 
   const expansions = [
     { slide: 'ppt/slides/slide5.xml', prefix: 'S5', cap: 2, n: data.complaints.length },
     { slide: 'ppt/slides/slide6.xml', prefix: 'S6', cap: 1, n: data.warranty.length },
-    { slide: 'ppt/slides/slide7.xml', prefix: 'S7', cap: 2, n: data.internalCpars.length },
   ];
   for (const e of expansions) {
     const f = zip.file(e.slide); if (!f) continue;
