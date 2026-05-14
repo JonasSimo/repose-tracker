@@ -18538,14 +18538,17 @@ async function deleteCPAR() {
       `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}`,
       { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }
     );
-    if (!res.ok && res.status !== 204) throw new Error(`HTTP ${res.status}`);
+    // 404 = already gone on the server (stale local cache or deleted elsewhere).
+    // From the user's perspective the desired end state is already true, so treat as success.
+    if (!res.ok && res.status !== 404) throw new Error(`HTTP ${res.status}`);
     CPAR_ITEMS = CPAR_ITEMS.filter(i => i.id !== id);
+    _saveListCache('cpar', CPAR_ITEMS);
     if (typeof _clearCparDrafts === 'function') _clearCparDrafts(id);
     if (typeof _peEcrConfirmedCache !== 'undefined') _peEcrConfirmedCache.delete(id);
     document.getElementById(`cpar-card-${id}`)?.remove();
     document.getElementById('modal-cpar-delete').style.display = 'none';
     updateIssuesTabBadge();
-    toast('CPAR deleted', 's');
+    toast(res.status === 404 ? 'CPAR was already removed' : 'CPAR deleted', 's');
   } catch(e) {
     toast('Delete failed: ' + e.message, 'u');
   } finally {
