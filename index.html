@@ -30661,8 +30661,26 @@ async function mtDeleteYearly(id) {
     }
     console.group('[QA Deck] chart9 (S7 Total Internal Faults) trend breakdown');
     console.log(`Total CPAR_ITEMS in pool: ${cpars.length}`);
+    // Overall LoggedAt distribution — helps spot date-parse failures or
+    // unexpected clustering. parseCPARDate returning Date(0) shows up as
+    // a huge spike at "1970-01-01".
+    const parsedDates = cpars.map(c => cparLoggedAt(c)).filter(d => d && d.getTime());
+    const nullCount = cpars.length - parsedDates.length;
+    if (parsedDates.length){
+      const sorted = parsedDates.slice().sort((a,b) => a - b);
+      console.log(`LoggedAt range: ${sorted[0].toISOString().slice(0,10)} … ${sorted[sorted.length-1].toISOString().slice(0,10)}`);
+      console.log(`CPARs with unparseable / missing LoggedAt: ${nullCount}`);
+      // ISO-week distribution across the ENTIRE pool (not just the 8 trend weeks).
+      const byWeek = new Map();
+      for (const d of parsedDates){
+        const iw = isoWeekOf(d);
+        const k = `${iw.isoYear}-W${String(iw.week).padStart(2,'0')}`;
+        byWeek.set(k, (byWeek.get(k)||0) + 1);
+      }
+      console.log('Full CPAR-pool ISO-week distribution:', Object.fromEntries([...byWeek.entries()].sort()));
+    }
     console.table(diag.map(d => ({ week: d.wk, year: d.year, range: `${d.mon}…${d.sun}`, live: d.live, hist: d.hist, used: d.used })));
-    diag.forEach(d => { if (d.sample.length) console.log(`  wk${d.wk} sample:`, d.sample); });
+    diag.forEach(d => { if (d.sample.length) console.log(`  wk${d.wk} samples:`, d.sample); });
     console.groupEnd();
     return { labels, counts };
   }
@@ -30742,15 +30760,34 @@ async function mtDeleteYearly(id) {
     const rows = ur.values || [];
     console.log(`  step 3/4 - usedRange rows: ${rows.length}`);
     if (rows.length < 2) { console.warn('  empty workbook (≤1 row)'); return []; }
-    const headerRow = rows[0].map(s => String(s == null ? '' : s).trim());
-    console.log(`  step 4/4 - header row: [${headerRow.join(' | ')}]`);
-    const idx = {};
-    for (const h of requiredHeaders){
-      const i = headerRow.indexOf(h);
-      if (i < 0) throw new Error(`Excel "${sheetName}" missing column "${h}" (got: ${headerRow.join(' | ')})`);
-      idx[h] = i;
+    // Find the header row by scanning the first few rows for one that
+    // contains ALL required headers. Excel files often have a merged title
+    // on row 1 (or rows 1-2), pushing actual column headers down. Scan up
+    // to row 6 so we tolerate title + sub-title + blank row before headers.
+    const SCAN_LIMIT = Math.min(rows.length, 6);
+    let headerIdx = -1, headerRow = null, idx = null;
+    for (let r = 0; r < SCAN_LIMIT; r++){
+      const candidate = rows[r].map(s => String(s == null ? '' : s).trim());
+      const probeIdx = {};
+      const hits = requiredHeaders.filter(h => {
+        const i = candidate.indexOf(h);
+        if (i >= 0) probeIdx[h] = i;
+        return i >= 0;
+      });
+      if (hits.length === requiredHeaders.length){
+        headerIdx = r; headerRow = candidate; idx = probeIdx; break;
+      }
     }
-    return rows.slice(1)
+    console.log(`  step 4/4 - header search (scanned ${SCAN_LIMIT} rows)`);
+    for (let r = 0; r < SCAN_LIMIT; r++){
+      const c = rows[r].map(s => String(s == null ? '' : s).trim());
+      console.log(`    row ${r}: [${c.slice(0, 15).join(' | ')}${c.length > 15 ? ' | …' : ''}]`);
+    }
+    if (headerIdx < 0) {
+      throw new Error(`Excel "${sheetName}" missing required columns (${requiredHeaders.join(', ')}) in first ${SCAN_LIMIT} rows`);
+    }
+    console.log(`  header row found at index ${headerIdx}: [${headerRow.join(' | ')}]`);
+    return rows.slice(headerIdx + 1)
       .filter(r => r.some(c => c !== '' && c != null))
       .map(r => {
         const rec = {};
