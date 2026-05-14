@@ -30995,11 +30995,15 @@ async function mtDeleteYearly(id) {
     }
 
     // S8 (Concessions) + S9 (Supplier Issues) — wipe the example data baked
-    // into the template's actions table. Headers stay; data rows blank.
+    // into the template's actions table, AND swap WK_NUM_PREV → WK_NUM in
+    // the banner so the slide reads the same data week as S5/S6/S7. (S12
+    // keeps WK_NUM_PREV — scrap counts intentionally lag by a week.)
     for (const sf of ['ppt/slides/slide8.xml', 'ppt/slides/slide9.xml']) {
       const f = zip.file(sf); if (!f) continue;
-      const xml = await f.async('string');
-      zip.file(sf, blankActionsTableDataRows(xml));
+      let xml = await f.async('string');
+      xml = xml.split('{{WK_NUM_PREV}}').join('{{WK_NUM}}');
+      xml = blankActionsTableDataRows(xml);
+      zip.file(sf, xml);
     }
 
     const slideFiles = Object.keys(zip.files).filter(n => /^ppt\/slides\/slide\d+\.xml$/.test(n));
@@ -31026,12 +31030,12 @@ async function mtDeleteYearly(id) {
         ...countByPriorWeeks(tickets, win, 8, t => t.warrantyChargeable === 'WARRANTY' && isOutside30(t)) },
       { file: 'ppt/charts/chart9.xml',
         ...countCparsByPriorWeeks(cpars, win, 8, historicalNcrs) },
-      // S8 top-left "Concession raised by week" — 8-week window ending prev week.
+      // S8 top-left "Concession raised by week" — 8-week window ending data week.
       { file: 'ppt/charts/chart12.xml',
-        ...countRecordsByPriorWeeks(data.concessions, prevWin, 8, r => r._date) },
-      // S9 top-left "SCAR's raised per week" — 8-week window ending prev week.
+        ...countRecordsByPriorWeeks(data.concessions, win, 8, r => r._date) },
+      // S9 top-left "SCAR's raised per week" — 8-week window ending data week.
       { file: 'ppt/charts/chart14.xml',
-        ...countRecordsByPriorWeeks(data.supplierIssues, prevWin, 8, r => r._date) },
+        ...countRecordsByPriorWeeks(data.supplierIssues, win, 8, r => r._date) },
     ];
     for (const u of trendUpdates) {
       const f = zip.file(u.file);
@@ -31049,9 +31053,9 @@ async function mtDeleteYearly(id) {
     const s6Pool = ticketsInPriorWeeks(tickets, win, PARETO_WEEKS,
       t => t.warrantyChargeable === 'WARRANTY' && isOutside30(t));
     const s7Pool = cparsInPriorWeeks(cpars, win, PARETO_WEEKS);
-    // S8/S9 paretos — 6-week rolling window ending prev week, same as S5/S6/S7.
-    const s8Pool = recordsInPriorWeeks(data.concessions,    prevWin, PARETO_WEEKS, r => r._date);
-    const s9Pool = recordsInPriorWeeks(data.supplierIssues, prevWin, PARETO_WEEKS, r => r._date);
+    // S8/S9 paretos — 6-week rolling window ending data week, same as S5/S6/S7.
+    const s8Pool = recordsInPriorWeeks(data.concessions,    win, PARETO_WEEKS, r => r._date);
+    const s9Pool = recordsInPriorWeeks(data.supplierIssues, win, PARETO_WEEKS, r => r._date);
 
     const paretoUpdates = [
       // S5 top-right + bottom-left
