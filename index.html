@@ -30677,7 +30677,8 @@ async function mtDeleteYearly(id) {
         const k = `${iw.isoYear}-W${String(iw.week).padStart(2,'0')}`;
         byWeek.set(k, (byWeek.get(k)||0) + 1);
       }
-      console.log('Full CPAR-pool ISO-week distribution:', Object.fromEntries([...byWeek.entries()].sort()));
+      const distObj = Object.fromEntries([...byWeek.entries()].sort());
+      console.log('Full CPAR-pool ISO-week distribution:', JSON.stringify(distObj));
     }
     console.table(diag.map(d => ({ week: d.wk, year: d.year, range: `${d.mon}…${d.sun}`, live: d.live, hist: d.hist, used: d.used })));
     diag.forEach(d => { if (d.sample.length) console.log(`  wk${d.wk} samples:`, d.sample); });
@@ -30764,13 +30765,18 @@ async function mtDeleteYearly(id) {
     // contains ALL required headers. Excel files often have a merged title
     // on row 1 (or rows 1-2), pushing actual column headers down. Scan up
     // to row 6 so we tolerate title + sub-title + blank row before headers.
-    const SCAN_LIMIT = Math.min(rows.length, 6);
+    const SCAN_LIMIT = Math.min(rows.length, 20);
     let headerIdx = -1, headerRow = null, idx = null;
+    // Tolerate trailing whitespace, case, punctuation drift in headers — many
+    // SP-managed Excel files have things like "Date Raised " or "FaultCode".
+    const norm = s => String(s == null ? '' : s).trim().toLowerCase().replace(/\s+/g, ' ').replace(/[. ]/g,'');
+    const requiredNorm = requiredHeaders.map(norm);
     for (let r = 0; r < SCAN_LIMIT; r++){
       const candidate = rows[r].map(s => String(s == null ? '' : s).trim());
+      const candidateNorm = candidate.map(norm);
       const probeIdx = {};
-      const hits = requiredHeaders.filter(h => {
-        const i = candidate.indexOf(h);
+      const hits = requiredHeaders.filter((h, k) => {
+        const i = candidateNorm.indexOf(requiredNorm[k]);
         if (i >= 0) probeIdx[h] = i;
         return i >= 0;
       });
@@ -30781,7 +30787,10 @@ async function mtDeleteYearly(id) {
     console.log(`  step 4/4 - header search (scanned ${SCAN_LIMIT} rows)`);
     for (let r = 0; r < SCAN_LIMIT; r++){
       const c = rows[r].map(s => String(s == null ? '' : s).trim());
-      console.log(`    row ${r}: [${c.slice(0, 15).join(' | ')}${c.length > 15 ? ' | …' : ''}]`);
+      // Show every cell that has any content + index, so headers in column 20+
+      // are visible. Empty cells suppressed to keep the log readable.
+      const nonEmpty = c.map((v, i) => v ? `${i}:"${v}"` : null).filter(Boolean);
+      console.log(`    row ${r} (${c.length} cells, ${nonEmpty.length} non-empty): ${nonEmpty.join(' | ') || '(all empty)'}`);
     }
     if (headerIdx < 0) {
       throw new Error(`Excel "${sheetName}" missing required columns (${requiredHeaders.join(', ')}) in first ${SCAN_LIMIT} rows`);
