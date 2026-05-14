@@ -31026,12 +31026,14 @@ async function mtDeleteYearly(id) {
         ...countByPriorWeeks(tickets, win, 8, t => t.warrantyChargeable === 'WARRANTY' && isOutside30(t)) },
       { file: 'ppt/charts/chart9.xml',
         ...countCparsByPriorWeeks(cpars, win, 8, historicalNcrs) },
-      // S8 top-left "Concession raised by week" — 8 weeks ending prev week.
+      // S8 top-left "Concession raised by week" — 13-week window ending prev
+      // week. Concessions are sparse (a few per quarter), so an 8-week chart
+      // would mostly be zeros; 13 gives enough context to see any pattern.
       { file: 'ppt/charts/chart12.xml',
-        ...countRecordsByPriorWeeks(data.concessions, prevWin, 8, r => r._date) },
-      // S9 top-left "SCAR's raised per week" — 8 weeks ending prev week.
+        ...countRecordsByPriorWeeks(data.concessions, prevWin, 13, r => r._date) },
+      // S9 top-left "SCAR's raised per week" — 13-week window, same reason.
       { file: 'ppt/charts/chart14.xml',
-        ...countRecordsByPriorWeeks(data.supplierIssues, prevWin, 8, r => r._date) },
+        ...countRecordsByPriorWeeks(data.supplierIssues, prevWin, 13, r => r._date) },
     ];
     for (const u of trendUpdates) {
       const f = zip.file(u.file);
@@ -31049,10 +31051,10 @@ async function mtDeleteYearly(id) {
     const s6Pool = ticketsInPriorWeeks(tickets, win, PARETO_WEEKS,
       t => t.warrantyChargeable === 'WARRANTY' && isOutside30(t));
     const s7Pool = cparsInPriorWeeks(cpars, win, PARETO_WEEKS);
-    // S8/S9 paretos use the prev-week-anchored window so they match the
-    // {{WK_NUM_PREV}} banner on those slides.
-    const s8Pool = recordsInPriorWeeks(data.concessions,    prevWin, PARETO_WEEKS, r => r._date);
-    const s9Pool = recordsInPriorWeeks(data.supplierIssues, prevWin, PARETO_WEEKS, r => r._date);
+    // S8/S9 paretos use a 13-week window — concession + supplier data is
+    // sparse, a 6-week pareto would barely have any bars.
+    const s8Pool = recordsInPriorWeeks(data.concessions,    prevWin, 13, r => r._date);
+    const s9Pool = recordsInPriorWeeks(data.supplierIssues, prevWin, 13, r => r._date);
 
     const paretoUpdates = [
       // S5 top-right + bottom-left
