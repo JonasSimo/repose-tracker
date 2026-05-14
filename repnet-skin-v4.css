@@ -1458,6 +1458,12 @@
 
 .ui-v4 #fb-modal {
   width: min(520px, calc(100vw - 32px));
+  /* Cap to viewport so the footer (Send button) stays reachable on small
+     screens, especially with the mobile keyboard open. dvh respects the
+     dynamic visual viewport on iOS/Android; vh fallback for older Safari. */
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+  display: flex; flex-direction: column;
   background: #fff; border-radius: 18px;
   box-shadow:
     0 30px 60px -20px rgba(14,2,58,0.45),
@@ -1492,7 +1498,14 @@
 }
 .ui-v4 .fb-close:hover { background: #f1f0f6; color: var(--repose-navy); }
 
-.ui-v4 .fb-body { padding: 18px 22px 6px; }
+.ui-v4 .fb-body {
+  padding: 18px 22px 6px;
+  /* Allow the body to scroll while the footer stays pinned. min-height:0
+     is required so the flex child can actually shrink below its content. */
+  overflow-y: auto;
+  min-height: 0;
+  -webkit-overflow-scrolling: touch;
+}
 .ui-v4 .fb-label {
   font-family: var(--skin-mono);
   font-size: 10px; letter-spacing: 0.1em; color: #5b5773;
@@ -1580,4 +1593,15 @@
 @media (max-width: 900px) {
   .ui-v4 #fb-fab { right: 16px; bottom: 16px; width: 50px; height: 50px; }
   .ui-v4 #fb-fab svg { width: 20px; height: 20px; }
+  /* Full-height sheet on phones so Send is always reachable above the keyboard */
+  .ui-v4 #fb-modal {
+    width: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
+  }
+  .ui-v4 .fb-foot {
+    padding-bottom: max(18px, env(safe-area-inset-bottom));
+  }
+  .ui-v4 #fb-note { min-height: 90px; }
 }
