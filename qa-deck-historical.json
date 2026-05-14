@@ -1,0 +1,11 @@
+{
+  "_comment": "Hard-coded historical Internal NCR weekly counts for the S7 'Total Internal Faults' trend chart. These weeks pre-date the RepNet CPARLog or weren't logged in it; the live CPAR count would understate the truth. Override applies regardless of how many CPARs are in RepNet for that week. Add or edit entries here without touching index.html.",
+  "internalNcrsByWeek": {
+    "2026": {
+      "12": 89,
+      "13": 56,
+      "14": 46,
+      "15": 42
+    }
+  }
+}

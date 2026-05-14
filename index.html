@@ -30629,16 +30629,22 @@ async function mtDeleteYearly(id) {
     }
     return { labels, counts };
   }
-  // Same shape but for CPARs (LoggedAt instead of openDate).
-  function countCparsByPriorWeeks(cpars, win, weeksBack){
+  // Same shape but for CPARs (LoggedAt instead of openDate). `historical` is
+  // the optional sidecar map from qa-deck-historical.json — keys are
+  // { [isoYear]: { [weekNo]: count } }. When a week appears there, the
+  // hard-coded count REPLACES the live count (pre-RepNet weeks where the
+  // CPARLog is empty would otherwise understate reality).
+  function countCparsByPriorWeeks(cpars, win, weeksBack, historical){
     const labels = [], counts = [];
     for (let i = weeksBack - 1; i >= 0; i--){
       const monday = new Date(win.monday); monday.setDate(monday.getDate() - i*7);
       const sunday = new Date(monday);     sunday.setDate(sunday.getDate() + 6);
       sunday.setHours(23,59,59,999);
-      const wk = isoWeekOf(monday).week;
-      const c = cpars.filter(x => { const d = cparLoggedAt(x); return d && d >= monday && d <= sunday; }).length;
-      labels.push(`Week ${wk}`); counts.push(c);
+      const iso = isoWeekOf(monday);
+      const live = cpars.filter(x => { const d = cparLoggedAt(x); return d && d >= monday && d <= sunday; }).length;
+      const hist = historical?.[String(iso.isoYear)]?.[String(iso.week)];
+      const c = Number.isFinite(hist) ? hist : live;
+      labels.push(`Week ${iso.week}`); counts.push(c);
     }
     return { labels, counts };
   }
@@ -30702,6 +30708,18 @@ async function mtDeleteYearly(id) {
       const cfgResp = await fetch('./qa-deck-config.json', { cache: 'no-store' });
       if (cfgResp.ok) cfg = await cfgResp.json();
     } catch (e) { console.warn('[QA Deck] qa-deck-config.json fetch failed, using defaults:', e); }
+
+    // Historical Internal NCR counts for weeks that pre-date the RepNet
+    // CPARLog — populates S7 chart9 (top-left "Total Internal Faults") so
+    // the 8-week trend isn't artificially low for pre-rollout weeks.
+    let historicalNcrs = null;
+    try {
+      const histResp = await fetch('./qa-deck-historical.json', { cache: 'no-store' });
+      if (histResp.ok) {
+        const h = await histResp.json();
+        historicalNcrs = h.internalNcrsByWeek || null;
+      }
+    } catch (e) { console.warn('[QA Deck] qa-deck-historical.json fetch failed, using live data only:', e); }
 
     const today = new Date();
     const wcDay = pad2(win.monday.getDate());
@@ -30787,7 +30805,7 @@ async function mtDeleteYearly(id) {
       { file: 'ppt/charts/chart4.xml',
         ...countByPriorWeeks(tickets, win, 8, t => t.warrantyChargeable === 'WARRANTY' && isOutside30(t)) },
       { file: 'ppt/charts/chart9.xml',
-        ...countCparsByPriorWeeks(cpars, win, 8) },
+        ...countCparsByPriorWeeks(cpars, win, 8, historicalNcrs) },
     ];
     for (const u of trendUpdates) {
       const f = zip.file(u.file);
