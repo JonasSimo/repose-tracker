@@ -30853,12 +30853,16 @@ async function mtDeleteYearly(id) {
       try { await loadServiceData(false); }
       catch (e) { console.warn('[QA Deck] loadServiceData failed:', e); }
     }
-    // CPARs feed S7 / S10 / S12. fetchCPARs() is eager at sign-in, but
-    // defensively trigger it if the global array still looks empty.
+    // CPARs feed S7 / S10 / S12. Page load restores CPAR_ITEMS from
+    // localStorage (line 11635) which can lag the live list by DAYS — the
+    // cached 200-record snapshot was missing wk 16/17 entries and made
+    // chart9 read 0 for those weeks while the Stats tab's fresh fetch saw
+    // 29 + 65 there. So always force a refresh at deck-build time. fetchCPARs
+    // is idempotent; the 1-2s wait is acceptable for an export click.
     const haveCpars = () => typeof CPAR_ITEMS !== 'undefined' && Array.isArray(CPAR_ITEMS);
-    if (typeof fetchCPARs === 'function' && (!haveCpars() || CPAR_ITEMS.length === 0)) {
+    if (typeof fetchCPARs === 'function') {
       try { await fetchCPARs(); }
-      catch (e) { console.warn('[QA Deck] fetchCPARs failed:', e); }
+      catch (e) { console.warn('[QA Deck] fetchCPARs refresh failed:', e); }
     }
     const tickets = (typeof _serviceState !== 'undefined' && _serviceState.tickets) || [];
     const cpars   = haveCpars() ? CPAR_ITEMS : [];
