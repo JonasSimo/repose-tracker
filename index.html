@@ -30464,6 +30464,86 @@ async function mtDeleteYearly(id) {
     if (!t) return '—';
     return (t.description || t.action || '—').trim() || '—';
   }
+  // Permissive period-30 matcher: Service tab data carries 'Inside 30',
+  // 'inside 30', 'Inside 30 days' — strict equality dropped variants.
+  function isInside30(t){  return String(t && t.period30 || '').toLowerCase().startsWith('inside 30'); }
+  function isOutside30(t){ return String(t && t.period30 || '').toLowerCase().startsWith('outside 30'); }
+  // Newest first — fall back to ticketNo when openDate ties.
+  function sortNewestFirst(items){
+    return items.slice().sort((a,b) => {
+      const da = a.openDate ? a.openDate.getTime() : 0;
+      const db = b.openDate ? b.openDate.getTime() : 0;
+      if (db !== da) return db - da;
+      return String(b.ticketNo||'').localeCompare(String(a.ticketNo||''));
+    });
+  }
+  function monthWindow(d){
+    const start = new Date(d.getFullYear(), d.getMonth(), 1);
+    const end   = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
+    return { start, end };
+  }
+  function cparLoggedAt(c){
+    if (!c || !c.fields) return null;
+    if (typeof parseCPARDate === 'function') return parseCPARDate(c.fields.LoggedAt);
+    return null;
+  }
+  function cparInRange(c, start, end){
+    const d = cparLoggedAt(c);
+    return d && d.getTime() && d >= start && d <= end;
+  }
+  function countCparsByDisposition(items, start, end, dispo){
+    const target = String(dispo).toLowerCase();
+    return items.filter(c =>
+      cparInRange(c, start, end) &&
+      String(c.fields?.Disposition || '').toLowerCase() === target
+    ).length;
+  }
+
+  // ── row-expansion for actions tables ──
+  // S5 cap=2, S6 cap=1, S7 cap=2 per template. When more matching items than
+  // rows, clone the FIRST templated row to inject extra rows BEFORE token
+  // replacement. Cloned rows reuse {{<prefix>R1_*}} marker names rewritten to
+  // {{<prefix>RN_*}}. Tempered-greedy `(?:(?!</a:tr>)[\s\S])*?` prevents the
+  // lazy match from absorbing earlier rows (e.g. the header).
+  function expandActionsTable(slideXml, prefix, capacity, itemCount){
+    if (itemCount <= capacity) return slideXml;
+    const rowRe = new RegExp(
+      `<a:tr\\b[^>]*>(?:(?!<\\/a:tr>)[\\s\\S])*?\\{\\{${prefix}R1_TKT\\}\\}(?:(?!<\\/a:tr>)[\\s\\S])*?<\\/a:tr>`
+    );
+    const m = slideXml.match(rowRe);
+    if (!m) return slideXml;
+    const tpl = m[0];
+    const newRows = [];
+    for (let i = capacity + 1; i <= itemCount; i++){
+      newRows.push(
+        tpl.split(`{{${prefix}R1_TKT}}`).join(`{{${prefix}R${i}_TKT}}`)
+           .split(`{{${prefix}R1_RC}}`).join(`{{${prefix}R${i}_RC}}`)
+           .split(`{{${prefix}R1_ACTION}}`).join(`{{${prefix}R${i}_ACTION}}`)
+      );
+    }
+    const lastRowRe = new RegExp(
+      `(<a:tr\\b[^>]*>(?:(?!<\\/a:tr>)[\\s\\S])*?\\{\\{${prefix}R${capacity}_TKT\\}\\}(?:(?!<\\/a:tr>)[\\s\\S])*?<\\/a:tr>)`
+    );
+    return slideXml.replace(lastRowRe, `$1${newRows.join('')}`);
+  }
+  function addActionRowTokens(tokens, prefix, capacity, items){
+    const n = Math.max(items.length, capacity);
+    for (let i = 0; i < n; i++){
+      const t = items[i];
+      tokens[`${prefix}R${i+1}_TKT`]    = t ? (t.ticketNo || '—') : '—';
+      tokens[`${prefix}R${i+1}_RC`]     = t ? formatRC(t) : '—';
+      tokens[`${prefix}R${i+1}_ACTION`] = '';
+    }
+  }
+  function addCparRowTokens(tokens, prefix, capacity, cpars){
+    const n = Math.max(cpars.length, capacity);
+    for (let i = 0; i < n; i++){
+      const c = cpars[i]; const f = c?.fields || null;
+      tokens[`${prefix}R${i+1}_TKT`]    = f ? (f.Title || '—') : '—';
+      tokens[`${prefix}R${i+1}_RC`]     = f ? String(f.IssueCategory || f.Description || '—').slice(0, 80) : '—';
+      tokens[`${prefix}R${i+1}_ACTION`] = '';
+    }
+  }
 
   // ── chart updaters ──
   // For "trend by week" charts (chart1 S5, chart4 S6, …): two series per chart
@@ -30556,15 +30636,33 @@ async function mtDeleteYearly(id) {
       try { await loadServiceData(false); }
       catch (e) { console.warn('[QA Deck] loadServiceData failed:', e); }
     }
+    // CPARs feed S7 / S10 / S12. fetchCPARs() is eager at sign-in, but
+    // defensively trigger it if the global array still looks empty.
+    const haveCpars = () => typeof CPAR_ITEMS !== 'undefined' && Array.isArray(CPAR_ITEMS);
+    if (typeof fetchCPARs === 'function' && (!haveCpars() || CPAR_ITEMS.length === 0)) {
+      try { await fetchCPARs(); }
+      catch (e) { console.warn('[QA Deck] fetchCPARs failed:', e); }
+    }
     const tickets = (typeof _serviceState !== 'undefined' && _serviceState.tickets) || [];
-    const inWin = d => d && d >= win.monday && d <= win.sunday;
+    const cpars   = haveCpars() ? CPAR_ITEMS : [];
+    const inWin   = d => d && d >= win.monday && d <= win.sunday;
 
-    // Filter: WARRANTY type only (excludes Chargeable + Observation), opened in data week.
+    // WARRANTY type only (excludes Chargeable + Observation), opened in data week.
+    // Permissive period-30 matcher + newest-first sort so row 1 = freshest ticket.
     const inDataWeek = tickets.filter(t => t.warrantyChargeable === 'WARRANTY' && inWin(t.openDate));
-    const complaints = inDataWeek.filter(t => t.period30 === 'Inside 30');
-    const warranty   = inDataWeek.filter(t => t.period30 === 'Outside 30');
-    // Pass the full ticket array through too — chart helpers need the prior 8 weeks.
-    return { complaints, warranty, allTickets: tickets };
+    const complaints = sortNewestFirst(inDataWeek.filter(isInside30));
+    const warranty   = sortNewestFirst(inDataWeek.filter(isOutside30));
+
+    // Previous ISO week — drives the S12 Scrap banner label.
+    const prevMonday = new Date(win.monday); prevMonday.setDate(prevMonday.getDate() - 7);
+    const prevSunday = new Date(win.sunday); prevSunday.setDate(prevSunday.getDate() - 7);
+
+    // S7 Internal Errors — CPARs logged inside the data week, sorted newest-first.
+    const internalCpars = cpars
+      .filter(c => cparInRange(c, win.monday, win.sunday))
+      .sort((a,b) => (cparLoggedAt(b)?.getTime()||0) - (cparLoggedAt(a)?.getTime()||0));
+
+    return { complaints, warranty, allTickets: tickets, cpars, internalCpars, prevMonday, prevSunday };
   }
 
   // ── deck build ──
@@ -30575,6 +30673,13 @@ async function mtDeleteYearly(id) {
     const tplBuf = await tplResp.arrayBuffer();
     const zip = await JSZip.loadAsync(tplBuf);
 
+    // CoPQ rates / targets — loaded from sidecar so QA can tweak without a code edit.
+    let cfg = { scrap: { ratePerInstance: 500 }, rework: { ratePerInstance: 400 }, concession: { ratePerInstance: 500 } };
+    try {
+      const cfgResp = await fetch('./qa-deck-config.json', { cache: 'no-store' });
+      if (cfgResp.ok) cfg = await cfgResp.json();
+    } catch (e) { console.warn('[QA Deck] qa-deck-config.json fetch failed, using defaults:', e); }
+
     const today = new Date();
     const wcDay = pad2(win.monday.getDate());
     const wcMonth = pad2(win.monday.getMonth() + 1);
@@ -30583,8 +30688,23 @@ async function mtDeleteYearly(id) {
     const mMonth = pad2(today.getMonth() + 1);
     const mYear = String(today.getFullYear());
 
-    const c0 = data.complaints[0], c1 = data.complaints[1];
-    const w0 = data.warranty[0];
+    // ── S10 CoPQ totals (data-week + month-to-date in data week's month) ──
+    // CPAR dispositions: Reworked, Scrapped, Use-as-is, Returned to supplier, Other.
+    // Use-as-is is the concession.
+    const cpars   = data.cpars || [];
+    const mWin    = monthWindow(win.monday);
+    const moEnd   = win.sunday < mWin.end ? win.sunday : mWin.end;
+    const scrapWk  = countCparsByDisposition(cpars, win.monday, win.sunday, 'Scrapped');
+    const reworkWk = countCparsByDisposition(cpars, win.monday, win.sunday, 'Reworked');
+    const concWk   = countCparsByDisposition(cpars, win.monday, win.sunday, 'Use-as-is');
+    const scrapMo  = countCparsByDisposition(cpars, mWin.start, moEnd, 'Scrapped');
+    const reworkMo = countCparsByDisposition(cpars, mWin.start, moEnd, 'Reworked');
+    const concMo   = countCparsByDisposition(cpars, mWin.start, moEnd, 'Use-as-is');
+    const fmtGbp = n => (n || 0).toLocaleString('en-GB');
+
+    // ── S12 Scrap banner — count for the PREVIOUS ISO week (matches the
+    // banner's {{WK_NUM_PREV}} label so the figure tracks the labelled week).
+    const s12Count = countCparsByDisposition(cpars, data.prevMonday, data.prevSunday, 'Scrapped');
 
     const tokens = {
       // Title slide
@@ -30593,19 +30713,33 @@ async function mtDeleteYearly(id) {
       MEET_DAY: mDay,      MEET_MONTH: mMonth, MEET_YEAR: mYear,
       // Week banners
       WK_NUM: String(win.week),
-      WK_NUM_PREV: String(win.week - 1),
-      // S5 Customer Complaints (2 rows)
-      S5R1_TKT: c0 ? c0.ticketNo : '—',
-      S5R1_RC : formatRC(c0),
-      S5R1_ACTION: actionText(c0),
-      S5R2_TKT: c1 ? c1.ticketNo : '—',
-      S5R2_RC : formatRC(c1),
-      S5R2_ACTION: actionText(c1),
-      // S6 Warranty Returns (1 row)
-      S6R1_TKT: w0 ? w0.ticketNo : '—',
-      S6R1_RC : formatRC(w0),
-      S6R1_ACTION: actionText(w0),
+      WK_NUM_PREV: String(win.week - 1 || ''),
+      // S10 CoPQ totals — count × rate
+      S10_SCRAP_WK_GBP:  fmtGbp(scrapWk  * (cfg.scrap?.ratePerInstance      || 0)),
+      S10_SCRAP_MO_GBP:  fmtGbp(scrapMo  * (cfg.scrap?.ratePerInstance      || 0)),
+      S10_REWORK_WK_GBP: fmtGbp(reworkWk * (cfg.rework?.ratePerInstance     || 0)),
+      S10_REWORK_MO_GBP: fmtGbp(reworkMo * (cfg.rework?.ratePerInstance     || 0)),
+      S10_CONC_WK_GBP:   fmtGbp(concWk   * (cfg.concession?.ratePerInstance || 0)),
+      S10_CONC_MO_GBP:   fmtGbp(concMo   * (cfg.concession?.ratePerInstance || 0)),
+      // S12 Scrap banner
+      S12_SCRAP_COUNT: String(s12Count),
     };
+    addActionRowTokens(tokens, 'S5', 2, data.complaints);
+    addActionRowTokens(tokens, 'S6', 1, data.warranty);
+    addCparRowTokens (tokens, 'S7', 2, data.internalCpars);
+
+    // Pre-process slides 5/6/7 — clone rows if more items than template capacity.
+    // MUST run before global token replacement so cloned-row tokens exist in XML.
+    const expansions = [
+      { slide: 'ppt/slides/slide5.xml', prefix: 'S5', cap: 2, n: data.complaints.length },
+      { slide: 'ppt/slides/slide6.xml', prefix: 'S6', cap: 1, n: data.warranty.length },
+      { slide: 'ppt/slides/slide7.xml', prefix: 'S7', cap: 2, n: data.internalCpars.length },
+    ];
+    for (const e of expansions) {
+      const f = zip.file(e.slide); if (!f) continue;
+      const xml = await f.async('string');
+      zip.file(e.slide, expandActionsTable(xml, e.prefix, e.cap, e.n));
+    }
 
     const slideFiles = Object.keys(zip.files).filter(n => /^ppt\/slides\/slide\d+\.xml$/.test(n));
     for (const sf of slideFiles) {
@@ -30618,12 +30752,13 @@ async function mtDeleteYearly(id) {
 
     // ── chart data updates ──
     const tickets = data.allTickets || [];
-    // Trend-by-week charts (S5 chart1, S6 chart4) — 8-week window ending data week
+    // Trend-by-week charts (S5 chart1, S6 chart4) — 8-week window ending data week.
+    // Same permissive period-30 matcher as the actions tables.
     const trendUpdates = [
       { file: 'ppt/charts/chart1.xml',
-        ...countByPriorWeeks(tickets, win, 8, t => t.warrantyChargeable === 'WARRANTY' && t.period30 === 'Inside 30') },
+        ...countByPriorWeeks(tickets, win, 8, t => t.warrantyChargeable === 'WARRANTY' && isInside30(t)) },
       { file: 'ppt/charts/chart4.xml',
-        ...countByPriorWeeks(tickets, win, 8, t => t.warrantyChargeable === 'WARRANTY' && t.period30 === 'Outside 30') },
+        ...countByPriorWeeks(tickets, win, 8, t => t.warrantyChargeable === 'WARRANTY' && isOutside30(t)) },
     ];
     for (const u of trendUpdates) {
       const f = zip.file(u.file);
@@ -30721,10 +30856,8 @@ async function mtDeleteYearly(id) {
       const blob = await buildQualityDeck(data, w);
       const filename = `Repose QA Team Meeting ${w.year} wk ${w.week}.pptx`;
       downloadBlob(blob, filename);
-      const note = (data.complaints.length > 2 || data.warranty.length > 1)
-        ? ` — Note: ${data.complaints.length} complaints / ${data.warranty.length} warranty in week; only first 2/1 rows populated.`
-        : '';
-      qaToast(`Exported ${filename} (${data.complaints.length} complaints, ${data.warranty.length} warranty)${note}`, note ? 'warn' : 'ok');
+      const summary = `${data.complaints.length} complaints · ${data.warranty.length} warranty · ${data.internalCpars.length} internal CPARs`;
+      qaToast(`Exported ${filename} — ${summary}`, 'ok');
     } catch (e) {
       console.error('[QA Deck] Export failed:', e);
       qaToast(`Export failed: ${e.message}`, 'error');

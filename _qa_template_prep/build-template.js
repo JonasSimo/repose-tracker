@@ -63,6 +63,31 @@ const patches = [
   { slide: 11, find: ' 17',                          replace: ' {{WK_NUM_PREV}}' },
   { slide: 12, find: 'NA: Wk.17 Scrap Performance Update',
               replace: 'NA: Wk.{{WK_NUM_PREV}} Scrap Performance Update' },
+
+  // ── S7 Internal Errors: tokenise IRP # + RC code on both row templates;
+  //    blank the Action column (filled in live during the meeting),
+  //    leave Owner template default (JS).
+  { slide: 7, find: 'CPAR completion rate 100% with the introduction of new system',
+              replace: '{{S7R1_ACTION}}' },
+  { slide: 7, find: 'Full transfer on a new system should be finalised end of next week.',
+              replace: '{{S7R2_ACTION}}' },
+  { slide: 7, find: '-', replace: '{{S7R1_TKT}}' },
+  { slide: 7, find: '-', replace: '{{S7R1_RC}}' },
+  { slide: 7, find: '-', replace: '{{S7R2_TKT}}' },
+  { slide: 7, find: '-', replace: '{{S7R2_RC}}' },
+
+  // ── S10 CoPQ totals — three sections (scrap → rework → concession),
+  //    weekly + monthly each. Sequential single-replace handles duplicates.
+  { slide: 10, find: 'Total £0',                        replace: 'Total £{{S10_SCRAP_WK_GBP}}' },
+  { slide: 10, find: 'Monthly Actual to date = £ 0',    replace: 'Monthly Actual to date = £{{S10_SCRAP_MO_GBP}}' },
+  { slide: 10, find: 'Total £99.5',                     replace: 'Total £{{S10_REWORK_WK_GBP}}' },
+  { slide: 10, find: 'Monthly Actual to date = £ 99.5', replace: 'Monthly Actual to date = £{{S10_REWORK_MO_GBP}}' },
+  { slide: 10, find: 'Total £ 0',                       replace: 'Total £{{S10_CONC_WK_GBP}}' },
+  { slide: 10, find: 'Monthly Actual to date = £ 0',    replace: 'Monthly Actual to date = £{{S10_CONC_MO_GBP}}' },
+
+  // ── S12 Scrap banner — count + week become tokens.
+  { slide: 12, find: '2 Scrap instances in week 16',
+              replace: '{{S12_SCRAP_COUNT}} Scrap instance(s) in week {{WK_NUM_PREV}}' },
 ];
 
 function escapeRegex(s){ return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); }
