@@ -15576,6 +15576,9 @@ function normaliseTeam(raw) {
 let cparFilterStatus = 'todo';
 let cparFilterTeam = '';
 let cparFilterSearch = '';
+// PE-scope sub-filter — only meaningful when cparFilterStatus === 'pe'.
+// Resets to 'all' whenever the user (re-)enters PE scope.
+let cparPeSubFilter = 'all'; // 'all' | 'with-pe' | 'awaiting-signoff' | 'closed'
 
 // Set of CPAR ids currently mid-PATCH; used to debounce double-clicks across all action handlers.
 const _cparBusy = new Set();
@@ -16395,8 +16398,21 @@ function renderIssuesIntoQuality(host) {
     // step. Includes currently-with-PE (Status = Investigation) AND every
     // NCR with InvestigatedBy populated (signed off, closed, archived).
     // Cuts across statuses so QHSE can scan all PE work + raise CAPAs
-    // from any of them in one place.
-    pe: i => i.fields?.Status === CPAR_STATUS.INVESTIGATION || !!(i.fields?.InvestigatedBy),
+    // from any of them in one place. Honours cparPeSubFilter for drill-down.
+    pe: i => {
+      const f = i.fields || {};
+      const inPE = f.Status === CPAR_STATUS.INVESTIGATION || !!f.InvestigatedBy;
+      if (!inPE) return false;
+      switch (cparPeSubFilter) {
+        case 'with-pe':          return f.Status === CPAR_STATUS.INVESTIGATION;
+        case 'awaiting-signoff': return f.Status === CPAR_STATUS.AWAITING_SIGNOFF;
+        case 'closed':           return f.Status === CPAR_STATUS.CLOSED
+                                     || f.Status === CPAR_STATUS.ARCHIVED
+                                     || f.Status === CPAR_STATUS.AWAITING_EFF_CHECK;
+        case 'all':
+        default:                 return true;
+      }
+    },
     closed: i => {
       const s = i.fields?.Status;
       // Any closed-state item with ClosedAt in the last 30 days — includes
@@ -16525,11 +16541,22 @@ function renderIssuesIntoQuality(host) {
       ${teamChipsHtml}
     </div>
 
+    <!-- PE Investigations — promoted scope row with sub-filter chips when active -->
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:${cparFilterStatus==='pe'?'10px 12px':'4px 0'};margin-bottom:10px;background:${cparFilterStatus==='pe'?'#fff7ed':'transparent'};border:1.5px solid ${cparFilterStatus==='pe'?'#fed7aa':'transparent'};border-radius:10px;transition:background .15s,border-color .15s">
+      <button class="issues-chip ${cparFilterStatus==='pe'?'active':''}${searchQ?' issues-chip-dim':''}" onclick="setIssueFilter('pe'); _preserveScroll(renderQualitySubview);" style="${cparFilterStatus==='pe'?'background:#ea580c;color:#fff;border-color:#ea580c':''};font-weight:700">🛠 PE Investigations</button>
+      ${cparFilterStatus === 'pe' ? `
+        <span style="color:#9a3412;font-size:10px;font-family:'JetBrains Mono',monospace;letter-spacing:.08em;margin-left:4px">SHOW:</span>
+        <button class="issues-chip ${cparPeSubFilter==='all'?'active':''}" onclick="setPeSubFilter('all'); _preserveScroll(renderQualitySubview);">All</button>
+        <button class="issues-chip ${cparPeSubFilter==='with-pe'?'active':''}" onclick="setPeSubFilter('with-pe'); _preserveScroll(renderQualitySubview);">With PE now</button>
+        <button class="issues-chip ${cparPeSubFilter==='awaiting-signoff'?'active':''}" onclick="setPeSubFilter('awaiting-signoff'); _preserveScroll(renderQualitySubview);">Awaiting signoff</button>
+        <button class="issues-chip ${cparPeSubFilter==='closed'?'active':''}" onclick="setPeSubFilter('closed'); _preserveScroll(renderQualitySubview);">Closed</button>
+      ` : ''}
+    </div>
+
     <!-- Status chips + search -->
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
       <button class="issues-chip ${cparFilterStatus==='todo'?'active':''}${searchQ?' issues-chip-dim':''}" onclick="setIssueFilter('todo'); _preserveScroll(renderQualitySubview);">To do</button>
       <button class="issues-chip ${cparFilterStatus==='progress'?'active':''}${searchQ?' issues-chip-dim':''}" onclick="setIssueFilter('progress'); _preserveScroll(renderQualitySubview);">In progress</button>
-      <button class="issues-chip ${cparFilterStatus==='pe'?'active':''}${searchQ?' issues-chip-dim':''}" onclick="setIssueFilter('pe'); _preserveScroll(renderQualitySubview);">🛠 PE Investigations</button>
       <button class="issues-chip ${cparFilterStatus==='closed'?'active':''}${searchQ?' issues-chip-dim':''}" onclick="setIssueFilter('closed'); _preserveScroll(renderQualitySubview);">Recently closed</button>
       <button class="issues-chip ${cparFilterStatus==='all'?'active':''}${searchQ?' issues-chip-dim':''}" onclick="setIssueFilter('all'); _preserveScroll(renderQualitySubview);">All</button>
       <button class="issues-chip ${cparFilterStatus==='repeat'?'active':''}${searchQ?' issues-chip-dim':''}" onclick="setIssueFilter('repeat'); _preserveScroll(renderQualitySubview);" style="background:#fff1f1;color:#991b1b;border:1.5px solid #fca5a5">🔴 Repeat</button>
@@ -18193,9 +18220,16 @@ function getCPARStatusLabel(st) {
 }
 
 function setIssueFilter(f) {
+  // Entering PE scope from outside resets the sub-filter so the user always
+  // sees "All" PE items first, then can drill down — matches the documented UX.
+  if (f === 'pe' && cparFilterStatus !== 'pe') cparPeSubFilter = 'all';
   cparFilterStatus = f;
   document.querySelectorAll('.issues-chip').forEach(c => c.classList.toggle('active', c.dataset.f === f));
   renderIssuesList();
+}
+
+function setPeSubFilter(v) {
+  cparPeSubFilter = v;
 }
 
 // Debounced search re-render so typing stays snappy in the Quality tab.
