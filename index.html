@@ -30717,23 +30717,33 @@ async function mtDeleteYearly(id) {
     if (typeof getGraphToken !== 'function') throw new Error('Graph auth not ready');
     const token = await getGraphToken();
     const sid = shareIdFromUrl(shareUrl);
+    console.log(`  step 1/4 - share id: ${sid.slice(0, 40)}…`);
     // Resolve share → driveItem so we have driveId + itemId for the workbook API.
     const diResp = await fetch(`https://graph.microsoft.com/v1.0/shares/${sid}/driveItem`, {
       headers: { Authorization: `Bearer ${token}` }
     });
-    if (!diResp.ok) throw new Error(`Share resolve HTTP ${diResp.status} for ${shareUrl}`);
+    if (!diResp.ok) {
+      const body = await diResp.text().catch(() => '');
+      throw new Error(`Share resolve HTTP ${diResp.status}: ${body.slice(0, 200)}`);
+    }
     const di = await diResp.json();
     const driveId = di.parentReference?.driveId;
     const itemId  = di.id;
+    console.log(`  step 2/4 - resolved to driveItem: ${di.name} (driveId=${driveId?.slice(0,20)}… itemId=${itemId?.slice(0,20)}…)`);
     if (!driveId || !itemId) throw new Error('Share resolve returned no drive/item id');
     const url = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}` +
                 `/workbook/worksheets('${encodeURIComponent(sheetName)}')/usedRange?$select=values`;
     const urResp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-    if (!urResp.ok) throw new Error(`Workbook fetch HTTP ${urResp.status} (sheet "${sheetName}")`);
+    if (!urResp.ok) {
+      const body = await urResp.text().catch(() => '');
+      throw new Error(`Workbook fetch HTTP ${urResp.status} (sheet "${sheetName}"): ${body.slice(0, 200)}`);
+    }
     const ur = await urResp.json();
     const rows = ur.values || [];
-    if (rows.length < 2) return [];
+    console.log(`  step 3/4 - usedRange rows: ${rows.length}`);
+    if (rows.length < 2) { console.warn('  empty workbook (≤1 row)'); return []; }
     const headerRow = rows[0].map(s => String(s == null ? '' : s).trim());
+    console.log(`  step 4/4 - header row: [${headerRow.join(' | ')}]`);
     const idx = {};
     for (const h of requiredHeaders){
       const i = headerRow.indexOf(h);
@@ -30754,16 +30764,28 @@ async function mtDeleteYearly(id) {
   const CONCESSION_LOG_URL = 'https://reposefurniturelimited.sharepoint.com/:x:/s/ReposeFurniture-HealthandSafety/IQCB0AYIeTB3S4IOLyNInXNAARlk57rEfa2dICo0mKgWqkU';
   const SUPPLIER_LOG_URL   = 'https://reposefurniturelimited.sharepoint.com/:x:/s/ReposeFurniture-Quality/IQAJ-O56XTm-QJZG7ZDFSeTNAfp89Uk1bsjCVcUnfOfl-ZQ';
   async function loadConcessionsLog(){
-    const recs = await loadExcelLog(CONCESSION_LOG_URL, 'Main',
-      ['Date Raised', 'Product/Part No', 'Fault Code']);
-    for (const r of recs) r._date = excelDateToJs(r['Date Raised']);
-    return recs;
+    console.group('[QA Deck] loadConcessionsLog');
+    try {
+      const recs = await loadExcelLog(CONCESSION_LOG_URL, 'Main',
+        ['Date Raised', 'Product/Part No', 'Fault Code']);
+      for (const r of recs) r._date = excelDateToJs(r['Date Raised']);
+      const withDate = recs.filter(r => r._date);
+      console.log(`Concessions loaded: ${recs.length} rows (${withDate.length} with valid date)`);
+      if (recs.length) console.log('Sample row:', recs[0]);
+      return recs;
+    } finally { console.groupEnd(); }
   }
   async function loadSupplierIssuesLog(){
-    const recs = await loadExcelLog(SUPPLIER_LOG_URL, 'Main',
-      ['Date Issue Raised', 'Material']);
-    for (const r of recs) r._date = excelDateToJs(r['Date Issue Raised']);
-    return recs;
+    console.group('[QA Deck] loadSupplierIssuesLog');
+    try {
+      const recs = await loadExcelLog(SUPPLIER_LOG_URL, 'Main',
+        ['Date Issue Raised', 'Material']);
+      for (const r of recs) r._date = excelDateToJs(r['Date Issue Raised']);
+      const withDate = recs.filter(r => r._date);
+      console.log(`Supplier issues loaded: ${recs.length} rows (${withDate.length} with valid date)`);
+      if (recs.length) console.log('Sample row:', recs[0]);
+      return recs;
+    } finally { console.groupEnd(); }
   }
 
   // Clear data-row text in every <a:tbl> on the given slide XML — keeps the
@@ -30813,17 +30835,19 @@ async function mtDeleteYearly(id) {
 
     // S8 Concessions + S9 Supplier Issues — Excel-sourced. Best-effort: if a
     // fetch fails (network, permission, missing column) we log and continue
-    // with an empty array so the deck still builds; the affected charts will
-    // simply show empty paretos / flat trends.
+    // with an empty array so the deck still builds. The error is captured in
+    // `loadErrors` so the toast can surface it to the user (silent failure
+    // would mean "why is the slide empty" with no explanation).
     let concessions = [], supplierIssues = [];
+    const loadErrors = [];
     try { concessions    = await loadConcessionsLog();      }
-    catch (e) { console.warn('[QA Deck] Concession log load failed:', e.message); }
+    catch (e) { console.error('[QA Deck] Concession log load failed:', e); loadErrors.push(`Concession log: ${e.message}`); }
     try { supplierIssues = await loadSupplierIssuesLog();   }
-    catch (e) { console.warn('[QA Deck] Supplier issues log load failed:', e.message); }
+    catch (e) { console.error('[QA Deck] Supplier issues log load failed:', e); loadErrors.push(`Supplier log: ${e.message}`); }
 
     return {
       complaints, warranty, allTickets: tickets, cpars, internalCpars,
-      concessions, supplierIssues,
+      concessions, supplierIssues, loadErrors,
       prevMonday, prevSunday,
     };
   }
@@ -31074,8 +31098,12 @@ async function mtDeleteYearly(id) {
       const blob = await buildQualityDeck(data, w);
       const filename = `Repose QA Team Meeting ${w.year} wk ${w.week}.pptx`;
       downloadBlob(blob, filename);
-      const summary = `${data.complaints.length} complaints · ${data.warranty.length} warranty · ${data.internalCpars.length} internal CPARs`;
-      qaToast(`Exported ${filename} — ${summary}`, 'ok');
+      const summary = `${data.complaints.length} complaints · ${data.warranty.length} warranty · ${data.internalCpars.length} internal CPARs · ${data.concessions.length} concessions · ${data.supplierIssues.length} supplier issues`;
+      if (data.loadErrors?.length) {
+        qaToast(`Exported with ERRORS — ${data.loadErrors.join('; ')} (see DevTools console)`, 'error');
+      } else {
+        qaToast(`Exported ${filename} — ${summary}`, 'ok');
+      }
     } catch (e) {
       console.error('[QA Deck] Export failed:', e);
       qaToast(`Export failed: ${e.message}`, 'error');
