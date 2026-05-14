@@ -5245,7 +5245,7 @@ TEAMS_CFG.forEach(t => {
     WEEKS.forEach(wc => {
       STATE[t.name][k][wc] = {};
       [1,2,3,4,5,'express'].forEach(p => {
-        const jobs = PROD[wc][p]||[];
+        const jobs = PROD[wc]?.[p]||[];
         STATE[t.name][k][wc][p] = jobs.map((_, ji) => ({
           done: wc==='WK 12' && p===1 && ji<(t.hasSubs?2:3),
           doneAt: (wc==='WK 12' && p===1 && ji<(t.hasSubs?2:3)) ? ['09:14','10:02','11:30'][ji]||'' : '',
