@@ -30658,6 +30658,108 @@ async function mtDeleteYearly(id) {
     const startMonday = new Date(win.monday); startMonday.setDate(startMonday.getDate() - (weeksBack - 1)*7);
     return cpars.filter(c => { const d = cparLoggedAt(c); return d && d >= startMonday && d <= win.sunday; });
   }
+  // Generic versions for records whose date field is named anything (used by
+  // S8 Concessions + S9 Supplier Issues — Excel-sourced, not CPAR-shaped).
+  function countRecordsByPriorWeeks(records, win, weeksBack, getDate){
+    const labels = [], counts = [];
+    for (let i = weeksBack - 1; i >= 0; i--){
+      const monday = new Date(win.monday); monday.setDate(monday.getDate() - i*7);
+      const sunday = new Date(monday);     sunday.setDate(sunday.getDate() + 6);
+      sunday.setHours(23,59,59,999);
+      const wk = isoWeekOf(monday).week;
+      const c = records.filter(r => { const d = getDate(r); return d && d >= monday && d <= sunday; }).length;
+      labels.push(`Week ${wk}`); counts.push(c);
+    }
+    return { labels, counts };
+  }
+  function recordsInPriorWeeks(records, win, weeksBack, getDate){
+    const startMonday = new Date(win.monday); startMonday.setDate(startMonday.getDate() - (weeksBack - 1)*7);
+    return records.filter(r => { const d = getDate(r); return d && d >= startMonday && d <= win.sunday; });
+  }
+
+  // ── Excel reader (Graph workbook API) ──
+  // Excel date columns can return Date objects, ISO strings, or Excel serial
+  // numbers (days since 1900-01-01 with Lotus 1-2-3 leap-year bug → -25569).
+  function excelDateToJs(v){
+    if (v == null || v === '') return null;
+    if (v instanceof Date) return v;
+    if (typeof v === 'number') return new Date((v - 25569) * 86400000);
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  // Encode a share URL to Graph's `u!<b64>` share-id format.
+  function shareIdFromUrl(url){
+    const clean = url.split('?')[0];
+    const b64 = btoa(clean).replace(/=+$/,'').replace(/\//g,'_').replace(/\+/g,'-');
+    return 'u!' + b64;
+  }
+  // Read an Excel sheet on SharePoint into row objects. `requiredHeaders` are
+  // pinned by NAME so column reorders are tolerated, renames fail loudly.
+  async function loadExcelLog(shareUrl, sheetName, requiredHeaders){
+    if (typeof getGraphToken !== 'function') throw new Error('Graph auth not ready');
+    const token = await getGraphToken();
+    const sid = shareIdFromUrl(shareUrl);
+    // Resolve share → driveItem so we have driveId + itemId for the workbook API.
+    const diResp = await fetch(`https://graph.microsoft.com/v1.0/shares/${sid}/driveItem`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!diResp.ok) throw new Error(`Share resolve HTTP ${diResp.status} for ${shareUrl}`);
+    const di = await diResp.json();
+    const driveId = di.parentReference?.driveId;
+    const itemId  = di.id;
+    if (!driveId || !itemId) throw new Error('Share resolve returned no drive/item id');
+    const url = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}` +
+                `/workbook/worksheets('${encodeURIComponent(sheetName)}')/usedRange?$select=values`;
+    const urResp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (!urResp.ok) throw new Error(`Workbook fetch HTTP ${urResp.status} (sheet "${sheetName}")`);
+    const ur = await urResp.json();
+    const rows = ur.values || [];
+    if (rows.length < 2) return [];
+    const headerRow = rows[0].map(s => String(s == null ? '' : s).trim());
+    const idx = {};
+    for (const h of requiredHeaders){
+      const i = headerRow.indexOf(h);
+      if (i < 0) throw new Error(`Excel "${sheetName}" missing column "${h}" (got: ${headerRow.join(' | ')})`);
+      idx[h] = i;
+    }
+    return rows.slice(1)
+      .filter(r => r.some(c => c !== '' && c != null))
+      .map(r => {
+        const rec = {};
+        for (const h of requiredHeaders) rec[h] = r[idx[h]];
+        return rec;
+      });
+  }
+  // SharePoint share URLs for the two Excel logs. Kept here rather than in
+  // qa-deck-config.json because Graph share-resolution treats the URL as the
+  // identity — moving the file means updating the constant anyway.
+  const CONCESSION_LOG_URL = 'https://reposefurniturelimited.sharepoint.com/:x:/s/ReposeFurniture-HealthandSafety/IQCB0AYIeTB3S4IOLyNInXNAARlk57rEfa2dICo0mKgWqkU';
+  const SUPPLIER_LOG_URL   = 'https://reposefurniturelimited.sharepoint.com/:x:/s/ReposeFurniture-Quality/IQAJ-O56XTm-QJZG7ZDFSeTNAfp89Uk1bsjCVcUnfOfl-ZQ';
+  async function loadConcessionsLog(){
+    const recs = await loadExcelLog(CONCESSION_LOG_URL, 'Main',
+      ['Date Raised', 'Product/Part No', 'Fault Code']);
+    for (const r of recs) r._date = excelDateToJs(r['Date Raised']);
+    return recs;
+  }
+  async function loadSupplierIssuesLog(){
+    const recs = await loadExcelLog(SUPPLIER_LOG_URL, 'Main',
+      ['Date Issue Raised', 'Material']);
+    for (const r of recs) r._date = excelDateToJs(r['Date Issue Raised']);
+    return recs;
+  }
+
+  // Clear data-row text in every <a:tbl> on the given slide XML — keeps the
+  // header row but blanks every subsequent row's cell text. Used on S8/S9
+  // (template ships with example "R001 / Proform / JS" content baked in).
+  function blankActionsTableDataRows(slideXml){
+    return slideXml.replace(/<a:tbl>[\s\S]*?<\/a:tbl>/g, (tbl) => {
+      let i = 0;
+      return tbl.replace(/<a:tr\b[^>]*>[\s\S]*?<\/a:tr>/g, (tr) => {
+        if (i++ === 0) return tr;  // header
+        return tr.replace(/<a:t(\s[^>]*)?>[\s\S]*?<\/a:t>/g, (_, attrs) => `<a:t${attrs||''}></a:t>`);
+      });
+    });
+  }
 
   // ── data gathering ──
   async function gatherWeeklyQualityData(win){
@@ -30691,7 +30793,21 @@ async function mtDeleteYearly(id) {
       .filter(c => cparInRange(c, win.monday, win.sunday))
       .sort((a,b) => (cparLoggedAt(b)?.getTime()||0) - (cparLoggedAt(a)?.getTime()||0));
 
-    return { complaints, warranty, allTickets: tickets, cpars, internalCpars, prevMonday, prevSunday };
+    // S8 Concessions + S9 Supplier Issues — Excel-sourced. Best-effort: if a
+    // fetch fails (network, permission, missing column) we log and continue
+    // with an empty array so the deck still builds; the affected charts will
+    // simply show empty paretos / flat trends.
+    let concessions = [], supplierIssues = [];
+    try { concessions    = await loadConcessionsLog();      }
+    catch (e) { console.warn('[QA Deck] Concession log load failed:', e.message); }
+    try { supplierIssues = await loadSupplierIssuesLog();   }
+    catch (e) { console.warn('[QA Deck] Supplier issues log load failed:', e.message); }
+
+    return {
+      complaints, warranty, allTickets: tickets, cpars, internalCpars,
+      concessions, supplierIssues,
+      prevMonday, prevSunday,
+    };
   }
 
   // ── deck build ──
@@ -30786,6 +30902,14 @@ async function mtDeleteYearly(id) {
       zip.file(e.slide, expandActionsTable(xml, e.prefix, e.cap, e.n));
     }
 
+    // S8 (Concessions) + S9 (Supplier Issues) — wipe the example data baked
+    // into the template's actions table. Headers stay; data rows blank.
+    for (const sf of ['ppt/slides/slide8.xml', 'ppt/slides/slide9.xml']) {
+      const f = zip.file(sf); if (!f) continue;
+      const xml = await f.async('string');
+      zip.file(sf, blankActionsTableDataRows(xml));
+    }
+
     const slideFiles = Object.keys(zip.files).filter(n => /^ppt\/slides\/slide\d+\.xml$/.test(n));
     for (const sf of slideFiles) {
       let xml = await zip.file(sf).async('string');
@@ -30799,6 +30923,10 @@ async function mtDeleteYearly(id) {
     const tickets = data.allTickets || [];
     // Trend-by-week (S5 chart1, S6 chart4, S7 chart9) — 8-week window
     // ENDING data week. Same permissive period-30 matcher as the actions tables.
+    // S8/S9 windows end at the PREVIOUS ISO week (their banners read
+    // `Wk.{{WK_NUM_PREV}}` — Concessions + Supplier issues tend to have a
+    // week's reporting lag so the deck always covers the safe-to-quote week).
+    const prevWin = { monday: data.prevMonday, sunday: data.prevSunday, week: win.week - 1 };
     const trendUpdates = [
       { file: 'ppt/charts/chart1.xml',
         ...countByPriorWeeks(tickets, win, 8, t => t.warrantyChargeable === 'WARRANTY' && isInside30(t)) },
@@ -30806,6 +30934,12 @@ async function mtDeleteYearly(id) {
         ...countByPriorWeeks(tickets, win, 8, t => t.warrantyChargeable === 'WARRANTY' && isOutside30(t)) },
       { file: 'ppt/charts/chart9.xml',
         ...countCparsByPriorWeeks(cpars, win, 8, historicalNcrs) },
+      // S8 top-left "Concession raised by week" — 8 weeks ending prev week.
+      { file: 'ppt/charts/chart12.xml',
+        ...countRecordsByPriorWeeks(data.concessions, prevWin, 8, r => r._date) },
+      // S9 top-left "SCAR's raised per week" — 8 weeks ending prev week.
+      { file: 'ppt/charts/chart14.xml',
+        ...countRecordsByPriorWeeks(data.supplierIssues, prevWin, 8, r => r._date) },
     ];
     for (const u of trendUpdates) {
       const f = zip.file(u.file);
@@ -30823,6 +30957,10 @@ async function mtDeleteYearly(id) {
     const s6Pool = ticketsInPriorWeeks(tickets, win, PARETO_WEEKS,
       t => t.warrantyChargeable === 'WARRANTY' && isOutside30(t));
     const s7Pool = cparsInPriorWeeks(cpars, win, PARETO_WEEKS);
+    // S8/S9 paretos use the prev-week-anchored window so they match the
+    // {{WK_NUM_PREV}} banner on those slides.
+    const s8Pool = recordsInPriorWeeks(data.concessions,    prevWin, PARETO_WEEKS, r => r._date);
+    const s9Pool = recordsInPriorWeeks(data.supplierIssues, prevWin, PARETO_WEEKS, r => r._date);
 
     const paretoUpdates = [
       // S5 top-right + bottom-left
@@ -30834,6 +30972,11 @@ async function mtDeleteYearly(id) {
       // S7 top-right "By Chair model" (PrimaryModel) + bottom-left "By Team" (SourceDept)
       { file: 'ppt/charts/chart7.xml', ...aggregateByKey(s7Pool, c => c.fields?.PrimaryModel, 7) },
       { file: 'ppt/charts/chart8.xml', ...aggregateByKey(s7Pool, c => c.fields?.SourceDept,   7) },
+      // S8 top-right "By Part Number" (Product/Part No) + bottom-left "Fault Code"
+      { file: 'ppt/charts/chart10.xml', ...aggregateByKey(s8Pool, r => r['Product/Part No'], 7) },
+      { file: 'ppt/charts/chart11.xml', ...aggregateByKey(s8Pool, r => r['Fault Code'],      7) },
+      // S9 bottom-left "By Part Category" (Material). S9 has no top-right chart.
+      { file: 'ppt/charts/chart13.xml', ...aggregateByKey(s9Pool, r => r['Material'],        7) },
     ];
     for (const u of paretoUpdates) {
       const f = zip.file(u.file);
