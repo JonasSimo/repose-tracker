@@ -86,10 +86,19 @@
     // Previously goHome stripped .active off every view unconditionally,
     // overriding any prior navigation and dropping the user on the home
     // card grid even when they'd clicked a specific Documents link.
+    //
+    // Subtlety: the HTML hard-codes `<div class="view active" id="view-team-select">`
+    // as the literal default, so `alreadyOnAView` is ALWAYS truthy at first
+    // load — that swallowed goHome() for every fresh session and stranded
+    // users on Team View. Treat ONLY-view-team-select-active as "default
+    // unchosen state" and go home; any OTHER active view means the host
+    // (TABLET_TAB or a deep-link handler) has already routed us.
     try {
-      const alreadyOnAView = document.querySelector('.view.active');
+      const actives = document.querySelectorAll('.view.active');
+      const onlyDefault = actives.length === 1 && actives[0].id === 'view-team-select';
       const hasDeepLink = /\b(view|tab|team)=/.test(location.search) || location.hash;
-      if (!alreadyOnAView && !hasDeepLink) goHome();
+      const hostRouted = actives.length > 0 && !onlyDefault;
+      if (!hostRouted && !hasDeepLink) goHome();
     } catch (e) { console.error('[skin-v4] goHome:', e); }
     try { applyAll(); } catch (e) { console.error('[skin-v4] applyAll:', e); }
     // Previously this re-ran applyAll() every 2.5s regardless of whether
