@@ -19200,14 +19200,19 @@ function appendCAPAHistory(existing, entry) {
 }
 
 // View entry point — called from showView('actions').
+// Stale-while-revalidate: paint from cache for instant feedback, but ALWAYS
+// kick off a fresh SP fetch in the background. Without the always-fetch leg,
+// values changed in SP (e.g. Priority added after the cache was warmed) never
+// propagate back into the in-memory list — RepNet just keeps showing the
+// stale cached snapshot indefinitely.
 function openActionsView() {
-  if (!capaListLoaded) {
+  if (capaListLoaded) {
+    renderActionsView();
+  } else {
     const host = document.getElementById('actions-root');
     if (host) host.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text3)">Loading CAPAs…</div>';
-    fetchCAPAs();
-  } else {
-    renderActionsView();
   }
+  fetchCAPAs();
 }
 
 // Logged-in user email (lowercase) for ownership checks.
@@ -19789,6 +19794,7 @@ async function submitCAPA() {
     toast(`${ref} raised`, 's');
     // Local copy stays in JS-shape so the rest of the UI keeps working.
     CAPA_ITEMS.unshift({ id: created.id, fields: { ...newFields } });
+    _saveListCache('capa', CAPA_ITEMS); // persist so a refresh doesn't miss the new row
     closeNewCAPAModal();
     // Refresh whichever view the user is on. Spawning from a CPAR card leaves
     // the user on Quality, so the "✓ N CAPAs spawned" badge needs updating too.
@@ -19844,6 +19850,7 @@ async function capaMarkDone(id) {
       _capaFieldsToSP(patch)
     );
     Object.assign(item.fields, patch);
+    _saveListCache('capa', CAPA_ITEMS);
     toast('Marked done — awaiting QHSE verification', 's');
     renderActionsView();
     // Re-open the card so the user sees the updated state.
@@ -19885,6 +19892,7 @@ async function capaVerify(id, effectiveness) {
       _capaFieldsToSP(patch)
     );
     Object.assign(item.fields, patch);
+    _saveListCache('capa', CAPA_ITEMS);
     toast(effectiveness === 'Yes' ? 'Closed · effective' : 'Closed · flagged ineffective', 's');
     renderActionsView();
     setTimeout(() => capaToggleRow(id), 30);
@@ -20080,6 +20088,7 @@ async function capaSaveEdits(id) {
       _capaFieldsToSP(patch)
     );
     Object.assign(item.fields, patch);
+    _saveListCache('capa', CAPA_ITEMS); // keep localStorage in sync so a refresh doesn't show stale values
     toast('CAPA updated', 's');
     renderActionsView();
     // Re-expand the row so the user sees the updated card (matches capaMarkDone pattern).
