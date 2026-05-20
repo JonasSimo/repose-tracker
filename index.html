@@ -19467,34 +19467,61 @@ function _capaCardHtml(item) {
     actionsHtml += `<div style="margin-top:8px"><span style="font-size:12px;color:${effColor};font-weight:700">${effLbl}</span></div>`;
   }
 
+  const areaC = CAPA_AREA_COLOURS[f.Area] || { fg:'#0e023a', bg:'#eef2f5' };
+  const canEdit = _capaCanVerify() && f.Status !== CAPA_STATUS.CLOSED;
+  const labelStyle = "font-weight:700;color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px";
+  const fieldBox   = "background:#fff;border:1.5px solid var(--border);border-radius:8px;padding:10px 12px";
+
   return `
     <div class="cpar-card status-${f.Status===CAPA_STATUS.CLOSED?'closed':'open'}">
-      <div class="cpar-card-header">
-        <span class="cpar-ref">${escHtml(f.Title||'')}</span>
+      <div class="cpar-card-header" style="padding:14px 18px 8px;gap:10px">
+        <span class="cpar-ref" style="font-size:13px">${escHtml(f.Title||'')}</span>
         <span class="cpar-status-badge ${f.Status===CAPA_STATUS.CLOSED?'closed':'open'}">${escHtml(f.Status||'Open')}</span>
-        <span style="margin-left:auto;font-size:11px;color:var(--text3)">${escHtml(f.Area||'')}</span>
+        <span style="display:inline-block;padding:2px 8px;border-radius:8px;font-size:9px;font-weight:800;letter-spacing:.05em;background:${areaC.bg};color:${areaC.fg}">${escHtml(f.Area||'')}</span>
+        ${canEdit ? `<button onclick="capaEditCAPA('${item.id}')" title="Edit CAPA (QHSE only)" style="margin-left:auto;padding:5px 12px;border:1.5px solid var(--border);border-radius:6px;background:#fff;font-family:inherit;font-size:11px;font-weight:700;color:var(--text2);cursor:pointer">✎ Edit</button>` : ''}
       </div>
-      <div class="cpar-card-body">
-        <div style="display:grid;grid-template-columns:130px 1fr;gap:6px 14px;font-size:13px;margin-bottom:10px">
-          <div style="font-weight:700;color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:.05em">Description</div>
-          <div>${escHtml(f.Description||'')}</div>
-          <div style="font-weight:700;color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:.05em">Source</div>
-          <div>${escHtml(f.Source||'—')}</div>
-          <div style="font-weight:700;color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:.05em">Owner</div>
-          <div>${escHtml(f.OwnerName||'')} · <span style="color:var(--text3)">${escHtml(f.OwnerTeam||'')}</span> · <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3)">${escHtml(f.OwnerEmail||'')}</span></div>
-          <div style="font-weight:700;color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:.05em">Due</div>
-          <div>${escHtml((f.DueDate||'').slice(0,10))}</div>
-          <div style="font-weight:700;color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:.05em">Raised</div>
-          <div>${escHtml((f.RaisedBy||'').split('@')[0])} · ${escHtml((f.RaisedAt||'').slice(0,16).replace('T',' '))}</div>
-          ${f.DoneBy ? `<div style="font-weight:700;color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:.05em">Done</div><div>${escHtml((f.DoneBy||'').split('@')[0])} · ${escHtml((f.DoneAt||'').slice(0,16).replace('T',' '))}</div>` : ''}
-          ${f.VerifiedBy ? `<div style="font-weight:700;color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:.05em">Verified</div><div>${escHtml((f.VerifiedBy||'').split('@')[0])} · ${escHtml((f.VerifiedAt||'').slice(0,16).replace('T',' '))}</div>` : ''}
+      <div class="cpar-card-body" style="padding:0 18px 16px">
+        <div style="${fieldBox};margin-bottom:12px">
+          <div style="${labelStyle}">Description</div>
+          <div style="font-size:14px;line-height:1.55;white-space:pre-wrap">${escHtml(f.Description||'')}</div>
         </div>
-        ${history.length ? `<details style="margin-top:6px"><summary style="font-size:11px;color:var(--text3);cursor:pointer">Audit trail (${history.length})</summary>
-          <div style="margin-top:6px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text3);line-height:1.6">
+        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 18px;margin-bottom:12px">
+          <div style="${fieldBox}">
+            <div style="${labelStyle}">Owner</div>
+            <div style="font-size:14px;font-weight:600;color:var(--text)">${escHtml(f.OwnerName||'—')}</div>
+            <div style="font-size:12px;color:var(--text3);margin-top:2px">${escHtml(f.OwnerTeam||'')}</div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3);margin-top:2px;word-break:break-all">${escHtml(f.OwnerEmail||'')}</div>
+          </div>
+          <div style="${fieldBox}">
+            <div style="${labelStyle}">Due date</div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700">${escHtml((f.DueDate||'').slice(0,10)) || '—'}</div>
+          </div>
+          <div style="${fieldBox}">
+            <div style="${labelStyle}">Source</div>
+            <div style="font-size:13px">${f.SourceCPARId && f.Source ? `<a href="javascript:void(0)" onclick="capaJumpToSource(${escHtml(JSON.stringify(f.Source))})" style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:var(--blue);text-decoration:underline">${escHtml(f.Source)}</a>` : (f.Source ? escHtml(f.Source) : '<span style="color:var(--text3)">—</span>')}</div>
+          </div>
+          <div style="${fieldBox}">
+            <div style="${labelStyle}">Raised</div>
+            <div style="font-size:13px">${escHtml((f.RaisedBy||'').split('@')[0])}</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px">${escHtml((f.RaisedAt||'').slice(0,16).replace('T',' '))}</div>
+          </div>
+          ${f.DoneBy ? `<div style="${fieldBox}">
+            <div style="${labelStyle}">Marked done</div>
+            <div style="font-size:13px">${escHtml((f.DoneBy||'').split('@')[0])}</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px">${escHtml((f.DoneAt||'').slice(0,16).replace('T',' '))}</div>
+          </div>` : ''}
+          ${f.VerifiedBy ? `<div style="${fieldBox}">
+            <div style="${labelStyle}">Verified</div>
+            <div style="font-size:13px">${escHtml((f.VerifiedBy||'').split('@')[0])}</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px">${escHtml((f.VerifiedAt||'').slice(0,16).replace('T',' '))}</div>
+          </div>` : ''}
+        </div>
+        ${history.length ? `<details style="margin-bottom:10px"><summary style="font-size:11px;color:var(--text3);cursor:pointer">Audit trail (${history.length})</summary>
+          <div style="margin-top:6px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text3);line-height:1.6;background:#fff;border:1px solid var(--border);border-radius:6px;padding:8px 10px">
             ${history.map(h => `${escHtml((h.at||'').slice(0,16).replace('T',' '))} · ${escHtml((h.by||'').split('@')[0])} · ${escHtml(h.ev||'')}`).join('<br>')}
           </div>
         </details>` : ''}
-        <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;align-items:center">${actionsHtml}</div>
+        ${actionsHtml ? `<div style="margin-top:6px">${actionsHtml}</div>` : ''}
       </div>
     </div>
   `;
@@ -19808,6 +19835,176 @@ async function capaVerify(id, effectiveness) {
   } catch(e) {
     console.warn('capaVerify:', e.message);
     toast('Could not save — '+e.message, 'u');
+  } finally {
+    _clearBusy(id);
+  }
+}
+
+// ── Edit existing CAPA (QHSE only) ────────────────────────────────────────
+// Lets QHSE reassign owner, change due date, fix description, or correct area.
+// Status / completion fields are deliberately NOT editable — those flow through
+// the existing mark-done / verify pipeline so the audit trail stays consistent.
+function _capaEditCardHtml(item) {
+  const f = item.fields || {};
+  const id = item.id;
+  const people = _capaPeopleList();
+  const labelStyle = "font-weight:700;color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px";
+  const fieldBox   = "background:#fff;border:1.5px solid var(--border);border-radius:8px;padding:10px 12px";
+  const inputStyle = "width:100%;padding:7px 9px;border:1.5px solid var(--border);border-radius:6px;font-family:inherit;font-size:13px;box-sizing:border-box;background:#fff";
+
+  const areaPills = CAPA_AREAS.map(a => {
+    const c = CAPA_AREA_COLOURS[a] || { fg:'#0e023a', bg:'#eef2f5' };
+    const active = a === (f.Area || 'Quality');
+    return `<button type="button" data-area="${escHtml(a)}" onclick="_capaEditPickArea('${id}','${a.replace(/'/g,"\\'")}')" style="padding:6px 12px;border:1.5px solid ${active?c.fg:'var(--border)'};border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;background:${active?c.bg:'#fff'};color:${active?c.fg:'var(--text2)'};font-family:inherit">${escHtml(a)}</button>`;
+  }).join('');
+
+  const ownerOptions = `<option value="">— Select owner —</option>` +
+    people.map(p => `<option value="${escHtml(p.email)}" ${(p.email===(f.OwnerEmail||'').toLowerCase())?'selected':''}>${escHtml(p.name)} · ${escHtml(p.email.split('@')[0])}</option>`).join('');
+
+  const teamOptions = `<option value="">— Select team —</option>` +
+    CAPA_OWNER_TEAMS.map(t => `<option value="${escHtml(t)}" ${t===(f.OwnerTeam||'')?'selected':''}>${escHtml(t)}</option>`).join('');
+
+  return `
+    <div class="cpar-card" style="border:1.5px solid var(--amber);border-left:5px solid var(--amber);background:#fffdf5">
+      <div class="cpar-card-header" style="padding:14px 18px 10px;gap:10px;background:#fff8e6;border-bottom:1px dashed var(--border)">
+        <span class="cpar-ref" style="font-size:13px">${escHtml(f.Title||'')}</span>
+        <span style="display:inline-block;padding:3px 9px;border-radius:8px;font-size:10px;font-weight:800;letter-spacing:.05em;background:var(--amber);color:#fff">✎ EDITING</span>
+        <span style="margin-left:auto;display:flex;gap:6px">
+          <button onclick="capaCancelEdit('${id}')" style="padding:6px 14px;border:1.5px solid var(--border);border-radius:6px;background:#fff;font-family:inherit;font-size:12px;font-weight:700;color:var(--text2);cursor:pointer">Cancel</button>
+          <button id="capa-save-btn-${id}" onclick="capaSaveEdits('${id}')" class="cpar-confirm-close-btn" style="padding:6px 14px;font-size:12px">Save changes</button>
+        </span>
+      </div>
+      <div class="cpar-card-body" style="padding:14px 18px 16px">
+        <div style="margin-bottom:14px">
+          <div style="${labelStyle}">Description <span style="color:var(--red)">*</span></div>
+          <textarea id="capa-edit-desc-${id}" style="${inputStyle};min-height:64px;resize:vertical;font-size:13px;line-height:1.5">${escHtml(f.Description||'')}</textarea>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 18px">
+          <div style="${fieldBox}">
+            <div style="${labelStyle}">Owner <span style="color:var(--red)">*</span></div>
+            <select id="capa-edit-owner-${id}" style="${inputStyle}">${ownerOptions}</select>
+          </div>
+          <div style="${fieldBox}">
+            <div style="${labelStyle}">Owner team <span style="color:var(--red)">*</span></div>
+            <select id="capa-edit-team-${id}" style="${inputStyle}">${teamOptions}</select>
+          </div>
+          <div style="${fieldBox}">
+            <div style="${labelStyle}">Due date <span style="color:var(--red)">*</span></div>
+            <input type="date" id="capa-edit-due-${id}" value="${escHtml((f.DueDate||'').slice(0,10))}" style="${inputStyle};font-family:'JetBrains Mono',monospace">
+          </div>
+          <div style="${fieldBox}">
+            <div style="${labelStyle}">Area</div>
+            <div id="capa-edit-area-${id}" data-selected="${escHtml(f.Area||'Quality')}" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:2px">${areaPills}</div>
+          </div>
+        </div>
+        <div style="margin-top:12px;font-size:11px;color:var(--text3);font-style:italic">
+          Changes are logged to the audit trail with your sign-in and a timestamp.
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function _capaEditPickArea(id, area) {
+  const wrap = document.getElementById('capa-edit-area-' + id);
+  if (!wrap) return;
+  wrap.dataset.selected = area;
+  wrap.querySelectorAll('[data-area]').forEach(btn => {
+    const a = btn.dataset.area;
+    const c = CAPA_AREA_COLOURS[a] || { fg:'#0e023a', bg:'#eef2f5' };
+    const active = a === area;
+    btn.style.background   = active ? c.bg : '#fff';
+    btn.style.color        = active ? c.fg : 'var(--text2)';
+    btn.style.borderColor  = active ? c.fg : 'var(--border)';
+  });
+}
+
+function capaEditCAPA(id) {
+  if (!_capaCanVerify()) { toast('Only QHSE can edit CAPAs', 'u'); return; }
+  const item = CAPA_ITEMS.find(i => i.id === id);
+  if (!item) return;
+  if (item.fields?.Status === CAPA_STATUS.CLOSED) { toast('Closed CAPAs cannot be edited', 'u'); return; }
+  const card = document.getElementById('capa-card-' + id);
+  if (!card) return;
+  card.innerHTML = _capaEditCardHtml(item);
+}
+
+function capaCancelEdit(id) {
+  const item = CAPA_ITEMS.find(i => i.id === id);
+  const card = document.getElementById('capa-card-' + id);
+  if (!item || !card) return;
+  card.innerHTML = _capaCardHtml(item);
+}
+
+async function capaSaveEdits(id) {
+  if (_isBusy(id)) return;
+  if (!_capaCanVerify()) { toast('Only QHSE can edit CAPAs', 'u'); return; }
+  const item = CAPA_ITEMS.find(i => i.id === id);
+  if (!item) return;
+
+  const f = item.fields || {};
+  const desc       = (document.getElementById('capa-edit-desc-'+id)?.value || '').trim();
+  const ownerEmail = (document.getElementById('capa-edit-owner-'+id)?.value || '').trim().toLowerCase();
+  const ownerTeam  = (document.getElementById('capa-edit-team-'+id)?.value || '').trim();
+  const due        =  document.getElementById('capa-edit-due-'+id)?.value || '';
+  const area       =  document.getElementById('capa-edit-area-'+id)?.dataset?.selected || f.Area;
+
+  if (!desc)       { toast('Description cannot be empty', 'u'); return; }
+  if (!ownerEmail) { toast('Pick an owner', 'u'); return; }
+  if (!ownerTeam)  { toast('Pick the owner team', 'u'); return; }
+  if (!due)        { toast('Set a due date', 'u'); return; }
+
+  const people = _capaPeopleList();
+  const ownerName = (people.find(p => p.email === ownerEmail) || {}).name || '';
+  if (!ownerName) { toast('Selected owner not in roster — pick again', 'u'); return; }
+
+  // Build patch with ONLY changed fields so unchanged values don't churn the history line.
+  const patch = {};
+  const changes = [];
+  if (desc !== (f.Description||'')) { patch.Description = desc; changes.push('description'); }
+  if (area !== (f.Area||''))        { patch.Area = area; changes.push(`area→${area}`); }
+  if (ownerEmail !== (f.OwnerEmail||'').toLowerCase()) {
+    patch.OwnerEmail = ownerEmail;
+    patch.OwnerName  = ownerName;
+    changes.push(`owner→${ownerName}`);
+  } else if (ownerName !== (f.OwnerName||'')) {
+    // Email unchanged but name lookup gave a cleaner display name — sync it.
+    patch.OwnerName = ownerName;
+  }
+  if (ownerTeam !== (f.OwnerTeam||'')) { patch.OwnerTeam = ownerTeam; changes.push(`team→${ownerTeam}`); }
+  if (due !== (f.DueDate||'').slice(0,10)) { patch.DueDate = due; changes.push(`due→${due}`); }
+
+  if (!Object.keys(patch).length) {
+    toast('No changes to save', 'i');
+    capaCancelEdit(id);
+    return;
+  }
+
+  const me = _capaCurrentUser();
+  if (!me) { toast('Sign-in expired — refresh', 'u'); return; }
+
+  _setBusy(id);
+  const btn = document.getElementById('capa-save-btn-'+id);
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+  patch.History = appendCAPAHistory(f.History || '', { by: me, ev: `edited: ${changes.join(', ')}` });
+
+  try {
+    const siteId = await getCapaSiteId();
+    const listId = await getListIdByNameOnSite(siteId, SP_CAPA_LIST);
+    await graphPatch(
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${id}/fields`,
+      _capaFieldsToSP(patch)
+    );
+    Object.assign(item.fields, patch);
+    toast('CAPA updated', 's');
+    renderActionsView();
+    // Re-expand the row so the user sees the updated card (matches capaMarkDone pattern).
+    setTimeout(() => capaToggleRow(id), 30);
+  } catch(e) {
+    console.warn('capaSaveEdits:', e.message);
+    toast('Could not save — '+e.message, 'u');
+    if (btn) { btn.disabled = false; btn.textContent = 'Save changes'; }
   } finally {
     _clearBusy(id);
   }
