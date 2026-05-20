@@ -4468,6 +4468,11 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
 
       <div>
+        <label style="display:block;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Priority <span style="color:var(--red)">*</span></label>
+        <div id="capa-f-priority-pills" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+      </div>
+
+      <div>
         <label style="display:block;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Source <span style="font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0;font-size:11px">— a CPAR ref like RP-03902, near-miss date, audit name, etc.</span></label>
         <input id="capa-f-source" type="text" placeholder="RP-03902  ·  Near-miss 24 Apr  ·  Audit Q1 …" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:'JetBrains Mono',monospace;box-sizing:border-box">
       </div>
@@ -19053,6 +19058,9 @@ function _capaFieldsFromSP(spFields) {
   for (const [sp, js] of Object.entries(_CAPA_SP_TO_JS)) {
     if (sp in out) out[js] = out[sp];
   }
+  // Back-compat: rows created before the Priority column existed have no value.
+  // Default to Medium so the UI always renders a chip and filters/totals behave.
+  if (!out.Priority) out.Priority = CAPA_PRIORITY_DEFAULT;
   return out;
 }
 function _capaFieldsToSP(jsFields) {
@@ -19076,6 +19084,16 @@ const CAPA_AREA_COLOURS = {
   'H&S':         { fg:'#dc2626', bg:'#fff1f1' },
   'Environment': { fg:'#059669', bg:'#ecfdf5' },
 };
+
+// Priority is rendered as a coloured chip everywhere — fg/bg mirror the
+// existing red/amber/green semantics used by overdue badges & status pills.
+const CAPA_PRIORITIES = ['High', 'Medium', 'Low'];
+const CAPA_PRIORITY_COLOURS = {
+  'High':   { fg:'#dc2626', bg:'#fff1f1' }, // red
+  'Medium': { fg:'#d97706', bg:'#fff7e6' }, // amber/orange
+  'Low':    { fg:'#059669', bg:'#ecfdf5' }, // green
+};
+const CAPA_PRIORITY_DEFAULT = 'Medium';
 
 const CAPA_OWNER_TEAMS = [
   'Woodmill','Cutting','Sewing','Upholstery','Foam','Stores',
@@ -19376,9 +19394,13 @@ function _capaRowHtml(item) {
     sourceHtml = `<span style="color:var(--text3);font-size:11px">—</span>`;
   }
 
+  const prio = f.Priority || CAPA_PRIORITY_DEFAULT;
+  const prioC = CAPA_PRIORITY_COLOURS[prio] || { fg:'#0e023a', bg:'#eef2f5' };
+  const prioChip = `<span style="display:inline-block;margin-left:6px;padding:1px 6px;border-radius:6px;font-size:9px;font-weight:800;letter-spacing:.04em;background:${prioC.bg};color:${prioC.fg};vertical-align:middle">${escHtml(prio.toUpperCase())}</span>`;
+
   return `
     <tr style="cursor:pointer" onclick="capaToggleRow('${item.id}')">
-      <td style="font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--repose-navy)">${escHtml(f.Title||'?')}</td>
+      <td style="font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--repose-navy)">${escHtml(f.Title||'?')}${prioChip}</td>
       <td><span style="display:inline-block;padding:2px 7px;border-radius:8px;font-size:9px;font-weight:800;letter-spacing:.05em;background:${areaC.bg};color:${areaC.fg}">${escHtml(f.Area==='H&S'?'H&S':(f.Area||'').slice(0,3).toUpperCase())}</span></td>
       <td>${escHtml(f.Description||'')}</td>
       <td>${sourceHtml}</td>
@@ -19468,6 +19490,8 @@ function _capaCardHtml(item) {
   }
 
   const areaC = CAPA_AREA_COLOURS[f.Area] || { fg:'#0e023a', bg:'#eef2f5' };
+  const prio  = f.Priority || CAPA_PRIORITY_DEFAULT;
+  const prioC = CAPA_PRIORITY_COLOURS[prio] || { fg:'#0e023a', bg:'#eef2f5' };
   const canEdit = _capaCanVerify() && f.Status !== CAPA_STATUS.CLOSED;
   const labelStyle = "font-weight:700;color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px";
   const fieldBox   = "background:#fff;border:1.5px solid var(--border);border-radius:8px;padding:10px 12px";
@@ -19477,6 +19501,7 @@ function _capaCardHtml(item) {
       <div class="cpar-card-header" style="padding:14px 18px 8px;gap:10px">
         <span class="cpar-ref" style="font-size:13px">${escHtml(f.Title||'')}</span>
         <span class="cpar-status-badge ${f.Status===CAPA_STATUS.CLOSED?'closed':'open'}">${escHtml(f.Status||'Open')}</span>
+        <span title="Priority" style="display:inline-block;padding:2px 8px;border-radius:8px;font-size:9px;font-weight:800;letter-spacing:.05em;background:${prioC.bg};color:${prioC.fg}">${escHtml(prio.toUpperCase())}</span>
         <span style="display:inline-block;padding:2px 8px;border-radius:8px;font-size:9px;font-weight:800;letter-spacing:.05em;background:${areaC.bg};color:${areaC.fg}">${escHtml(f.Area||'')}</span>
         ${canEdit ? `<button onclick="capaEditCAPA('${item.id}')" title="Edit CAPA (QHSE only)" style="margin-left:auto;padding:5px 12px;border:1.5px solid var(--border);border-radius:6px;background:#fff;font-family:inherit;font-size:11px;font-weight:700;color:var(--text2);cursor:pointer">✎ Edit</button>` : ''}
       </div>
@@ -19590,16 +19615,17 @@ function _capaPeopleList() {
 
 // ── New CAPA modal: open / close / pre-fill ──
 let capaFormState = {
-  desc: '', area: 'Quality', source: '', sourceCparId: '',
+  desc: '', area: 'Quality', priority: CAPA_PRIORITY_DEFAULT, source: '', sourceCparId: '',
   ownerEmail: '', ownerName: '', ownerTeam: '', due: '',
 };
 
 function openNewCAPAModal(prefill) {
-  // prefill: { desc, area, source, sourceCparId, ownerTeam, due } — all optional
+  // prefill: { desc, area, priority, source, sourceCparId, ownerTeam, due } — all optional
   const p = prefill || {};
   capaFormState = {
     desc: p.desc || '',
     area: p.area || 'Quality',
+    priority: p.priority || CAPA_PRIORITY_DEFAULT,
     source: p.source || '',
     sourceCparId: p.sourceCparId || '',
     ownerEmail: p.ownerEmail || '',
@@ -19619,8 +19645,9 @@ function openNewCAPAModal(prefill) {
   document.getElementById('capa-f-source').value = capaFormState.source;
   document.getElementById('capa-f-due').value   = capaFormState.due;
 
-  // Area pills
+  // Area + Priority pills
   _capaRepaintAreaPills();
+  _capaRepaintPriorityPills();
 
   // Owner select
   const ownerSel = document.getElementById('capa-f-owner');
@@ -19646,6 +19673,16 @@ function _capaRepaintAreaPills() {
     const c = CAPA_AREA_COLOURS[a] || { fg:'#0e023a', bg:'#eef2f5' };
     const active = a === capaFormState.area;
     return `<button type="button" onclick="capaFormState.area='${a.replace(/'/g,"\\'")}';_capaRepaintAreaPills()" style="padding:6px 12px;border:1.5px solid ${active?c.fg:'var(--border)'};border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;background:${active?c.bg:'#fff'};color:${active?c.fg:'var(--text2)'};font-family:inherit">${escHtml(a)}</button>`;
+  }).join('');
+}
+
+function _capaRepaintPriorityPills() {
+  const wrap = document.getElementById('capa-f-priority-pills');
+  if (!wrap) return;
+  wrap.innerHTML = CAPA_PRIORITIES.map(p => {
+    const c = CAPA_PRIORITY_COLOURS[p] || { fg:'#0e023a', bg:'#eef2f5' };
+    const active = p === capaFormState.priority;
+    return `<button type="button" onclick="capaFormState.priority='${p}';_capaRepaintPriorityPills()" style="padding:6px 14px;border:1.5px solid ${active?c.fg:'var(--border)'};border-radius:8px;font-size:11px;font-weight:800;letter-spacing:.04em;cursor:pointer;background:${active?c.bg:'#fff'};color:${active?c.fg:'var(--text2)'};font-family:inherit">${escHtml(p)}</button>`;
   }).join('');
 }
 
@@ -19682,6 +19719,7 @@ async function submitCAPA() {
   const ownerEmail = document.getElementById('capa-f-owner').value;
   const ownerTeam  = document.getElementById('capa-f-team').value;
   const area = capaFormState.area;
+  const priority = capaFormState.priority || CAPA_PRIORITY_DEFAULT;
   const sourceCparId = capaFormState.sourceCparId || '';
 
   // Owner name from people list
@@ -19711,6 +19749,7 @@ async function submitCAPA() {
     const newFields = {
       Title:           ref,
       Area:            area,
+      Priority:        priority,
       Description:     desc,
       Source:          source,
       SourceCPARId:    sourceCparId,
@@ -19722,7 +19761,7 @@ async function submitCAPA() {
       EffectivenessYN: CAPA_EFFECTIVENESS.PENDING,
       RaisedBy:        me,
       RaisedAt:        now,
-      History:         appendCAPAHistory('', { by: me, ev: 'raised' }),
+      History:         appendCAPAHistory('', { by: me, ev: `raised (${priority.toLowerCase()})` }),
     };
 
     const created = await graphPost(
@@ -19858,6 +19897,13 @@ function _capaEditCardHtml(item) {
     return `<button type="button" data-area="${escHtml(a)}" onclick="_capaEditPickArea('${id}','${a.replace(/'/g,"\\'")}')" style="padding:6px 12px;border:1.5px solid ${active?c.fg:'var(--border)'};border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;background:${active?c.bg:'#fff'};color:${active?c.fg:'var(--text2)'};font-family:inherit">${escHtml(a)}</button>`;
   }).join('');
 
+  const currentPrio = f.Priority || CAPA_PRIORITY_DEFAULT;
+  const priorityPills = CAPA_PRIORITIES.map(p => {
+    const c = CAPA_PRIORITY_COLOURS[p] || { fg:'#0e023a', bg:'#eef2f5' };
+    const active = p === currentPrio;
+    return `<button type="button" data-priority="${escHtml(p)}" onclick="_capaEditPickPriority('${id}','${p}')" style="padding:6px 14px;border:1.5px solid ${active?c.fg:'var(--border)'};border-radius:8px;font-size:11px;font-weight:800;letter-spacing:.04em;cursor:pointer;background:${active?c.bg:'#fff'};color:${active?c.fg:'var(--text2)'};font-family:inherit">${escHtml(p)}</button>`;
+  }).join('');
+
   const ownerOptions = `<option value="">— Select owner —</option>` +
     people.map(p => `<option value="${escHtml(p.email)}" ${(p.email===(f.OwnerEmail||'').toLowerCase())?'selected':''}>${escHtml(p.name)} · ${escHtml(p.email.split('@')[0])}</option>`).join('');
 
@@ -19896,6 +19942,10 @@ function _capaEditCardHtml(item) {
             <div style="${labelStyle}">Area</div>
             <div id="capa-edit-area-${id}" data-selected="${escHtml(f.Area||'Quality')}" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:2px">${areaPills}</div>
           </div>
+          <div style="${fieldBox};grid-column:1 / -1">
+            <div style="${labelStyle}">Priority</div>
+            <div id="capa-edit-priority-${id}" data-selected="${escHtml(currentPrio)}" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:2px">${priorityPills}</div>
+          </div>
         </div>
         <div style="margin-top:12px;font-size:11px;color:var(--text3);font-style:italic">
           Changes are logged to the audit trail with your sign-in and a timestamp.
@@ -19913,6 +19963,20 @@ function _capaEditPickArea(id, area) {
     const a = btn.dataset.area;
     const c = CAPA_AREA_COLOURS[a] || { fg:'#0e023a', bg:'#eef2f5' };
     const active = a === area;
+    btn.style.background   = active ? c.bg : '#fff';
+    btn.style.color        = active ? c.fg : 'var(--text2)';
+    btn.style.borderColor  = active ? c.fg : 'var(--border)';
+  });
+}
+
+function _capaEditPickPriority(id, priority) {
+  const wrap = document.getElementById('capa-edit-priority-' + id);
+  if (!wrap) return;
+  wrap.dataset.selected = priority;
+  wrap.querySelectorAll('[data-priority]').forEach(btn => {
+    const p = btn.dataset.priority;
+    const c = CAPA_PRIORITY_COLOURS[p] || { fg:'#0e023a', bg:'#eef2f5' };
+    const active = p === priority;
     btn.style.background   = active ? c.bg : '#fff';
     btn.style.color        = active ? c.fg : 'var(--text2)';
     btn.style.borderColor  = active ? c.fg : 'var(--border)';
@@ -19948,6 +20012,7 @@ async function capaSaveEdits(id) {
   const ownerTeam  = (document.getElementById('capa-edit-team-'+id)?.value || '').trim();
   const due        =  document.getElementById('capa-edit-due-'+id)?.value || '';
   const area       =  document.getElementById('capa-edit-area-'+id)?.dataset?.selected || f.Area;
+  const priority   =  document.getElementById('capa-edit-priority-'+id)?.dataset?.selected || f.Priority || CAPA_PRIORITY_DEFAULT;
 
   if (!desc)       { toast('Description cannot be empty', 'u'); return; }
   if (!ownerEmail) { toast('Pick an owner', 'u'); return; }
@@ -19963,6 +20028,7 @@ async function capaSaveEdits(id) {
   const changes = [];
   if (desc !== (f.Description||'')) { patch.Description = desc; changes.push('description'); }
   if (area !== (f.Area||''))        { patch.Area = area; changes.push(`area→${area}`); }
+  if (priority !== (f.Priority || CAPA_PRIORITY_DEFAULT)) { patch.Priority = priority; changes.push(`priority→${priority}`); }
   if (ownerEmail !== (f.OwnerEmail||'').toLowerCase()) {
     patch.OwnerEmail = ownerEmail;
     patch.OwnerName  = ownerName;
