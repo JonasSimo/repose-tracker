@@ -7396,7 +7396,7 @@ function openTeam(name, hasSubs) {
   activeTeam = name;
   activeHasSubs = hasSubs;
   activeSub = hasSubs ? 'Arms' : 'all';
-  activeWC = WEEKS[3] || WEEKS[2] || WEEKS[1] || WEEKS[0]; // default to current week (index 3 in 5-week window)
+  activeWC = WEEKS[3] || WEEKS[2] || WEEKS[1] || WEEKS[0]; // default to current week (index 3 in 6-week window)
   activePrep = 1;
   showView('tracker');
   renderTeamSidebar();
@@ -11452,8 +11452,9 @@ async function loadProductionFromSharePoint() {
     PROD_DRIVE_ID = driveId;
     PROD_ITEM_ID  = itemId;
 
-    // 2. Determine 5-week window. Shift by days rather than by raw
-    // week number so weeks wrap correctly across the year boundary.
+    // 2. Determine 6-week window (-3..+2 inclusive). Shift by days rather than
+    // by raw week number so weeks wrap correctly across the year boundary.
+    // Current week stays at index 3 (the 0 offset) — same anchor as before.
     const _isoWeekOfDate = d => {
       const x = new Date(d); x.setHours(0,0,0,0);
       x.setDate(x.getDate() + 3 - (x.getDay()+6)%7);
@@ -11461,7 +11462,7 @@ async function loadProductionFromSharePoint() {
       return 1 + Math.round(((x-w1)/86400000 - 3 + (w1.getDay()+6)%7) / 7);
     };
     const _today = new Date(); _today.setHours(0,0,0,0);
-    const weekNums = [-3,-2,-1,0,1].map(delta => {
+    const weekNums = [-3,-2,-1,0,1,2].map(delta => {
       const d = new Date(_today);
       d.setDate(d.getDate() + delta * 7);
       return _isoWeekOfDate(d);
@@ -11508,7 +11509,7 @@ async function loadProductionFromSharePoint() {
     newWEEKS.forEach(w => WEEKS.push(w));
     _prodVersion++; // invalidate findJobByRep index — jobs may have moved
 
-    // Current ISO week sits at index 3 in weekNums (built from [-3,-2,-1,0,1]).
+    // Current ISO week sits at index 3 in weekNums (built from [-3,-2,-1,0,1,2]).
     const _currentWk = weekNums[3];
     if (!activeWC || (activeWC !== 'PRIORITY' && !newWEEKS.includes(activeWC))) activeWC = `WK ${_currentWk}`;
     if (!activeProdWC || !newWEEKS.includes(activeProdWC)) activeProdWC = `WK ${_currentWk}`;
