@@ -12,7 +12,6 @@
 // Required app settings:
 //   SAFETYCULTURE_API_TOKEN     — bearer token (Settings → Integrations → API)
 //   SAFETYCULTURE_TEMPLATE_ID   — template ID to sync (see find-template-id.js)
-//   SAFETYCULTURE_REGION        — 'global' | 'eu' | 'au' | 'us'  (default 'eu')
 //   SUPABASE_URL                — e.g. https://xxx.supabase.co
 //   SUPABASE_SERVICE_ROLE_KEY   — service role key (bypasses RLS)
 //   SAFETYCULTURE_BACKFILL      — optional; '1' to ignore the watermark
@@ -22,16 +21,13 @@ const fetch = require('node-fetch');
 
 const SC_TOKEN       = process.env.SAFETYCULTURE_API_TOKEN;
 const SC_TEMPLATE_ID = process.env.SAFETYCULTURE_TEMPLATE_ID;
-const SC_REGION      = (process.env.SAFETYCULTURE_REGION || 'eu').toLowerCase();
 const SC_BACKFILL    = process.env.SAFETYCULTURE_BACKFILL === '1';
 
 const SUPABASE_URL  = (process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const SUPABASE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-const SC_BASE = SC_REGION === 'au' ? 'https://api.au.safetyculture.io'
-              : SC_REGION === 'us' ? 'https://api.us.safetyculture.io'
-              : SC_REGION === 'global' ? 'https://api.safetyculture.io'
-              : 'https://api.eu.safetyculture.io';
+// SafetyCulture has one global API hostname; routing is by token, not by region.
+const SC_BASE = 'https://api.safetyculture.io';
 
 const EPOCH = '1970-01-01T00:00:00.000Z';
 const PAGE_SIZE = 100;
@@ -212,7 +208,7 @@ module.exports = async function (context, myTimer) {
     return;
   }
 
-  log(`[sc-sync] start · region=${SC_REGION} · template=${SC_TEMPLATE_ID} · backfill=${SC_BACKFILL}`);
+  log(`[sc-sync] start · template=${SC_TEMPLATE_ID} · backfill=${SC_BACKFILL}`);
 
   // 1. Read watermark
   let modifiedAfter = EPOCH;

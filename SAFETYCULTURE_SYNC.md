@@ -18,7 +18,6 @@ Run locally from `bin/azure-functions`:
 
 ```powershell
 $env:SAFETYCULTURE_API_TOKEN = "<bearer token>"
-$env:SAFETYCULTURE_REGION    = "eu"
 node safetyculture-sync\find-template-id.js "service"
 ```
 
@@ -38,7 +37,6 @@ Add to **RepNet** Function App → Configuration → Application settings:
 | --- | --- |
 | `SAFETYCULTURE_API_TOKEN` | bearer token from SC → Settings → Integrations → API |
 | `SAFETYCULTURE_TEMPLATE_ID` | template_id from step 1 |
-| `SAFETYCULTURE_REGION` | `eu` (or `global` / `au` / `us`) |
 | `SUPABASE_URL` | already set for other functions |
 | `SUPABASE_SERVICE_ROLE_KEY` | already set for other functions |
 
@@ -64,7 +62,7 @@ Always normalised to `REP NNNNNNN` (7-digit REP). Audits without a recognisable 
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
-| 401 from SC | Wrong region, wrong token | Verify `SAFETYCULTURE_REGION`; regenerate token if expired |
+| 401 from SC | Wrong / expired token | Regenerate the API token in SafetyCulture → Settings → Integrations |
 | 0 audits returned | Watermark already at latest, or wrong template_id | Check `service_inspection_sync_state.last_modified_after` vs the inspection's `modified_at`; verify template_id |
 | Audits in table but `rep_number = NULL` | Inspector didn't fill the "Rep Number:" field | Add REP in SC; next sync will pick it up |
 | Photos broken in RepNet | SafetyCulture asset URL expired | Re-sync the audit (URLs are signed; some templates use short-lived links) |

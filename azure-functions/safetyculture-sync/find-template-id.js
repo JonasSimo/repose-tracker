@@ -19,7 +19,6 @@
 const fetch = require('node-fetch');
 
 const TOKEN   = process.env.SAFETYCULTURE_API_TOKEN;
-const REGION  = (process.env.SAFETYCULTURE_REGION || 'global').toLowerCase();
 const NEEDLE  = (process.argv[2] || '').toLowerCase().trim();
 
 if (!TOKEN) {
@@ -31,19 +30,31 @@ if (!NEEDLE) {
   process.exit(1);
 }
 
-const BASE = REGION === 'au' ? 'https://api.au.safetyculture.io'
-           : REGION === 'eu' ? 'https://api.eu.safetyculture.io'
-           : REGION === 'us' ? 'https://api.us.safetyculture.io'
-           : 'https://api.safetyculture.io';
+// SafetyCulture has one global API hostname; routing is by token, not by region.
+const BASE = 'https://api.safetyculture.io';
 
 (async () => {
-  let offset = 0;
-  const pageSize = 100;
+  // SC's /templates/search uses cursor-style pagination via modified_after,
+  // not offset. Walk forward until a page returns fewer than `limit` items.
+  const pageSize = 1000;
+  let modifiedAfter = '1970-01-01T00:00:00.000Z';
   let total = 0;
+  let pages = 0;
   const matches = [];
+  const seenIds = new Set();
 
-  while (true) {
-    const url = `${BASE}/templates/search?field=template_id&field=name&field=modified_at&limit=${pageSize}&offset=${offset}`;
+  while (pages < 20) {
+    pages++;
+    const qs = new URLSearchParams({
+      field: 'template_id',
+      order: 'asc',
+      limit: String(pageSize),
+      modified_after: modifiedAfter
+    });
+    // Multi-value `field` param — URLSearchParams encodes one value, append manually
+    qs.append('field', 'name');
+    qs.append('field', 'modified_at');
+    const url = `${BASE}/templates/search?${qs.toString()}`;
     const res = await fetch(url, {
       headers: {
         'Authorization': `Bearer ${TOKEN}`,
@@ -57,26 +68,26 @@ const BASE = REGION === 'au' ? 'https://api.au.safetyculture.io'
     const data = await res.json();
     const items = data.templates || data.items || data.data || [];
     if (!items.length) break;
-    total += items.length;
+    let newestSeenAt = modifiedAfter;
+    let newItemsOnThisPage = 0;
     for (const t of items) {
+      const id = t.template_id || t.id;
+      if (id && seenIds.has(id)) continue;
+      seenIds.add(id);
+      newItemsOnThisPage++;
       const name = String(t.name || t.template_name || '');
+      const m_at = t.modified_at || t.date_modified || null;
+      if (m_at && m_at > newestSeenAt) newestSeenAt = m_at;
       if (name.toLowerCase().includes(NEEDLE)) {
-        matches.push({
-          template_id: t.template_id || t.id,
-          name,
-          modified_at: t.modified_at || t.date_modified || null
-        });
+        matches.push({ template_id: id, name, modified_at: m_at });
       }
     }
-    if (items.length < pageSize) break;
-    offset += pageSize;
-    if (offset > 5000) {
-      console.error('Stopping at 5000 templates — refine your needle.');
-      break;
-    }
+    total += newItemsOnThisPage;
+    if (items.length < pageSize || newItemsOnThisPage === 0) break;
+    modifiedAfter = newestSeenAt;
   }
 
-  console.log(`Scanned ${total} templates · ${matches.length} matched "${NEEDLE}":`);
+  console.log(`Scanned ${total} templates across ${pages} page(s) · ${matches.length} matched "${NEEDLE}":`);
   for (const m of matches) {
     console.log(`  ${m.template_id}\t${m.name}${m.modified_at ? `  (modified ${m.modified_at})` : ''}`);
   }
