@@ -226,20 +226,23 @@ module.exports = async function (context, myTimer) {
   }
   log(`[sc-sync] modified_after=${modifiedAfter}`);
 
-  // 2. Page through audits/search to collect IDs
+  // 2. Page through audits/search to collect IDs.
+  // SC uses cursor pagination via modified_after — `offset` returns HTTP 400.
+  // Walk forward by advancing the cursor to the newest modified_at seen on
+  // each page; a seenIds set guards against double-counting boundary rows
+  // (multiple audits with the same modified_at would otherwise re-appear).
   const auditIds = [];
-  let offset = 0;
+  const seenIds = new Set();
+  let cursor = modifiedAfter;
   let pages = 0;
   const maxPages = 50; // hard cap so a runaway template can't exhaust the budget
   while (pages < maxPages) {
     pages++;
     const qs = new URLSearchParams({
       template: SC_TEMPLATE_ID,
-      modified_after: modifiedAfter,
-      offset: String(offset),
+      modified_after: cursor,
       limit: String(PAGE_SIZE),
-      order: 'asc',
-      field: 'audit_id'
+      order: 'asc'
     }).toString();
     let page;
     try {
@@ -250,11 +253,19 @@ module.exports = async function (context, myTimer) {
       return;
     }
     const items = page.audits || page.data || [];
+    let newOnThisPage = 0;
+    let newestSeen = cursor;
     for (const a of items) {
-      if (a.audit_id) auditIds.push(a.audit_id);
+      const id = a.audit_id;
+      if (!id || seenIds.has(id)) continue;
+      seenIds.add(id);
+      auditIds.push(id);
+      newOnThisPage++;
+      const m = a.modified_at || a.date_modified;
+      if (m && m > newestSeen) newestSeen = m;
     }
-    if (items.length < PAGE_SIZE) break;
-    offset += PAGE_SIZE;
+    if (items.length < PAGE_SIZE || newOnThisPage === 0) break;
+    cursor = newestSeen;
   }
   if (pages >= maxPages) warn(`[sc-sync] hit max page limit (${maxPages}) — there may be more inspections`);
   log(`[sc-sync] discovered ${auditIds.length} audit(s) across ${pages} page(s)`);
