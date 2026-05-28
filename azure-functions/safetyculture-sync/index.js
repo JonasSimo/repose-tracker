@@ -314,7 +314,9 @@ module.exports = async function (context, myTimer) {
       failed_items:     countFailed(audit),
       audit_data:       audit,
       photos:           extractPhotos(audit),
-      weblink:          (audit.weblink_url || `https://app.safetyculture.com/audits/${audit.audit_id || id}`),
+      // SC's EU app frontend uses `/report/audit/<id>` not `/audits/<id>`
+      // (the latter 404s). Prefer SC's own weblink_url if present.
+      weblink:          (audit.weblink_url || `https://app.eu.safetyculture.com/report/audit/${audit.audit_id || id}`),
       last_synced_at:   new Date().toISOString()
     });
   }
