@@ -15070,12 +15070,20 @@ function renderLoadSheet() {
     return;
   }
 
-  // Show previous working day + today + next 3 working days (skip bank holidays)
+  // Show previous working day + today + next 3 working days (skip bank holidays).
+  // Also include any Saturday that falls inside the visible window — overtime
+  // loads (e.g. Sat 30/05/2026) only appear if the load plan has a column for
+  // that date, so the filter is self-gating: no Saturday data, no Saturday column.
   const today = new Date(); today.setHours(0,0,0,0);
+  const prev = addWorkdays(today, -1);
+  const last = addWorkdays(today, 3);
   const targetKeys = new Set();
-  targetKeys.add(localDateKey(addWorkdays(today, -1)));
+  targetKeys.add(localDateKey(prev));
   targetKeys.add(localDateKey(today));
   for (let i = 1; i <= 3; i++) targetKeys.add(localDateKey(addWorkdays(today, i)));
+  for (let d = new Date(prev); d <= last; d.setDate(d.getDate() + 1)) {
+    if (d.getDay() === 6) targetKeys.add(localDateKey(d));
+  }
   const cols = LS_RAW.filter(c => targetKeys.has(localDateKey(c.date)));
 
   // Build the set + description map of rep7 numbers with at least one
