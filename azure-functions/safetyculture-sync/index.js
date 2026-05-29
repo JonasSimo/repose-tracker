@@ -192,6 +192,68 @@ function isoOrNull(v) {
   return isNaN(d) ? null : d.toISOString();
 }
 
+// Normalise SC question labels for matching: lowercase, strip non-alphanumeric.
+// "Inspected By:" → "inspected by". "Is it warranty or chargeable work?" → "is
+// it warranty or chargeable work". Matches what extractors compare against.
+function normLabel(s) {
+  return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+// Walk a SafetyCulture audit's items + header_items looking for any item whose
+// (normalised) label matches one of the given patterns. Returns the item or
+// null. Used to pull specific form questions out of the Repose Service Chair
+// Inspection template (Inspected By, Warranty or chargeable, etc.) without
+// caring where in the template hierarchy they live.
+function findItemByLabel(audit, labels) {
+  const targets = labels.map(normLabel);
+  const walk = (items) => {
+    for (const it of items || []) {
+      if (it && it.label) {
+        const got = normLabel(it.label);
+        if (targets.includes(got)) return it;
+        // Also accept "X" being a prefix of the form label (handles "Inspected
+        // By:" vs "Inspected By" — the trailing colon is already stripped).
+        for (const t of targets) {
+          if (got.startsWith(t) || t.startsWith(got)) {
+            if (Math.abs(got.length - t.length) <= 2) return it;
+          }
+        }
+      }
+      if (Array.isArray(it?.children)) {
+        const found = walk(it.children);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+  return walk(audit.items || []) || walk(audit.header_items || []);
+}
+
+// Pull the inspector's typed/selected response out of an item. Handles the
+// common SC response shapes: text input, single-select, multi-select,
+// numeric, datetime. Returns null when the item has no value.
+function extractResponseText(item) {
+  if (!item) return null;
+  const r = item.responses || {};
+  if (typeof r.text === 'string' && r.text.trim()) return r.text.trim();
+  if (Array.isArray(r.selected) && r.selected.length) {
+    return r.selected
+      .map((s) => s?.label ?? s?.value ?? '')
+      .filter(Boolean)
+      .join(', ');
+  }
+  if (r.value !== undefined && r.value !== null && r.value !== '') return String(r.value);
+  if (typeof r.datetime === 'string' && r.datetime) return r.datetime;
+  // Some SC question types nest the answer under `selected` shape variants.
+  if (Array.isArray(item.options) && r.selected) {
+    const lookup = new Map(item.options.map((o) => [o.id || o.value, o.label]));
+    if (Array.isArray(r.selected)) {
+      return r.selected.map((s) => lookup.get(s) ?? s).join(', ');
+    }
+  }
+  return null;
+}
+
 // ─── main ────────────────────────────────────────────────────────────────
 module.exports = async function (context, myTimer) {
   const log = (...a) => context.log(...a);
@@ -295,6 +357,29 @@ module.exports = async function (context, myTimer) {
     const modifiedAt = audit.modified_at || ad.date_modified || null;
     if (modifiedAt && modifiedAt > newestModifiedAt) newestModifiedAt = modifiedAt;
 
+    // Pull specific template-question answers into columns. SC account names
+    // are shared across multiple inspectors, so the "Inspected By:" question
+    // is the only reliable answer to "who actually did this audit".
+    const inspectorFormItem = findItemByLabel(audit, [
+      'Inspected By', 'Inspected by', 'Inspector', 'Inspector name'
+    ]);
+    const classItem = findItemByLabel(audit, [
+      'Is it warranty or chargeable work',
+      'Warranty or chargeable',
+      'Type of work'
+    ]);
+    const reasonItem = findItemByLabel(audit, ['Reason why', 'Reason']);
+    const faultsItem = findItemByLabel(audit, [
+      'Faults found during the inspection',
+      'Faults found',
+      'Faults'
+    ]);
+    const workReqItem = findItemByLabel(audit, [
+      'Work required',
+      'Required work',
+      'Work to be done'
+    ]);
+
     rows.push({
       audit_id:         audit.audit_id || id,
       site_id:          'repose',
@@ -305,6 +390,14 @@ module.exports = async function (context, myTimer) {
       status:           audit.archived ? 'archived' : (ad.date_completed ? 'complete' : 'incomplete'),
       inspector_name:   authorship.author || authorship.owner || null,
       inspector_id:     authorship.author_id || authorship.owner_id || null,
+      // New template-question columns (migration 0035). Each is null when
+      // the question wasn't filled in / wasn't in this audit's version of
+      // the template.
+      inspector_name_form:   extractResponseText(inspectorFormItem),
+      work_classification:   extractResponseText(classItem),
+      classification_reason: extractResponseText(reasonItem),
+      faults_found:          extractResponseText(faultsItem),
+      work_required:         extractResponseText(workReqItem),
       conducted_at:     isoOrNull(ad.date_started),
       completed_at:     isoOrNull(ad.date_completed),
       modified_at:      isoOrNull(modifiedAt) || isoOrNull(ad.date_modified) || new Date().toISOString(),
