@@ -150,43 +150,46 @@ async function postExport(auditId) {
   return scPostJson('/inspection/v1/export', buildExportBody(auditId));
 }
 
-// Returns the signed download URL if the export response says DONE, else null.
-// Single source of truth for done-detection across requestPdfExport and pollPdfExport.
-function extractDoneUrl(res) {
-  const status = (res.status || '').toUpperCase();
-  if (status === 'STATUS_DONE' || status === 'SUCCESS' || status === 'COMPLETE' || status === 'COMPLETED') {
+// Single source of truth for SC export status vocabulary. SC's documented
+// status is STATUS_DONE / STATUS_FAILED / STATUS_IN_PROGRESS; the extra
+// synonyms (SUCCESS, COMPLETE, COMPLETED, FAILED, ERROR) defend against
+// shape drift seen in older API versions / staging responses.
+function isDoneStatus(status) {
+  const s = (status || '').toUpperCase();
+  return s === 'STATUS_DONE' || s === 'SUCCESS' || s === 'COMPLETE' || s === 'COMPLETED';
+}
+
+function isFailedStatus(status) {
+  const s = (status || '').toUpperCase();
+  return s === 'STATUS_FAILED' || s === 'FAILED' || s === 'ERROR';
+}
+
+// Issues the first export POST. Returns the signed S3 URL if SC was already
+// done on this first call, else null and the caller must poll. SC's modern
+// export endpoint has no separate messageId; the inspection_id is the
+// idempotency key, so `pollPdfExport` simply replays the same POST.
+async function requestPdfExport(auditId) {
+  const res = await postExport(auditId);
+  if (isDoneStatus(res.status)) {
     return res.url || res.download_url || res.location || null;
   }
   return null;
 }
 
-// Issues the first export POST and returns a handle the poller can use to
-// drive subsequent requests. The handle is { auditId, url }, where `url` is
-// the signed S3 URL iff SC returned STATUS_DONE on this first call —
-// otherwise null and the caller must poll. SC's modern export endpoint has
-// no separate messageId; the inspection_id is the idempotency key, so
-// `pollPdfExport` simply replays the same POST.
-async function requestPdfExport(auditId) {
-  const res = await postExport(auditId);
-  const url = extractDoneUrl(res);
-  return { auditId, url };
-}
-
-async function pollPdfExport(auditId, handle, { timeoutMs = 120000, intervalMs = 3000 } = {}) {
+async function pollPdfExport(auditId, initialUrl, { timeoutMs = 120000, intervalMs = 3000 } = {}) {
   // Fast-path: requestPdfExport may have already completed in one call.
-  if (handle && handle.url) return handle.url;
+  if (initialUrl) return initialUrl;
 
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const res = await postExport(auditId);
-    const doneUrl = extractDoneUrl(res);
-    if (doneUrl) return doneUrl;
-    const status = (res.status || '').toUpperCase();
-    if (status === 'STATUS_DONE' || status === 'SUCCESS' || status === 'COMPLETE' || status === 'COMPLETED') {
+    if (isDoneStatus(res.status)) {
+      const url = res.url || res.download_url || res.location || null;
+      if (url) return url;
       // status said DONE but no URL in payload — surface as error rather than loop forever.
       throw new Error(`SC PDF export for ${auditId} reported DONE but no URL in response`);
     }
-    if (status === 'STATUS_FAILED' || status === 'FAILED' || status === 'ERROR') {
+    if (isFailedStatus(res.status)) {
       const info = Array.isArray(res.info) && res.info.length ? JSON.stringify(res.info).slice(0, 300) : (res.error || res.message || 'unknown');
       throw new Error(`SC PDF export for ${auditId} failed: ${info}`);
     }
@@ -197,8 +200,8 @@ async function pollPdfExport(auditId, handle, { timeoutMs = 120000, intervalMs =
 
 async function fetchPodPdf(auditId, log) {
   log?.(`[pod-auto-send] requesting PDF export for ${auditId}`);
-  const handle = await requestPdfExport(auditId);
-  const url = await pollPdfExport(auditId, handle);
+  const initialUrl = await requestPdfExport(auditId);
+  const url = await pollPdfExport(auditId, initialUrl);
   log?.(`[pod-auto-send] downloading PDF from ${url.slice(0, 80)}...`);
   return scFetchBinary(url);
 }
