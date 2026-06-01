@@ -16241,9 +16241,8 @@ async function submitCPAR() {
     closeCPARModal();
 
     // Show the sticker modal so whoever raised the NCR can hand-copy the
-    // new ref onto the red sticker. Use the snapshot of the raising team
-    // so a mid-flight team switch can't suppress the modal. Fires for
-    // every team — used to be QC-only.
+    // new ref onto the red sticker. Fires for every team — used to be
+    // QC-only.
     openQCStickerModal(ref, s.rep, s.jobNo, s.model, s.desc.trim());
 
     // Use the same field bag the POST sent so the local unshifted shape
@@ -30735,9 +30734,10 @@ async function mtDeleteYearly(id) {
   </div>
 </div>
 
-<!-- QC NCR sticker modal — shown after QC raises an Internal NCR.
-     Displays the new NCR ref in giant monospace so QC can hand-write it
-     onto the red sticker that travels with the rejected chair. -->
+<!-- Internal NCR sticker modal — shown after any team raises an Internal NCR.
+     Displays the new NCR ref in giant monospace so the raiser can hand-write
+     it onto the red sticker that travels with the rejected item. Element id
+     keeps the qc- prefix for historical reasons; renaming is deferred. -->
 <div class="modal-bg" id="qc-ncr-sticker-modal" style="display:none">
   <div class="qc-sticker-card">
     <div class="qc-sticker-title">Internal NCR Raised</div>
