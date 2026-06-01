@@ -207,10 +207,15 @@ module.exports = async function (context, myTimer) {
       newWatermark = newestModifiedAt;
       log(`template ${templateId} found ${auditIds.length} new audit(s)`);
       for (const auditId of auditIds) {
-        const r = await processAudit({ auditId, templateId, context });
-        if (r.sent) summary.sent++;
-        if (r.failed) summary.failed++;
-        if (!r.skipped && !r.alreadyDone && !r.dryRun) summary.eligible++;
+        try {
+          const r = await processAudit({ auditId, templateId, context });
+          if (r.sent) summary.sent++;
+          if (r.failed) summary.failed++;
+          if (!r.skipped && !r.alreadyDone && !r.dryRun) summary.eligible++;
+        } catch (e) {
+          warn(`audit ${auditId} unhandled error: ${e.message}`);
+          summary.failed++;
+        }
       }
     } catch (e) {
       warn(`template ${templateId} run aborted: ${e.message}`);
