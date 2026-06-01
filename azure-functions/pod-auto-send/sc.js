@@ -61,10 +61,24 @@ async function scPostJson(path, body, ms = 70000) {
 }
 
 // Stream-friendly fetch for binary payloads (PDF download URL).
+//
+// SC's PDF export returns an S3 presigned URL. S3 rejects requests that carry
+// an extra Authorization header (the URL itself is the signature) with
+// HTTP 400 "InvalidRequest: Only one auth mechanism allowed", so don't route
+// through scFetch — do a plain fetch with just an AbortController for timeout.
 async function scFetchBinary(url) {
-  const res = await scFetch(url, {}, 60000);
-  if (!res.ok) throw new Error(`SC binary GET ${res.status} on ${url}: ${(await res.text()).slice(0, 300)}`);
-  return Buffer.from(await res.arrayBuffer());
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 60000);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    if (!res.ok) {
+      const body = (await res.text()).slice(0, 300);
+      throw new Error(`SC binary GET ${res.status} on ${url}: ${body}`);
+    }
+    return Buffer.from(await res.arrayBuffer());
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // Cursor-paginated search. Returns { auditIds: [...], newestModifiedAt }.
@@ -136,38 +150,41 @@ async function postExport(auditId) {
   return scPostJson('/inspection/v1/export', buildExportBody(auditId));
 }
 
-// Returns the "handle" used to drive polling. SC's modern export endpoint
-// doesn't issue a separate messageId — the inspection_id itself is the
-// idempotency key (same POST body = same export job), so we return the
-// auditId. Kept as a function for compatibility with the planned interface.
-async function requestPdfExport(auditId) {
-  const res = await postExport(auditId);
+// Returns the signed download URL if the export response says DONE, else null.
+// Single source of truth for done-detection across requestPdfExport and pollPdfExport.
+function extractDoneUrl(res) {
   const status = (res.status || '').toUpperCase();
   if (status === 'STATUS_DONE' || status === 'SUCCESS' || status === 'COMPLETE' || status === 'COMPLETED') {
-    // Already done on the first call — stash url so the poller can short-circuit.
-    requestPdfExport._lastResult = { auditId, url: res.url || res.download_url || res.location };
-  } else {
-    requestPdfExport._lastResult = null;
+    return res.url || res.download_url || res.location || null;
   }
-  return auditId;
+  return null;
 }
 
-async function pollPdfExport(auditId, _messageId, { timeoutMs = 120000, intervalMs = 3000 } = {}) {
+// Issues the first export POST and returns a handle the poller can use to
+// drive subsequent requests. The handle is { auditId, url }, where `url` is
+// the signed S3 URL iff SC returned STATUS_DONE on this first call —
+// otherwise null and the caller must poll. SC's modern export endpoint has
+// no separate messageId; the inspection_id is the idempotency key, so
+// `pollPdfExport` simply replays the same POST.
+async function requestPdfExport(auditId) {
+  const res = await postExport(auditId);
+  const url = extractDoneUrl(res);
+  return { auditId, url };
+}
+
+async function pollPdfExport(auditId, handle, { timeoutMs = 120000, intervalMs = 3000 } = {}) {
   // Fast-path: requestPdfExport may have already completed in one call.
-  if (requestPdfExport._lastResult && requestPdfExport._lastResult.auditId === auditId && requestPdfExport._lastResult.url) {
-    const url = requestPdfExport._lastResult.url;
-    requestPdfExport._lastResult = null;
-    return url;
-  }
+  if (handle && handle.url) return handle.url;
 
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const res = await postExport(auditId);
+    const doneUrl = extractDoneUrl(res);
+    if (doneUrl) return doneUrl;
     const status = (res.status || '').toUpperCase();
     if (status === 'STATUS_DONE' || status === 'SUCCESS' || status === 'COMPLETE' || status === 'COMPLETED') {
-      const url = res.url || res.download_url || res.location;
-      if (!url) throw new Error(`SC PDF export for ${auditId} reported DONE but no URL in response`);
-      return url;
+      // status said DONE but no URL in payload — surface as error rather than loop forever.
+      throw new Error(`SC PDF export for ${auditId} reported DONE but no URL in response`);
     }
     if (status === 'STATUS_FAILED' || status === 'FAILED' || status === 'ERROR') {
       const info = Array.isArray(res.info) && res.info.length ? JSON.stringify(res.info).slice(0, 300) : (res.error || res.message || 'unknown');
@@ -180,8 +197,8 @@ async function pollPdfExport(auditId, _messageId, { timeoutMs = 120000, interval
 
 async function fetchPodPdf(auditId, log) {
   log?.(`[pod-auto-send] requesting PDF export for ${auditId}`);
-  const messageId = await requestPdfExport(auditId);
-  const url = await pollPdfExport(auditId, messageId);
+  const handle = await requestPdfExport(auditId);
+  const url = await pollPdfExport(auditId, handle);
   log?.(`[pod-auto-send] downloading PDF from ${url.slice(0, 80)}...`);
   return scFetchBinary(url);
 }
