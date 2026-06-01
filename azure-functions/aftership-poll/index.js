@@ -14,9 +14,13 @@
 //   SUPABASE_URL                — e.g. https://xxx.supabase.co
 //   SUPABASE_SERVICE_ROLE_KEY   — service role key (bypasses RLS)
 //
-// Free-tier maths: 4 calls/hour × 24h × 30 days = 2,880 API calls/month.
-// AfterShip's free tier limits *tracked parcels* (50/month), not API calls.
-// One paged response covers all active trackings.
+// Free-tier maths: AfterShip's published "100 API calls/day" turned out to
+// be misleading boilerplate — the real cap is much lower in practice (hit
+// the 429 after only 6 calls on the day of signup). Every 4 hours = 6
+// polls/day, well inside whatever the actual ceiling is. Parcel updates
+// from RM / FedEx don't fire faster than that anyway. The list endpoint
+// returns every active tracking in one paged response, so 6 calls covers
+// the whole fleet.
 // ─────────────────────────────────────────────────────────────────────────
 
 const fetch = require('node-fetch');
