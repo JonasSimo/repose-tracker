@@ -9,7 +9,7 @@
 //   2. Cursor-page /audits/search since watermark
 //   3. For each new audit:
 //        a. fetch full audit, check eligibility (complete + both signatures)
-//        b. claim audit_id by inserting a 'skipped' placeholder in pod_send_log
+//        b. claim audit_id by inserting a 'claimed' placeholder in pod_send_log
 //           (PK conflict = already handled; safe across parallel runs)
 //        c. fetch PDF from SC's async export endpoint
 //        d. send via Graph to POD_TRIAL_RECIPIENT (Phase 2 will resolve to customer)
@@ -59,7 +59,7 @@ async function writeWatermark(templateId, watermark, summary) {
     template_id: templateId,
     last_modified_after: watermark,
     last_run_at: new Date().toISOString(),
-    last_run_eligible: summary.eligible || 0,
+    last_run_attempted: summary.attempted || 0,
     last_run_sent: summary.sent || 0,
     last_run_failed: summary.failed || 0,
     last_run_error: summary.error || null,
@@ -76,7 +76,7 @@ async function claimAuditForSend({ auditId, templateId, repNumber, completedAt, 
     inspection_completed_at: completedAt,
     sent_to: sendTo,
     send_mode: sendMode,
-    status: 'skipped',
+    status: 'claimed',
     // sent_at gets a default of now() — we'll PATCH it on success
   });
   return claimed != null;
@@ -198,7 +198,7 @@ module.exports = async function (context, myTimer) {
   log(`start · templates=${templateIds.length} · mode=${process.env.POD_SEND_MODE || 'TRIAL'}`);
 
   for (const templateId of templateIds) {
-    let summary = { eligible: 0, sent: 0, failed: 0, error: null };
+    let summary = { attempted: 0, sent: 0, failed: 0, error: null };
     let newWatermark;
     try {
       const watermark = await readWatermark(templateId);
@@ -211,7 +211,7 @@ module.exports = async function (context, myTimer) {
           const r = await processAudit({ auditId, templateId, context });
           if (r.sent) summary.sent++;
           if (r.failed) summary.failed++;
-          if (!r.skipped && !r.alreadyDone && !r.dryRun) summary.eligible++;
+          if (!r.skipped && !r.alreadyDone && !r.dryRun) summary.attempted++;
         } catch (e) {
           warn(`audit ${auditId} unhandled error: ${e.message}`);
           summary.failed++;
