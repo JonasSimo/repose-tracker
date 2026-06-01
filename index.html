@@ -15826,10 +15826,12 @@ function closeCPARModal() {
   document.getElementById('cpar-modal').style.display = 'none';
 }
 
-// Open the QC sticker modal showing the freshly-raised NCR ref. Called
-// from submitCPAR's success path when activeTeam === 'QC'. Tap-outside is
+// Open the sticker modal showing the freshly-raised NCR ref. Called
+// from submitCPAR's success path for every raising team. Tap-outside is
 // disabled — staff must explicitly confirm so the ref isn't dismissed
-// before being copied onto the physical red sticker.
+// before being copied onto the physical red sticker. Kept the
+// `openQCStickerModal` name because the DOM ids + CSS classes still use
+// the qc- prefix; renaming is a no-op refactor for another day.
 function openQCStickerModal(ref, repId, jobNo, model, descSnippet) {
   document.getElementById('qc-sticker-ref-text').textContent = ref;
   const metaParts = [];
@@ -16238,12 +16240,11 @@ async function submitCPAR() {
     toast(`${ref} raised successfully`, 's');
     closeCPARModal();
 
-    // QC inspection mode → open the sticker modal so the inspector can
-    // hand-copy the new NCR ref onto the physical red sticker. Use the
-    // snapshot so a mid-flight team switch can't suppress the modal.
-    if (raisingTeam === 'QC') {
-      openQCStickerModal(ref, s.rep, s.jobNo, s.model, s.desc.trim());
-    }
+    // Show the sticker modal so whoever raised the NCR can hand-copy the
+    // new ref onto the red sticker. Use the snapshot of the raising team
+    // so a mid-flight team switch can't suppress the modal. Fires for
+    // every team — used to be QC-only.
+    openQCStickerModal(ref, s.rep, s.jobNo, s.model, s.desc.trim());
 
     // Use the same field bag the POST sent so the local unshifted shape
     // matches what fetchCPARs() will eventually return for this row.
