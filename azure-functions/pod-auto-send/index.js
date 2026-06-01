@@ -215,6 +215,21 @@ module.exports = async function (context, myTimer) {
         } catch (e) {
           warn(`audit ${auditId} unhandled error: ${e.message}`);
           summary.failed++;
+          // Best-effort: record the failure so the audit isn't silently lost when the
+          // watermark advances past it. If THIS insert also fails (e.g. Supabase down)
+          // we swallow — at least the warn() line is in the function log.
+          try {
+            await supa.supaInsertIgnoreConflict('pod_send_log', {
+              audit_id: auditId,
+              template_id: templateId,
+              sent_to: process.env.POD_TRIAL_RECIPIENT || 'unknown',
+              send_mode: process.env.POD_SEND_MODE || 'TRIAL',
+              status: 'failed',
+              error_message: `pre-claim error: ${e.message.slice(0, 400)}`,
+            });
+          } catch (logErr) {
+            warn(`audit ${auditId} also failed to log pre-claim failure: ${logErr.message}`);
+          }
         }
       }
     } catch (e) {
