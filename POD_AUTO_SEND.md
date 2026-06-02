@@ -84,6 +84,58 @@ node pod-auto-send\dry-run.js <audit_id>
 
 Prints the eligibility verdict, extracted REP serial, customer order number, and writes the PDF to `pod-<audit_id>.pdf` in the current directory. Does **not** touch Supabase or Graph.
 
+## Send-one (real email, one audit)
+
+For a final smoke test before flipping the 15-min timer on: pick one completed POD audit and run the **full** pipeline against it — real Graph send, real `pod_send_log` claim + status writes, real PDF export. The mail still goes to `POD_TRIAL_RECIPIENT` (only `TRIAL` mode is supported by this script), so it never reaches a customer.
+
+This is the same code path the timer runs, just driven by an audit ID you choose rather than the watermark search.
+
+### Env vars required
+
+All eight must be set — the script aborts up front if any are missing:
+
+| Var | Notes |
+| --- | --- |
+| `SAFETYCULTURE_API_TOKEN` | Bearer token, same one the Function App uses |
+| `SUPABASE_URL` | Service-role URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | Needed to write `pod_send_log` |
+| `TENANT_ID` / `CLIENT_ID` / `CLIENT_SECRET` | Graph mail app registration |
+| `SEND_FROM` | Shared mailbox the app sends as |
+| `POD_TRIAL_RECIPIENT` | Where the test mail will land — your inbox |
+
+If `POD_SEND_MODE` is set to anything other than `TRIAL`, the script refuses to run.
+
+### Usage
+
+```powershell
+cd C:\Users\jonas.simonaitis\.local\bin\azure-functions
+# (export all eight env vars first)
+node pod-auto-send\send-one.js <audit_id>
+```
+
+### Finding an audit_id
+
+Open the inspection in the SafetyCulture web UI — the URL contains the ID, e.g. `https://app.safetyculture.com/inspection/audit_1a2b3c...`. Copy everything from `audit_` onwards. Use a recently completed POD that you've personally checked is eligible (Complete + both signatures captured).
+
+### Re-running on the same audit
+
+`pod_send_log.audit_id` is the PK, so a second run on the same ID will hit a conflict on the claim insert and exit with `alreadyDone`. To re-test:
+
+1. Open Supabase Studio → `pod_send_log`
+2. Delete the row for that `audit_id`
+3. Re-run `send-one.js`
+
+### Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| `0` | Sent — Graph accepted the mail, `pod_send_log.status = sent` |
+| `2` | Failed — SC export or Graph send threw; `pod_send_log.error_message` has the detail |
+| `3` | Skipped — audit not eligible (incomplete, missing signatures, etc.); see the `skip` line above the result |
+| `4` | Already done — `pod_send_log` row exists; delete it to re-test |
+| `5` | Dry-run mode is on — unset `POD_DRY_RUN` |
+| `99` | Unhandled exception before the result resolved |
+
 ## Switching to LIVE mode
 
 **Do not set `POD_SEND_MODE=LIVE` until Phase 2 ships.** Phase 1 has no customer-resolution logic — every send goes to `POD_TRIAL_RECIPIENT`. Phase 2 will route real PODs to two trade customers only: Charterhouse (`operations@charterhousemobility.com`) and Grosvenor (`delivery.photos@grosvenormobility.com`); every other POD will stay manual. See `project_pod_auto_send_scope.md`.

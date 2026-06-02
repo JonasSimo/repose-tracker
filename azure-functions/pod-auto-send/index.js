@@ -241,3 +241,7 @@ module.exports = async function (context, myTimer) {
     }
   }
 };
+
+// Exported for the send-one.js CLI test script. The Function App runtime
+// only consumes module.exports as a function; extra properties are inert.
+module.exports.processAudit = processAudit;
