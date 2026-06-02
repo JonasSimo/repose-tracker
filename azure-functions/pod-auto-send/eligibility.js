@@ -68,39 +68,42 @@ function isAuditEligible(audit) {
   return { eligible: true };
 }
 
-// Extract the 7-digit REP serial from the POD. Order:
-//   1. Item labelled "REP Serial number" (or close variants)
-//   2. ad.document_no
-//   3. ad.name / audit_title
-// Use lookbehind/lookahead to avoid matching jammed-prefix variants like
-// "REP2621118" splitting wrong — we want the 7 digits regardless.
-function extractRepSerial(audit) {
-  const candidates = [];
-
-  const item = findItemByLabel(audit, [
-    'REP Serial number', 'Rep Serial number', 'REP Serial', 'Rep Serial', 'Serial number',
-  ]);
-  if (item?.responses) {
-    const r = item.responses;
-    if (typeof r.text === 'string') candidates.push(r.text);
-    if (r.value != null) candidates.push(String(r.value));
-  }
-
+// Multi-REP: a single POD inspection can cover multiple chairs. Verified
+// example: audit_706967680b68449c8f897df60f57051e has REPs 2616091 + 2616092.
+// Walk every text-bearing field, gather all 7-digit serials, return as
+// "REP NNNNNNN" strings in order of first appearance.
+function extractAllRepSerials(audit) {
+  const seen = new Set();
+  const walk = (items) => {
+    for (const it of items || []) {
+      const r = it.responses || {};
+      const text = [
+        r.text, r.value,
+        (r.selected || []).map(s => s.label || s.value).join(' '),
+        it.label,
+      ].filter(Boolean).join(' ');
+      for (const m of text.matchAll(/(?<!\d)(\d{7})(?!\d)/g)) seen.add(m[1]);
+      if (Array.isArray(it.children)) walk(it.children);
+    }
+  };
+  walk(audit.header_items);
+  walk(audit.items);
   const ad = audit.audit_data || {};
-  if (ad.document_no) candidates.push(String(ad.document_no));
-  if (ad.name) candidates.push(String(ad.name));
-  if (ad.audit_title) candidates.push(String(ad.audit_title));
-
-  for (const raw of candidates) {
-    const m = String(raw).match(/(?<!\d)(\d{7})(?!\d)/);
-    if (m) return `REP ${m[1]}`;
+  for (const k of ['document_no', 'name', 'audit_title']) {
+    for (const m of String(ad[k] || '').matchAll(/(?<!\d)(\d{7})(?!\d)/g)) seen.add(m[1]);
   }
-  return null;
+  return [...seen].map(d => `REP ${d}`);
+}
+
+// Back-compat: returns the FIRST REP found, or null.
+function extractRepSerial(audit) {
+  return extractAllRepSerials(audit)[0] || null;
 }
 
 module.exports = {
   isAuditEligible,
   extractRepSerial,
+  extractAllRepSerials,
   // exported for direct testing
   findItemByLabel,
   hasSignature,
