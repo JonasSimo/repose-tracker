@@ -277,6 +277,39 @@ function extractCustomFieldRefs(customFields) {
   return out;
 }
 
+// Resolve one candidate label against the indexed ticket maps. Tolerates the
+// two formats transport actually types: full REP label ("REP2533081-R1") or
+// bare-digit form ("2533081-R1"). When multiple `-R` variants share the same
+// base REP, picks the row with the latest Open Date and calls onAmbiguous.
+function lookupTicket(label, ticketsByLabel, ticketsByRep, openDateIdx, onAmbiguous) {
+  if (!label) return undefined;
+
+  const bareDigits = /^(\d+)(-R\d+)?$/i.exec(label);
+  const candidates = [label];
+  if (bareDigits) {
+    candidates.push(`REP${bareDigits[1]}${bareDigits[2] || ''}`);
+  }
+  for (const c of candidates) {
+    const t = ticketsByLabel.get(c);
+    if (t) return t;
+  }
+
+  let repBase = null;
+  const repPrefixed = /^(REP\d+)/i.exec(label);
+  if (repPrefixed) repBase = repPrefixed[1].toUpperCase();
+  else if (bareDigits) repBase = `REP${bareDigits[1]}`;
+  if (!repBase) return undefined;
+
+  const rows = ticketsByRep.get(repBase) || [];
+  if (rows.length === 1) return rows[0];
+  if (rows.length > 1 && openDateIdx >= 0) {
+    rows.sort((a, b) => (Number(b.raw[openDateIdx]) || 0) - (Number(a.raw[openDateIdx]) || 0));
+    if (onAmbiguous) onAmbiguous(label, rows.length, rows[0].sheetRow);
+    return rows[0];
+  }
+  return undefined;
+}
+
 function fmtDateLocal(d) {
   if (!d || isNaN(d.getTime())) return '';
   // Force Europe/London timezone regardless of server locale (Azure default is UTC).
@@ -438,36 +471,22 @@ module.exports = async function (context, myTimer) {
 
   const todayIso = new Date().toISOString();
 
-  // Resolve one candidate label (already uppercased) against the indexed
-  // ticket maps. Tries exact label first, then bare-REP fallback (picks the
-  // latest Open Date when multiple `-R` variants share a base REP).
-  function lookupTicket(label) {
-    let t = ticketsByLabel.get(label);
-    if (t) return t;
-    const bareMatch = /^(REP\d+)/i.exec(label);
-    if (!bareMatch) return undefined;
-    const candidates = ticketsByRep.get(bareMatch[1].toUpperCase()) || [];
-    if (candidates.length === 1) return candidates[0];
-    if (candidates.length > 1 && openDateIdx >= 0) {
-      candidates.sort((a, b) => (Number(b.raw[openDateIdx]) || 0) - (Number(a.raw[openDateIdx]) || 0));
-      log.warn(`[ambiguous] ref="${label}" matched ${candidates.length} -R variants — picking latest Open Date (row ${candidates[0].sheetRow})`);
-      return candidates[0];
-    }
-    return undefined;
-  }
+  const onAmbiguous = (label, n, row) =>
+    log.warn(`[ambiguous] ref="${label}" matched ${n} -R variants — picking latest Open Date (row ${row})`);
+  const lookup = (label) => lookupTicket(label, ticketsByLabel, ticketsByRep, openDateIdx, onAmbiguous);
 
   for (const job of jobs) {
     // Maxoptra v6: external/customer reference is `consignmentReference`. The Maxoptra-internal
     // order id is `referenceNumber`. Status changes are timestamped in `statusLastUpdated`.
     const ref = String(job.consignmentReference || '').trim().toUpperCase();
-    let ticket = ref ? lookupTicket(ref) : undefined;
+    let ticket = ref ? lookup(ref) : undefined;
 
     // Custom-field fallback: when transport books an order with the REP in
     // a "Batch numbers" (or similar) custom field instead of the standard
     // Reference. Same lookup logic as the consignmentReference path.
     if (!ticket) {
       for (const raw of extractCustomFieldRefs(job.customFields)) {
-        const candidate = lookupTicket(raw.toUpperCase());
+        const candidate = lookup(raw.toUpperCase());
         if (candidate) {
           ticket = candidate;
           log.warn(`[customField-match] order ${job.referenceNumber || '?'} matched via customField "${raw}" — consignmentReference was "${job.consignmentReference || ''}"`);

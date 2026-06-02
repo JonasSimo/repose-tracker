@@ -24,6 +24,35 @@ function parseChairId(s) {
   return { rep: m[1].toUpperCase(), returnNo: m[2] ? parseInt(m[2], 10) : 0, isReturn: !!m[2], label: v.toUpperCase() };
 }
 
+function lookupTicket(label, ticketsByLabel, ticketsByRep, openDateIdx, onAmbiguous) {
+  if (!label) return undefined;
+
+  const bareDigits = /^(\d+)(-R\d+)?$/i.exec(label);
+  const candidates = [label];
+  if (bareDigits) {
+    candidates.push(`REP${bareDigits[1]}${bareDigits[2] || ''}`);
+  }
+  for (const c of candidates) {
+    const t = ticketsByLabel.get(c);
+    if (t) return t;
+  }
+
+  let repBase = null;
+  const repPrefixed = /^(REP\d+)/i.exec(label);
+  if (repPrefixed) repBase = repPrefixed[1].toUpperCase();
+  else if (bareDigits) repBase = `REP${bareDigits[1]}`;
+  if (!repBase) return undefined;
+
+  const rows = ticketsByRep.get(repBase) || [];
+  if (rows.length === 1) return rows[0];
+  if (rows.length > 1 && openDateIdx >= 0) {
+    rows.sort((a, b) => (Number(b.raw[openDateIdx]) || 0) - (Number(a.raw[openDateIdx]) || 0));
+    if (onAmbiguous) onAmbiguous(label, rows.length, rows[0].sheetRow);
+    return rows[0];
+  }
+  return undefined;
+}
+
 function extractCustomFieldRefs(customFields) {
   if (!customFields) return [];
   const out = [];
@@ -209,6 +238,70 @@ describe('mapMaxoptraStatus', () => {
     expect(mapMaxoptraStatus('mystery_state', null, null)).toBe('❓ mystery_state');
     expect(mapMaxoptraStatus('', null, null)).toBe('❓ unknown');
     expect(mapMaxoptraStatus(null, null, null)).toBe('❓ unknown');
+  });
+});
+
+describe('lookupTicket', () => {
+  // Build the indexed maps the way the production loop does, given a list of
+  // { label, openDate? } pairs. label is what sits in the REP Number column;
+  // openDate is the Excel serial used to break ambiguity ties.
+  function buildMaps(rows) {
+    const ticketsByLabel = new Map();
+    const ticketsByRep = new Map();
+    rows.forEach((r, i) => {
+      const entry = { rowIdx: i, sheetRow: i + 7, raw: [r.openDate ?? 0] };
+      ticketsByLabel.set(r.label, entry);
+      const repBase = /^(REP\d+)/i.exec(r.label)?.[1].toUpperCase();
+      if (repBase) {
+        if (!ticketsByRep.has(repBase)) ticketsByRep.set(repBase, []);
+        ticketsByRep.get(repBase).push(entry);
+      }
+    });
+    return { ticketsByLabel, ticketsByRep, openDateIdx: 0 };
+  }
+
+  it('matches the exact label when transport types the full REP-prefixed form', () => {
+    const m = buildMaps([{ label: 'REP2533081-R1' }]);
+    expect(lookupTicket('REP2533081-R1', m.ticketsByLabel, m.ticketsByRep, m.openDateIdx)?.sheetRow).toBe(7);
+  });
+
+  it('matches a bare-digit label by REP-prefixing the digits', () => {
+    // The reported case — transport sometimes types "2533081-R1" instead of "REP2533081-R1".
+    const m = buildMaps([{ label: 'REP2533081-R1' }]);
+    expect(lookupTicket('2533081-R1', m.ticketsByLabel, m.ticketsByRep, m.openDateIdx)?.sheetRow).toBe(7);
+  });
+
+  it('matches a REP-prefixed label without -R suffix to the single -R variant', () => {
+    const m = buildMaps([{ label: 'REP2533081-R1' }]);
+    expect(lookupTicket('REP2533081', m.ticketsByLabel, m.ticketsByRep, m.openDateIdx)?.sheetRow).toBe(7);
+  });
+
+  it('matches a bare-digit label without -R suffix to the single -R variant', () => {
+    const m = buildMaps([{ label: 'REP2533081-R1' }]);
+    expect(lookupTicket('2533081', m.ticketsByLabel, m.ticketsByRep, m.openDateIdx)?.sheetRow).toBe(7);
+  });
+
+  it('picks the latest Open Date when multiple -R variants share the base REP', () => {
+    const m = buildMaps([
+      { label: 'REP2533081-R1', openDate: 45000 },
+      { label: 'REP2533081-R2', openDate: 46000 },
+    ]);
+    let ambiguous = null;
+    const result = lookupTicket('REP2533081', m.ticketsByLabel, m.ticketsByRep, m.openDateIdx, (...a) => { ambiguous = a; });
+    expect(result?.sheetRow).toBe(8); // -R2 was second row (sheetRow 8), latest Open Date
+    expect(ambiguous).toEqual(['REP2533081', 2, 8]);
+  });
+
+  it('returns undefined for an unknown label', () => {
+    const m = buildMaps([{ label: 'REP2533081-R1' }]);
+    expect(lookupTicket('REP9999-R1', m.ticketsByLabel, m.ticketsByRep, m.openDateIdx)).toBeUndefined();
+    expect(lookupTicket('9999-R1', m.ticketsByLabel, m.ticketsByRep, m.openDateIdx)).toBeUndefined();
+  });
+
+  it('returns undefined for an empty / non-matching label', () => {
+    const m = buildMaps([{ label: 'REP2533081-R1' }]);
+    expect(lookupTicket('', m.ticketsByLabel, m.ticketsByRep, m.openDateIdx)).toBeUndefined();
+    expect(lookupTicket('NOTHING-MATCHES', m.ticketsByLabel, m.ticketsByRep, m.openDateIdx)).toBeUndefined();
   });
 });
 
