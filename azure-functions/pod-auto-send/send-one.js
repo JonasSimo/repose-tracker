@@ -76,7 +76,7 @@ const REQUIRED = [
   const auditId = args.find(a => !a.startsWith('--'));
   if (!auditId) {
     console.error('Usage: node send-one.js <audit_id> [--force]');
-    console.error('  --force: bypass the archived-audit check (for one-off testing only)');
+    console.error('  --force: bypass ALL eligibility checks (archived, not complete, etc.) — testing only');
     process.exit(1);
   }
   const missing = REQUIRED.filter(n => !process.env[n]);
@@ -106,8 +106,8 @@ const REQUIRED = [
   }
   console.log(`template_id=${templateId}`);
 
-  console.log(`Running processAudit for ${auditId}...${force ? ' (--force: ignoring archived flag)' : ''}`);
-  const result = await processAudit({ auditId, templateId, context, ignoreArchived: force });
+  console.log(`Running processAudit for ${auditId}...${force ? ' (--force: bypassing all eligibility checks)' : ''}`);
+  const result = await processAudit({ auditId, templateId, context, forceSend: force });
   console.log('Result:', result);
 
   if (result.sent) {

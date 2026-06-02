@@ -119,7 +119,7 @@ function buildBody({ repNumber, orderNo, trialNote }) {
   return lines.join('\n');
 }
 
-async function processAudit({ auditId, templateId, context, ignoreArchived = false }) {
+async function processAudit({ auditId, templateId, context, forceSend = false }) {
   const log = (...a) => context.log('[pod-auto-send]', ...a);
   const warn = (...a) => context.log.warn('[pod-auto-send]', ...a);
   const SEND_MODE = process.env.POD_SEND_MODE || 'TRIAL';
@@ -128,12 +128,12 @@ async function processAudit({ auditId, templateId, context, ignoreArchived = fal
 
   const audit = await sc.getAudit(auditId);
   const elig = eligibility.isAuditEligible(audit);
-  if (!elig.eligible && !(ignoreArchived && elig.reason === 'archived')) {
+  if (!elig.eligible && !forceSend) {
     log(`skip ${auditId}: ${elig.reason}`);
     return { sent: false, skipped: true };
   }
-  if (ignoreArchived && elig.reason === 'archived') {
-    warn(`audit ${auditId} is archived in SC; processing anyway (ignoreArchived=true)`);
+  if (!elig.eligible && forceSend) {
+    warn(`audit ${auditId} not eligible (${elig.reason}); processing anyway (forceSend=true)`);
   }
 
   const repNumber = eligibility.extractRepSerial(audit);

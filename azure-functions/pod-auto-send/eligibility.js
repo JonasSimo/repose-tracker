@@ -61,16 +61,10 @@ function hasSignature(item) {
 function isAuditEligible(audit) {
   const ad = audit.audit_data || {};
   if (audit.archived) return { eligible: false, reason: 'archived' };
+  // SC inspection must be explicitly Completed (date_completed is set when the
+  // inspector taps Complete). Signatures on the form are NOT required —
+  // signing usually happens on paper, so the SC record may not capture them.
   if (!ad.date_completed) return { eligible: false, reason: 'not complete' };
-
-  const installed = findItemByLabel(audit, [
-    'Installed By Signature', 'Installed By', 'Installed By:',
-  ]);
-  const accepted = findItemByLabel(audit, [
-    'Chair accepted by Signature', 'Chair accepted by', 'Customer signature',
-  ]);
-  if (!hasSignature(installed)) return { eligible: false, reason: 'no installer signature' };
-  if (!hasSignature(accepted))  return { eligible: false, reason: 'no customer signature' };
   return { eligible: true };
 }
 
