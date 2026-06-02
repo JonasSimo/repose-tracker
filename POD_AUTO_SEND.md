@@ -1,6 +1,6 @@
 # POD auto-send (SafetyCulture → email)
 
-Timer-driven Azure Function that picks up completed white-glove delivery PODs from SafetyCulture every 15 minutes, exports the inspection PDF, and emails it via Graph. Phase 1 is in **trial mode** — every send is routed to a single internal recipient (`POD_TRIAL_RECIPIENT`) regardless of who the real customer is, so we can validate eligibility, REP extraction, and PDF rendering without touching customers.
+Timer-driven Azure Function that picks up completed white-glove delivery PODs from SafetyCulture every 15 minutes, exports the inspection PDF, and emails it via Graph. Phase 1 is in **trial mode** — every send is routed to a single internal recipient (`POD_TRIAL_RECIPIENT`) regardless of who the real customer is, so we can validate eligibility, REP extraction, and PDF rendering without touching customers. Phase 2 (LIVE mode) detects each POD's customer via production plan column D = Client Name and routes to Charterhouse or Grosvenor when matched. Non-trade PODs are skipped (manual workflow continues for residential / OSKA / BRISTOL MAID / etc.).
 
 ## Pieces
 
@@ -10,6 +10,23 @@ Timer-driven Azure Function that picks up completed white-glove delivery PODs fr
 | Azure Function | `bin/azure-functions/pod-auto-send/` |
 | Template-ID helper | `bin/azure-functions/safetyculture-sync/find-template-id.js` |
 | Local dry-run script | `bin/azure-functions/pod-auto-send/dry-run.js` |
+
+## Modes
+
+- **TRIAL** (default): every detected POD emails to `POD_TRIAL_RECIPIENT` (Jonas). The email body includes a shadow line showing which trade-customer email LIVE mode would have used — useful for validating routing before flipping the switch.
+- **LIVE**: PODs that resolve to Charterhouse or Grosvenor email the matched trade customer. PODs that resolve to any other plan-client (residential, OSKA, BRISTOL MAID, etc.) are skipped silently — manual workflow continues for them.
+
+Switch modes via the `POD_SEND_MODE` app setting (`TRIAL` or `LIVE`). Restart the Function App after changing.
+
+## Customer detection
+
+For each completed POD, the function:
+1. Extracts ALL REP serials from the inspection (a single POD can cover multiple chairs).
+2. Looks each REP up in the Repose production plan workbook on SharePoint: column L holds the REP serial as `REP NNNNNNN`; column D holds the Client Name.
+3. If every matched plan-client resolves to the same trade customer (case-insensitive substring match on `CHARTERHOUSE` or `GROSVENOR`), the POD is routed to that customer.
+4. If no plan-client matches a trade customer, or multiple different trade customers are matched (ambiguous), the POD is skipped.
+
+The plan map is rebuilt once per timer tick (about 30 seconds) when there are new audits to process. Idle ticks (no new audits) skip the plan load.
 
 ## One-time setup
 
@@ -36,11 +53,13 @@ Copy each `template_id` (e.g. `template_aBcDeF12345`) — they go in a comma-sep
 
 RepNet Function App → Configuration → Application settings. SC token, Supabase keys, and Graph credentials (`TENANT_ID` / `CLIENT_ID` / `CLIENT_SECRET` / `SEND_FROM`) are shared with the other functions and are already set — only add what's new:
 
-| Setting | Value |
-| --- | --- |
-| `SAFETYCULTURE_POD_TEMPLATE_IDS` | comma-separated template IDs from step 2 |
-| `POD_SEND_MODE` | `TRIAL` (do not set `LIVE` yet — see below) |
-| `POD_TRIAL_RECIPIENT` | Jonas's mailbox while trialling |
+| Setting | Mode | Value |
+| --- | --- | --- |
+| `SAFETYCULTURE_POD_TEMPLATE_IDS` | both | comma-separated template IDs from step 2 |
+| `POD_SEND_MODE` | both | `TRIAL` or `LIVE` |
+| `POD_TRIAL_RECIPIENT` | TRIAL only | Jonas's email |
+| `POD_CUSTOMER_CHARTERHOUSE_EMAIL` | LIVE only | `operations@charterhousemobility.com` |
+| `POD_CUSTOMER_GROSVENOR_EMAIL` | LIVE only | `delivery.photos@grosvenormobility.com` |
 
 ### 4 — Deploy and trigger
 
@@ -136,10 +155,6 @@ Open the inspection in the SafetyCulture web UI — the URL contains the ID, e.g
 | `5` | Dry-run mode is on — unset `POD_DRY_RUN` |
 | `99` | Unhandled exception before the result resolved |
 
-## Switching to LIVE mode
-
-**Do not set `POD_SEND_MODE=LIVE` until Phase 2 ships.** Phase 1 has no customer-resolution logic — every send goes to `POD_TRIAL_RECIPIENT`. Phase 2 will route real PODs to two trade customers only: Charterhouse (`operations@charterhousemobility.com`) and Grosvenor (`delivery.photos@grosvenormobility.com`); every other POD will stay manual. See `project_pod_auto_send_scope.md`.
-
 ## Common failures
 
 | Symptom | Cause | Fix |
@@ -150,3 +165,7 @@ Open the inspection in the SafetyCulture web UI — the URL contains the ID, e.g
 | Supabase 401 | Service role key rotated | Update `SUPABASE_SERVICE_ROLE_KEY` and restart |
 | Deploy completed but nothing happens at the next tick | Stuck Node worker after deploy | `az functionapp restart` — see `feedback_function_app_stuck_worker.md` |
 | S3 400 when downloading the exported PDF | Someone "DRY'd out" the binary fetcher and re-added the `Authorization` header on the S3 GET | S3 rejects requests that carry the SC bearer — the export URL is pre-signed; do not forward auth headers on the download step |
+| `skipped: not a trade customer` | POD's REP(s) didn't resolve to Charterhouse or Grosvenor | Expected for residential / non-trade deliveries — manual workflow continues |
+| `production plan failed` / Graph 401 on workbook | Service principal lost Files.Read.All consent OR plan URL changed | Re-grant consent in Entra; check `PROD_SHARING_URL` constant in `prod-plan.js` |
+| `Invalid POD_SEND_MODE` | App setting has a value other than TRIAL or LIVE | Set to `TRIAL` or `LIVE` and restart Function App |
+| LIVE mode refuses to start | Missing `POD_CUSTOMER_CHARTERHOUSE_EMAIL` or `POD_CUSTOMER_GROSVENOR_EMAIL` | Add both in app settings; restart |
