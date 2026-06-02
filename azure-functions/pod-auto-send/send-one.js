@@ -23,6 +23,38 @@
 const sc = require('./sc');
 const { processAudit } = require('./index');
 
+// Auto-load Azure Functions local.settings.json if present. Values from there
+// populate process.env (only for keys not already set). Standard pattern —
+// `func start` does the same thing, we just do it manually for `node` runs.
+function loadLocalSettings() {
+  const fs = require('fs');
+  const path = require('path');
+  const candidates = [
+    path.resolve(__dirname, '..', 'local.settings.json'),       // azure-functions/local.settings.json
+    path.resolve(__dirname, 'local.settings.json'),              // pod-auto-send/local.settings.json
+  ];
+  for (const file of candidates) {
+    if (!fs.existsSync(file)) continue;
+    try {
+      const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
+      const values = raw.Values || raw;
+      let loaded = 0;
+      for (const [k, v] of Object.entries(values)) {
+        if (typeof v !== 'string') continue;
+        if (process.env[k] === undefined || process.env[k] === '') {
+          process.env[k] = v;
+          loaded++;
+        }
+      }
+      console.log(`Loaded ${loaded} env var(s) from ${file}`);
+      return;
+    } catch (e) {
+      console.warn(`Could not parse ${file}: ${e.message}`);
+    }
+  }
+}
+loadLocalSettings();
+
 const REQUIRED = [
   'SAFETYCULTURE_API_TOKEN',
   'SUPABASE_URL',
