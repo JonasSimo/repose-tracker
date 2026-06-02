@@ -57,6 +57,7 @@ function loadLocalSettings() {
 loadLocalSettings();
 
 const sc = require('./sc');
+const prodPlan = require('./prod-plan');
 const { processAudit } = require('./index');
 
 const REQUIRED = [
@@ -106,8 +107,12 @@ const REQUIRED = [
   }
   console.log(`template_id=${templateId}`);
 
+  console.log('Building production plan REP → client map (one-off for this test)...');
+  const planMap = await prodPlan.loadRepClientMap(console.log);
+  console.log(`Plan entries: ${planMap.size}`);
+
   console.log(`Running processAudit for ${auditId}...${force ? ' (--force: bypassing all eligibility checks)' : ''}`);
-  const result = await processAudit({ auditId, templateId, context, forceSend: force });
+  const result = await processAudit({ auditId, templateId, planMap, context, forceSend: force });
   console.log('Result:', result);
 
   if (result.sent) {
