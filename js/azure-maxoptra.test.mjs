@@ -24,6 +24,35 @@ function parseChairId(s) {
   return { rep: m[1].toUpperCase(), returnNo: m[2] ? parseInt(m[2], 10) : 0, isReturn: !!m[2], label: v.toUpperCase() };
 }
 
+function extractCustomFieldRefs(customFields) {
+  if (!customFields) return [];
+  const out = [];
+  const isBatchKey = (k) => /batch/i.test(String(k || ''));
+  const push = (v) => {
+    if (v === null || v === undefined) return;
+    String(v)
+      .split(/[,;\s]+/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .forEach((s) => out.push(s));
+  };
+  if (Array.isArray(customFields)) {
+    for (const entry of customFields) {
+      if (!entry || typeof entry !== 'object') continue;
+      const name = entry.name ?? entry.key ?? entry.label ?? '';
+      if (!isBatchKey(name)) continue;
+      const v = entry.value ?? entry.text ?? entry.values;
+      if (Array.isArray(v)) v.forEach(push); else push(v);
+    }
+  } else if (typeof customFields === 'object') {
+    for (const [k, v] of Object.entries(customFields)) {
+      if (!isBatchKey(k)) continue;
+      if (Array.isArray(v)) v.forEach(push); else push(v);
+    }
+  }
+  return out;
+}
+
 // Mock fmtDate helpers (replaced with deterministic strings — the real
 // helpers return locale-formatted strings that we don't assert against
 // in tests here).
@@ -180,5 +209,66 @@ describe('mapMaxoptraStatus', () => {
     expect(mapMaxoptraStatus('mystery_state', null, null)).toBe('❓ mystery_state');
     expect(mapMaxoptraStatus('', null, null)).toBe('❓ unknown');
     expect(mapMaxoptraStatus(null, null, null)).toBe('❓ unknown');
+  });
+});
+
+describe('extractCustomFieldRefs', () => {
+  it('returns [] when customFields is missing or empty', () => {
+    expect(extractCustomFieldRefs(null)).toEqual([]);
+    expect(extractCustomFieldRefs(undefined)).toEqual([]);
+    expect(extractCustomFieldRefs({})).toEqual([]);
+    expect(extractCustomFieldRefs([])).toEqual([]);
+  });
+
+  it('extracts from a plain object map (the documented v6 shape)', () => {
+    expect(extractCustomFieldRefs({ 'Batch numbers': 'REP2284-R1' })).toEqual(['REP2284-R1']);
+  });
+
+  it('matches the "batch" key substring case-insensitively', () => {
+    expect(extractCustomFieldRefs({ BatchNumbers: 'REP2284-R1' })).toEqual(['REP2284-R1']);
+    expect(extractCustomFieldRefs({ 'BATCH NUMBERS': 'REP2284-R1' })).toEqual(['REP2284-R1']);
+    expect(extractCustomFieldRefs({ batch: 'REP2284-R1' })).toEqual(['REP2284-R1']);
+  });
+
+  it('ignores keys that do not contain "batch"', () => {
+    expect(extractCustomFieldRefs({ Notes: 'REP2284-R1', SealNumber: 'X' })).toEqual([]);
+  });
+
+  it('splits multi-value strings on commas, semicolons, and whitespace', () => {
+    expect(extractCustomFieldRefs({ 'Batch numbers': 'REP2284-R1, REP2285-R1' }))
+      .toEqual(['REP2284-R1', 'REP2285-R1']);
+    expect(extractCustomFieldRefs({ 'Batch numbers': 'REP2284-R1;REP2285-R1' }))
+      .toEqual(['REP2284-R1', 'REP2285-R1']);
+  });
+
+  it('handles an array value under a batch key', () => {
+    expect(extractCustomFieldRefs({ 'Batch numbers': ['REP2284-R1', 'REP2285-R1'] }))
+      .toEqual(['REP2284-R1', 'REP2285-R1']);
+  });
+
+  it('handles the array-of-{name,value} shape', () => {
+    expect(extractCustomFieldRefs([
+      { name: 'Seal number', value: 'X' },
+      { name: 'Batch numbers', value: 'REP2284-R1' },
+    ])).toEqual(['REP2284-R1']);
+  });
+
+  it('also accepts `key` and `label` as field-name aliases', () => {
+    expect(extractCustomFieldRefs([{ key: 'Batch numbers', value: 'REP2284-R1' }]))
+      .toEqual(['REP2284-R1']);
+    expect(extractCustomFieldRefs([{ label: 'Batch numbers', text: 'REP2284-R1' }]))
+      .toEqual(['REP2284-R1']);
+  });
+
+  it('preserves the user-typed REP value verbatim — does not REP-prefix or uppercase', () => {
+    // Caller uppercases when matching against the indexed labels.
+    expect(extractCustomFieldRefs({ 'Batch numbers': '2533081-R1' })).toEqual(['2533081-R1']);
+    expect(extractCustomFieldRefs({ 'Batch numbers': 'rep2284-r1' })).toEqual(['rep2284-r1']);
+  });
+
+  it('skips null / undefined / empty entries', () => {
+    expect(extractCustomFieldRefs({ 'Batch numbers': null })).toEqual([]);
+    expect(extractCustomFieldRefs({ 'Batch numbers': '' })).toEqual([]);
+    expect(extractCustomFieldRefs({ 'Batch numbers': '   ' })).toEqual([]);
   });
 });

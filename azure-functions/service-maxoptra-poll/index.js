@@ -243,6 +243,40 @@ function parseChairId(s) {
   return { rep: m[1].toUpperCase(), returnNo: m[2] ? parseInt(m[2], 10) : 0, isReturn: !!m[2], label: v.toUpperCase() };
 }
 
+// Fallback when transport types the REP into a "Batch numbers" custom field
+// instead of the standard Reference. Maxoptra v6 `customFields` shape isn't
+// guaranteed (null | object | array-of-{name,value}), so probe defensively.
+// Returns candidate strings split on common separators; matching is left to
+// the caller.
+function extractCustomFieldRefs(customFields) {
+  if (!customFields) return [];
+  const out = [];
+  const isBatchKey = (k) => /batch/i.test(String(k || ''));
+  const push = (v) => {
+    if (v === null || v === undefined) return;
+    String(v)
+      .split(/[,;\s]+/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .forEach((s) => out.push(s));
+  };
+  if (Array.isArray(customFields)) {
+    for (const entry of customFields) {
+      if (!entry || typeof entry !== 'object') continue;
+      const name = entry.name ?? entry.key ?? entry.label ?? '';
+      if (!isBatchKey(name)) continue;
+      const v = entry.value ?? entry.text ?? entry.values;
+      if (Array.isArray(v)) v.forEach(push); else push(v);
+    }
+  } else if (typeof customFields === 'object') {
+    for (const [k, v] of Object.entries(customFields)) {
+      if (!isBatchKey(k)) continue;
+      if (Array.isArray(v)) v.forEach(push); else push(v);
+    }
+  }
+  return out;
+}
+
 function fmtDateLocal(d) {
   if (!d || isNaN(d.getTime())) return '';
   // Force Europe/London timezone regardless of server locale (Azure default is UTC).
@@ -404,31 +438,44 @@ module.exports = async function (context, myTimer) {
 
   const todayIso = new Date().toISOString();
 
+  // Resolve one candidate label (already uppercased) against the indexed
+  // ticket maps. Tries exact label first, then bare-REP fallback (picks the
+  // latest Open Date when multiple `-R` variants share a base REP).
+  function lookupTicket(label) {
+    let t = ticketsByLabel.get(label);
+    if (t) return t;
+    const bareMatch = /^(REP\d+)/i.exec(label);
+    if (!bareMatch) return undefined;
+    const candidates = ticketsByRep.get(bareMatch[1].toUpperCase()) || [];
+    if (candidates.length === 1) return candidates[0];
+    if (candidates.length > 1 && openDateIdx >= 0) {
+      candidates.sort((a, b) => (Number(b.raw[openDateIdx]) || 0) - (Number(a.raw[openDateIdx]) || 0));
+      log.warn(`[ambiguous] ref="${label}" matched ${candidates.length} -R variants — picking latest Open Date (row ${candidates[0].sheetRow})`);
+      return candidates[0];
+    }
+    return undefined;
+  }
+
   for (const job of jobs) {
     // Maxoptra v6: external/customer reference is `consignmentReference`. The Maxoptra-internal
     // order id is `referenceNumber`. Status changes are timestamped in `statusLastUpdated`.
     const ref = String(job.consignmentReference || '').trim().toUpperCase();
-    if (!ref) { orphans++; continue; }
-    let ticket = ticketsByLabel.get(ref);
+    let ticket = ref ? lookupTicket(ref) : undefined;
+
+    // Custom-field fallback: when transport books an order with the REP in
+    // a "Batch numbers" (or similar) custom field instead of the standard
+    // Reference. Same lookup logic as the consignmentReference path.
     if (!ticket) {
-      // Fallback: try matching bare REP No (transport may have typed e.g. "REP2284" not "REP2284-R1")
-      const bareMatch = /^(REP\d+)/i.exec(ref);
-      if (bareMatch) {
-        const candidates = ticketsByRep.get(bareMatch[1].toUpperCase()) || [];
-        if (candidates.length === 1) {
-          ticket = candidates[0];
-        } else if (candidates.length > 1 && openDateIdx >= 0) {
-          // Pick the latest by Open Date (Excel serial; bigger = newer)
-          candidates.sort((a, b) => {
-            const ad = Number(a.raw[openDateIdx]) || 0;
-            const bd = Number(b.raw[openDateIdx]) || 0;
-            return bd - ad;
-          });
-          ticket = candidates[0];
-          log.warn(`[ambiguous] Maxoptra ref="${ref}" matched ${candidates.length} -R variants — picking latest Open Date (row ${ticket.sheetRow})`);
+      for (const raw of extractCustomFieldRefs(job.customFields)) {
+        const candidate = lookupTicket(raw.toUpperCase());
+        if (candidate) {
+          ticket = candidate;
+          log.warn(`[customField-match] order ${job.referenceNumber || '?'} matched via customField "${raw}" — consignmentReference was "${job.consignmentReference || ''}"`);
+          break;
         }
       }
     }
+
     if (!ticket) {
       orphans++;
       log.warn(`[orphan] Maxoptra order ${job.referenceNumber || '?'} consignmentReference="${ref}" raw="${job.consignmentReference}" client="${job.clientName || ''}" — no matching ticket`);
