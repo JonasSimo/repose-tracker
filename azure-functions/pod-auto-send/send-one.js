@@ -20,12 +20,13 @@
 // PK conflict on pod_send_log.audit_id will block a re-send unless you
 // manually DELETE the row from Supabase first.
 
-const sc = require('./sc');
-const { processAudit } = require('./index');
-
 // Auto-load Azure Functions local.settings.json if present. Values from there
 // populate process.env (only for keys not already set). Standard pattern —
 // `func start` does the same thing, we just do it manually for `node` runs.
+//
+// MUST run BEFORE requiring sc/graph/supa — those modules snapshot
+// process.env at module load time, so any require() before this happens
+// captures empty env values.
 function loadLocalSettings() {
   const fs = require('fs');
   const path = require('path');
@@ -55,6 +56,9 @@ function loadLocalSettings() {
 }
 loadLocalSettings();
 
+const sc = require('./sc');
+const { processAudit } = require('./index');
+
 const REQUIRED = [
   'SAFETYCULTURE_API_TOKEN',
   'SUPABASE_URL',
@@ -67,9 +71,12 @@ const REQUIRED = [
 ];
 
 (async () => {
-  const auditId = process.argv[2];
+  const args = process.argv.slice(2);
+  const force = args.includes('--force');
+  const auditId = args.find(a => !a.startsWith('--'));
   if (!auditId) {
-    console.error('Usage: node send-one.js <audit_id>');
+    console.error('Usage: node send-one.js <audit_id> [--force]');
+    console.error('  --force: bypass the archived-audit check (for one-off testing only)');
     process.exit(1);
   }
   const missing = REQUIRED.filter(n => !process.env[n]);
@@ -99,8 +106,8 @@ const REQUIRED = [
   }
   console.log(`template_id=${templateId}`);
 
-  console.log(`Running processAudit for ${auditId}...`);
-  const result = await processAudit({ auditId, templateId, context });
+  console.log(`Running processAudit for ${auditId}...${force ? ' (--force: ignoring archived flag)' : ''}`);
+  const result = await processAudit({ auditId, templateId, context, ignoreArchived: force });
   console.log('Result:', result);
 
   if (result.sent) {
