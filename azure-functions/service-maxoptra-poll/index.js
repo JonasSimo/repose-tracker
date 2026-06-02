@@ -107,12 +107,18 @@ async function getMaxoptraJobs(log) {
   if (pageCount >= maxPages) log.warn(`[maxoptra] hit max page limit (${maxPages}) — there may be more orders`);
   if (allJobs.length === 0) log.warn(`[maxoptra] 0 orders returned · top-level keys on first page: ${firstPageKeys || '(none)'}`);
 
-  // Filter to PICKUP tasks only (server-side filter is ignored). Terminal states
-  // we don't care about: COMPLETED is interesting (so we mark Returned to Factory),
-  // CANCELLED/FAILED also relevant. Skip any DELIVERY orders entirely.
-  const pickups = allJobs.filter(o => o && String(o.task || '').toUpperCase() === 'PICKUP');
-  log(`[maxoptra] fetched ${allJobs.length} order(s) across ${pageCount} page(s) — ${pickups.length} are PICKUP`);
-  return pickups;
+  // Filter to collection tasks (chair returning factory). Maxoptra v6 actually
+  // uses task="COLLECTION" — the original spec's assumed "PICKUP" never matched
+  // anything, which is why this function returned matched=0 for every tick
+  // until 2026-06-02 (verified by direct API probe: 477 DELIVERY + 23 COLLECTION,
+  // zero PICKUP across the first 500 orders). Accept both defensively in case
+  // Maxoptra ever introduces PICKUP alongside COLLECTION.
+  const collections = allJobs.filter(o => {
+    const t = String(o && o.task || '').toUpperCase();
+    return t === 'COLLECTION' || t === 'PICKUP';
+  });
+  log(`[maxoptra] fetched ${allJobs.length} order(s) across ${pageCount} page(s) — ${collections.length} are collections`);
+  return collections;
 }
 
 // ─── Microsoft Graph ─────────────────────────────────────────────────────
