@@ -313,6 +313,29 @@ function extractCustomFieldRefs(customFields) {
   return out;
 }
 
+// Excel serial date → JS Date (UTC midnight of that day). Excel stores dates
+// as days since 1899-12-30; 25569 is the offset to the Unix epoch (1970-01-01).
+// Returns null for empty, non-numeric, or NaN inputs.
+function parseExcelDateSerial(v) {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  if (!Number.isFinite(n)) return null;
+  const d = new Date(Math.round((n - 25569) * 86400 * 1000));
+  return isNaN(d.getTime()) ? null : d;
+}
+
+// Return the first arg that parses to a valid Date, otherwise null. Used to
+// pick the most informative timestamp from a Maxoptra order/execution for
+// the temporal gate.
+function pickFirstDate(...candidates) {
+  for (const c of candidates) {
+    if (!c) continue;
+    const d = c instanceof Date ? c : new Date(c);
+    if (!isNaN(d.getTime())) return d;
+  }
+  return null;
+}
+
 // Resolve one candidate label against the indexed ticket maps. Tolerates the
 // two formats transport actually types: full REP label ("REP2533081-R1") or
 // bare-digit form ("2533081-R1"). When multiple `-R` variants share the same
@@ -389,9 +412,13 @@ function mapMaxoptraStatus(rawStatus, scheduledTime, completedAt) {
       s === 'onway'      || s === 'on_way'      || s === 'on way') {
     return `🚚 Collected · returning to factory`;
   }
-  if (s === 'planned' || s === 'scheduled' || s === 'assigned') {
+  if (s === 'planned' || s === 'scheduled' || s === 'assigned' || s === 'locked') {
     const when = fmtDateLocal(sched);
     return when ? `📅 Scheduled · ${when}` : `📅 Scheduled`;
+  }
+  // Maxoptra terms for "booked but not yet in a planned route".
+  if (s === 'unallocated' || s === 'unscheduled' || s === 'created') {
+    return `🗓️ Awaiting collection planning`;
   }
   // Unmapped — surface raw value so the engineer adds it next pass.
   return `❓ ${rawStatus || 'unknown'}`;
@@ -482,6 +509,10 @@ module.exports = async function (context, myTimer) {
   // Build map: full chair label (e.g. "REP2284-R1") → { rowIdx (0-based data), values reference }
   // Also maintain a secondary map keyed by bare REP No (e.g. "REP2284") → array of all
   // matching tickets so we can fall back when transport types just the REP without -R suffix.
+  // openDate is captured per-row and later used as a temporal gate when matching to a
+  // Maxoptra order — a return-collection order's effective date cannot precede the date
+  // the return ticket was opened (a chair that came back to factory in Jan cannot be the
+  // current return that was only logged in May).
   const ticketsByLabel = new Map();
   const ticketsByRep = new Map();
   for (let i = 1; i < values.length; i++) {
@@ -491,9 +522,11 @@ module.exports = async function (context, myTimer) {
     // tableRowIndex is 0-based and points at the header — first data row sits
     // at tableRowIndex + 1 (0-based) = tableRowIndex + 2 in 1-based addressing,
     // and any subsequent row is + (i - 1) more.
-    ticketsByLabel.set(cid.label, { rowIdx: i - 1, sheetRow: tableRowIndex + i + 1, raw: values[i] });
+    const ticketOpenDate = openDateIdx >= 0 ? parseExcelDateSerial(values[i][openDateIdx]) : null;
+    const entry = { rowIdx: i - 1, sheetRow: tableRowIndex + i + 1, raw: values[i], openDate: ticketOpenDate };
+    ticketsByLabel.set(cid.label, entry);
     if (!ticketsByRep.has(cid.rep)) ticketsByRep.set(cid.rep, []);
-    ticketsByRep.get(cid.rep).push({ rowIdx: i - 1, sheetRow: tableRowIndex + i + 1, raw: values[i], returnNo: cid.returnNo });
+    ticketsByRep.get(cid.rep).push({ ...entry, returnNo: cid.returnNo });
   }
   log(`[service-maxoptra-poll] indexed ${ticketsByLabel.size} ticket rows with -R suffix`);
 
@@ -561,7 +594,6 @@ module.exports = async function (context, myTimer) {
       log.warn(`[orphan] order ${stubRef} client="${job.clientName || ''}" customFieldKeys=${cfKeys} — no matching ticket`);
       continue;
     }
-    matched++;
 
     // Stage 3: execution fetch — where status, plannedArrivalTime, and
     // completion times live. 404 is expected for orders not yet allocated.
@@ -571,6 +603,29 @@ module.exports = async function (context, myTimer) {
     const rawStatus = execution && execution.status ? execution.status : null;
     const scheduledTime = execution && execution.plannedArrivalTime ? execution.plannedArrivalTime : null;
     const completedTime = execution && (execution.factCompletionTimeReported || execution.factCompletionTimeGPS || execution.plannedCompletionTime) || null;
+
+    // Temporal gate: a return-collection cannot have been planned/completed
+    // BEFORE the ticket was opened. Without this check, an old Maxoptra order
+    // from a prior repair cycle (or the original delivery, if transport reuses
+    // batchNums for both) wrongly matches the current return ticket — the
+    // chair "arrived at factory" in January when the return was only logged
+    // in May. Effective time falls back through several Maxoptra timestamps;
+    // skip the gate only when we have nothing to compare against.
+    const orderEffectiveTime = pickFirstDate(
+      completedTime,
+      scheduledTime,
+      execution && execution.factArrivalTimeReported,
+      execution && execution.factArrivalTimeGPS,
+      detail && Array.isArray(detail.timeWindows) && detail.timeWindows[0] && detail.timeWindows[0].start,
+      detail && detail.orderDate
+    );
+    if (ticket.openDate && orderEffectiveTime && orderEffectiveTime < ticket.openDate) {
+      log.warn(`[stale-skip] order ${stubRef} effective=${orderEffectiveTime.toISOString().slice(0,10)} predates ticket ${matchedLabel} openDate=${ticket.openDate.toISOString().slice(0,10)} (matched via ${matchVia}) — treating as orphan`);
+      orphans++;
+      continue;
+    }
+
+    matched++;
 
     // If we have a ticket but no execution data yet, leave as "waiting" — the
     // standalone sweep below will set that pill if nothing else has.

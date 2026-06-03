@@ -104,11 +104,31 @@ function mapMaxoptraStatus(rawStatus, scheduledTime, completedAt) {
       s === 'onway'      || s === 'on_way'      || s === 'on way') {
     return `🚚 Collected · returning to factory`;
   }
-  if (s === 'planned' || s === 'scheduled' || s === 'assigned') {
+  if (s === 'planned' || s === 'scheduled' || s === 'assigned' || s === 'locked') {
     const when = fmtDateLocal(sched);
     return when ? `📅 Scheduled · ${when}` : `📅 Scheduled`;
   }
+  if (s === 'unallocated' || s === 'unscheduled' || s === 'created') {
+    return `🗓️ Awaiting collection planning`;
+  }
   return `❓ ${rawStatus || 'unknown'}`;
+}
+
+function parseExcelDateSerial(v) {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  if (!Number.isFinite(n)) return null;
+  const d = new Date(Math.round((n - 25569) * 86400 * 1000));
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function pickFirstDate(...candidates) {
+  for (const c of candidates) {
+    if (!c) continue;
+    const d = c instanceof Date ? c : new Date(c);
+    if (!isNaN(d.getTime())) return d;
+  }
+  return null;
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────
@@ -220,13 +240,21 @@ describe('mapMaxoptraStatus', () => {
     expect(mapMaxoptraStatus('on way', null, null)).toBe(expected);
   });
 
-  it('maps planned / scheduled / assigned to the scheduled pill', () => {
+  it('maps planned / scheduled / assigned / locked to the scheduled pill', () => {
     expect(mapMaxoptraStatus('planned', '2026-05-12T14:00:00Z', null))
       .toBe('📅 Scheduled · <datetime>');
     expect(mapMaxoptraStatus('scheduled', '2026-05-12T14:00:00Z', null))
       .toBe('📅 Scheduled · <datetime>');
     expect(mapMaxoptraStatus('assigned', null, null))
       .toBe('📅 Scheduled');
+    expect(mapMaxoptraStatus('LOCKED', '2026-05-12T14:00:00Z', null))
+      .toBe('📅 Scheduled · <datetime>');
+  });
+
+  it('maps unallocated / unscheduled / created to the awaiting-planning pill', () => {
+    expect(mapMaxoptraStatus('UNALLOCATED', null, null)).toBe('🗓️ Awaiting collection planning');
+    expect(mapMaxoptraStatus('unscheduled', null, null)).toBe('🗓️ Awaiting collection planning');
+    expect(mapMaxoptraStatus('created', null, null)).toBe('🗓️ Awaiting collection planning');
   });
 
   it('is case-insensitive across all input statuses', () => {
@@ -363,5 +391,39 @@ describe('extractCustomFieldRefs', () => {
     expect(extractCustomFieldRefs({ 'Batch numbers': null })).toEqual([]);
     expect(extractCustomFieldRefs({ 'Batch numbers': '' })).toEqual([]);
     expect(extractCustomFieldRefs({ 'Batch numbers': '   ' })).toEqual([]);
+  });
+});
+
+describe('parseExcelDateSerial', () => {
+  it('returns null for empty / non-numeric input', () => {
+    expect(parseExcelDateSerial(null)).toBe(null);
+    expect(parseExcelDateSerial(undefined)).toBe(null);
+    expect(parseExcelDateSerial('')).toBe(null);
+    expect(parseExcelDateSerial('not-a-number')).toBe(null);
+  });
+
+  it('converts a known Excel serial to the right UTC date', () => {
+    // 25569 is the Excel serial for 1970-01-01 (Unix epoch). Adding 365 = 1971-01-01.
+    expect(parseExcelDateSerial(25569).toISOString().slice(0, 10)).toBe('1970-01-01');
+    expect(parseExcelDateSerial(25569 + 365).toISOString().slice(0, 10)).toBe('1971-01-01');
+  });
+
+  it('accepts numeric strings as well as numbers', () => {
+    expect(parseExcelDateSerial('25569').toISOString().slice(0, 10)).toBe('1970-01-01');
+  });
+});
+
+describe('pickFirstDate', () => {
+  it('returns the first defined parseable date', () => {
+    expect(pickFirstDate(null, undefined, '2026-05-20T00:00:00Z').toISOString()).toBe('2026-05-20T00:00:00.000Z');
+  });
+
+  it('returns null when no candidate parses', () => {
+    expect(pickFirstDate(null, undefined, '', 'not-a-date')).toBe(null);
+  });
+
+  it('passes through a Date instance untouched', () => {
+    const d = new Date('2026-06-03T10:00:00Z');
+    expect(pickFirstDate(null, d).getTime()).toBe(d.getTime());
   });
 });
