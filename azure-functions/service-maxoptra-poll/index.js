@@ -93,14 +93,26 @@ async function getMaxoptraJobs(log) {
   if (pageCount >= maxPages) log.warn(`[maxoptra] hit max page limit (${maxPages}) — there may be more orders`);
   if (allJobs.length === 0) log.warn(`[maxoptra] 0 orders returned · top-level keys on first page: ${firstPageKeys || '(none)'}`);
 
-  // Filter to collection tasks (chair returning factory). Maxoptra v6 uses
-  // task="COLLECTION"; PICKUP is also accepted in case the API ever changes.
-  const collections = allJobs.filter(o => {
-    const t = String(o && o.task || '').toUpperCase();
-    return t === 'COLLECTION' || t === 'PICKUP';
+  // Filter to anything that could be a return-collection. Maxoptra v6 has
+  // two task types — COLLECTION (standalone pickup-only stops) and DELIVERY
+  // (everything else). Repose's actual return workflow uses DELIVERY because
+  // the truck visits the customer to drop a loan chair AND collect the
+  // broken one in a single trip; the route reference always carries a "SERV
+  // RET"/"RETURN" tag (verified against 84 such orders on 2026-06-03).
+  // Anything without that tag is a plain outbound delivery and gets dropped
+  // to keep per-tick detail fetches bounded.
+  const RETURN_PATTERN = /return|\bret\b/i;
+  const candidates = allJobs.filter(o => {
+    if (!o) return false;
+    const t = String(o.task || '').toUpperCase();
+    if (t === 'COLLECTION' || t === 'PICKUP') return true;
+    if (t === 'DELIVERY' && RETURN_PATTERN.test(String(o.referenceNumber || ''))) return true;
+    return false;
   });
-  log(`[maxoptra] fetched ${allJobs.length} order(s) across ${pageCount} page(s) — ${collections.length} are collections`);
-  return collections;
+  const collCount = candidates.filter(o => String(o.task).toUpperCase() === 'COLLECTION' || String(o.task).toUpperCase() === 'PICKUP').length;
+  const retDelCount = candidates.length - collCount;
+  log(`[maxoptra] fetched ${allJobs.length} order(s) across ${pageCount} page(s) — ${collCount} collections + ${retDelCount} return-deliveries (DELIVERY w/ RETURN ref)`);
+  return candidates;
 }
 
 // Shared GET helper for the Maxoptra v6 API. 30s per-call timeout (route through
