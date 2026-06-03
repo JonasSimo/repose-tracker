@@ -420,8 +420,14 @@ function mapMaxoptraStatus(rawStatus, scheduledTime, completedAt) {
     return when ? `✅ In factory · ${when}` : `✅ In factory`;
   }
   if (s === 'inprogress' || s === 'in_progress' || s === 'in progress' ||
-      s === 'pickedup'   || s === 'picked_up'   || s === 'picked up'   ||
+      s === 'enroute'    || s === 'en_route'    || s === 'moving'      ||
       s === 'onway'      || s === 'on_way'      || s === 'on way') {
+    return `🚚 On way to customer`;
+  }
+  if (s === 'arrived' || s === 'atcustomer' || s === 'at_customer' || s === 'at customer') {
+    return `🚚 At customer · collecting`;
+  }
+  if (s === 'departed' || s === 'pickedup' || s === 'picked_up' || s === 'picked up') {
     return `🚚 Collected · returning to factory`;
   }
   if (s === 'planned' || s === 'scheduled' || s === 'assigned' || s === 'locked') {

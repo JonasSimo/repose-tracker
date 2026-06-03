@@ -100,8 +100,14 @@ function mapMaxoptraStatus(rawStatus, scheduledTime, completedAt) {
     return when ? `✅ In factory · ${when}` : `✅ In factory`;
   }
   if (s === 'inprogress' || s === 'in_progress' || s === 'in progress' ||
-      s === 'pickedup'   || s === 'picked_up'   || s === 'picked up'   ||
+      s === 'enroute'    || s === 'en_route'    || s === 'moving'      ||
       s === 'onway'      || s === 'on_way'      || s === 'on way') {
+    return `🚚 On way to customer`;
+  }
+  if (s === 'arrived' || s === 'atcustomer' || s === 'at_customer' || s === 'at customer') {
+    return `🚚 At customer · collecting`;
+  }
+  if (s === 'departed' || s === 'pickedup' || s === 'picked_up' || s === 'picked up') {
     return `🚚 Collected · returning to factory`;
   }
   if (s === 'planned' || s === 'scheduled' || s === 'assigned' || s === 'locked') {
@@ -227,17 +233,30 @@ describe('mapMaxoptraStatus', () => {
     expect(mapMaxoptraStatus('completed', null, null)).toBe('✅ In factory');
   });
 
-  it('groups all "in transit" variants into the truck pill', () => {
-    const expected = '🚚 Collected · returning to factory';
-    expect(mapMaxoptraStatus('inprogress', null, null)).toBe(expected);
-    expect(mapMaxoptraStatus('in_progress', null, null)).toBe(expected);
-    expect(mapMaxoptraStatus('in progress', null, null)).toBe(expected);
-    expect(mapMaxoptraStatus('pickedup', null, null)).toBe(expected);
-    expect(mapMaxoptraStatus('picked_up', null, null)).toBe(expected);
-    expect(mapMaxoptraStatus('picked up', null, null)).toBe(expected);
-    expect(mapMaxoptraStatus('onway', null, null)).toBe(expected);
-    expect(mapMaxoptraStatus('on_way', null, null)).toBe(expected);
-    expect(mapMaxoptraStatus('on way', null, null)).toBe(expected);
+  it('maps en-route / moving variants to the "on way" pill', () => {
+    const onway = '🚚 On way to customer';
+    expect(mapMaxoptraStatus('inprogress', null, null)).toBe(onway);
+    expect(mapMaxoptraStatus('in_progress', null, null)).toBe(onway);
+    expect(mapMaxoptraStatus('in progress', null, null)).toBe(onway);
+    expect(mapMaxoptraStatus('enroute', null, null)).toBe(onway);
+    expect(mapMaxoptraStatus('en_route', null, null)).toBe(onway);
+    expect(mapMaxoptraStatus('moving', null, null)).toBe(onway);
+    expect(mapMaxoptraStatus('onway', null, null)).toBe(onway);
+    expect(mapMaxoptraStatus('on_way', null, null)).toBe(onway);
+    expect(mapMaxoptraStatus('on way', null, null)).toBe(onway);
+  });
+
+  it('maps ARRIVED to "at customer · collecting"', () => {
+    expect(mapMaxoptraStatus('ARRIVED', null, null)).toBe('🚚 At customer · collecting');
+    expect(mapMaxoptraStatus('at_customer', null, null)).toBe('🚚 At customer · collecting');
+  });
+
+  it('maps departed / picked-up to "collected · returning"', () => {
+    const ret = '🚚 Collected · returning to factory';
+    expect(mapMaxoptraStatus('DEPARTED', null, null)).toBe(ret);
+    expect(mapMaxoptraStatus('pickedup', null, null)).toBe(ret);
+    expect(mapMaxoptraStatus('picked_up', null, null)).toBe(ret);
+    expect(mapMaxoptraStatus('picked up', null, null)).toBe(ret);
   });
 
   it('maps planned / scheduled / assigned / locked to the scheduled pill', () => {
