@@ -1,8 +1,9 @@
 {
-  "navigationFallback": {
-    "rewrite": "/index.html"
-  },
-  "globalHeaders": {
-    "Cache-Control": "no-cache, no-store, must-revalidate"
-  }
+  "routes": [
+    {
+      "route": "/*",
+      "redirect": "https://ashy-river-0a41a9410.7.azurestaticapps.net/",
+      "statusCode": 301
+    }
+  ]
 }
