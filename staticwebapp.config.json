@@ -1,6 +1,13 @@
 {
   "routes": [
     {
+      "route": "/service-worker.js",
+      "headers": {
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "Service-Worker-Allowed": "/"
+      }
+    },
+    {
       "route": "/*",
       "redirect": "https://ashy-river-0a41a9410.7.azurestaticapps.net/",
       "statusCode": 301
