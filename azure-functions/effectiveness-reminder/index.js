@@ -16,7 +16,8 @@ const TENANT_ID     = process.env.TENANT_ID;
 const CLIENT_ID     = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
 const SEND_FROM     = process.env.SEND_FROM;
-const REPNET_URL    = process.env.REPNET_URL || 'https://brave-island-06ef03810.1.azurestaticapps.net/';
+const REPNET_URL    = (process.env.REPNET_URL || 'https://ashy-river-0a41a9410.7.azurestaticapps.net/').replace(/\/?$/, '/');
+const ACTIONS_URL   = REPNET_URL + 'actions';
 
 const SP_HOST       = 'reposefurniturelimited.sharepoint.com';
 const SP_SITE_PATH  = '/sites/ReposeFurniture-PlanningRepose';
@@ -171,7 +172,7 @@ function buildReminder(due, overdue) {
             <li>Click <em>✓ Still effective</em> (archives) or <em>✗ Recurred</em> (creates a new linked CPAR)</li>
           </ol>
           <p style="margin:12px 0 0">
-            <a href="${escHtml(REPNET_URL)}" style="display:inline-block;padding:9px 18px;background:#d97706;color:#fff;text-decoration:none;border-radius:6px;font-size:12px;font-weight:700">Open RepNet →</a>
+            <a href="${escHtml(ACTIONS_URL)}" style="display:inline-block;padding:9px 18px;background:#d97706;color:#fff;text-decoration:none;border-radius:6px;font-size:12px;font-weight:700">Open RepNet · Actions →</a>
           </p>
         </div>
       </div>
