@@ -16,6 +16,11 @@ const QMS_REGISTER_LIST = 'MasterDocumentRegister';
 // Reminder window — emails fire when NextReviewDate is between 0 and N days away.
 const REMINDER_WINDOW_DAYS = 30;
 
+// Base URL of RepNet for deep-links in emails (env override for staging).
+const REPNET_URL = (process.env.REPNET_URL
+  || 'https://ashy-river-0a41a9410.7.azurestaticapps.net/').replace(/\/?$/, '/');
+const DOCS_URL = REPNET_URL + 'documents';
+
 // ─── App-only Graph auth (client credential flow) ─────────────────────────
 async function getAppToken() {
   const cca = new ConfidentialClientApplication({
@@ -181,7 +186,8 @@ module.exports = async function (context, myTimer) {
       const status = d.daysUntil < 0
         ? `${Math.abs(d.daysUntil)} days OVERDUE`
         : `${d.daysUntil} day${d.daysUntil === 1 ? '' : 's'}`;
-      return `<tr><td style="padding:6px 12px;border:1px solid #e1e6eb;font-family:monospace;font-weight:700">${htmlEscape(d.DocNumber)}</td><td style="padding:6px 12px;border:1px solid #e1e6eb">${htmlEscape(d.Title)}</td><td style="padding:6px 12px;border:1px solid #e1e6eb">${dateStr}</td><td style="padding:6px 12px;border:1px solid #e1e6eb;color:${colour};font-weight:700">${status}</td></tr>`;
+      const docUrl = `${DOCS_URL}?doc=${encodeURIComponent(d.DocNumber)}`;
+      return `<tr><td style="padding:6px 12px;border:1px solid #e1e6eb;font-family:monospace;font-weight:700"><a href="${docUrl}" style="color:#0e023a;text-decoration:none">${htmlEscape(d.DocNumber)}</a></td><td style="padding:6px 12px;border:1px solid #e1e6eb">${htmlEscape(d.Title)}</td><td style="padding:6px 12px;border:1px solid #e1e6eb">${dateStr}</td><td style="padding:6px 12px;border:1px solid #e1e6eb;color:${colour};font-weight:700">${status}</td></tr>`;
     };
 
     const allRows = [...overdueRows, ...dueRows].map(rowToHtml).join('');
@@ -193,6 +199,7 @@ module.exports = async function (context, myTimer) {
         <tr style="background:#f8fafb"><th style="padding:8px 12px;border:1px solid #e1e6eb;text-align:left">Doc No.</th><th style="padding:8px 12px;border:1px solid #e1e6eb;text-align:left">Title</th><th style="padding:8px 12px;border:1px solid #e1e6eb;text-align:left">Next review</th><th style="padding:8px 12px;border:1px solid #e1e6eb;text-align:left">Status</th></tr>
         ${allRows}
       </table>
+      <p style="font-size:14px"><a href="${DOCS_URL}" style="display:inline-block;background:#14a1e9;color:#fff;text-decoration:none;padding:10px 20px;border-radius:999px;font-weight:600;font-size:13px">↗ Open Document Control</a></p>
       <p style="font-size:12px;color:#706f6f;line-height:1.5">This reminder is sent weekly while documents remain due or overdue. Open RepNet → Documents → click the doc → Edit metadata to update the review cycle, or use New revision to publish updated content.</p>
     `);
 
