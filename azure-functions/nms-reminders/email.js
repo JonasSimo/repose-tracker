@@ -18,7 +18,7 @@ const SAFETY_URL = REPNET_URL + 'safety';
 const OVERDUE_LIMIT_DAYS = 28;
 
 const BANDS = [
-  { day:  7, kind: 'week1',    tone: 'gentle',   accent: '#14a1e9', tag: '1 week reminder',                  subject: 'Near miss reminder — open 1 week' },
+  { day:  7, kind: 'week1',    tone: 'gentle',   accent: '#16a34a', tag: '1 week reminder',                  subject: 'Near miss reminder — open 1 week' },
   { day: 14, kind: 'week2',    tone: 'firmer',   accent: '#d97706', tag: '2 week reminder',                  subject: 'Near miss still open — 2 weeks' },
   { day: 21, kind: 'week3',    tone: 'urgent',   accent: '#ea580c', tag: '3 week reminder',                  subject: 'Near miss still open — 3 weeks · approaching limit' },
   { day: 26, kind: 'critical', tone: 'critical', accent: '#dc2626', tag: 'Critical · 2 days to overdue',     subject: '⚠ CRITICAL — Near miss will be overdue in 2 days' },
