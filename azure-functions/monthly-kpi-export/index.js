@@ -16,7 +16,8 @@ const TENANT_ID     = process.env.TENANT_ID;
 const CLIENT_ID     = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
 const SEND_FROM     = process.env.SEND_FROM;
-const REPNET_URL    = process.env.REPNET_URL || 'https://brave-island-06ef03810.1.azurestaticapps.net/';
+const REPNET_URL    = (process.env.REPNET_URL || 'https://ashy-river-0a41a9410.7.azurestaticapps.net/').replace(/\/?$/, '/');
+const STATS_URL     = REPNET_URL + 'stats';
 
 const SP_HOST       = 'reposefurniturelimited.sharepoint.com';
 const SP_SITE_PATH  = '/sites/ReposeFurniture-PlanningRepose';
@@ -203,7 +204,7 @@ module.exports = async function (context, myTimer) {
         </ul>
         <p style="margin:0 0 12px"><strong>Use it for:</strong> management review meetings, ISO 9001 §9.1.3 (analysis &amp; evaluation), trend tracking.</p>
         <p style="margin:14px 0 0">
-          <a href="${REPNET_URL}" style="display:inline-block;padding:9px 18px;background:#1e3a5f;color:#fff;text-decoration:none;border-radius:6px;font-size:12px;font-weight:700">Open RepNet Quality Dashboard →</a>
+          <a href="${STATS_URL}" style="display:inline-block;padding:9px 18px;background:#1e3a5f;color:#fff;text-decoration:none;border-radius:6px;font-size:12px;font-weight:700">Open RepNet Quality Dashboard →</a>
         </p>
       </div>
       <div style="background:#f0f4f8;padding:12px 24px;font-size:11px;color:#9ca3af;border-top:1px solid #e2e8f0">
