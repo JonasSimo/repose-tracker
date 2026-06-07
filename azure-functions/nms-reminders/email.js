@@ -13,7 +13,8 @@ try {
   LOGO_DATAURL = 'data:image/png;base64,' + buf.toString('base64');
 } catch (e) { /* fall back to text wordmark */ }
 
-const REPNET_URL = process.env.REPNET_URL || 'https://brave-island-06ef03810.1.azurestaticapps.net/';
+const REPNET_URL = (process.env.REPNET_URL || 'https://ashy-river-0a41a9410.7.azurestaticapps.net/').replace(/\/?$/, '/');
+const SAFETY_URL = REPNET_URL + 'safety';
 const OVERDUE_LIMIT_DAYS = 28;
 
 const BANDS = [
@@ -75,7 +76,7 @@ function buildReminder(item, days, band) {
             <li>Describe the actions taken to resolve and click <em>Mark Closed</em></li>
           </ol>
           <p style="margin:14px 0 0">
-            <a href="${escHtml(REPNET_URL)}" style="display:inline-block;padding:10px 20px;background:${band.accent};color:#fff;text-decoration:none;border-radius:6px;font-size:13px;font-weight:700">Open RepNet · Safety tab →</a>
+            <a href="${escHtml(SAFETY_URL)}" style="display:inline-block;padding:10px 20px;background:${band.accent};color:#fff;text-decoration:none;border-radius:6px;font-size:13px;font-weight:700">Open RepNet · Safety tab →</a>
           </p>
         </div>
 
@@ -88,4 +89,4 @@ function buildReminder(item, days, band) {
   </body></html>`;
 }
 
-module.exports = { BANDS, buildReminder, OVERDUE_LIMIT_DAYS, REPNET_URL };
+module.exports = { BANDS, buildReminder, OVERDUE_LIMIT_DAYS, REPNET_URL, SAFETY_URL };
