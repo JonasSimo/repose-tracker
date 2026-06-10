@@ -75,14 +75,17 @@ function normaliseTeam(s) {
   return t[0].toUpperCase() + t.slice(1).toLowerCase();
 }
 
-// CPAR statuses that count as "open" (mirrors cparDigest.ts).
+// CPAR statuses that count as "open" for the TEAM digest. 'Awaiting
+// Effectiveness Check' is deliberately excluded — the team's actions are
+// done and the 30-day effectiveness verify is QHSE's queue (the
+// effectiveness-reminder function), so listing them here read as phantom
+// open issues aging forever.
 const OPEN_STATUSES = [
   'Open',
   'Pending QHSE Review',
   'Returned to Area Manager',
   'Investigation',
   'Awaiting Final Sign-Off',
-  'Awaiting Effectiveness Check',
 ];
 
 // ─── UK timezone helpers ──────────────────────────────────────────────────
@@ -142,7 +145,9 @@ async function fetchOpenCpars() {
   // PostgREST: status=in.("Open","Pending QHSE Review",...) — values need URL-encoded quotes.
   const statusList = OPEN_STATUSES.map(s => `"${s}"`).join(',');
   const select = encodeURIComponent('id,ref,status,source_dept,issue_category,description,logged_at,closed_out_at,raised_by_team');
-  const qs = `?select=${select}&status=in.(${encodeURIComponent(statusList)})&order=logged_at.asc&limit=500`;
+  // closed_out_at=is.null — backfilled rows can carry a close timestamp while
+  // the status string still reads open; those are closed, don't report them.
+  const qs = `?select=${select}&status=in.(${encodeURIComponent(statusList)})&closed_out_at=is.null&order=logged_at.asc&limit=500`;
   const res = await fetch(`${SUPABASE_URL}/rest/v1/cpars${qs}`, {
     headers: {
       apikey: SUPABASE_KEY,
@@ -240,7 +245,12 @@ module.exports = async function (context, myTimer) {
   const nowLabel = new Date().toLocaleDateString('en-GB', {
     timeZone: 'Europe/London', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   });
-  const teamOf = (r) => canonicalTeam(normaliseTeam(r.raised_by_team || r.source_dept));
+  // Group by the team the NCR was raised AGAINST (source_dept = where the
+  // problem originated), not the team that reported it. Sewing's digest is
+  // "issues caused by Sewing", with the reporter shown in the Raised By
+  // column. raised_by_team is only a fallback for legacy rows with no
+  // source_dept.
+  const teamOf = (r) => canonicalTeam(normaliseTeam(r.source_dept || r.raised_by_team));
 
   let sent = 0, skipped = 0, failed = 0;
   const seen = new Set();
