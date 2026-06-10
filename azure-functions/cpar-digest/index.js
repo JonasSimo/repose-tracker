@@ -52,6 +52,8 @@ const TEAM_MANAGERS = {
   'QC':               ['richard.semmens@reposefurniture.co.uk','mitch@reposefurniture.co.uk','jonas.simonaitis@reposefurniture.co.uk','weronika.hathaway@reposefurniture.co.uk'],
   'Admin':            ['richard.semmens@reposefurniture.co.uk','mitch@reposefurniture.co.uk','jonas.simonaitis@reposefurniture.co.uk','katy.bartlett@reposefurniture.co.uk','julie.underhill@reposefurniture.co.uk','jody.tilley@reposefurniture.co.uk','production@reposefurniture.co.uk'],
   'Development':      ['richard.semmens@reposefurniture.co.uk','mitch@reposefurniture.co.uk','jonas.simonaitis@reposefurniture.co.uk','ryan.evans@reposefurniture.co.uk'],
+  // Supplier-caused NCRs have no shop-floor team — route to the QHSE trio.
+  'Material / Supplier': ['richard.semmens@reposefurniture.co.uk','mitch@reposefurniture.co.uk','jonas.simonaitis@reposefurniture.co.uk'],
 };
 
 // Upholstery sub-team rows collapse into the parent "Upholstery" digest.
@@ -60,6 +62,10 @@ function canonicalTeam(t) {
   const s = String(t || '').trim();
   if (!s) return '';
   if (UPH_GROUP.has(s.toLowerCase())) return 'Upholstery';
+  // normaliseTeam lowercases everything after the first char, which turns
+  // "Material / Supplier" into "Material / supplier" — restore the canonical
+  // casing so it matches the TEAM_MANAGERS key.
+  if (s.toLowerCase() === 'material / supplier') return 'Material / Supplier';
   return s;
 }
 
