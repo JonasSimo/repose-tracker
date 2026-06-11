@@ -60,6 +60,7 @@ RepNet Function App → Configuration → Application settings. SC token, Supaba
 | `POD_TRIAL_RECIPIENT` | TRIAL only | Jonas's email |
 | `POD_CUSTOMER_CHARTERHOUSE_EMAIL` | LIVE only | `operations@charterhousemobility.com` |
 | `POD_CUSTOMER_GROSVENOR_EMAIL` | LIVE only | `delivery.photos@grosvenormobility.com` |
+| `POD_ACCOUNTS_EMAIL` | optional | `accounts@reposefurniture.co.uk` — internal accounts copy of every POD; unset = accounts flow off |
 
 ### 4 — Deploy and trigger
 
@@ -86,6 +87,15 @@ The REP serial is pulled from the "REP Serial number" question first, falling ba
 | `skipped` | Reserved for Phase 2 (e.g. holds, "do not email" flags). Not used in Phase 1. |
 
 A row stuck at `claimed` for more than one timer cycle means the function died between the claim insert and the status update — check the Function App logs around that audit's `sent_at`.
+
+## Accounts copy (every POD, internal)
+
+When `POD_ACCOUNTS_EMAIL` is set, every eligible POD — trade and non-trade alike — additionally emails an internal copy to that address (requires the `pod_accounts_send_log` table, migration `repnet/supabase/migrations/0076_pod_accounts_send_log.sql`). This is a fully separate email, NOT a CC on the customer send:
+
+- Subject/body: `POD for <client> (<trade account>)` from production plan columns D + R (tally suffix stripped), plus the PO and REP serial(s). REP not in plan → `(not found in production plan)` — accounts still gets the POD.
+- Own claim/dedup table `pod_accounts_send_log` (same `claimed`/`sent`/`failed` lifecycle as `pod_send_log`). A failure in either flow never blocks the other; the PDF export is shared within the tick.
+- TRIAL mode redirects the accounts copy to `POD_TRIAL_RECIPIENT` like everything else.
+- Kill switch: remove the `POD_ACCOUNTS_EMAIL` app setting and restart — customer flow unaffected.
 
 ## Idempotency
 

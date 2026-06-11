@@ -23,6 +23,10 @@
 //        e. claim audit_id by inserting a 'claimed' placeholder in pod_send_log
 //        f. fetch PDF from SC's async export endpoint, send via Graph
 //        g. update pod_send_log row to 'sent' (or 'failed' + error)
+//        h. INDEPENDENTLY of d-g: if POD_ACCOUNTS_EMAIL is set, send an
+//           internal accounts copy for EVERY eligible POD (trade and
+//           non-trade), claimed/logged in pod_accounts_send_log. Shares the
+//           PDF export; failures never cross between the two flows.
 //   5. Advance watermark
 //
 // Trade customers in scope for Phase 2 LIVE:
@@ -42,6 +46,10 @@
 //   POD_CUSTOMER_GROSVENOR_EMAIL
 // Optional:
 //   POD_DRY_RUN                     — '1' to log decisions but skip mail + log writes
+//   POD_ACCOUNTS_EMAIL              — internal accounts copy of every POD;
+//                                     unset = accounts flow off (kill switch).
+//                                     In TRIAL mode it redirects to
+//                                     POD_TRIAL_RECIPIENT like everything else.
 // ─────────────────────────────────────────────────────────────────────────
 
 const sc          = require('./sc');
@@ -85,33 +93,30 @@ async function writeWatermark(templateId, watermark, summary) {
   }], 'template_id');
 }
 
-// Insert a placeholder row to atomically claim this audit_id. Returns true if
-// we claimed it (caller proceeds), false if another run already has the row.
-async function claimAuditForSend({ auditId, templateId, repNumber, completedAt, sendTo, sendMode }) {
-  const claimed = await supa.supaInsertIgnoreConflict('pod_send_log', {
-    audit_id: auditId,
-    template_id: templateId,
-    rep_number: repNumber,
-    inspection_completed_at: completedAt,
-    sent_to: sendTo,
-    send_mode: sendMode,
+// Insert a placeholder row to atomically claim this audit_id in the given
+// send-log table. Returns true if we claimed it (caller proceeds), false if
+// another run already has the row. Each flow (customer / accounts) claims in
+// its own table, so their dedup is fully independent.
+async function claimAuditForSend(table, row) {
+  const claimed = await supa.supaInsertIgnoreConflict(table, {
     status: 'claimed',
     // sent_at gets a default of now() — we'll PATCH it on success
+    ...row,
   });
   return claimed != null;
 }
 
-async function markSent({ auditId, graphMessageId }) {
+async function markSent(table, auditId) {
   await supa.supaUpdate(
-    'pod_send_log',
+    table,
     `audit_id=eq.${encodeURIComponent(auditId)}`,
-    { status: 'sent', graph_message_id: graphMessageId, sent_at: new Date().toISOString() }
+    { status: 'sent', sent_at: new Date().toISOString() }
   );
 }
 
-async function markFailed({ auditId, errorMessage }) {
+async function markFailed(table, auditId, errorMessage) {
   await supa.supaUpdate(
-    'pod_send_log',
+    table,
     `audit_id=eq.${encodeURIComponent(auditId)}`,
     { status: 'failed', error_message: errorMessage }
   );
@@ -149,6 +154,102 @@ function buildBody({ reps, orderNo, trade, clients, sendMode, recipient }) {
   return lines.join('\n');
 }
 
+// ── Accounts copy ────────────────────────────────────────────────────────
+// Internal copy of EVERY completed POD (trade and non-trade alike) to
+// POD_ACCOUNTS_EMAIL, identifying the customer from the production plan.
+// Completely separate from the customer flow: own email, own log table.
+
+function stripTally(s) {
+  // Column R values carry a running tally, e.g. "GROSVENOR MOBILITY - 17".
+  return String(s || '').replace(/\s*-\s*\d+\s*$/, '').trim();
+}
+
+// "MRS ANGELA WOODHOUSE (GROSVENOR MOBILITY)" — column D plus column R when
+// they differ; unique labels joined with " + " for multi-REP PODs.
+function describeCustomer(planEntries) {
+  if (!planEntries.length) return '(not found in production plan)';
+  const seen = new Set();
+  const parts = [];
+  for (const e of planEntries) {
+    const client = String(e.client || '').trim();
+    const account = stripTally(e.account);
+    const label = (client && account && account.toUpperCase() !== client.toUpperCase())
+      ? `${client} (${account})`
+      : (client || account || '(blank plan row)');
+    if (!seen.has(label.toUpperCase())) {
+      seen.add(label.toUpperCase());
+      parts.push(label);
+    }
+  }
+  return parts.join(' + ');
+}
+
+async function sendAccountsPod({ auditId, templateId, reps, orderNo, planEntries, completedAt, getPdf, pdfFilename, log, warn, SEND_MODE, DRY_RUN }) {
+  const accountsEmail = process.env.POD_ACCOUNTS_EMAIL;
+  if (!accountsEmail) return { sent: false, disabled: true };
+
+  const recipient = (SEND_MODE === 'LIVE') ? accountsEmail : process.env.POD_TRIAL_RECIPIENT;
+  const customer = describeCustomer(planEntries);
+  const subject = `POD for ${customer}${orderNo ? ` — PO ${orderNo}` : ''}${reps.length ? ` · ${reps.join(' + ')}` : ''}`;
+
+  if (DRY_RUN) {
+    log(`DRY_RUN ${auditId}: accounts copy → ${recipient} ("${subject}")`);
+    return { sent: false, dryRun: true };
+  }
+
+  // The claim sits INSIDE the try so a missing pod_accounts_send_log table
+  // (migration not applied yet) degrades to a warn — never touches the
+  // customer flow or the watermark.
+  try {
+    const claimed = await claimAuditForSend('pod_accounts_send_log', {
+      audit_id: auditId,
+      template_id: templateId,
+      rep_number: reps[0] || null,
+      client_name: planEntries[0]?.client || null,
+      account_name: planEntries[0]?.account || null,
+      po_number: orderNo,
+      inspection_completed_at: completedAt,
+      sent_to: recipient,
+      send_mode: SEND_MODE,
+    });
+    if (!claimed) return { sent: false, alreadyDone: true };
+
+    const pdfBuffer = await getPdf();
+    const lines = [
+      'Hello,',
+      '',
+      `Attached is the Proof of Delivery for ${customer}.`,
+      '',
+      orderNo ? `PO / order number: ${orderNo}` : null,
+      reps.length ? `REP serial(s): ${reps.join(', ')}` : null,
+      completedAt ? `Delivery completed: ${completedAt}` : null,
+      '',
+      'Automated copy for accounts — customer-facing POD emails (Grosvenor / Charterhouse) are sent separately.',
+    ].filter(l => l !== null);
+    if (SEND_MODE === 'TRIAL') {
+      lines.push('', '---', `[TRIAL — sent to ${recipient}; LIVE would send to ${accountsEmail}]`);
+    }
+    await graph.sendMailWithPdf({
+      to: recipient,
+      subject,
+      bodyText: lines.join('\n'),
+      pdfBuffer,
+      pdfFilename,
+    });
+    await markSent('pod_accounts_send_log', auditId);
+    log(`accounts copy sent ${auditId} (${customer}) → ${recipient}`);
+    return { sent: true };
+  } catch (e) {
+    warn(`accounts copy failed ${auditId}: ${e.message}`);
+    try {
+      await markFailed('pod_accounts_send_log', auditId, e.message.slice(0, 500));
+    } catch (e2) {
+      warn(`accounts copy ${auditId}: also failed to record failure: ${e2.message}`);
+    }
+    return { sent: false, failed: true };
+  }
+}
+
 async function processAudit({ auditId, templateId, planMap, context, forceSend = false }) {
   const log = (...a) => context.log('[pod-auto-send]', ...a);
   const warn = (...a) => context.log.warn('[pod-auto-send]', ...a);
@@ -174,15 +275,43 @@ async function processAudit({ auditId, templateId, planMap, context, forceSend =
   const clients = planEntries.flatMap(e => [e.client, e.account].filter(Boolean));
   const trade = routing.resolveTradeCustomer(clients);
 
+  const completedAt = audit.audit_data?.date_completed || null;
+  const orderItem = eligibility.findItemByLabel(audit, ['Customer order number', 'Order number', 'Customer order']);
+  const orderNo = orderItem?.responses?.text || null;
+  const pdfFilename = `Repose-POD-${(reps[0] || auditId).replace(/[^A-Za-z0-9_-]/g, '_')}.pdf`;
+
+  // One PDF export shared by both independent sends — whichever runs first
+  // pays for it, the other reuses the same promise.
+  let pdfPromise = null;
+  const getPdf = () => {
+    if (!pdfPromise) pdfPromise = sc.fetchPodPdf(auditId, log);
+    return pdfPromise;
+  };
+
+  const customer = await sendCustomerPod({
+    auditId, templateId, reps, orderNo, clients, trade, completedAt,
+    getPdf, pdfFilename, log, warn, SEND_MODE, DRY_RUN,
+  });
+  const accounts = await sendAccountsPod({
+    auditId, templateId, reps, orderNo, planEntries, completedAt,
+    getPdf, pdfFilename, log, warn, SEND_MODE, DRY_RUN,
+  });
+
+  // Customer-flow result keeps its historical shape (summary counters and
+  // send-one.js depend on it); the accounts result rides along.
+  return { ...customer, accounts };
+}
+
+// Customer-facing send — Grosvenor / Charterhouse in LIVE, trial recipient in
+// TRIAL. Unchanged behaviour, just extracted so it runs independently of the
+// accounts copy.
+async function sendCustomerPod({ auditId, templateId, reps, orderNo, clients, trade, completedAt, getPdf, pdfFilename, log, warn, SEND_MODE, DRY_RUN }) {
   if (SEND_MODE === 'LIVE' && !trade) {
     log(`skip ${auditId}: not a trade customer (reps=${reps.join(',')}; clients=${clients.join(' / ') || 'none'})`);
     return { sent: false, skipped: true, reason: 'not a trade customer' };
   }
 
   const recipient = (SEND_MODE === 'LIVE') ? trade.email : process.env.POD_TRIAL_RECIPIENT;
-  const completedAt = audit.audit_data?.date_completed || null;
-  const orderItem = eligibility.findItemByLabel(audit, ['Customer order number', 'Order number', 'Customer order']);
-  const orderNo = orderItem?.responses?.text || null;
 
   if (DRY_RUN) {
     log(`DRY_RUN ${auditId}: reps=${reps.join(',')} clients=[${clients.join('/')}] trade=${trade?.customer || '-'} → would send to ${recipient}`);
@@ -190,13 +319,13 @@ async function processAudit({ auditId, templateId, planMap, context, forceSend =
   }
 
   // Atomically claim the audit before doing expensive work.
-  const claimed = await claimAuditForSend({
-    auditId,
-    templateId,
-    repNumber: reps[0] || null,   // primary REP for the log row (we still only have one column)
-    completedAt,
-    sendTo: recipient,
-    sendMode: SEND_MODE,
+  const claimed = await claimAuditForSend('pod_send_log', {
+    audit_id: auditId,
+    template_id: templateId,
+    rep_number: reps[0] || null,   // primary REP for the log row (we still only have one column)
+    inspection_completed_at: completedAt,
+    sent_to: recipient,
+    send_mode: SEND_MODE,
   });
   if (!claimed) {
     log(`already processed ${auditId} — skipping`);
@@ -204,21 +333,20 @@ async function processAudit({ auditId, templateId, planMap, context, forceSend =
   }
 
   try {
-    const pdfBuffer = await sc.fetchPodPdf(auditId, log);
-    const filename = `Repose-POD-${(reps[0] || auditId).replace(/[^A-Za-z0-9_-]/g, '_')}.pdf`;
+    const pdfBuffer = await getPdf();
     await graph.sendMailWithPdf({
       to: recipient,
       subject: buildSubject({ reps, orderNo, trade }),
       bodyText: buildBody({ reps, orderNo, trade, clients, sendMode: SEND_MODE, recipient }),
       pdfBuffer,
-      pdfFilename: filename,
+      pdfFilename,
     });
-    await markSent({ auditId, graphMessageId: null });
+    await markSent('pod_send_log', auditId);
     log(`sent ${auditId} reps=${reps.join(',')} trade=${trade?.customer || '-'} → ${recipient}`);
     return { sent: true };
   } catch (e) {
     warn(`failed ${auditId}: ${e.message}`);
-    await markFailed({ auditId, errorMessage: e.message.slice(0, 500) });
+    await markFailed('pod_send_log', auditId, e.message.slice(0, 500));
     return { sent: false, failed: true };
   }
 }
@@ -280,6 +408,8 @@ module.exports = async function (context, myTimer) {
           if (r.sent) summary.sent++;
           if (r.failed) summary.failed++;
           if (!r.skipped && !r.alreadyDone && !r.dryRun) summary.attempted++;
+          if (r.accounts?.sent) summary.accountsSent = (summary.accountsSent || 0) + 1;
+          if (r.accounts?.failed) summary.accountsFailed = (summary.accountsFailed || 0) + 1;
         } catch (e) {
           warn(`audit ${auditId} unhandled error: ${e.message}`);
           summary.failed++;
@@ -305,7 +435,7 @@ module.exports = async function (context, myTimer) {
       summary.error = e.message.slice(0, 500);
     } finally {
       if (newWatermark) await writeWatermark(templateId, newWatermark, summary);
-      log(`template ${templateId} summary sent=${summary.sent} failed=${summary.failed}`);
+      log(`template ${templateId} summary sent=${summary.sent} failed=${summary.failed} accountsSent=${summary.accountsSent || 0} accountsFailed=${summary.accountsFailed || 0}`);
     }
   }
 };
