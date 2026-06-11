@@ -1,9 +1,13 @@
 'use strict';
 
 // Reads the Repose production plan workbook on SharePoint and returns a
-// Map<repDigits, clientName> sourced from column L (REP NNNNNNN) and
-// column D (Client Name). Lifted from the proven implementation in
-// test-routing.js and daily-report/index.js.
+// Map<repDigits, { client, account }> keyed on column L (REP NNNNNNN):
+//   client  — column D (Client Name). For white-glove dropship orders this is
+//             the END USER's name (e.g. "MRS ANGELA WOODHOUSE"), not the
+//             trade customer who placed the order.
+//   account — column R (trade-account attribution, e.g. "GROSVENOR MOBILITY
+//             - 17"). This is where dropship orders carry their trade
+//             customer; routing must match on BOTH columns.
 //
 // One workbook fetch builds a 10k+ row map; ~30s per call. Caller should
 // build per timer tick (not per audit) — see index.js.
@@ -67,9 +71,10 @@ async function loadRepClientMap(log) {
         { headers: auth }
       )).json();
       for (const row of r.values || []) {
-        const client = String(row[3] || '').trim();   // column D
+        const client  = String(row[3] || '').trim();   // column D — delivery client / end user
+        const account = String(row[17] || '').trim();  // column R — trade-account attribution
         const m = String(row[11] || '').match(/(?<!\d)(\d{7})(?!\d)/); // column L
-        if (m && !repMap.has(m[1])) repMap.set(m[1], client);
+        if (m && !repMap.has(m[1])) repMap.set(m[1], { client, account });
       }
     } catch (e) {
       warn(`[pod-auto-send] failed to read sheet ${s.name}: ${e.message}`);

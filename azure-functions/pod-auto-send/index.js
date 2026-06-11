@@ -12,7 +12,9 @@
 //   4. For each new audit:
 //        a. fetch full audit, check eligibility (complete inspection)
 //        b. extract ALL REP serials (a single POD can cover multiple chairs)
-//        c. look up each REP in the plan map → list of client names (col D)
+//        c. look up each REP in the plan map → client name (col D) + trade
+//           account (col R). Col D holds the END USER on dropship orders, so
+//           both columns feed the matcher.
 //        d. resolveTradeCustomer(clients) → CHARTERHOUSE | GROSVENOR | null
 //             - LIVE  : if null, skip — manual workflow continues for non-trade
 //                       customers (residential / OSKA / BRISTOL MAID / etc).
@@ -165,7 +167,11 @@ async function processAudit({ auditId, templateId, planMap, context, forceSend =
 
   const reps = eligibility.extractAllRepSerials(audit);
   const repDigits = reps.map(r => r.replace(/\D/g, ''));
-  const clients = repDigits.map(d => planMap.get(d)).filter(Boolean);
+  // Each plan entry carries column D (client — the end user on dropship
+  // orders) AND column R (trade-account attribution). Match on both, else
+  // white-glove dropship PODs (end-user name in col D) never route.
+  const planEntries = repDigits.map(d => planMap.get(d)).filter(Boolean);
+  const clients = planEntries.flatMap(e => [e.client, e.account].filter(Boolean));
   const trade = routing.resolveTradeCustomer(clients);
 
   if (SEND_MODE === 'LIVE' && !trade) {

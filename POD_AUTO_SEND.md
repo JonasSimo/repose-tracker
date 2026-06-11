@@ -22,9 +22,9 @@ Switch modes via the `POD_SEND_MODE` app setting (`TRIAL` or `LIVE`). Restart th
 
 For each completed POD, the function:
 1. Extracts ALL REP serials from the inspection (a single POD can cover multiple chairs).
-2. Looks each REP up in the Repose production plan workbook on SharePoint: column L holds the REP serial as `REP NNNNNNN`; column D holds the Client Name.
-3. If every matched plan-client resolves to the same trade customer (case-insensitive substring match on `CHARTERHOUSE` or `GROSVENOR`), the POD is routed to that customer.
-4. If no plan-client matches a trade customer, or multiple different trade customers are matched (ambiguous), the POD is skipped.
+2. Looks each REP up in the Repose production plan workbook on SharePoint: column L holds the REP serial as `REP NNNNNNN`; column D holds the Client Name; column R holds the trade-account attribution (e.g. `GROSVENOR MOBILITY - 17`).
+3. Matches **both** column D and column R against the trade customers (case-insensitive substring match on `CHARTERHOUSE` or `GROSVENOR`). Column R is essential: on white-glove dropship orders column D holds the **end user's name** (e.g. `MRS ANGELA WOODHOUSE`), and only column R identifies the trade customer who placed the order.
+4. If every match resolves to the same trade customer, the POD is routed to that customer. If nothing matches, or multiple different trade customers are matched (ambiguous), the POD is skipped.
 
 The plan map is rebuilt once per timer tick (about 30 seconds) when there are new audits to process. Idle ticks (no new audits) skip the plan load.
 

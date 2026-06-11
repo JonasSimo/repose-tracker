@@ -7,8 +7,9 @@
 //   node pod-auto-send/test-routing.js [grosvenor|charterhouse] [--all]
 //
 // What it does:
-//   1. Reads the production plan (column D = Client Name, column L = REP)
-//      and builds a REP -> Client Name map across all weekly sheets.
+//   1. Reads the production plan (column D = Client Name, column R = trade
+//      account, column L = REP) and builds a REP -> { client, account } map
+//      across all weekly sheets.
 //   2. Scans archived SC POD audits (no date_completed required) and looks
 //      up each one's REP(s) against the plan map.
 //   3. Picks the LATEST audit whose plan-client matches the requested
@@ -91,7 +92,7 @@ async function searchArchivedAudits(templateId, since) {
   const recipient = process.env.POD_TRIAL_RECIPIENT;
   if (!recipient) { console.error('POD_TRIAL_RECIPIENT not set'); process.exit(1); }
 
-  console.log(`Looking for latest archived POD where plan column D matches "${customer}"...`);
+  console.log(`Looking for latest archived POD where plan column D or R matches "${customer}"...`);
   console.log();
 
   console.log('Building production plan REP -> client map...');
@@ -113,11 +114,17 @@ async function searchArchivedAudits(templateId, since) {
     const reps = eligibility.extractAllRepSerials(a).map(r => r.replace(/^REP\s*/, ''));
     const clientHits = reps
       .map(r => {
-        const client = planMap.get(r);
-        return client ? { rep: r, client } : null;
+        const entry = planMap.get(r);
+        if (!entry) return null;
+        // Display string covers both plan columns; match on each separately.
+        const client = [entry.client, entry.account].filter(Boolean).join(' / ');
+        return { rep: r, client, entry };
       })
       .filter(Boolean);
-    const isMatch = clientHits.some(h => routing.matchTradeCustomer(h.client) === customer);
+    const isMatch = clientHits.some(h =>
+      routing.matchTradeCustomer(h.entry.client) === customer ||
+      routing.matchTradeCustomer(h.entry.account) === customer
+    );
     if (isMatch) {
       const ad = a.audit_data || {};
       matches.push({
@@ -166,7 +173,7 @@ async function searchArchivedAudits(templateId, since) {
     `This is a TEST run of the POD auto-send routing logic.`,
     ``,
     `Detected customer: ${pick.clientHits.map(h => h.client).join(' / ')}`,
-    `Detection source: production plan column D, matched on REP serial ${pick.reps.join(',')}`,
+    `Detection source: production plan columns D + R, matched on REP serial ${pick.reps.join(',')}`,
     `SC audit ID: ${pick.id}`,
     `SC modified: ${pick.modified_at}`,
     `SC completed: ${pick.completed_at || '(not completed in SC)'}`,
