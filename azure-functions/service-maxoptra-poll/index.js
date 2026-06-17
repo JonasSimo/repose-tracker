@@ -23,6 +23,7 @@
 const { ConfidentialClientApplication } = require('@azure/msal-node');
 const fetch = require('node-fetch');
 const { buildTicketIndex } = require('./chair-index');
+const { mapMaxoptraStatus } = require('./status-map');
 
 const TENANT_ID     = process.env.TENANT_ID;
 const CLIENT_ID     = process.env.CLIENT_ID;
@@ -376,66 +377,8 @@ function lookupTicket(label, ticketsByLabel, ticketsByRep, openDateIdx, onAmbigu
   return undefined;
 }
 
-function fmtDateLocal(d) {
-  if (!d || isNaN(d.getTime())) return '';
-  // Force Europe/London timezone regardless of server locale (Azure default is UTC).
-  return d.toLocaleString('en-GB', {
-    timeZone: 'Europe/London',
-    weekday: 'short',
-    day: '2-digit',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false
-  }).replace(',', '');
-}
-
-function fmtDateOnly(d) {
-  if (!d || isNaN(d.getTime())) return '';
-  return d.toLocaleString('en-GB', {
-    timeZone: 'Europe/London',
-    day: '2-digit',
-    month: 'short'
-  });
-}
-
-// Translate a Maxoptra job's raw status into the friendly pill text we
-// store in TICKET LOG. Unknown statuses fall through to a "❓" pill that
-// surfaces the raw value so we can extend this mapping fast.
-function mapMaxoptraStatus(rawStatus, scheduledTime, completedAt) {
-  const s = String(rawStatus || '').trim().toLowerCase();
-  const sched = scheduledTime ? new Date(scheduledTime) : null;
-  const done  = completedAt ? new Date(completedAt) : null;
-
-  if (s === 'cancelled' || s === 'canceled' || s === 'failed' || s === 'rejected') {
-    return `❌ Collection ${s} · please rebook`;
-  }
-  if (s === 'completed' || s === 'delivered' || s === 'finished') {
-    const when = fmtDateOnly(done || sched);
-    return when ? `✅ In factory · ${when}` : `✅ In factory`;
-  }
-  if (s === 'inprogress' || s === 'in_progress' || s === 'in progress' ||
-      s === 'enroute'    || s === 'en_route'    || s === 'moving'      ||
-      s === 'onway'      || s === 'on_way'      || s === 'on way') {
-    return `🚚 On way to customer`;
-  }
-  if (s === 'arrived' || s === 'atcustomer' || s === 'at_customer' || s === 'at customer') {
-    return `🚚 At customer · collecting`;
-  }
-  if (s === 'departed' || s === 'pickedup' || s === 'picked_up' || s === 'picked up') {
-    return `🚚 Collected · returning to factory`;
-  }
-  if (s === 'planned' || s === 'scheduled' || s === 'assigned' || s === 'locked') {
-    const when = fmtDateLocal(sched);
-    return when ? `📅 Scheduled · ${when}` : `📅 Scheduled`;
-  }
-  // Maxoptra terms for "booked but not yet in a planned route".
-  if (s === 'unallocated' || s === 'unscheduled' || s === 'created') {
-    return `🗓️ Awaiting collection planning`;
-  }
-  // Unmapped — surface raw value so the engineer adds it next pass.
-  return `❓ ${rawStatus || 'unknown'}`;
-}
+// fmtDateLocal / fmtDateOnly / mapMaxoptraStatus now live in ./status-map.js
+// (with node:test coverage) and are shared via the require at the top.
 
 module.exports = async function (context, myTimer) {
   const log = context.log;
