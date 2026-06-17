@@ -21,7 +21,7 @@ function buildSummaryHtml({ rows, dateStr, repnetUrl, logoDataUrl }) {
       <div style="color:rgba(255,255,255,.7);font-size:13px;margin-top:4px">${escHtml(dateStr)}</div>
     </div>`;
   const footer = `<div style="background:${light};padding:12px 28px;font-size:11px;color:#9ca3af;border-top:1px solid ${border}">
-      Repose Furniture · QMS — automated at 07:00 each working day · Do not reply.
+      Repose Furniture · QMS — automated at 06:30 each working day · Do not reply.
     </div>`;
 
   let inner;
