@@ -22,6 +22,7 @@
 
 const { ConfidentialClientApplication } = require('@azure/msal-node');
 const fetch = require('node-fetch');
+const { buildTicketIndex } = require('./chair-index');
 
 const TENANT_ID     = process.env.TENANT_ID;
 const CLIENT_ID     = process.env.CLIENT_ID;
@@ -282,14 +283,8 @@ function colIdxToLetter(idx) {
   return s;
 }
 
-// Match index.html's _parseChairId — keeps the REP-No semantics consistent.
-function parseChairId(s) {
-  const v = String(s || '').trim();
-  if (!v) return null;
-  const m = /^(REP\d+)(?:-R(\d+))?$/i.exec(v);
-  if (!m) return { rep: v, returnNo: 0, isReturn: false, label: v };
-  return { rep: m[1].toUpperCase(), returnNo: m[2] ? parseInt(m[2], 10) : 0, isReturn: !!m[2], label: v.toUpperCase() };
-}
+// parseChairId / parseRepList / buildTicketIndex now live in ./chair-index.js
+// (multi-chair aware) and are shared with the indexing step below.
 
 // Fallback when transport types the REP into a "Batch numbers" custom field
 // instead of the standard Reference. Maxoptra v6 `customFields` shape isn't
@@ -531,22 +526,15 @@ module.exports = async function (context, myTimer) {
   // Maxoptra order — a return-collection order's effective date cannot precede the date
   // the return ticket was opened (a chair that came back to factory in Jan cannot be the
   // current return that was only logged in May).
-  const ticketsByLabel = new Map();
-  const ticketsByRep = new Map();
-  for (let i = 1; i < values.length; i++) {
-    const cid = parseChairId(values[i][repNoIdx]);
-    if (!cid || !cid.isReturn) continue; // only -R suffix rows are candidates
-    // sheetRow (1-based) accounts for the table possibly starting below row 1.
-    // tableRowIndex is 0-based and points at the header — first data row sits
-    // at tableRowIndex + 1 (0-based) = tableRowIndex + 2 in 1-based addressing,
-    // and any subsequent row is + (i - 1) more.
-    const ticketOpenDate = openDateIdx >= 0 ? parseExcelDateSerial(values[i][openDateIdx]) : null;
-    const entry = { rowIdx: i - 1, sheetRow: tableRowIndex + i + 1, raw: values[i], openDate: ticketOpenDate };
-    ticketsByLabel.set(cid.label, entry);
-    if (!ticketsByRep.has(cid.rep)) ticketsByRep.set(cid.rep, []);
-    ticketsByRep.get(cid.rep).push({ ...entry, returnNo: cid.returnNo });
-  }
-  log(`[service-maxoptra-poll] indexed ${ticketsByLabel.size} ticket rows with -R suffix`);
+  // Multi-chair aware: a row's REP cell may hold several comma-separated REPs.
+  // buildTicketIndex splits the cell and indexes every -R chair (by full label
+  // and base REP) against the same row, so a Maxoptra order referencing any one
+  // chair of the job matches the ticket. Rows with no -R chair are skipped, as
+  // the single-REP code did.
+  const { ticketsByLabel, ticketsByRep } = buildTicketIndex(values, {
+    repNoIdx, openDateIdx, tableRowIndex, parseExcelDateSerial,
+  });
+  log(`[service-maxoptra-poll] indexed ${ticketsByLabel.size} return chair label(s)`);
 
   let matched = 0;
   let orphans = 0;
@@ -705,7 +693,12 @@ module.exports = async function (context, myTimer) {
   let wouldMarkWaiting = 0;
   if (mxJobIdx >= 0 && mxStatusIdx >= 0) {
     const waitingPill = '⏳ Waiting for collection booking';
+    // A multi-chair row appears under several labels in ticketsByLabel but is a
+    // single TICKET LOG row — process each row at most once.
+    const seenWaitingRows = new Set();
     for (const [label, ticket] of ticketsByLabel.entries()) {
+      if (seenWaitingRows.has(ticket.sheetRow)) continue;
+      seenWaitingRows.add(ticket.sheetRow);
       const currentJobId = String(ticket.raw[mxJobIdx] || '').trim();
       const currentPill  = String(ticket.raw[mxStatusIdx] || '').trim();
       if (currentJobId) continue;  // has Maxoptra job — covered by main loop
