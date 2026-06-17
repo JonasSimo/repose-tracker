@@ -22,8 +22,11 @@ const RECIPIENTS    = (process.env.RECIPIENTS || '').split(',').map(s => s.trim(
 
 const SP_HOST           = 'reposefurniturelimited.sharepoint.com';
 const SP_SITE_PATH      = '/sites/ReposeFurniture-PlanningRepose';
-const NMS_SITE_PATH     = '/sites/ReposeFurniture-HealthandSafety';
-const NMS_LIST_ID       = '8481E1E4-8C93-4CCD-A38A-9736011EFEAB';
+// Near misses moved to Supabase at the 2026-06-09 bridge cutover; the old SP
+// "NMS Tracker" list (ReposeFurniture-HealthandSafety / 8481E1E4-...) is
+// retired and no longer written. See loadNearMisses() below.
+const SUPABASE_URL      = (process.env.SUPABASE_URL || '').replace(/\/$/, '');
+const SUPABASE_KEY      = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const WM_QUALITY_SITE   = '/sites/ReposeFurniture-Quality';
 const WM_LIST_ID        = '6edbe08b-b3a2-4693-afb2-e11531bcda7a';
 const CC_SITE_PATH      = '/sites/ReposeFurniture-Quality';
@@ -364,6 +367,47 @@ async function getListIdByName(siteId, name) {
   return found.id;
 }
 
+// Near misses live in Supabase `near_misses` since the 2026-06-09 cutover.
+// Fetch ALL rows (open + closed — the report needs both for its counts) and
+// reshape each into the SP-style { id, createdDateTime, fields } object the
+// report builder reads, so nothing downstream changes. NB: the SP `Title`
+// column historically held the reference number, so Title <- reference_number
+// (not submitter_name).
+async function loadNearMisses() {
+  if (!SUPABASE_URL || !SUPABASE_KEY) throw new Error('Missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY');
+  const cols = 'id,reference_number,submitter_name,raised_by_email,issue_description,location,is_closed,raised_at';
+  const out = [];
+  let from = 0;
+  for (;;) {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/near_misses?select=${cols}&order=raised_at.desc`, {
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: 'Bearer ' + SUPABASE_KEY,
+        Accept: 'application/json',
+        Range: `${from}-${from + 999}`,
+      },
+    });
+    if (!res.ok) throw new Error(`Supabase near_misses ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    const rows = await res.json();
+    for (const r of rows) {
+      out.push({
+        id: r.reference_number || r.id,
+        createdDateTime: r.raised_at,
+        fields: {
+          Title:                  r.reference_number || undefined,
+          Locationofissue:        r.location || undefined,
+          Whatistheissue_x003f_:  r.issue_description || undefined,
+          RaisedBy_x003a_:        r.submitter_name || r.raised_by_email || undefined,
+          NearMissclosedout_x003f_: r.is_closed,
+        },
+      });
+    }
+    if (rows.length < 1000) break;
+    from += 1000;
+  }
+  return out;
+}
+
 // ─── Main data fetch ───────────────────────────────────────────────────────
 async function fetchAllData(context) {
   const log = msg => context.log(msg);
@@ -459,12 +503,11 @@ async function fetchAllData(context) {
     CPAR_ITEMS = await graphGetAll(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999&$orderby=createdDateTime desc`);
   } catch(e) { warn(`CPARs failed: ${e.message}`); }
 
-  // 5. Near misses
+  // 5. Near misses — from Supabase (SP NMS Tracker retired 2026-06-09)
   log('Loading near misses…');
   let NMS_ITEMS = [];
   try {
-    const siteId = await getSiteId(NMS_SITE_PATH);
-    NMS_ITEMS = await graphGetAll(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${NMS_LIST_ID}/items?$expand=fields&$top=999&$orderby=createdDateTime desc`);
+    NMS_ITEMS = await loadNearMisses();
   } catch(e) { warn(`Near misses failed: ${e.message}`); }
 
   // 6. QC sheet
