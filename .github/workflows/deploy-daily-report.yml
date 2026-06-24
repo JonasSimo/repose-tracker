@@ -28,7 +28,7 @@ jobs:
           missing=0
           while IFS= read -r fn || [ -n "$fn" ]; do
             case "$fn" in ''|\#*) continue;; esac
-            if [ ! -f "$f
+            if [ ! -f "$fn/function.json" ]; then
               echo "::error::Expected function '$fn' is missing from this package — refusing to deploy (would delete it from the live app). Deploy from a branch that has every function in EXPECTED_FUNCTIONS.txt, or remove its line if the deletion is intentional."
               missing=1
             fi
