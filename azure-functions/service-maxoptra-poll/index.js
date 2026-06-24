@@ -22,6 +22,8 @@
 
 const { ConfidentialClientApplication } = require('@azure/msal-node');
 const fetch = require('node-fetch');
+const { buildTicketIndex } = require('./chair-index');
+const { mapMaxoptraStatus } = require('./status-map');
 
 const TENANT_ID     = process.env.TENANT_ID;
 const CLIENT_ID     = process.env.CLIENT_ID;
@@ -52,52 +54,38 @@ function withTimeout(options = {}, ms = 30000) {
 }
 
 // ─── Maxoptra API ────────────────────────────────────────────────────────
-// Confirmed shape (live9.maxoptra.com 2026-05-05):
-//   GET /api/v6/orders            — returns { data: [orders], offset, _links: { next, prev } }
-//   Auth: Authorization: Bearer <key>
-//   Pagination: follow _links.next (relative URL, ~20/page)
-//   Server-side ?task=PICKUP filter is IGNORED, so we filter in code.
+// Verified shape (live9.maxoptra.com 2026-06-03):
 //
-// Per-order shape:
-//   {
-//     referenceNumber:        string  — Maxoptra-internal order ID (e.g. "0000079638")
-//     consignmentReference:   string  — external/customer reference (where transport types REP No)
-//     task:                   "DELIVERY" | "PICKUP"
-//     priority:               "NORMAL" | ...
-//     clientName:             string  — customer name (free text)
-//     contactPerson:          string
-//     customerLocation:       { name, address, latitude, longitude, ... }
-//     status:                 string | null  — e.g. PLANNED, IN_PROGRESS, COMPLETED (filled once dispatched)
-//     statusLastUpdated:      ISO timestamp | null
-//     widgetTrackingDetails:  null | object  — likely contains driver/ETA when scheduled
-//     customFields:           null | object
-//   }
+//   GET /api/v6/orders?limit=200
+//     ↳ { data: [stubs], offset, _links: { next, prev } }
+//     ↳ Returns a STUB — consignmentReference, customFields, status, etc.
+//        are always null on the list endpoint. Only useful for harvesting
+//        referenceNumber + task to drive subsequent detail fetches.
+//
+//   GET /api/v6/orders/{referenceNumber}
+//     ↳ { data: { ...full order } }
+//     ↳ customFields lives here (e.g. reposefurniture_batchNums = "REP2533081-R1"
+//        or just "2533081-R1" — both formats observed).
+//
+//   GET /api/v6/orders/{referenceNumber}/execution
+//     ↳ { data: { status, assignedDriverName, plannedArrivalTime, eta,
+//                  factArrivalTimeGPS, factCompletionTimeReported, ... } }
+//     ↳ status drives the Service tab pill.
+//
+// Pagination: follow _links.next; server-side filters (sort, status, createdAfter)
+// were all probed and ignored — only `limit` is honoured (max ~200/page).
 async function getMaxoptraJobs(log) {
-  const startPath = '/api/v6/orders';
-  const headers = {
-    'Authorization': `Bearer ${MAXOPTRA_API_KEY}`,
-    'Accept': 'application/json'
-  };
-  if (MAXOPTRA_ACCOUNT_ID) headers['X-Account-Id'] = MAXOPTRA_ACCOUNT_ID;
-
+  const startPath = '/api/v6/orders?limit=200';
   const allJobs = [];
   let nextPath = startPath;
   let pageCount = 0;
   let firstPageKeys = null;
-  const maxPages = 25; // ~500 orders before we hit the cap
+  const maxPages = 25; // ~5000 orders before we hit the cap (limit=200 per page)
 
   while (nextPath && pageCount < maxPages) {
     pageCount++;
     const fullUrl = nextPath.startsWith('http') ? nextPath : `${MAXOPTRA_BASE_URL}${nextPath}`;
-    const { options: timedOpts, cleanup } = withTimeout({ headers }, 30000);
-    let res;
-    try {
-      res = await fetch(fullUrl, timedOpts);
-    } finally {
-      cleanup();
-    }
-    if (!res.ok) throw new Error(`Maxoptra GET ${res.status} on ${fullUrl}: ${await res.text()}`);
-    const data = await res.json();
+    const data = await maxoptraGetJson(fullUrl);
     if (firstPageKeys === null) firstPageKeys = Object.keys(data || {}).join(', ');
     const jobs = Array.isArray(data) ? data : (data.data || []);
     if (Array.isArray(jobs)) allJobs.push(...jobs);
@@ -107,12 +95,74 @@ async function getMaxoptraJobs(log) {
   if (pageCount >= maxPages) log.warn(`[maxoptra] hit max page limit (${maxPages}) — there may be more orders`);
   if (allJobs.length === 0) log.warn(`[maxoptra] 0 orders returned · top-level keys on first page: ${firstPageKeys || '(none)'}`);
 
-  // Filter to PICKUP tasks only (server-side filter is ignored). Terminal states
-  // we don't care about: COMPLETED is interesting (so we mark Returned to Factory),
-  // CANCELLED/FAILED also relevant. Skip any DELIVERY orders entirely.
-  const pickups = allJobs.filter(o => o && String(o.task || '').toUpperCase() === 'PICKUP');
-  log(`[maxoptra] fetched ${allJobs.length} order(s) across ${pageCount} page(s) — ${pickups.length} are PICKUP`);
-  return pickups;
+  // Filter to anything that could be a return-collection. Maxoptra v6 has
+  // two task types — COLLECTION (standalone pickup-only stops) and DELIVERY
+  // (everything else). Repose's actual return workflow uses DELIVERY because
+  // the truck visits the customer to drop a loan chair AND collect the
+  // broken one in a single trip; the route reference always carries a "SERV
+  // RET"/"RETURN" tag (verified against 84 such orders on 2026-06-03).
+  // Anything without that tag is a plain outbound delivery and gets dropped
+  // to keep per-tick detail fetches bounded.
+  const RETURN_PATTERN = /return|\bret\b/i;
+  const candidates = allJobs.filter(o => {
+    if (!o) return false;
+    const t = String(o.task || '').toUpperCase();
+    if (t === 'COLLECTION' || t === 'PICKUP') return true;
+    if (t === 'DELIVERY' && RETURN_PATTERN.test(String(o.referenceNumber || ''))) return true;
+    return false;
+  });
+  const collCount = candidates.filter(o => String(o.task).toUpperCase() === 'COLLECTION' || String(o.task).toUpperCase() === 'PICKUP').length;
+  const retDelCount = candidates.length - collCount;
+  log(`[maxoptra] fetched ${allJobs.length} order(s) across ${pageCount} page(s) — ${collCount} collections + ${retDelCount} return-deliveries (DELIVERY w/ RETURN ref)`);
+  return candidates;
+}
+
+// Shared GET helper for the Maxoptra v6 API. 30s per-call timeout (route through
+// the existing withTimeout wrapper).
+async function maxoptraGetJson(url) {
+  const headers = {
+    'Authorization': `Bearer ${MAXOPTRA_API_KEY}`,
+    'Accept': 'application/json'
+  };
+  if (MAXOPTRA_ACCOUNT_ID) headers['X-Account-Id'] = MAXOPTRA_ACCOUNT_ID;
+  const { options: timedOpts, cleanup } = withTimeout({ headers }, 30000);
+  try {
+    const res = await fetch(url, timedOpts);
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`Maxoptra GET ${res.status} on ${url}: ${body}`);
+    }
+    return await res.json();
+  } finally {
+    cleanup();
+  }
+}
+
+// Fetch the full order detail (customFields, orderItems, etc.) for one referenceNumber.
+// Returns the inner `data` object, or null on any error so the caller can skip and continue.
+async function getMaxoptraOrderDetail(log, referenceNumber) {
+  const url = `${MAXOPTRA_BASE_URL}/api/v6/orders/${encodeURIComponent(referenceNumber)}`;
+  try {
+    const json = await maxoptraGetJson(url);
+    return (json && json.data) || null;
+  } catch (e) {
+    log.warn(`[maxoptra] detail fetch failed for ${referenceNumber}: ${e.message}`);
+    return null;
+  }
+}
+
+// Fetch the execution sub-resource (status, driver, planned times) for one referenceNumber.
+// Returns the inner `data` object, or null on any error (404 expected for unplanned orders).
+async function getMaxoptraExecution(log, referenceNumber) {
+  const url = `${MAXOPTRA_BASE_URL}/api/v6/orders/${encodeURIComponent(referenceNumber)}/execution`;
+  try {
+    const json = await maxoptraGetJson(url);
+    return (json && json.data) || null;
+  } catch (e) {
+    // 404 is normal for orders not yet allocated to a route — log at info level only.
+    log(`[maxoptra] execution unavailable for ${referenceNumber}: ${e.message}`);
+    return null;
+  }
 }
 
 // ─── Microsoft Graph ─────────────────────────────────────────────────────
@@ -234,65 +284,101 @@ function colIdxToLetter(idx) {
   return s;
 }
 
-// Match index.html's _parseChairId — keeps the REP-No semantics consistent.
-function parseChairId(s) {
-  const v = String(s || '').trim();
-  if (!v) return null;
-  const m = /^(REP\d+)(?:-R(\d+))?$/i.exec(v);
-  if (!m) return { rep: v, returnNo: 0, isReturn: false, label: v };
-  return { rep: m[1].toUpperCase(), returnNo: m[2] ? parseInt(m[2], 10) : 0, isReturn: !!m[2], label: v.toUpperCase() };
+// parseChairId / parseRepList / buildTicketIndex now live in ./chair-index.js
+// (multi-chair aware) and are shared with the indexing step below.
+
+// Fallback when transport types the REP into a "Batch numbers" custom field
+// instead of the standard Reference. Maxoptra v6 `customFields` shape isn't
+// guaranteed (null | object | array-of-{name,value}), so probe defensively.
+// Returns candidate strings split on common separators; matching is left to
+// the caller.
+function extractCustomFieldRefs(customFields) {
+  if (!customFields) return [];
+  const out = [];
+  const isBatchKey = (k) => /batch/i.test(String(k || ''));
+  const push = (v) => {
+    if (v === null || v === undefined) return;
+    String(v)
+      .split(/[,;\s]+/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .forEach((s) => out.push(s));
+  };
+  if (Array.isArray(customFields)) {
+    for (const entry of customFields) {
+      if (!entry || typeof entry !== 'object') continue;
+      const name = entry.name ?? entry.key ?? entry.label ?? '';
+      if (!isBatchKey(name)) continue;
+      const v = entry.value ?? entry.text ?? entry.values;
+      if (Array.isArray(v)) v.forEach(push); else push(v);
+    }
+  } else if (typeof customFields === 'object') {
+    for (const [k, v] of Object.entries(customFields)) {
+      if (!isBatchKey(k)) continue;
+      if (Array.isArray(v)) v.forEach(push); else push(v);
+    }
+  }
+  return out;
 }
 
-function fmtDateLocal(d) {
-  if (!d || isNaN(d.getTime())) return '';
-  // Force Europe/London timezone regardless of server locale (Azure default is UTC).
-  return d.toLocaleString('en-GB', {
-    timeZone: 'Europe/London',
-    weekday: 'short',
-    day: '2-digit',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false
-  }).replace(',', '');
+// Excel serial date → JS Date (UTC midnight of that day). Excel stores dates
+// as days since 1899-12-30; 25569 is the offset to the Unix epoch (1970-01-01).
+// Returns null for empty, non-numeric, or NaN inputs.
+function parseExcelDateSerial(v) {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  if (!Number.isFinite(n)) return null;
+  const d = new Date(Math.round((n - 25569) * 86400 * 1000));
+  return isNaN(d.getTime()) ? null : d;
 }
 
-function fmtDateOnly(d) {
-  if (!d || isNaN(d.getTime())) return '';
-  return d.toLocaleString('en-GB', {
-    timeZone: 'Europe/London',
-    day: '2-digit',
-    month: 'short'
-  });
+// Return the first arg that parses to a valid Date, otherwise null. Used to
+// pick the most informative timestamp from a Maxoptra order/execution for
+// the temporal gate.
+function pickFirstDate(...candidates) {
+  for (const c of candidates) {
+    if (!c) continue;
+    const d = c instanceof Date ? c : new Date(c);
+    if (!isNaN(d.getTime())) return d;
+  }
+  return null;
 }
 
-// Translate a Maxoptra job's raw status into the friendly pill text we
-// store in TICKET LOG. Unknown statuses fall through to a "❓" pill that
-// surfaces the raw value so we can extend this mapping fast.
-function mapMaxoptraStatus(rawStatus, scheduledTime, completedAt) {
-  const s = String(rawStatus || '').trim().toLowerCase();
-  const sched = scheduledTime ? new Date(scheduledTime) : null;
-  const done  = completedAt ? new Date(completedAt) : null;
+// Resolve one candidate label against the indexed ticket maps. Tolerates the
+// two formats transport actually types: full REP label ("REP2533081-R1") or
+// bare-digit form ("2533081-R1"). When multiple `-R` variants share the same
+// base REP, picks the row with the latest Open Date and calls onAmbiguous.
+function lookupTicket(label, ticketsByLabel, ticketsByRep, openDateIdx, onAmbiguous) {
+  if (!label) return undefined;
 
-  if (s === 'cancelled' || s === 'canceled' || s === 'failed' || s === 'rejected') {
-    return `❌ Collection ${s} · please rebook`;
+  const bareDigits = /^(\d+)(-R\d+)?$/i.exec(label);
+  const candidates = [label];
+  if (bareDigits) {
+    candidates.push(`REP${bareDigits[1]}${bareDigits[2] || ''}`);
   }
-  if (s === 'completed' || s === 'delivered' || s === 'finished') {
-    const when = fmtDateOnly(done || sched);
-    return when ? `✅ In factory · ${when}` : `✅ In factory`;
+  for (const c of candidates) {
+    const t = ticketsByLabel.get(c);
+    if (t) return t;
   }
-  if (s === 'inprogress' || s === 'in_progress' || s === 'in progress' ||
-      s === 'pickedup'   || s === 'picked_up'   || s === 'picked up'   ||
-      s === 'onway'      || s === 'on_way'      || s === 'on way') {
-    return `🚚 Collected · returning to factory`;
+
+  let repBase = null;
+  const repPrefixed = /^(REP\d+)/i.exec(label);
+  if (repPrefixed) repBase = repPrefixed[1].toUpperCase();
+  else if (bareDigits) repBase = `REP${bareDigits[1]}`;
+  if (!repBase) return undefined;
+
+  const rows = ticketsByRep.get(repBase) || [];
+  if (rows.length === 1) return rows[0];
+  if (rows.length > 1 && openDateIdx >= 0) {
+    rows.sort((a, b) => (Number(b.raw[openDateIdx]) || 0) - (Number(a.raw[openDateIdx]) || 0));
+    if (onAmbiguous) onAmbiguous(label, rows.length, rows[0].sheetRow);
+    return rows[0];
   }
-  if (s === 'planned' || s === 'scheduled' || s === 'assigned') {
-    const when = fmtDateLocal(sched);
-    return when ? `📅 Scheduled · ${when}` : `📅 Scheduled`;
-  }
-  // Unmapped — surface raw value so the engineer adds it next pass.
-  return `❓ ${rawStatus || 'unknown'}`;
+  return undefined;
 }
+
+// fmtDateLocal / fmtDateOnly / mapMaxoptraStatus now live in ./status-map.js
+// (with node:test coverage) and are shared via the require at the top.
 
 module.exports = async function (context, myTimer) {
   const log = context.log;
@@ -379,20 +465,19 @@ module.exports = async function (context, myTimer) {
   // Build map: full chair label (e.g. "REP2284-R1") → { rowIdx (0-based data), values reference }
   // Also maintain a secondary map keyed by bare REP No (e.g. "REP2284") → array of all
   // matching tickets so we can fall back when transport types just the REP without -R suffix.
-  const ticketsByLabel = new Map();
-  const ticketsByRep = new Map();
-  for (let i = 1; i < values.length; i++) {
-    const cid = parseChairId(values[i][repNoIdx]);
-    if (!cid || !cid.isReturn) continue; // only -R suffix rows are candidates
-    // sheetRow (1-based) accounts for the table possibly starting below row 1.
-    // tableRowIndex is 0-based and points at the header — first data row sits
-    // at tableRowIndex + 1 (0-based) = tableRowIndex + 2 in 1-based addressing,
-    // and any subsequent row is + (i - 1) more.
-    ticketsByLabel.set(cid.label, { rowIdx: i - 1, sheetRow: tableRowIndex + i + 1, raw: values[i] });
-    if (!ticketsByRep.has(cid.rep)) ticketsByRep.set(cid.rep, []);
-    ticketsByRep.get(cid.rep).push({ rowIdx: i - 1, sheetRow: tableRowIndex + i + 1, raw: values[i], returnNo: cid.returnNo });
-  }
-  log(`[service-maxoptra-poll] indexed ${ticketsByLabel.size} ticket rows with -R suffix`);
+  // openDate is captured per-row and later used as a temporal gate when matching to a
+  // Maxoptra order — a return-collection order's effective date cannot precede the date
+  // the return ticket was opened (a chair that came back to factory in Jan cannot be the
+  // current return that was only logged in May).
+  // Multi-chair aware: a row's REP cell may hold several comma-separated REPs.
+  // buildTicketIndex splits the cell and indexes every -R chair (by full label
+  // and base REP) against the same row, so a Maxoptra order referencing any one
+  // chair of the job matches the ticket. Rows with no -R chair are skipped, as
+  // the single-REP code did.
+  const { ticketsByLabel, ticketsByRep } = buildTicketIndex(values, {
+    repNoIdx, openDateIdx, tableRowIndex, parseExcelDateSerial,
+  });
+  log(`[service-maxoptra-poll] indexed ${ticketsByLabel.size} return chair label(s)`);
 
   let matched = 0;
   let orphans = 0;
@@ -404,67 +489,121 @@ module.exports = async function (context, myTimer) {
 
   const todayIso = new Date().toISOString();
 
+  const onAmbiguous = (label, n, row) =>
+    log.warn(`[ambiguous] ref="${label}" matched ${n} -R variants — picking latest Open Date (row ${row})`);
+  const lookup = (label) => lookupTicket(label, ticketsByLabel, ticketsByRep, openDateIdx, onAmbiguous);
+
+  let detailFetched = 0;
+  let detailFailed = 0;
+  let executionFetched = 0;
+
   for (const job of jobs) {
-    // Maxoptra v6: external/customer reference is `consignmentReference`. The Maxoptra-internal
-    // order id is `referenceNumber`. Status changes are timestamped in `statusLastUpdated`.
-    const ref = String(job.consignmentReference || '').trim().toUpperCase();
-    if (!ref) { orphans++; continue; }
-    let ticket = ticketsByLabel.get(ref);
+    const stubRef = String(job.referenceNumber || '');
+    // Stage 1: try the list stub first. consignmentReference is always null in
+    // practice on Maxoptra v6 but kept for forward-compat — if Maxoptra ever
+    // starts populating it, we skip the detail fetch.
+    const listRef = String(job.consignmentReference || '').trim().toUpperCase();
+    let ticket = listRef ? lookup(listRef) : undefined;
+    let matchVia = ticket ? 'consignmentReference(stub)' : null;
+    let matchedLabel = ticket ? listRef : null;
+
+    // Stage 2: detail fetch — this is where customFields.reposefurniture_batchNums
+    // actually lives. Without this the function can never match return-collections.
+    let detail = null;
     if (!ticket) {
-      // Fallback: try matching bare REP No (transport may have typed e.g. "REP2284" not "REP2284-R1")
-      const bareMatch = /^(REP\d+)/i.exec(ref);
-      if (bareMatch) {
-        const candidates = ticketsByRep.get(bareMatch[1].toUpperCase()) || [];
-        if (candidates.length === 1) {
-          ticket = candidates[0];
-        } else if (candidates.length > 1 && openDateIdx >= 0) {
-          // Pick the latest by Open Date (Excel serial; bigger = newer)
-          candidates.sort((a, b) => {
-            const ad = Number(a.raw[openDateIdx]) || 0;
-            const bd = Number(b.raw[openDateIdx]) || 0;
-            return bd - ad;
-          });
-          ticket = candidates[0];
-          log.warn(`[ambiguous] Maxoptra ref="${ref}" matched ${candidates.length} -R variants — picking latest Open Date (row ${ticket.sheetRow})`);
+      detail = await getMaxoptraOrderDetail(log, stubRef);
+      if (detail) {
+        detailFetched++;
+        // Try consignmentReference on detail first (still typically null, but cheap).
+        const detailListRef = String(detail.consignmentReference || '').trim().toUpperCase();
+        if (detailListRef) {
+          ticket = lookup(detailListRef);
+          if (ticket) { matchVia = 'consignmentReference'; matchedLabel = detailListRef; }
         }
+        // Then customFields — the actual data path.
+        if (!ticket) {
+          for (const raw of extractCustomFieldRefs(detail.customFields)) {
+            const candidate = lookup(raw.toUpperCase());
+            if (candidate) {
+              ticket = candidate;
+              matchVia = `customField "${raw}"`;
+              matchedLabel = raw;
+              break;
+            }
+          }
+        }
+      } else {
+        detailFailed++;
       }
     }
+
     if (!ticket) {
       orphans++;
-      log.warn(`[orphan] Maxoptra order ${job.referenceNumber || '?'} consignmentReference="${ref}" raw="${job.consignmentReference}" client="${job.clientName || ''}" — no matching ticket`);
+      const cfKeys = detail && detail.customFields ? Object.keys(detail.customFields).join(',') : '(none)';
+      log.warn(`[orphan] order ${stubRef} client="${job.clientName || ''}" customFieldKeys=${cfKeys} — no matching ticket`);
       continue;
     }
+
+    // Stage 3: execution fetch — where status, plannedArrivalTime, and
+    // completion times live. 404 is expected for orders not yet allocated.
+    const execution = await getMaxoptraExecution(log, stubRef);
+    if (execution) executionFetched++;
+
+    const rawStatus = execution && execution.status ? execution.status : null;
+    const scheduledTime = execution && execution.plannedArrivalTime ? execution.plannedArrivalTime : null;
+    const completedTime = execution && (execution.factCompletionTimeReported || execution.factCompletionTimeGPS || execution.plannedCompletionTime) || null;
+
+    // Temporal gate: a return-collection cannot have been planned/completed
+    // BEFORE the ticket was opened. Without this check, an old Maxoptra order
+    // from a prior repair cycle (or the original delivery, if transport reuses
+    // batchNums for both) wrongly matches the current return ticket — the
+    // chair "arrived at factory" in January when the return was only logged
+    // in May. Effective time falls back through several Maxoptra timestamps;
+    // skip the gate only when we have nothing to compare against.
+    const orderEffectiveTime = pickFirstDate(
+      completedTime,
+      scheduledTime,
+      execution && execution.factArrivalTimeReported,
+      execution && execution.factArrivalTimeGPS,
+      detail && Array.isArray(detail.timeWindows) && detail.timeWindows[0] && detail.timeWindows[0].start,
+      detail && detail.orderDate
+    );
+    if (ticket.openDate && orderEffectiveTime && orderEffectiveTime < ticket.openDate) {
+      log.warn(`[stale-skip] order ${stubRef} effective=${orderEffectiveTime.toISOString().slice(0,10)} predates ticket ${matchedLabel} openDate=${ticket.openDate.toISOString().slice(0,10)} (matched via ${matchVia}) — treating as orphan`);
+      orphans++;
+      continue;
+    }
+
     matched++;
-    // Maxoptra status timestamps: only `statusLastUpdated` is consistently available.
-    // Use it both as the "scheduled" time hint for in-flight pills and as the
-    // completion timestamp for the ✅ branch.
-    const tsHint = job.statusLastUpdated || null;
-    const pill = mapMaxoptraStatus(job.status, tsHint, tsHint);
+
+    // If we have a ticket but no execution data yet, leave as "waiting" — the
+    // standalone sweep below will set that pill if nothing else has.
+    if (!rawStatus) {
+      log(`[match-no-execution] order ${stubRef} matched ticket ${matchedLabel} via ${matchVia} but execution status is null — leaving for waiting sweep`);
+      continue;
+    }
+
+    const pill = mapMaxoptraStatus(rawStatus, scheduledTime, completedTime);
     const currentPill = mxStatusIdx >= 0 ? String(ticket.raw[mxStatusIdx] || '').trim() : '';
     const currentJobId = mxJobIdx >= 0 ? String(ticket.raw[mxJobIdx] || '').trim() : '';
 
-    // Idempotent skip: same pill + same job id = no-op
-    if (pill === currentPill && currentJobId === String(job.referenceNumber || '')) {
+    if (pill === currentPill && currentJobId === stubRef) {
       skipped++;
       continue;
     }
 
     const updates = {
-      'Maxoptra Job ID': String(job.referenceNumber || ''),
+      'Maxoptra Job ID': stubRef,
       'Maxoptra Status': pill,
       'Maxoptra Updated': todayIso
     };
 
-    // Auto-fill Returned to Factory on completion if not already filled.
-    // Only fill when Maxoptra actually provided a completion timestamp — never synthesise "today".
     const isCompleted = pill.startsWith('✅');
-    if (isCompleted && returnedIdx >= 0 && tsHint) {
+    if (isCompleted && returnedIdx >= 0 && completedTime) {
       const currentReturned = String(ticket.raw[returnedIdx] || '').trim();
       if (!currentReturned) {
-        const completedAt = new Date(tsHint);
+        const completedAt = new Date(completedTime);
         if (!isNaN(completedAt.getTime())) {
-          // Adjust for local timezone so the Excel serial maps to the local-day, not UTC-day.
-          // (Excel interprets serials in workbook local time, but JS getTime() is UTC ms.)
           const tzOffsetMs = completedAt.getTimezoneOffset() * 60000;
           updates['Returned to Factory'] = Math.round(((completedAt.getTime() - tzOffsetMs) / 86400000) + 25569);
         }
@@ -474,7 +613,7 @@ module.exports = async function (context, myTimer) {
     if (!isProdRun) {
       wouldUpdate++;
       if (updates['Returned to Factory'] !== undefined) wouldFillReturned++;
-      log(`[DRY-RUN] ${ref} row ${ticket.sheetRow} → ${pill}${updates['Returned to Factory'] !== undefined ? ' (+ Returned to Factory)' : ''} (sandbox; not written)`);
+      log(`[DRY-RUN] ${matchedLabel} row ${ticket.sheetRow} → ${pill} via ${matchVia}${updates['Returned to Factory'] !== undefined ? ' (+ Returned to Factory)' : ''} (sandbox; not written)`);
       continue;
     }
 
@@ -482,11 +621,13 @@ module.exports = async function (context, myTimer) {
       await patchTicketRow(graphToken, driveId, itemId, ticket.rowIdx, headerRow, updates, TICKET_SHEET, tableRowIndex);
       updated++;
       if (updates['Returned to Factory'] !== undefined) returnedToFactoryFilled++;
-      log(`✓ ${ref} → ${pill}${updates['Returned to Factory'] !== undefined ? ' (Returned to Factory filled)' : ''}`);
+      log(`✓ ${matchedLabel} → ${pill} via ${matchVia}${updates['Returned to Factory'] !== undefined ? ' (Returned to Factory filled)' : ''}`);
     } catch (e) {
-      log.warn(`✗ Failed to update ${ref} at row ${ticket.sheetRow}: ${e.message}`);
+      log.warn(`✗ Failed to update ${matchedLabel} at row ${ticket.sheetRow}: ${e.message}`);
     }
   }
+
+  log(`[service-maxoptra-poll] detail fetches: ${detailFetched} ok, ${detailFailed} failed · execution fetches: ${executionFetched}`);
 
   // Mark "stuck waiting" tickets: -R suffix REP No, no Maxoptra Job ID,
   // and no current Maxoptra Status (any value already present — waiting,
@@ -495,7 +636,12 @@ module.exports = async function (context, myTimer) {
   let wouldMarkWaiting = 0;
   if (mxJobIdx >= 0 && mxStatusIdx >= 0) {
     const waitingPill = '⏳ Waiting for collection booking';
+    // A multi-chair row appears under several labels in ticketsByLabel but is a
+    // single TICKET LOG row — process each row at most once.
+    const seenWaitingRows = new Set();
     for (const [label, ticket] of ticketsByLabel.entries()) {
+      if (seenWaitingRows.has(ticket.sheetRow)) continue;
+      seenWaitingRows.add(ticket.sheetRow);
       const currentJobId = String(ticket.raw[mxJobIdx] || '').trim();
       const currentPill  = String(ticket.raw[mxStatusIdx] || '').trim();
       if (currentJobId) continue;  // has Maxoptra job — covered by main loop

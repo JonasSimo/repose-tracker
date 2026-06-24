@@ -38,8 +38,9 @@ const NUDGE_QUIET_DAYS = 2;
 const STALE_DAYS = 7;
 
 // Base URL of RepNet for deep-links in emails (env override for staging).
-const REPNET_URL = process.env.REPNET_URL
-  || 'https://reposefurniturelimited.sharepoint.com/sites/ReposeFurniture-Quality/SitePages/RepNet.aspx';
+const REPNET_URL = (process.env.REPNET_URL
+  || 'https://ashy-river-0a41a9410.7.azurestaticapps.net/').replace(/\/?$/, '/');
+const DOCS_URL = REPNET_URL + 'documents';
 
 // ─── App-only Graph auth (client credential flow) ─────────────────────────
 async function getAppToken() {
@@ -257,7 +258,7 @@ module.exports = async function (context, myTimer) {
 
     const rowToHtml = (it) => {
       const colour = it.daysPending >= STALE_DAYS ? '#dc2626' : (it.daysPending >= 4 ? '#d97706' : '#0e023a');
-      const docUrl = `${REPNET_URL}?ui=v4#doc:${encodeURIComponent(it.docNumber)}`;
+      const docUrl = `${DOCS_URL}?doc=${encodeURIComponent(it.docNumber)}`;
       const submittedStr = it.submittedAt ? String(it.submittedAt).slice(0, 10) : '—';
       return `<tr>
         <td style="padding:6px 12px;border:1px solid #e1e6eb;font-family:monospace;font-weight:700"><a href="${docUrl}" style="color:#0e023a;text-decoration:none">${htmlEscape(it.docNumber)}</a></td>
@@ -281,7 +282,7 @@ module.exports = async function (context, myTimer) {
         </tr>
         ${allRows}
       </table>
-      <p style="font-size:14px"><a href="${REPNET_URL}?ui=v4#documents" style="display:inline-block;background:#14a1e9;color:#fff;text-decoration:none;padding:10px 20px;border-radius:999px;font-weight:600;font-size:13px">↗ Open RepNet Doc Approvals</a></p>
+      <p style="font-size:14px"><a href="${DOCS_URL}" style="display:inline-block;background:#14a1e9;color:#fff;text-decoration:none;padding:10px 20px;border-radius:999px;font-weight:600;font-size:13px">↗ Open RepNet Doc Approvals</a></p>
       <p style="font-size:12px;color:#706f6f;line-height:1.5">You'll get this nudge every ${NUDGE_QUIET_DAYS} weekday${NUDGE_QUIET_DAYS === 1 ? '' : 's'} until you've actioned each doc. After ${STALE_DAYS} days the QHSE Manager is alerted and may chase you directly.</p>
     `);
 
@@ -328,7 +329,7 @@ module.exports = async function (context, myTimer) {
     stale.sort((a, b) => b.daysPending - a.daysPending);
     const subject = `RepNet · ${stale.length} doc-control approval${stale.length === 1 ? '' : 's'} stale (>${STALE_DAYS}d)`;
     const rows = stale.map(d => {
-      const docUrl = `${REPNET_URL}?ui=v4#doc:${encodeURIComponent(d.docNumber)}`;
+      const docUrl = `${DOCS_URL}?doc=${encodeURIComponent(d.docNumber)}`;
       return `<tr>
         <td style="padding:6px 12px;border:1px solid #e1e6eb;font-family:monospace;font-weight:700"><a href="${docUrl}" style="color:#0e023a;text-decoration:none">${htmlEscape(d.docNumber)}</a></td>
         <td style="padding:6px 12px;border:1px solid #e1e6eb">${htmlEscape(d.title)} <span style="color:#706f6f">· Rev ${d.revision}</span></td>
@@ -348,7 +349,7 @@ module.exports = async function (context, myTimer) {
         </tr>
         ${rows}
       </table>
-      <p style="font-size:14px"><a href="${REPNET_URL}?ui=v4#documents" style="display:inline-block;background:#14a1e9;color:#fff;text-decoration:none;padding:10px 20px;border-radius:999px;font-weight:600;font-size:13px">↗ Open RepNet Documents</a></p>
+      <p style="font-size:14px"><a href="${DOCS_URL}" style="display:inline-block;background:#14a1e9;color:#fff;text-decoration:none;padding:10px 20px;border-radius:999px;font-weight:600;font-size:13px">↗ Open RepNet Documents</a></p>
     `);
     try {
       await sendMail(token, QHSE_CHASE_TO, subject, html);

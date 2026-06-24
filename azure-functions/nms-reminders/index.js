@@ -2,22 +2,32 @@
 /**
  * Near Miss reminder emails
  * ─────────────────────────────────────────────────────────────────────────
- * Runs daily at 07:00 UTC. For every still-open near miss in the SharePoint
- * NMS Tracker list, computes how many whole days have passed since it was
+ * Runs daily at 07:00 UTC. For every still-open near miss in the Supabase
+ * `near_misses` table, computes how many whole days have passed since it was
  * raised. If the count matches one of the reminder bands (7 / 14 / 21 / 26),
  * sends a tailored email to the action owner for that location.
  *
  * Day 26 (= 2 days before the 28-day overdue limit) also CCs the QHSE
  * managers as a critical escalation.
  *
+ * Data source — Supabase, NOT SharePoint
+ *   Supabase `near_misses` has been the source of truth since the 2026-06-09
+ *   bridge cutover. The old SharePoint "NMS Tracker" list is retired and no
+ *   longer written by either intake path (RepNet "Raise NMS" + MS Forms QR
+ *   flow both insert straight into Supabase). This function used to read that
+ *   SP list, which meant after the cutover it chased a frozen snapshot:
+ *   near misses raised after 2026-06-09 got no reminders, and rows closed in
+ *   Supabase still looked open in SP. Repointed to Supabase 2026-06-17.
+ *
  * Idempotency note
  *   No state is stored — the function relies on running daily and matching
  *   the day count exactly. If it misses a day, an item that would have hit
  *   day 14 today instead gets caught at day 21. Acceptable trade-off; can
- *   be hardened later by adding a `LastReminderDay` column to the list.
+ *   be hardened later by adding a `last_reminder_day` column.
  *
  * Env vars required (already configured on the Function App)
- *   TENANT_ID, CLIENT_ID, CLIENT_SECRET, SEND_FROM, REPNET_URL
+ *   TENANT_ID, CLIENT_ID, CLIENT_SECRET, SEND_FROM, REPNET_URL — Graph send
+ *   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY                     — data source
  */
 
 const { ConfidentialClientApplication } = require('@azure/msal-node');
@@ -29,9 +39,15 @@ const CLIENT_ID     = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
 const SEND_FROM     = process.env.SEND_FROM;
 
-const SP_HOST       = 'reposefurniturelimited.sharepoint.com';
-const NMS_SITE_PATH = '/sites/ReposeFurniture-HealthandSafety';
-const NMS_LIST_ID   = '8481E1E4-8C93-4CCD-A38A-9736011EFEAB';
+const SUPABASE_URL = (process.env.SUPABASE_URL || '').replace(/\/$/, '');
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+// Columns mirror src/features/nms/loader.ts in the repnet repo. Open rows are
+// the ones we chase; `is_closed=false` is the Supabase equivalent of the old
+// SP `NearMissclosedout_x003f_` flag.
+const NMS_COLS =
+  'id,reference_number,submitter_name,raised_by_email,issue_description,' +
+  'location,category_parent,category_child,is_closed,raised_at';
 
 const QHSE_PRIMARY  = ['jonas.simonaitis@reposefurniture.co.uk'];
 const QHSE_CC       = ['mitch@reposefurniture.co.uk', 'richard.semmens@reposefurniture.co.uk'];
@@ -107,19 +123,43 @@ async function token() {
   const r = await cca.acquireTokenByClientCredential({ scopes: ['https://graph.microsoft.com/.default'] });
   return r.accessToken;
 }
-async function getSiteId(t, sitePath) {
-  const r = await fetch(`https://graph.microsoft.com/v1.0/sites/${SP_HOST}:${sitePath}`, { headers: { Authorization: 'Bearer ' + t } });
-  if (!r.ok) throw new Error('site lookup ' + r.status);
-  return (await r.json()).id;
-}
-async function fetchAll(t, url) {
-  const out = []; let next = url;
-  while (next) {
-    const r = await fetch(next, { headers: { Authorization: 'Bearer ' + t } });
-    if (!r.ok) throw new Error('fetchAll ' + r.status);
-    const j = await r.json();
-    out.push(...(j.value || []));
-    next = j['@odata.nextLink'];
+
+// Pull every still-open near miss from Supabase and reshape each row into the
+// SP-style { id, createdDateTime, fields } object the email builder + owner
+// lookup were written against — so email.js stays untouched. PostgREST caps a
+// page at 1000 rows, so page through with Range headers.
+async function fetchOpenNearMisses() {
+  const out = [];
+  let from = 0;
+  for (;;) {
+    const url = `${SUPABASE_URL}/rest/v1/near_misses?is_closed=eq.false&select=${NMS_COLS}&order=raised_at.desc`;
+    const r = await fetch(url, {
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: 'Bearer ' + SUPABASE_KEY,
+        Accept: 'application/json',
+        Range: `${from}-${from + 999}`,
+      },
+    });
+    if (!r.ok) throw new Error(`Supabase near_misses ${r.status}: ${(await r.text()).slice(0, 200)}`);
+    const rows = await r.json();
+    for (const row of rows) {
+      out.push({
+        id: row.reference_number || row.id,
+        createdDateTime: row.raised_at,
+        fields: {
+          ReferenceNumber:        row.reference_number || undefined,
+          Title:                  row.submitter_name || undefined,
+          Whatistheissue_x003f_:  row.issue_description || undefined,
+          Locationofissue:        row.location || undefined,
+          RaisedBy_x003a_:        row.submitter_name || row.raised_by_email || undefined,
+          NearMissCategory:       row.category_parent || undefined,
+          ObservationCategory:    row.category_child || undefined,
+        },
+      });
+    }
+    if (rows.length < 1000) break;
+    from += 1000;
   }
   return out;
 }
@@ -159,15 +199,15 @@ function ownerForLocation(locationOfIssue) {
 module.exports = async function (context, myTimer) {
   const log = (...a) => context.log(...a);
   try {
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    throw new Error('Missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY app settings');
+  }
   const t = await token();
-  const siteId = await getSiteId(t, NMS_SITE_PATH);
-  const items = await fetchAll(t,
-    `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${NMS_LIST_ID}/items?$expand=fields&$top=999&$orderby=createdDateTime desc`
-  );
-  log(`Fetched ${items.length} NMS items`);
+  const items = await fetchOpenNearMisses();
+  log(`Fetched ${items.length} open NMS items from Supabase`);
 
   const now = new Date();
-  const today = items.filter(i => !i.fields?.NearMissclosedout_x003f_).map(i => {
+  const today = items.map(i => {
     const d = daysOpen(i.createdDateTime, now);
     const band = BANDS.find(b => b.day === d) || null;
     return { item: i, daysOpen: d, band };

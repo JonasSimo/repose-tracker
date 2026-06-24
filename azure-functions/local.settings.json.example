@@ -13,6 +13,12 @@
     "MAXOPTRA_BASE_URL": "https://live9.maxoptra.com",
     "MAXOPTRA_ENV": "sandbox",
     "MAXOPTRA_ACCOUNT_ID": "",
-    "TICKETS_SHARING_URL": "<paste-the-ticketlog-sharing-url-from-portal>"
+    "TICKETS_SHARING_URL": "<paste-the-ticketlog-sharing-url-from-portal>",
+    "SAFETYCULTURE_API_TOKEN": "<paste-your-safetyculture-bearer-token>",
+    "SUPABASE_URL": "<paste-your-supabase-url>",
+    "SUPABASE_SERVICE_ROLE_KEY": "<paste-your-supabase-service-role-key>",
+    "SAFETYCULTURE_POD_TEMPLATE_IDS": "<paste-comma-sep-pod-template-ids>",
+    "POD_SEND_MODE": "TRIAL",
+    "POD_TRIAL_RECIPIENT": "jonas.simonaitis@reposefurniture.co.uk"
   }
 }

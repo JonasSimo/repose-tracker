@@ -1,0 +1,39 @@
+# Functions that MUST be present in every deploy package.
+#
+# The deploy (Azure/functions-action) does a FULL REPLACEMENT of the Function
+# App: whatever is in this folder becomes the entire live function set, and any
+# function NOT in the package is DELETED from production.
+#
+# On 2026-06-23/24, a push to `main` auto-deployed from main, which was missing
+# five functions that only lived on feature branches — silently wiping them
+# (cpar-digest, pod-auto-send, capa-reminders, assembly-backlog-report,
+# maintenance-reminders) and reverting shared functions ~3 weeks.
+#
+# The "Guard against missing functions" step in deploy-daily-report.yml reads
+# this list and FAILS the deploy if any named function folder is absent — so a
+# stale/incomplete branch can never delete a live function again.
+#
+# When you ADD a new function, add its folder name here.
+# When you intentionally REMOVE a function, delete its line here in the same PR.
+# Lines starting with # and blank lines are ignored.
+
+aftership-poll
+assembly-backlog-report
+capa-reminders
+cpar-digest
+daily-report
+doc-control-approval-reminder
+doc-control-mdl-export
+doc-control-review-reminder
+effectiveness-reminder
+maintenance-reminders
+monthly-kpi-export
+morning-team-digest
+nms-reminders
+nms-reminders-test
+parts-fedex-poll
+pod-auto-send
+repeat-issue-sweep
+safetyculture-sync
+service-maxoptra-poll
+sewing-machine-alert
