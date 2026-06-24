@@ -37,3 +37,4 @@ repeat-issue-sweep
 safetyculture-sync
 service-maxoptra-poll
 sewing-machine-alert
+woodmill-extraction-alert
