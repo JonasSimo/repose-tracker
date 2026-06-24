@@ -17,6 +17,25 @@ jobs:
         with:
           node-version: '18'
 
+      # Refuse to deploy a package that is missing any known function. The
+      # deploy is a FULL REPLACEMENT, so a missing folder == that function
+      # deleted from production. This stops a stale/incomplete branch from
+      # silently wiping live functions (see EXPECTED_FUNCTIONS.txt for the
+      # 2026-06-23 incident this guards against).
+      - name: Guard against missing functions
+        working-directory: azure-functions
+        run: |
+          missing=0
+          while IFS= read -r fn || [ -n "$fn" ]; do
+            case "$fn" in ''|\#*) continue;; esac
+            if [ ! -f "$f
+              echo "::error::Expected function '$fn' is missing from this package — refusing to deploy (would delete it from the live app). Deploy from a branch that has every function in EXPECTED_FUNCTIONS.txt, or remove its line if the deletion is intentional."
+              missing=1
+            fi
+          done < EXPECTED_FUNCTIONS.txt
+          if [ "$missing" = "1" ]; then exit 1; fi
+          echo "All expected functions present — safe to deploy."
+
       - name: Install dependencies
         run: npm install
         working-directory: azure-functions
