@@ -24,11 +24,9 @@ const SEND_FROM     = process.env.SEND_FROM;
 const SUPABASE_URL = (process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-// Same recipients as the Woodmill extraction alert (per the request).
-// NOTE: ALERT_CC is the Woodmill area owner — swap for the sewing/maintenance
-// owner if a different person should be CC'd on sewing flags.
-const ALERT_TO = ['jonas.simonaitis@reposefurniture.co.uk'];
-const ALERT_CC = ['paul.jenkins@reposefurniture.co.uk'];
+// Flagged sewing checks go to the sewing room; QHSE is CC'd for oversight.
+const ALERT_TO = ['sewingroom@reposefurniture.co.uk'];
+const ALERT_CC = ['jonas.simonaitis@reposefurniture.co.uk'];
 
 // ── Graph plumbing (same patterns as nms-reminders) ──────────────────────
 const cca = new ConfidentialClientApplication({
