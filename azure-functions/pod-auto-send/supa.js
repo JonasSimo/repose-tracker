@@ -72,10 +72,19 @@ async function supaUpdate(table, qs, patch) {
   if (!res.ok) throw new Error(`Supabase update ${res.status} on ${table}: ${await res.text()}`);
 }
 
+async function supaDelete(table, qs) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${qs}`, {
+    method: 'DELETE',
+    headers: { ...authHeaders(), Prefer: 'return=minimal' },
+  });
+  if (!res.ok) throw new Error(`Supabase delete ${res.status} on ${table}: ${await res.text()}`);
+}
+
 module.exports = {
   supaSelectOne,
   supaSelectMany,
   supaUpsert,
   supaInsertIgnoreConflict,
   supaUpdate,
+  supaDelete,
 };
